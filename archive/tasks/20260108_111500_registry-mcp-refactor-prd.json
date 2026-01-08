@@ -1,0 +1,1526 @@
+{
+    "projectName": "Registry and MCP Refactor",
+    "branchName": "ralph/feature",
+    "language": "dotnet",
+    "standardsFile": "ralph/standards/dotnet.md",
+    "description": "Refactor Registry and MCP Server codebases to improve readability, reusability, DRY compliance, and testability while preserving current behavior",
+    "userStories": [
+        {
+            "id": "US-017",
+            "title": "Create centralized JsonOptions provider",
+            "description": "Introduce a centralized JSON serialization options provider to eliminate scattered JsonSerializerOptions throughout the codebase",
+            "acceptanceCriteria": [
+                "JsonOptionsProvider class created in Infrastructure/Common/Json with named options (CamelCase, SnakeCaseLower)",
+                "Provider registered in DI container",
+                "No new file-level JsonSerializerOptions in modified files",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "GetOptions_CamelCase_ReturnsCamelCasePropertyNaming",
+                "GetOptions_SnakeCaseLower_ReturnsSnakeCasePropertyNaming",
+                "GetOptions_SameName_ReturnsSameInstance"
+            ],
+            "priority": 1,
+            "passes": false,
+            "notes": "Phase 0 - Quick Win. Foundation for removing duplicate serialization config.",
+            "dependencies": []
+        },
+        {
+            "id": "US-018",
+            "title": "Create IIdGenerator interface and UUIDv7 implementation",
+            "description": "Introduce IIdGenerator abstraction with UUIDv7 implementation for consistent entity ID generation",
+            "acceptanceCriteria": [
+                "IIdGenerator interface defined with NewId() method",
+                "GuidV7Generator implementation using Guid.CreateVersion7()",
+                "Interface registered in DI container",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "NewId_Called_ReturnsVersion7Guid",
+                "NewId_CalledMultipleTimes_ReturnsUniqueIds",
+                "NewId_CalledInSequence_ReturnsTimeOrderedIds"
+            ],
+            "priority": 2,
+            "passes": false,
+            "notes": "Foundation for FR-9. Tests can verify version 7 format.",
+            "dependencies": []
+        },
+        {
+            "id": "US-019",
+            "title": "Create RowVersionCodec utility",
+            "description": "Centralize RowVersion Base64 conversions with ToString/FromString/TryParse methods and FluentValidation extension",
+            "acceptanceCriteria": [
+                "RowVersionCodec class with ToString, FromString, TryParse static methods",
+                "FluentValidation extension for RowVersion validation",
+                "No inline Base64 parsing for RowVersion in new/modified code",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ToString_ValidByteArray_ReturnsBase64String",
+                "FromString_ValidBase64_ReturnsOriginalBytes",
+                "FromString_InvalidBase64_ThrowsFormatException",
+                "TryParse_ValidBase64_ReturnsTrueAndBytes",
+                "TryParse_InvalidBase64_ReturnsFalseAndNull",
+                "FluentValidation_ValidRowVersion_PassesValidation",
+                "FluentValidation_InvalidRowVersion_FailsValidation"
+            ],
+            "priority": 3,
+            "passes": false,
+            "notes": "Phase 0 helper. Used by validators, services, and exception payloads.",
+            "dependencies": []
+        },
+        {
+            "id": "US-020",
+            "title": "Create Origin helper for internal repository ID computation",
+            "description": "Add Origin helper to standardize internal origin repository ID computation across the codebase",
+            "acceptanceCriteria": [
+                "Origin helper class with ForInternal method accepting classification and repositoryId",
+                "Returns Guid? consistently for internal origin assignment",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ForInternal_InternalClassification_ReturnsRepositoryId",
+                "ForInternal_ExternalClassification_ReturnsNull",
+                "ForInternal_NullRepositoryId_ReturnsNull"
+            ],
+            "priority": 4,
+            "passes": false,
+            "notes": "Phase 0 helper. Replaces duplicate origin computation logic.",
+            "dependencies": []
+        },
+        {
+            "id": "US-021",
+            "title": "Create Pagination helpers",
+            "description": "Add pagination helpers for page normalization and slicing to replace inlined pagination boilerplate",
+            "acceptanceCriteria": [
+                "PaginationHelper class with Normalize and ApplyPaging methods",
+                "Handles page bounds (min 1, max reasonable size)",
+                "Provides consistent Skip/Take calculation",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Normalize_ZeroPage_ReturnsOne",
+                "Normalize_NegativePageSize_ReturnsDefault",
+                "Normalize_ExcessivePageSize_ReturnsCappedValue",
+                "ApplyPaging_FirstPage_SkipsZero",
+                "ApplyPaging_SecondPage_SkipsPageSize",
+                "ApplyPaging_ValidParams_ReturnsCorrectSlice"
+            ],
+            "priority": 5,
+            "passes": false,
+            "notes": "Phase 0 helper. Eliminates duplicate page bounds logic.",
+            "dependencies": []
+        },
+        {
+            "id": "US-022",
+            "title": "Create SecurityMapper for Security domain conversions",
+            "description": "Extract SecurityMapper with ToDomain and ToDto methods for Security-related conversions",
+            "acceptanceCriteria": [
+                "SecurityMapper class with ToDomain and ToDto static methods",
+                "Handles null/empty cases gracefully",
+                "No repeated Security construction blocks in new/modified code",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ToDomain_ValidDto_ReturnsDomainObject",
+                "ToDomain_NullDto_ReturnsNull",
+                "ToDto_ValidDomain_ReturnsDto",
+                "ToDto_NullDomain_ReturnsNull",
+                "ToDomain_EmptyCollections_HandlesGracefully"
+            ],
+            "priority": 6,
+            "passes": false,
+            "notes": "Phase 0 mapping. Part of FR-10.",
+            "dependencies": []
+        },
+        {
+            "id": "US-023",
+            "title": "Create SemanticMapper for Semantic domain conversions",
+            "description": "Extract SemanticMapper with ToDomain and ToDto methods for Semantic-related conversions",
+            "acceptanceCriteria": [
+                "SemanticMapper class with ToDomain and ToDto static methods",
+                "Handles null/empty cases gracefully",
+                "No repeated Semantic construction blocks in new/modified code",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ToDomain_ValidDto_ReturnsDomainObject",
+                "ToDomain_NullDto_ReturnsNull",
+                "ToDto_ValidDomain_ReturnsDto",
+                "ToDto_NullDomain_ReturnsNull",
+                "ToDomain_WithEmbeddings_PreservesVectors"
+            ],
+            "priority": 7,
+            "passes": false,
+            "notes": "Phase 0 mapping. Part of FR-10.",
+            "dependencies": []
+        },
+        {
+            "id": "US-024",
+            "title": "Create DiscoveryMapper for Detection/Evidence conversions",
+            "description": "Add DiscoveryMapper for Detection and Evidence conversions used in Register and Snapshot flows",
+            "acceptanceCriteria": [
+                "DiscoveryMapper class with methods for Detection and Evidence conversions",
+                "Supports both Register flows and Snapshot state flows",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "MapDetection_ValidDto_ReturnsDomainObject",
+                "MapDetection_NullDto_ReturnsNull",
+                "MapEvidence_ValidDto_ReturnsDomainObject",
+                "MapEvidence_EmptyList_ReturnsEmptyCollection",
+                "MapDiscovery_FullDto_MapsAllFields"
+            ],
+            "priority": 8,
+            "passes": false,
+            "notes": "Part of FR-10. Reusable across Register and Snapshot flows.",
+            "dependencies": []
+        },
+        {
+            "id": "US-025",
+            "title": "Extend ComponentMapper with Classification/Connection helpers",
+            "description": "Add Classification and Connection conversion helpers to ComponentMapper and unify VersionState mapping",
+            "acceptanceCriteria": [
+                "ComponentMapper extended with Classification conversion methods",
+                "ComponentMapper extended with Connection conversion methods",
+                "VersionState mapping unified in ComponentMapper",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "MapClassification_ValidDto_ReturnsDomainObject",
+                "MapClassification_NullDto_ReturnsNull",
+                "MapConnection_ValidDto_ReturnsDomainObject",
+                "MapConnection_EmptyList_ReturnsEmptyCollection",
+                "MapVersionState_ValidComponent_ReturnsSerializedState"
+            ],
+            "priority": 9,
+            "passes": false,
+            "notes": "Part of FR-10. Extends existing ComponentMapper.",
+            "dependencies": []
+        },
+        {
+            "id": "US-026",
+            "title": "Create TenantContext value object",
+            "description": "Introduce TenantContext to encapsulate organisationId and repositoryId, reducing parameter bloat",
+            "acceptanceCriteria": [
+                "TenantContext record/class with OrganisationId and RepositoryId properties",
+                "Immutable value object semantics",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Create_WithValidIds_ReturnsTenantContext",
+                "Create_WithEmptyOrganisationId_ThrowsArgumentException",
+                "Create_WithEmptyRepositoryId_ThrowsArgumentException",
+                "Equals_SameIds_ReturnsTrue",
+                "Equals_DifferentIds_ReturnsFalse"
+            ],
+            "priority": 10,
+            "passes": false,
+            "notes": "Foundation for FR-2. Reduces 4+ scalar identifiers to single context.",
+            "dependencies": []
+        },
+        {
+            "id": "US-027",
+            "title": "Create SnapshotContext value object",
+            "description": "Introduce SnapshotContext to encapsulate snapshot-specific identifiers (snapshotId, branch, commitSha)",
+            "acceptanceCriteria": [
+                "SnapshotContext record/class with SnapshotId, Branch, CommitSha properties",
+                "Immutable value object semantics",
+                "Can be combined with TenantContext for full operation context",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Create_WithValidProperties_ReturnsSnapshotContext",
+                "Create_WithEmptySnapshotId_ThrowsArgumentException",
+                "Create_WithNullBranch_AllowsNull",
+                "Equals_SameProperties_ReturnsTrue",
+                "Equals_DifferentProperties_ReturnsFalse"
+            ],
+            "priority": 11,
+            "passes": false,
+            "notes": "Foundation for FR-2. Works with TenantContext.",
+            "dependencies": [
+                "US-026"
+            ]
+        },
+        {
+            "id": "US-028",
+            "title": "Create ComponentSeed value object for factory refactoring",
+            "description": "Introduce ComponentSeed to group identity and required domain fields for Component creation",
+            "acceptanceCriteria": [
+                "ComponentSeed record with required identity fields",
+                "Contains only fields required to make Component valid (invariants)",
+                "Maximum 8 fields per parameter guidelines",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Create_WithValidFields_ReturnsComponentSeed",
+                "Create_WithNullRequiredField_ThrowsArgumentException",
+                "Equals_SameFields_ReturnsTrue",
+                "Equals_DifferentFields_ReturnsFalse"
+            ],
+            "priority": 12,
+            "passes": false,
+            "notes": "Part of section 7.6 factory parameter guidelines.",
+            "dependencies": []
+        },
+        {
+            "id": "US-029",
+            "title": "Create ComponentDetails value object for optional enrichment",
+            "description": "Introduce ComponentDetails to group display, tags, and optional fields for Component enrichment",
+            "acceptanceCriteria": [
+                "ComponentDetails record with optional display and tag fields",
+                "Contains enrichment fields that can be null/default",
+                "Maximum 8 fields per parameter guidelines",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Create_WithAllFields_ReturnsComponentDetails",
+                "Create_WithNullOptionalFields_Succeeds",
+                "Equals_SameFields_ReturnsTrue",
+                "Equals_DifferentFields_ReturnsFalse"
+            ],
+            "priority": 13,
+            "passes": false,
+            "notes": "Part of section 7.6 factory parameter guidelines.",
+            "dependencies": []
+        },
+        {
+            "id": "US-030",
+            "title": "Refactor Component.Create to use ComponentSeed and ComponentDetails",
+            "description": "Refactor Component factory methods to accept ComponentSeed, concrete id/now values, and optional ComponentDetails",
+            "acceptanceCriteria": [
+                "Component.Create accepts (ComponentSeed, ComponentId, DateTime, ComponentDetails?)",
+                "No infrastructure services (IIdGenerator/IDateTimeProvider) in factory signature",
+                "Factory accepts primitives/value objects only",
+                "Existing behavior preserved",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Create_WithSeedAndId_ReturnsComponent",
+                "Create_WithSeedIdAndDetails_AppliesDetails",
+                "Create_WithNullDetails_UsesDefaults",
+                "Create_PreservesAllSeedFields"
+            ],
+            "priority": 14,
+            "passes": false,
+            "notes": "Critical refactor per section 7.6. Domain factories must not accept services.",
+            "dependencies": [
+                "US-028",
+                "US-029",
+                "US-018"
+            ]
+        },
+        {
+            "id": "US-031",
+            "title": "Create DiscoverySeed value object for ComponentDiscovery creation",
+            "description": "Introduce DiscoverySeed to group required fields for ComponentDiscovery creation",
+            "acceptanceCriteria": [
+                "DiscoverySeed record with required discovery fields",
+                "Contains only fields required for valid ComponentDiscovery",
+                "Maximum 8 fields per parameter guidelines",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Create_WithValidFields_ReturnsDiscoverySeed",
+                "Create_WithNullRequiredField_ThrowsArgumentException",
+                "Equals_SameFields_ReturnsTrue"
+            ],
+            "priority": 15,
+            "passes": false,
+            "notes": "Part of section 7.6 factory parameter guidelines for discoveries.",
+            "dependencies": []
+        },
+        {
+            "id": "US-032",
+            "title": "Refactor ComponentDiscovery.Create to use DiscoverySeed",
+            "description": "Refactor ComponentDiscovery factory methods to accept DiscoverySeed and concrete id/now values",
+            "acceptanceCriteria": [
+                "ComponentDiscovery.Create accepts (DiscoverySeed, discoveryId, DateTime)",
+                "No infrastructure services in factory signature",
+                "Existing behavior preserved",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Create_WithSeedAndId_ReturnsDiscovery",
+                "Create_PreservesAllSeedFields",
+                "Create_SetsCreatedAtFromParameter"
+            ],
+            "priority": 16,
+            "passes": false,
+            "notes": "Companion to US-030 for discoveries per section 7.6.",
+            "dependencies": [
+                "US-031",
+                "US-018"
+            ]
+        },
+        {
+            "id": "US-033",
+            "title": "Update ComponentService to use refactored factories and mappers",
+            "description": "Update ComponentService to use ComponentSeed/ComponentDetails, IIdGenerator, and centralized mappers",
+            "acceptanceCriteria": [
+                "ComponentService uses IIdGenerator to generate IDs",
+                "ComponentService constructs ComponentSeed/ComponentDetails at service boundary",
+                "ComponentService uses SecurityMapper and SemanticMapper",
+                "No direct Guid.NewGuid() for entity IDs",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "CreateComponent_UsesIdGenerator",
+                "CreateComponent_ConstructsSeedCorrectly",
+                "UpdateComponent_UsesMappersForConversions"
+            ],
+            "priority": 17,
+            "passes": false,
+            "notes": "Integrates refactored factories into existing service.",
+            "dependencies": [
+                "US-030",
+                "US-022",
+                "US-023",
+                "US-018"
+            ]
+        },
+        {
+            "id": "US-034",
+            "title": "Replace RowVersion conversions with RowVersionCodec in hot paths",
+            "description": "Update Update/Approve/Merge operations to use RowVersionCodec instead of inline Base64 parsing",
+            "acceptanceCriteria": [
+                "Update operations use RowVersionCodec.FromString",
+                "Approve operations use RowVersionCodec.FromString",
+                "Merge operations use RowVersionCodec.FromString",
+                "No inline Base64 parsing in modified code",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "UpdateComponent_WithValidRowVersion_UsesCodec",
+                "ApproveComponent_WithValidRowVersion_UsesCodec",
+                "MergeComponent_WithValidRowVersion_UsesCodec"
+            ],
+            "priority": 18,
+            "passes": false,
+            "notes": "Part of FR-11. High-value consolidation.",
+            "dependencies": [
+                "US-019"
+            ]
+        },
+        {
+            "id": "US-035",
+            "title": "Create ComponentSearchMapper for search indexing",
+            "description": "Create ComponentSearchMapper to route all indexing DTO construction and filter building through a single mapper",
+            "acceptanceCriteria": [
+                "ComponentSearchMapper class with ToSearchDocument method",
+                "ComponentSearchMapper class with ToSearchFilter method for filter construction",
+                "Handles all fields needed for search indexing",
+                "No ad-hoc index document building in finalize paths",
+                "No ad-hoc filter construction in indexing paths",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ToSearchDocument_ValidComponent_ReturnsDocument",
+                "ToSearchDocument_WithAllFields_MapsCorrectly",
+                "ToSearchDocument_WithNullOptionalFields_HandlesGracefully",
+                "ToSearchDocument_IncludesAllSearchableFields",
+                "ToSearchFilter_ValidCriteria_ReturnsFilter",
+                "ToSearchFilter_EmptyCriteria_ReturnsDefaultFilter"
+            ],
+            "priority": 19,
+            "passes": false,
+            "notes": "FR-14. Ensures consistent search document and filter creation.",
+            "dependencies": [
+                "US-025"
+            ]
+        },
+        {
+            "id": "US-036",
+            "title": "Update all indexing paths to use ComponentSearchMapper exclusively",
+            "description": "Ensure all finalize and indexing paths including ComponentService indexing side-effects use ComponentSearchMapper exclusively for both documents and filters",
+            "acceptanceCriteria": [
+                "Finalize operations use ComponentSearchMapper for index documents",
+                "ComponentService indexing side-effects use ComponentSearchMapper",
+                "All indexing-related filter construction uses ComponentSearchMapper.ToSearchFilter",
+                "No duplicated index document building in any indexing path",
+                "No ad-hoc filter construction in any indexing path",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Finalize_UsesComponentSearchMapper",
+                "Finalize_IndexDocumentMatchesMapper",
+                "ComponentService_IndexingUsesMapper",
+                "Finalize_FilterConstructionUsesMapper",
+                "ComponentService_FilterConstructionUsesMapper"
+            ],
+            "priority": 20,
+            "passes": false,
+            "notes": "FR-14 completion. Covers all indexing paths including ComponentService and filter building.",
+            "dependencies": [
+                "US-035"
+            ]
+        },
+        {
+            "id": "US-037",
+            "title": "Create DuplicateMergePolicy utility",
+            "description": "Add review tie-breaker helper for staged-only duplicates implementing oldest Id/CreatedAt wins policy",
+            "acceptanceCriteria": [
+                "DuplicateMergePolicy class with SelectSurvivor method",
+                "Approved components always survive over PendingReview",
+                "For staged-only (all PendingReview), oldest Id/CreatedAt wins",
+                "Pure function with no side effects",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "SelectSurvivor_OneApproved_ReturnsApproved",
+                "SelectSurvivor_AllApproved_ReturnsOldestById",
+                "SelectSurvivor_AllPendingReview_ReturnsOldestById",
+                "SelectSurvivor_AllPendingReview_ReturnsOldestByCreatedAt",
+                "SelectSurvivor_MixedStatus_PrefersApproved",
+                "SelectSurvivor_EmptyList_ThrowsArgumentException",
+                "SelectSurvivor_SingleItem_ReturnsThatItem"
+            ],
+            "priority": 21,
+            "passes": false,
+            "notes": "FR-8. Critical for deduplication logic.",
+            "dependencies": []
+        },
+        {
+            "id": "US-038",
+            "title": "Add validation to block component-level Security/Semantic writes",
+            "description": "Constrain UpdateComponent to reject component-level Security/Semantic updates with validation error",
+            "acceptanceCriteria": [
+                "UpdateComponent returns 400/validation error if Security or Semantic fields provided",
+                "UpdateComponentSummaries remains unaffected",
+                "Clear error message directing to UpdateComponentSummaries",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "UpdateComponent_WithSecurityField_Returns400",
+                "UpdateComponent_WithSemanticField_Returns400",
+                "UpdateComponent_WithoutSecuritySemantic_Succeeds",
+                "UpdateComponentSummaries_WithSecurity_Succeeds",
+                "UpdateComponent_ErrorMessageMentionsSummaries"
+            ],
+            "priority": 22,
+            "passes": false,
+            "notes": "FR-7 Phase 1. Write-block before removal.",
+            "dependencies": []
+        },
+        {
+            "id": "US-039",
+            "title": "Constrain UpdateComponent to safe identity fields only",
+            "description": "Limit UpdateComponent to only allow ServiceName, Name, Responsibility, AddTags updates",
+            "acceptanceCriteria": [
+                "UpdateComponent only accepts ServiceName, Name, Responsibility, AddTags",
+                "Other fields rejected with validation error",
+                "Summary updates remain on UpdateComponentSummaries",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "UpdateComponent_WithServiceName_Succeeds",
+                "UpdateComponent_WithName_Succeeds",
+                "UpdateComponent_WithResponsibility_Succeeds",
+                "UpdateComponent_WithAddTags_Succeeds",
+                "UpdateComponent_WithDisallowedField_Returns400"
+            ],
+            "priority": 23,
+            "passes": false,
+            "notes": "FR-6. Tightens update contract.",
+            "dependencies": [
+                "US-038"
+            ]
+        },
+        {
+            "id": "US-040",
+            "title": "Create MCP result models in Tools/Models folder",
+            "description": "Move MCP result envelopes to Tools/Models folder and create standardized result types",
+            "acceptanceCriteria": [
+                "Tools/Models folder created in MCP Server project",
+                "ConcurrencyOperationResult moved to Tools/Models",
+                "ListStagedComponentsResult moved to Tools/Models",
+                "Standardized result base type if applicable",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ConcurrencyOperationResult_Serializes_Correctly",
+                "ListStagedComponentsResult_Serializes_Correctly"
+            ],
+            "priority": 24,
+            "passes": false,
+            "notes": "FR-15 preparation. Organize result types before tool split.",
+            "dependencies": [
+                "US-017"
+            ]
+        },
+        {
+            "id": "US-041",
+            "title": "Create MCP logging helper for standardized tool logging",
+            "description": "Add shared logging helper for consistent MCP tool logging patterns",
+            "acceptanceCriteria": [
+                "McpLoggingHelper class with standard logging methods",
+                "Supports tool entry/exit logging",
+                "Supports error logging with consistent format",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "LogToolEntry_FormatsCorrectly",
+                "LogToolExit_IncludesElapsedTime",
+                "LogToolError_IncludesExceptionDetails"
+            ],
+            "priority": 25,
+            "passes": false,
+            "notes": "FR-15. Reduces logging duplication across tools.",
+            "dependencies": []
+        },
+        {
+            "id": "US-042",
+            "title": "Extract SearchTools from ComponentTools",
+            "description": "Split search-related MCP tools into dedicated SearchTools class",
+            "acceptanceCriteria": [
+                "SearchTools.cs created with search-related methods",
+                "SearchComponents method moved to SearchTools",
+                "Tool names remain stable for backward compatibility",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "SearchComponents_MovedToSearchTools",
+                "SearchTools_RegistersCorrectly"
+            ],
+            "priority": 26,
+            "passes": false,
+            "notes": "FR-5 part 1. First tool extraction.",
+            "dependencies": [
+                "US-040",
+                "US-041"
+            ]
+        },
+        {
+            "id": "US-043",
+            "title": "Extend SearchComponents with optional parameters",
+            "description": "Add keywords, topK, and reranking optional parameters to SearchComponents MCP tool",
+            "acceptanceCriteria": [
+                "SearchComponents accepts optional keywords string array",
+                "SearchComponents accepts optional topK number",
+                "SearchComponents accepts optional reranking object with semanticContext, threshold, includeFiltered, maxCandidates",
+                "Existing calls with just query still work (backward compatible)",
+                "Parameters map to ComponentSearchRequest",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "SearchComponents_QueryOnly_Succeeds",
+                "SearchComponents_WithKeywords_PassesToRequest",
+                "SearchComponents_WithTopK_PassesToRequest",
+                "SearchComponents_WithReranking_PassesToRequest",
+                "SearchComponents_WithAllParams_PassesToRequest"
+            ],
+            "priority": 27,
+            "passes": false,
+            "notes": "FR-5 part 2. Extends search signature.",
+            "dependencies": [
+                "US-042"
+            ]
+        },
+        {
+            "id": "US-044",
+            "title": "Extract SnapshotTools from ComponentTools",
+            "description": "Split snapshot-related MCP tools into dedicated SnapshotTools class",
+            "acceptanceCriteria": [
+                "SnapshotTools.cs created with snapshot-related methods",
+                "Snapshot methods moved from ComponentTools",
+                "Tool names remain stable",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "SnapshotTools_ContainsSnapshotMethods",
+                "SnapshotTools_RegistersCorrectly"
+            ],
+            "priority": 28,
+            "passes": false,
+            "notes": "FR-5 part 3. Snapshot tool extraction.",
+            "dependencies": [
+                "US-042"
+            ]
+        },
+        {
+            "id": "US-045",
+            "title": "Extract ReviewTools from ComponentTools",
+            "description": "Split review-related MCP tools into dedicated ReviewTools class",
+            "acceptanceCriteria": [
+                "ReviewTools.cs created with review-related methods",
+                "Review methods moved from ComponentTools",
+                "Tool names remain stable",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ReviewTools_ContainsReviewMethods",
+                "ReviewTools_RegistersCorrectly"
+            ],
+            "priority": 29,
+            "passes": false,
+            "notes": "FR-5 part 4. Review tool extraction.",
+            "dependencies": [
+                "US-044"
+            ]
+        },
+        {
+            "id": "US-046",
+            "title": "Update remaining ComponentTools and remove extracted methods",
+            "description": "Clean up ComponentTools after extractions, keeping only component-specific operations",
+            "acceptanceCriteria": [
+                "ComponentTools contains only component-specific methods",
+                "All extracted methods removed from ComponentTools",
+                "No duplicate method definitions",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ComponentTools_NoSearchMethods",
+                "ComponentTools_NoSnapshotMethods",
+                "ComponentTools_NoReviewMethods",
+                "ComponentTools_RegistersCorrectly"
+            ],
+            "priority": 30,
+            "passes": false,
+            "notes": "Cleanup after tool extractions complete.",
+            "dependencies": [
+                "US-045"
+            ]
+        },
+        {
+            "id": "US-047",
+            "title": "Create IStagedStore interface for staging operations",
+            "description": "Extract IStagedStore interface for reads/writes to staging repository",
+            "acceptanceCriteria": [
+                "IStagedStore interface defined with staging CRUD operations",
+                "Interface follows repository pattern",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "IStagedStore_DefinesGetStagedComponents",
+                "IStagedStore_DefinesAddStagedComponent",
+                "IStagedStore_DefinesRemoveStagedComponent"
+            ],
+            "priority": 31,
+            "passes": false,
+            "notes": "FR-1 preparation. Strategy pattern for staging.",
+            "dependencies": []
+        },
+        {
+            "id": "US-048",
+            "title": "Implement StagedStore for staging repository operations",
+            "description": "Implement IStagedStore interface with staging repository operations",
+            "acceptanceCriteria": [
+                "StagedStore class implements IStagedStore",
+                "Encapsulates all staging repository access",
+                "Registered in DI container",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "GetStagedComponents_ReturnsComponents",
+                "AddStagedComponent_PersistsComponent",
+                "RemoveStagedComponent_RemovesComponent",
+                "GetStagedComponents_EmptyRepository_ReturnsEmpty"
+            ],
+            "priority": 32,
+            "passes": false,
+            "notes": "FR-1. Implements staging store.",
+            "dependencies": [
+                "US-047"
+            ]
+        },
+        {
+            "id": "US-049",
+            "title": "Create ISnapshotFinalizer interface with Persist and Preview strategies",
+            "description": "Extract ISnapshotFinalizer interface with implementations for Persist and Preview finalization",
+            "acceptanceCriteria": [
+                "ISnapshotFinalizer interface defined with Finalize method",
+                "PersistFinalizer implementation that persists changes",
+                "PreviewFinalizer implementation for preview mode",
+                "Strategy selection based on request",
+                "Finalizer uses IIdGenerator for any new entity IDs created during finalization (e.g., ComponentDiscovery)",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "PersistFinalizer_CommitsChanges",
+                "PreviewFinalizer_DoesNotCommit",
+                "PersistFinalizer_UpdatesSearchIndex",
+                "PreviewFinalizer_ReturnsPreviewResults",
+                "PersistFinalizer_NewEntityIds_UseIdGenerator",
+                "PersistFinalizer_NewEntityIds_AreUUIDv7"
+            ],
+            "priority": 33,
+            "passes": false,
+            "notes": "FR-1. Strategy pattern for finalization. Uses IIdGenerator for any entity IDs created during finalization.",
+            "dependencies": [
+                "US-048",
+                "US-018"
+            ]
+        },
+        {
+            "id": "US-050",
+            "title": "Create IVersioningPolicy interface for version state serialization",
+            "description": "Extract IVersioningPolicy interface for serializing canonical component into version state",
+            "acceptanceCriteria": [
+                "IVersioningPolicy interface defined with Serialize method",
+                "Default implementation serializes component to version state",
+                "Uses ComponentMapper for VersionState conversion",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Serialize_ValidComponent_ReturnsVersionState",
+                "Serialize_CapturesAllVersionedFields",
+                "Serialize_UsesComponentMapper"
+            ],
+            "priority": 34,
+            "passes": false,
+            "notes": "FR-1. Encapsulates versioning logic.",
+            "dependencies": [
+                "US-025"
+            ]
+        },
+        {
+            "id": "US-051",
+            "title": "Create CreateSnapshotHandler slice",
+            "description": "Extract snapshot creation into dedicated CreateSnapshotHandler",
+            "acceptanceCriteria": [
+                "CreateSnapshotHandler class in Snapshots/Create folder",
+                "Uses TenantContext for organization/repository",
+                "Uses IIdGenerator to create SnapshotId (UUIDv7)",
+                "Handler is <150 LOC",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Handle_ValidRequest_CreatesSnapshot",
+                "Handle_UsesTenantContext",
+                "Handle_InvalidTenant_ThrowsValidation",
+                "Handle_SnapshotId_IsUUIDv7",
+                "Handle_UsesIdGenerator_ForSnapshotId"
+            ],
+            "priority": 35,
+            "passes": false,
+            "notes": "FR-1 slice 1. Begin SnapshotService decomposition. Uses IIdGenerator for SnapshotId generation.",
+            "dependencies": [
+                "US-026",
+                "US-027",
+                "US-018"
+            ]
+        },
+        {
+            "id": "US-052",
+            "title": "Create SubmitSnapshotHandler slice",
+            "description": "Extract snapshot submission into dedicated SubmitSnapshotHandler",
+            "acceptanceCriteria": [
+                "SubmitSnapshotHandler class in Snapshots/Submit folder",
+                "Uses TenantContext and SnapshotContext",
+                "Handler is <150 LOC",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Handle_ValidRequest_SubmitsSnapshot",
+                "Handle_UsesContextObjects",
+                "Handle_InvalidSnapshot_ThrowsNotFound"
+            ],
+            "priority": 36,
+            "passes": false,
+            "notes": "FR-1 slice 2.",
+            "dependencies": [
+                "US-051"
+            ]
+        },
+        {
+            "id": "US-053",
+            "title": "Create FinalizeSnapshotHandler slice",
+            "description": "Extract snapshot finalization into dedicated FinalizeSnapshotHandler using ISnapshotFinalizer",
+            "acceptanceCriteria": [
+                "FinalizeSnapshotHandler class in Snapshots/Finalize folder",
+                "Uses ISnapshotFinalizer strategy",
+                "Uses TenantContext and SnapshotContext",
+                "Uses IIdGenerator for any new entity IDs created during finalization (e.g., ComponentDiscovery)",
+                "Handler is <150 LOC",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Handle_PersistMode_UsessPersistFinalizer",
+                "Handle_PreviewMode_UsesPreviewFinalizer",
+                "Handle_UsesContextObjects",
+                "Handle_NewDiscoveryIds_UseIdGenerator",
+                "Handle_NewEntityIds_AreUUIDv7"
+            ],
+            "priority": 37,
+            "passes": false,
+            "notes": "FR-1 slice 3. Uses finalizer strategy. Ensures IIdGenerator used for any entity IDs created during finalization.",
+            "dependencies": [
+                "US-049",
+                "US-052"
+            ]
+        },
+        {
+            "id": "US-054",
+            "title": "Create CancelSnapshotHandler slice",
+            "description": "Extract snapshot cancellation into dedicated CancelSnapshotHandler",
+            "acceptanceCriteria": [
+                "CancelSnapshotHandler class in Snapshots/Cancel folder",
+                "Uses TenantContext and SnapshotContext",
+                "Handler is <150 LOC",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Handle_ValidRequest_CancelsSnapshot",
+                "Handle_UsesContextObjects",
+                "Handle_AlreadyCancelled_ThrowsConflict"
+            ],
+            "priority": 38,
+            "passes": false,
+            "notes": "FR-1 slice 4.",
+            "dependencies": [
+                "US-053"
+            ]
+        },
+        {
+            "id": "US-055",
+            "title": "Create ListStagedHandler slice",
+            "description": "Extract staged component listing into dedicated ListStagedHandler using IStagedStore",
+            "acceptanceCriteria": [
+                "ListStagedHandler class in Snapshots/ListStaged folder",
+                "Uses IStagedStore for data access",
+                "Uses TenantContext and SnapshotContext",
+                "Uses PaginationHelper",
+                "Handler is <150 LOC",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Handle_ValidRequest_ReturnsStagedComponents",
+                "Handle_UsesStagedStore",
+                "Handle_UsesPaginationHelper"
+            ],
+            "priority": 39,
+            "passes": false,
+            "notes": "FR-1 slice 5.",
+            "dependencies": [
+                "US-048",
+                "US-021"
+            ]
+        },
+        {
+            "id": "US-056",
+            "title": "Refactor SnapshotService to delegate to handlers",
+            "description": "Update SnapshotService to delegate to extracted handlers while maintaining API compatibility",
+            "acceptanceCriteria": [
+                "SnapshotService delegates Create to CreateSnapshotHandler",
+                "SnapshotService delegates Submit to SubmitSnapshotHandler",
+                "SnapshotService delegates Finalize to FinalizeSnapshotHandler",
+                "SnapshotService delegates Cancel to CancelSnapshotHandler",
+                "SnapshotService delegates ListStaged to ListStagedHandler",
+                "REST routes unchanged",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "SnapshotService_DelegatesToHandlers",
+                "SnapshotService_MaintainsApiCompatibility"
+            ],
+            "priority": 40,
+            "passes": false,
+            "notes": "FR-1 completion. Thin orchestrator pattern.",
+            "dependencies": [
+                "US-055"
+            ]
+        },
+        {
+            "id": "US-057",
+            "title": "Apply TenantContext to remaining service call sites",
+            "description": "Update remaining services to use TenantContext instead of multiple scalar IDs",
+            "acceptanceCriteria": [
+                "100% of calls in new/modified codepaths use TenantContext and/or SnapshotContext",
+                "No new methods with 4+ organisationId/repositoryId parameters",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Services_UseTenantContext",
+                "Services_NoLongParameterLists"
+            ],
+            "priority": 41,
+            "passes": false,
+            "notes": "FR-2 completion. 100% adoption in new/modified codepaths per AC-2.",
+            "dependencies": [
+                "US-056"
+            ]
+        },
+        {
+            "id": "US-058",
+            "title": "Replace remaining Security/Semantic mapping with mappers",
+            "description": "Replace all remaining Security/Semantic mapping blocks with SecurityMapper and SemanticMapper",
+            "acceptanceCriteria": [
+                "All Security conversions use SecurityMapper",
+                "All Semantic conversions use SemanticMapper",
+                "No repeated construction blocks in Application layer",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ApplicationLayer_UsesSecurityMapper",
+                "ApplicationLayer_UsesSemanticMapper"
+            ],
+            "priority": 42,
+            "passes": false,
+            "notes": "AC-11 completion.",
+            "dependencies": [
+                "US-022",
+                "US-023",
+                "US-033"
+            ]
+        },
+        {
+            "id": "US-059",
+            "title": "Replace Detection/Evidence mapping with DiscoveryMapper",
+            "description": "Replace all Detection/Evidence mapping blocks with DiscoveryMapper",
+            "acceptanceCriteria": [
+                "All Detection conversions use DiscoveryMapper",
+                "All Evidence conversions use DiscoveryMapper",
+                "No repeated construction blocks",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ApplicationLayer_UsesDiscoveryMapper"
+            ],
+            "priority": 43,
+            "passes": false,
+            "notes": "AC-11 completion.",
+            "dependencies": [
+                "US-024"
+            ]
+        },
+        {
+            "id": "US-060",
+            "title": "Update paged queries to use Pagination helpers",
+            "description": "Refactor all paged queries to use shared Pagination helpers",
+            "acceptanceCriteria": [
+                "All paged queries use PaginationHelper.Normalize",
+                "All paged queries use PaginationHelper.ApplyPaging",
+                "No duplicate page bounds logic",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "PagedQueries_UsePaginationHelper"
+            ],
+            "priority": 44,
+            "passes": false,
+            "notes": "AC-13 completion.",
+            "dependencies": [
+                "US-021"
+            ]
+        },
+        {
+            "id": "US-061",
+            "title": "Update MCP tools to use standardized results and logging",
+            "description": "Update all MCP tools to return standardized result types and use shared logging helpers",
+            "acceptanceCriteria": [
+                "All MCP tools use result types from Tools/Models",
+                "All MCP tools use McpLoggingHelper",
+                "Consistent result shapes across tools",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "McpTools_UseStandardizedResults",
+                "McpTools_UseLoggingHelper"
+            ],
+            "priority": 45,
+            "passes": false,
+            "notes": "AC-15 completion.",
+            "dependencies": [
+                "US-046",
+                "US-040",
+                "US-041"
+            ]
+        },
+        {
+            "id": "US-062",
+            "title": "Add integration tests for finalize operations",
+            "description": "Add integration tests covering Persist vs Preview finalization and concurrency conflicts",
+            "acceptanceCriteria": [
+                "Integration test for Persist finalization",
+                "Integration test for Preview finalization",
+                "Integration test for concurrency conflict handling",
+                "Tests cover critical paths",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Finalize_Persist_CommitsToDatabase",
+                "Finalize_Preview_NoCommit",
+                "Finalize_ConcurrencyConflict_Returns409",
+                "Finalize_UpdatesSearchIndex"
+            ],
+            "priority": 46,
+            "passes": false,
+            "notes": "AC-7 part 1. Critical path coverage.",
+            "dependencies": [
+                "US-056"
+            ]
+        },
+        {
+            "id": "US-063",
+            "title": "Add integration tests for search mapping and MCP tool serialization",
+            "description": "Add integration tests for search mapping and MCP tool serialization",
+            "acceptanceCriteria": [
+                "Integration test for ComponentSearchMapper output",
+                "Integration test for MCP tool result serialization",
+                "Tests verify JSON format compatibility",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ComponentSearchMapper_ProducesValidDocument",
+                "McpTools_SerializeCorrectly",
+                "SearchResults_DeserializeCorrectly"
+            ],
+            "priority": 47,
+            "passes": false,
+            "notes": "AC-7 part 2.",
+            "dependencies": [
+                "US-061",
+                "US-036"
+            ]
+        },
+        {
+            "id": "US-064",
+            "title": "Verify no remaining long parameter lists or service dependencies in factories",
+            "description": "Audit and verify all factories comply with parameter guidelines",
+            "acceptanceCriteria": [
+                "No factory/constructor has >7 parameters without explicit justification",
+                "No factory/constructor has >10 parameters",
+                "No domain factories accept IIdGenerator or IDateTimeProvider",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [],
+            "priority": 48,
+            "passes": false,
+            "notes": "AC-8, AC-9 verification. No new tests needed - verification task.",
+            "dependencies": [
+                "US-057"
+            ]
+        },
+        {
+            "id": "US-065",
+            "title": "Verify no direct Guid.NewGuid() for entity IDs in production code",
+            "description": "Audit and ensure all entity IDs use IIdGenerator, no direct Guid.NewGuid()",
+            "acceptanceCriteria": [
+                "No direct Guid.NewGuid() for entity IDs in Application/Domain layers",
+                "All entity ID creation uses IIdGenerator",
+                "RowVersion and non-ID fields exempt",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [],
+            "priority": 49,
+            "passes": false,
+            "notes": "AC-10 verification. Consider adding CI grep check.",
+            "dependencies": [
+                "US-033",
+                "US-032",
+                "US-079"
+            ]
+        },
+        {
+            "id": "US-066",
+            "title": "Update EF configurations, APIs, and search clients to use centralized JsonOptions",
+            "description": "Update Entity Framework configurations, API controllers, and search clients to use JsonOptionsProvider instead of local options",
+            "acceptanceCriteria": [
+                "All EF JSON column configurations use JsonOptionsProvider",
+                "All API controllers use JsonOptionsProvider",
+                "All search clients use JsonOptionsProvider",
+                "No file-level JsonSerializerOptions in EF configs, APIs, or search clients",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "EfConfig_UsesJsonOptionsProvider",
+                "ApiControllers_UseJsonOptionsProvider",
+                "SearchClients_UseJsonOptionsProvider",
+                "JsonSerialization_ConsistentAcrossLayers"
+            ],
+            "priority": 50,
+            "passes": false,
+            "notes": "AC-4 completion. Full Infrastructure/API/Search layer cleanup.",
+            "dependencies": [
+                "US-017"
+            ]
+        },
+        {
+            "id": "US-067",
+            "title": "Create SummaryMapper for aggregated summaries conversions",
+            "description": "Extract SummaryMapper with ToDomain and ToDto methods for aggregated summary conversions (SecuritySummary/SemanticSummary)",
+            "acceptanceCriteria": [
+                "SummaryMapper class with ToDomain and ToDto static methods for SecuritySummary",
+                "SummaryMapper class with ToDomain and ToDto static methods for SemanticSummary",
+                "Handles null/empty cases gracefully",
+                "No repeated summary construction blocks in new/modified code",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "SecuritySummary_ToDomain_ValidDto_ReturnsDomainObject",
+                "SecuritySummary_ToDomain_NullDto_ReturnsNull",
+                "SecuritySummary_ToDto_ValidDomain_ReturnsDto",
+                "SemanticSummary_ToDomain_ValidDto_ReturnsDomainObject",
+                "SemanticSummary_ToDto_ValidDomain_ReturnsDto"
+            ],
+            "priority": 51,
+            "passes": false,
+            "notes": "FR-3 completion. SummaryMapper for aggregated summary types.",
+            "dependencies": []
+        },
+        {
+            "id": "US-068",
+            "title": "Replace inline summary mappings with SummaryMapper",
+            "description": "Replace all inline aggregated summary mapping blocks with SummaryMapper across Application/Infrastructure layers",
+            "acceptanceCriteria": [
+                "All SecuritySummary conversions use SummaryMapper",
+                "All SemanticSummary conversions use SummaryMapper",
+                "No repeated summary construction blocks",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ApplicationLayer_UsesSummaryMapper",
+                "InfrastructureLayer_UsesSummaryMapper"
+            ],
+            "priority": 52,
+            "passes": false,
+            "notes": "FR-3 completion. Replace inline summary mappings.",
+            "dependencies": [
+                "US-067"
+            ]
+        },
+        {
+            "id": "US-069",
+            "title": "Create ConcurrencyGuard helpers for row version and repository version",
+            "description": "Introduce ConcurrencyGuard helpers for row version and repository version validation and conflict handling",
+            "acceptanceCriteria": [
+                "ConcurrencyGuard class with CheckRowVersion method",
+                "ConcurrencyGuard class with CheckRepositoryVersion method",
+                "Throws appropriate exceptions on conflicts",
+                "Integrates with RowVersionCodec",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "CheckRowVersion_Matching_Succeeds",
+                "CheckRowVersion_Mismatched_ThrowsConcurrencyException",
+                "CheckRepositoryVersion_Matching_Succeeds",
+                "CheckRepositoryVersion_Mismatched_ThrowsConcurrencyException"
+            ],
+            "priority": 53,
+            "passes": false,
+            "notes": "Phase 0 helper per rollout plan. Used for concurrency validation.",
+            "dependencies": [
+                "US-019"
+            ]
+        },
+        {
+            "id": "US-070",
+            "title": "Refactor hot paths to use ConcurrencyGuard helpers",
+            "description": "Update Update/Approve/Merge operations to use ConcurrencyGuard helpers for version validation",
+            "acceptanceCriteria": [
+                "Update operations use ConcurrencyGuard.CheckRowVersion",
+                "Approve operations use ConcurrencyGuard.CheckRowVersion",
+                "Merge operations use ConcurrencyGuard.CheckRowVersion",
+                "Repository version checks use ConcurrencyGuard.CheckRepositoryVersion",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "UpdateComponent_UsesConcurrencyGuard",
+                "ApproveComponent_UsesConcurrencyGuard",
+                "MergeComponent_UsesConcurrencyGuard"
+            ],
+            "priority": 54,
+            "passes": false,
+            "notes": "Phase 0 completion. Apply ConcurrencyGuard to hot paths.",
+            "dependencies": [
+                "US-069",
+                "US-034"
+            ]
+        },
+        {
+            "id": "US-071",
+            "title": "Add [Obsolete] annotations to component-level Security/Semantic DTO fields",
+            "description": "Mark component-level Security and Semantic DTO properties as [Obsolete] to guide clients toward summaries",
+            "acceptanceCriteria": [
+                "Component-level Security DTO property marked with [Obsolete] attribute",
+                "Component-level Semantic DTO property marked with [Obsolete] attribute",
+                "Obsolete message directs to UpdateComponentSummaries",
+                "Build generates obsolete warnings when fields are accessed",
+                "All relevant tests pass",
+                "Build succeeds (warnings allowed for obsolete usage)"
+            ],
+            "testCases": [
+                "SecurityDtoProperty_HasObsoleteAttribute",
+                "SemanticDtoProperty_HasObsoleteAttribute"
+            ],
+            "priority": 55,
+            "passes": false,
+            "notes": "Section 7.4 Domain Hygiene. Guide clients during deprecation.",
+            "dependencies": [
+                "US-038"
+            ]
+        },
+        {
+            "id": "US-072",
+            "title": "Add CI analyzer/grep check to block Guid.NewGuid() for entity IDs",
+            "description": "Add CI step with Roslyn analyzer or grep check that fails build on Guid.NewGuid() usage for entity IDs in Application/Domain layers",
+            "acceptanceCriteria": [
+                "CI step added that scans Application/Domain layers",
+                "Detects Guid.NewGuid() at entity ID assignment boundaries",
+                "Build fails if unauthorized Guid.NewGuid() found",
+                "RowVersion and non-ID usages are exempt",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "CICheck_GuidNewGuidInEntityId_FailsBuild",
+                "CICheck_GuidNewGuidInTestCode_Passes",
+                "CICheck_GuidNewGuidInRowVersion_Passes"
+            ],
+            "priority": 56,
+            "passes": false,
+            "notes": "Section 7.7 ID Generation enforcement. Prevents regression.",
+            "dependencies": [
+                "US-065"
+            ]
+        },
+        {
+            "id": "US-073",
+            "title": "Add smoke tests for MCP tools via adapter client",
+            "description": "Add smoke tests that validate MCP tool split and serialization end-to-end via the adapter client",
+            "acceptanceCriteria": [
+                "Smoke test for SearchTools via adapter client",
+                "Smoke test for SnapshotTools via adapter client",
+                "Smoke test for ReviewTools via adapter client",
+                "Smoke test for ComponentTools via adapter client",
+                "Tests validate serialization round-trip",
+                "Tests incorporated into CI as non-flaky checks",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "SearchTools_AdapterClient_SmokeTest",
+                "SnapshotTools_AdapterClient_SmokeTest",
+                "ReviewTools_AdapterClient_SmokeTest",
+                "ComponentTools_AdapterClient_SmokeTest",
+                "McpTools_SerializationRoundTrip_Succeeds"
+            ],
+            "priority": 57,
+            "passes": false,
+            "notes": "AC-3 completion. Validates MCP tool split end-to-end.",
+            "dependencies": [
+                "US-061"
+            ]
+        },
+        {
+            "id": "US-074",
+            "title": "Remove component-level Security/Semantic domain fields and EF columns (Phase 3)",
+            "description": "Execute Phase 3 removal of component-level Security and Semantic fields from domain and EF columns via migrations",
+            "acceptanceCriteria": [
+                "Component-level Security field removed from domain entity",
+                "Component-level Semantic field removed from domain entity",
+                "EF migration removes Security column from Components table",
+                "EF migration removes Semantic column from Components table",
+                "SecuritySummary and SemanticSummary retained",
+                "Per-repo security/semantic on ComponentDiscoveries retained",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Component_NoSecurityProperty",
+                "Component_NoSemanticProperty",
+                "Migration_RemovesSecurityColumn",
+                "Migration_RemovesSemanticColumn",
+                "SecuritySummary_StillAccessible",
+                "SemanticSummary_StillAccessible"
+            ],
+            "priority": 58,
+            "passes": false,
+            "notes": "FR-7 Phase 3. Final removal after write-block period per PRD Rollout Plan section 11.",
+            "dependencies": [
+                "US-071",
+                "US-038",
+                "US-039"
+            ]
+        },
+        {
+            "id": "US-075",
+            "title": "Replace all origin computations with Origin.ForInternal helper",
+            "description": "Refactor all origin computation call sites to use Origin.ForInternal helper and remove duplicate origin logic",
+            "acceptanceCriteria": [
+                "All internal origin repository ID computations use Origin.ForInternal",
+                "No duplicate origin computation logic remains in codebase",
+                "Consistent internal origin assignment across all flows",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ComponentService_UsesOriginHelper",
+                "SnapshotService_UsesOriginHelper",
+                "RegisterFlow_UsesOriginHelper",
+                "OriginComputation_ConsistentAcrossFlows"
+            ],
+            "priority": 59,
+            "passes": false,
+            "notes": "FR-12 completion. Replace duplicate origin computation across the codebase.",
+            "dependencies": [
+                "US-020"
+            ]
+        },
+        {
+            "id": "US-076",
+            "title": "Add performance baseline and regression testing for finalize and list operations",
+            "description": "Establish performance baselines and add CI regression checks for finalize and list operations to ensure no net performance regression",
+            "acceptanceCriteria": [
+                "Performance baseline established for finalize operations",
+                "Performance baseline established for list operations",
+                "CI step added that checks for performance regressions",
+                "Threshold-based alerts configured for regression detection",
+                "Telemetry added for finalize timings per stage",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "Finalize_PerformanceWithinBaseline",
+                "List_PerformanceWithinBaseline",
+                "CICheck_RegressionDetected_FailsBuild",
+                "Telemetry_CapturesFinalizeTimings"
+            ],
+            "priority": 60,
+            "passes": false,
+            "notes": "NFR-1 compliance. Ensures no net performance regression.",
+            "dependencies": [
+                "US-056"
+            ]
+        },
+        {
+            "id": "US-077",
+            "title": "Add CI coverage gate enforcing 80%+ coverage for new/changed units",
+            "description": "Add CI step that enforces 80%+ unit test coverage for new and changed code units with PR reporting",
+            "acceptanceCriteria": [
+                "CI step added that calculates coverage for new/changed code",
+                "Coverage threshold set to 80% for new units",
+                "Build fails if coverage threshold not met",
+                "Coverage report generated and visible in PR",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "CICheck_CoverageBelowThreshold_FailsBuild",
+                "CICheck_CoverageAboveThreshold_Passes",
+                "CoverageReport_VisibleInPR"
+            ],
+            "priority": 61,
+            "passes": false,
+            "notes": "NFR-3 compliance. Enforces 80%+ coverage requirement.",
+            "dependencies": []
+        },
+        {
+            "id": "US-078",
+            "title": "Capture DateTime once per operation and pass to factories from composition root",
+            "description": "Audit and update all service/handler call sites to capture DateTime once per operation and pass concrete values to domain factories",
+            "acceptanceCriteria": [
+                "All operations capture 'now' once at entry point",
+                "DateTime value passed through to domain factories",
+                "No IDateTimeProvider usages in domain factory paths",
+                "Improved determinism in factory calls",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "CreateComponent_ReceivesDateTimeFromCaller",
+                "CreateDiscovery_ReceivesDateTimeFromCaller",
+                "Handler_CapturesNowOnce",
+                "MultipleFactoryCalls_UseSameTimestamp"
+            ],
+            "priority": 62,
+            "passes": false,
+            "notes": "Section 7.8 time capture requirement. Improves determinism.",
+            "dependencies": [
+                "US-030",
+                "US-032"
+            ]
+        },
+        {
+            "id": "US-079",
+            "title": "Audit and update all snapshot/register flows to use IIdGenerator for entity IDs",
+            "description": "Comprehensive audit to ensure all entity IDs (Snapshot, ComponentDiscovery, ComponentVersion, etc.) in snapshot and register flows are generated via IIdGenerator (UUIDv7), not Guid.CreateVersion7() directly or Guid.NewGuid()",
+            "acceptanceCriteria": [
+                "All Snapshot entity IDs generated via IIdGenerator",
+                "All ComponentDiscovery entity IDs generated via IIdGenerator",
+                "All ComponentVersion entity IDs generated via IIdGenerator",
+                "Register component flows use IIdGenerator for all entity IDs",
+                "No direct Guid.CreateVersion7() calls for entity IDs (must go through IIdGenerator)",
+                "No direct Guid.NewGuid() for entity IDs",
+                "All generated IDs are UUIDv7 format",
+                "All relevant tests pass",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "SnapshotCreation_UsesIdGenerator",
+                "SnapshotId_IsUUIDv7",
+                "ComponentDiscoveryCreation_UsesIdGenerator",
+                "ComponentDiscoveryId_IsUUIDv7",
+                "ComponentVersionCreation_UsesIdGenerator",
+                "ComponentVersionId_IsUUIDv7",
+                "RegisterFlow_AllEntityIds_UseIdGenerator",
+                "RegisterFlow_AllEntityIds_AreUUIDv7",
+                "EntityIds_TimeOrdered_WhenGeneratedSequentially"
+            ],
+            "priority": 63,
+            "passes": false,
+            "notes": "FR-9 comprehensive audit. Ensures ALL entity IDs across snapshot and register flows use IIdGenerator abstraction for UUIDv7 generation.",
+            "dependencies": [
+                "US-018",
+                "US-051",
+                "US-053",
+                "US-032"
+            ]
+        }
+    ]
+}

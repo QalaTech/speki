@@ -1,0 +1,222 @@
+/**
+ * TypeScript port of stream_parser.py
+ *
+ * Parses Claude CLI stream-json output in real-time:
+ * - Reads JSONL line-by-line from a stream
+ * - Deduplicates tool calls (shows each tool only once)
+ * - Deduplicates text content (avoids repeating streaming chunks)
+ * - Outputs to console in real-time with immediate flushing
+ * - Extracts full text for completion detection
+ */
+import { createInterface } from 'readline';
+/**
+ * Extract error message from XML-wrapped error content
+ */
+function extractErrorMessage(content) {
+    const patterns = [
+        /<tool_use_error>([\s\S]*?)<\/tool_use_error>/,
+        /<error>([\s\S]*?)<\/error>/,
+        /<Error>([\s\S]*?)<\/Error>/,
+    ];
+    for (const pattern of patterns) {
+        const match = content.match(pattern);
+        if (match) {
+            return match[1].trim();
+        }
+    }
+    return content.trim();
+}
+/**
+ * Format tool detail for display based on tool type
+ */
+function formatToolDetail(name, input) {
+    switch (name) {
+        case 'Read':
+            return input.file_path || '';
+        case 'Grep': {
+            const pattern = input.pattern || '';
+            const path = input.path || '.';
+            return `pattern=${JSON.stringify(pattern)} in ${path}`;
+        }
+        case 'Glob':
+            return input.pattern || '';
+        case 'Bash': {
+            const cmd = input.command || '';
+            return cmd.length > 80 ? cmd.substring(0, 80) + '...' : cmd;
+        }
+        case 'Task':
+            return input.description || '';
+        case 'Edit':
+            return input.file_path || '';
+        case 'Write':
+            return input.file_path || '';
+        default: {
+            const desc = input.description;
+            if (desc)
+                return desc;
+            const str = JSON.stringify(input);
+            return str.length > 60 ? str.substring(0, 60) + '...' : str;
+        }
+    }
+}
+/**
+ * Parse a single JSONL line and extract relevant information
+ */
+function parseLine(line, state, callbacks) {
+    if (!line.trim())
+        return;
+    let obj;
+    try {
+        obj = JSON.parse(line);
+    }
+    catch {
+        // Skip non-JSON lines
+        return;
+    }
+    if (obj.type === 'assistant') {
+        const message = obj.message;
+        const content = message?.content;
+        if (Array.isArray(content)) {
+            for (const block of content) {
+                if (block.type === 'tool_use') {
+                    const toolId = block.id;
+                    if (toolId && !state.seenTools.has(toolId)) {
+                        state.seenTools.add(toolId);
+                        const detail = formatToolDetail(block.name, block.input);
+                        state.toolCalls.push({
+                            id: toolId,
+                            name: block.name,
+                            input: block.input,
+                            detail,
+                        });
+                        callbacks.onToolCall?.(block.name, detail);
+                    }
+                }
+                else if (block.type === 'text') {
+                    const text = block.text;
+                    // Deduplicate text (same logic as Python)
+                    if (text && !state.fullText.includes(text)) {
+                        state.fullText += text;
+                        callbacks.onText?.(text);
+                    }
+                }
+            }
+        }
+    }
+    else if (obj.type === 'user') {
+        // Handle tool results
+        const message = obj.message;
+        const content = message?.content;
+        if (Array.isArray(content)) {
+            for (const block of content) {
+                if (block.type === 'tool_result') {
+                    const toolUseId = block.tool_use_id;
+                    const isError = block.is_error;
+                    const resultContent = block.content;
+                    if (isError && resultContent) {
+                        callbacks.onToolResult?.(`❌ Error: ${extractErrorMessage(resultContent).substring(0, 200)}`);
+                    }
+                    else if (resultContent && resultContent.length < 500) {
+                        // Only show short results
+                        callbacks.onToolResult?.(`  ✓ ${resultContent.substring(0, 100)}${resultContent.length > 100 ? '...' : ''}`);
+                    }
+                    else {
+                        callbacks.onToolResult?.('  ✓ (result received)');
+                    }
+                }
+            }
+        }
+    }
+    else if (obj.type === 'result') {
+        const result = obj.result;
+        const content = result?.content;
+        if (Array.isArray(content)) {
+            for (const block of content) {
+                if (block.type === 'text') {
+                    const text = block.text;
+                    if (text && !state.fullText.includes(text)) {
+                        state.fullText += text;
+                        callbacks.onText?.(text);
+                    }
+                }
+            }
+        }
+    }
+}
+/**
+ * Parse a stream of JSONL data from Claude CLI
+ *
+ * @param stream - Readable stream of JSONL data
+ * @param callbacks - Callbacks for text and tool events
+ * @returns Parsed output with full text, tool calls, and completion status
+ */
+export async function parseStream(stream, callbacks = {}) {
+    const state = {
+        fullText: '',
+        seenTools: new Set(),
+        toolCalls: [],
+    };
+    const rl = createInterface({
+        input: stream,
+        crlfDelay: Infinity,
+    });
+    for await (const line of rl) {
+        try {
+            parseLine(line, state, callbacks);
+        }
+        catch (error) {
+            callbacks.onError?.(error);
+        }
+    }
+    return {
+        fullText: state.fullText,
+        toolCalls: state.toolCalls,
+        isComplete: state.fullText.includes('<promise>COMPLETE</promise>'),
+    };
+}
+/**
+ * Default console output callbacks
+ */
+export function createConsoleCallbacks() {
+    return {
+        onText: (text) => {
+            process.stdout.write(text);
+        },
+        onToolCall: (name, detail) => {
+            console.log(`  🔧 ${name}: ${detail}`);
+        },
+        onError: (error) => {
+            console.error('Parse error:', error.message);
+        },
+    };
+}
+/**
+ * Silent callbacks that collect data without output
+ */
+export function createSilentCallbacks() {
+    return {};
+}
+/**
+ * Create callbacks that write to both console and a progress file
+ */
+export function createProgressCallbacks(appendToFile) {
+    return {
+        onText: async (text) => {
+            process.stdout.write(text);
+            await appendToFile(text);
+        },
+        onToolCall: async (name, detail) => {
+            const line = `  🔧 ${name}: ${detail}\n`;
+            console.log(line.trimEnd());
+            await appendToFile(line);
+        },
+        onToolResult: async (result) => {
+            console.log(result);
+            await appendToFile(result + '\n');
+        },
+        onError: (error) => {
+            console.error('Parse error:', error.message);
+        },
+    };
+}
+//# sourceMappingURL=stream-parser.js.map

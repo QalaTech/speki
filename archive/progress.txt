@@ -1,0 +1,448 @@
+## Codebase Patterns
+
+### .NET / Registry Patterns
+- **Infrastructure Providers**: Common infrastructure services (IDateTimeProvider, IIdGenerator, IJsonOptionsProvider) have interfaces in Domain/Common and implementations in Infrastructure/Common
+- **DI Registration**: Infrastructure services registered in Infrastructure/DependencyInjection.cs via `AddInfrastructure()` extension method
+- **Test Structure**: Unit tests mirror src structure - Infrastructure/Common/Json/JsonOptionsProviderTests.cs tests Infrastructure/Common/Json/JsonOptionsProvider.cs
+- **Test Framework**: xUnit + FluentAssertions + NSubstitute, file-scoped namespaces, test naming: `Method_Scenario_Expected`
+
+### Python / Atlas Patterns
+- **Pydantic Models**: All types in `atlas.types` use Pydantic BaseModel with `Field(description=...)` for each field
+- **Model Config**: Use `ConfigDict` with `json_schema_extra` for JSON schema metadata
+- **Test Location**: Tests go in `src/atlas/tests/test_*.py`
+- **Test Style**: Use class-based tests with `pytest`, `TestClassName::test_method_name` pattern
+- **Imports**: Import from `atlas.types` (the `__init__.py` re-exports from submodules)
+- **Validation Tools**: Validation tools live in `atlas.tools.local.validation` - follow the `validate_*_output` pattern using the `validate_output()` core utility
+
+---
+
+## 2026-01-08 - US-001: Create Pydantic AggregationSummaryResult model
+- Created new Pydantic BaseModel `AggregationSummaryResult` in `src/atlas/src/atlas/types/aggregation_summary.py`
+- Fields: component_id (str), success (bool), security_summary_updated (bool), semantic_summary_updated (bool), discovery_count (int), retry_count (int), message (str)
+- All fields have proper Field descriptions
+- Exported from `src/atlas/src/atlas/types/__init__.py`
+- Files changed:
+  - src/atlas/src/atlas/types/aggregation_summary.py (new)
+  - src/atlas/src/atlas/types/__init__.py (modified)
+  - src/atlas/tests/test_aggregation_summary_result.py (new)
+- Tests implemented:
+  - test_with_valid_data_should_create_model - PASS
+  - test_with_minimal_data_should_use_defaults - PASS
+  - test_model_validate_should_parse_dict - PASS
+  - test_model_dump_should_return_dict - PASS
+  - test_with_invalid_component_id_should_raise_validation_error - PASS
+- **Learnings:**
+  - Existing plain Python class `AggregationSummaryResult` in `agents/aggregation_summary.py` will need to be replaced in US-003
+  - Pre-existing test failures in `test_mcp_client.py` (2 tests) and import errors in `test_graph_smoke.py`/`test_schema_registry.py` (unrelated to this change)
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (5 passed, 0 failed for new tests)
+---
+
+## 2026-01-08 - US-002: Add validate_aggregation_summary_output tool
+- Added `validate_aggregation_summary_output` tool to `atlas.tools.local.validation`
+- Tool validates JSON against AggregationSummaryResult Pydantic model
+- Returns `{valid: true/false, message: ...}` JSON for consistent tool output
+- Follows same pattern as other validation tools (validate_plan_output, etc.)
+- Registered in VALIDATION_TOOLS dict, get_all_validation_tools(), and get_validation_tool_for_model()
+- Files changed:
+  - src/atlas/src/atlas/tools/local/validation.py (modified)
+  - src/atlas/tests/test_validate_aggregation_summary_output.py (new)
+- Tests implemented:
+  - test_with_valid_json_should_return_success - PASS
+  - test_with_invalid_json_should_return_failure - PASS
+  - test_with_missing_required_fields_should_return_failure - PASS
+  - test_with_extra_fields_should_return_success - PASS
+  - test_with_empty_input_should_return_failure - PASS
+- **Learnings:**
+  - Validation tools use LangChain's @tool decorator
+  - Tools invoke via `.invoke(arg)` method, not direct function call
+  - The `validate_output()` utility handles JSON parsing and Pydantic validation in one place
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (5 passed, 0 failed for new tests)
+---
+
+## 2026-01-08 - US-003: Simplify JSON parsing to direct parse only
+- Simplified `_extract_aggregation_result` to use direct `json.loads()` + Pydantic `model_validate()`
+- Removed old plain Python `AggregationSummaryResult` class from `agents/aggregation_summary.py`
+- Imported `AggregationSummaryResult` from `atlas.types` module
+- Function now raises `ValueError` for empty response (instead of returning a failure result)
+- Removed all string matching heuristics (no more "success" in text checks)
+- Removed unused `re` import
+- Files changed:
+  - src/atlas/src/atlas/agents/aggregation_summary.py (modified)
+  - src/atlas/tests/test_extract_aggregation_result.py (new)
+- Tests implemented:
+  - test_with_valid_json_should_return_model - PASS
+  - test_with_empty_string_should_raise_value_error - PASS
+  - test_with_invalid_json_should_raise_json_decode_error - PASS
+  - test_with_whitespace_should_trim_and_parse - PASS
+  - test_with_missing_fields_should_use_defaults - PASS
+  - test_with_whitespace_only_should_raise_value_error - PASS (bonus)
+  - test_with_none_should_raise_value_error - PASS (bonus)
+- **Learnings:**
+  - The simplified approach relies on the agent producing valid JSON output (enforced by US-002's validation tool)
+  - Function signature changed: removed `component_id` parameter since it's now expected to be in the JSON
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (17 passed, 0 failed across all related test files)
+---
+
+## 2026-01-08 - US-004: Update agent prompt for structured output and validation
+- Updated aggregation_summary.md prompt with structured JSON output requirements
+- Added `validate_aggregation_summary_output` tool to Available Tools section with mandatory callout
+- Replaced human-readable Output Format with structured JSON requirements
+- Added AggregationSummaryResult schema table with all fields, types, and descriptions
+- Added 3 JSON output examples: success case, no discoveries, and conflict error
+- Added clear Validation Requirement section with mandatory step-by-step instructions
+- Files changed:
+  - src/atlas/src/atlas/llm/prompts/aggregation_summary.md (modified)
+- Tests implemented: None (prompt-only change, no testCases defined)
+- **Learnings:**
+  - Prompt files are markdown, not Python - verification is visual inspection + integration testing
+  - The prompt must be very explicit about mandatory validation tool usage to ensure agent compliance
+- **Verification:**
+  - Build: PASS (17 tests pass for related test files)
+  - No TODO/FIXME comments
+---
+
+## 2026-01-08 - US-005: Wire validation tool into aggregation summary agent
+- Added `validate_aggregation_summary_output` tool to the aggregation summary agent's tool list
+- Imported validation tool from `atlas.tools.local.validation` in `create_aggregation_summary_tools`
+- Tool is now returned alongside MCP tools (GetDiscoveriesForComponent, UpdateComponentSummaries, GetComponent)
+- Files changed:
+  - src/atlas/src/atlas/tools/factory.py (modified)
+  - src/atlas/tests/test_aggregation_summary_agent_tools.py (new)
+- Tests implemented:
+  - test_tools_should_include_validation_tool - PASS
+  - test_with_validation_tool_should_be_callable - PASS
+- **Learnings:**
+  - Agent tool wiring follows same pattern as `create_dedup_tools` which also adds validation tool after MCP tools
+  - MCP client can be mocked with `AsyncMock(return_value=[])` for `get_tools()` to isolate local tool testing
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (19 passed, 0 failed across all related test files)
+---
+
+## 2026-01-08 - US-006: Add conflict resolution instructions to agent prompt
+- Added comprehensive "Conflict Resolution (MANDATORY)" section to aggregation_summary.md prompt
+- Retry Procedure specifies: GetComponent for fresh rowVersion, GetDiscoveriesForComponent for fresh data, re-compute summaries, retry UpdateComponentSummaries
+- Retry Limits: 3 attempts total (initial + 2 retries)
+- After Max Retries: report failure with success=false, retry_count=3, and detailed error message
+- Added visual example showing the 3-attempt conflict resolution flow
+- Files changed:
+  - src/atlas/src/atlas/llm/prompts/aggregation_summary.md (modified)
+- Tests implemented: None (prompt-only change, no testCases defined)
+- **Learnings:**
+  - Conflict resolution in prompt provides agent-level retry (agent handles retries itself)
+  - US-007 will add Python-level retry as a fallback (caller handles retries)
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (19 passed, 0 failed across all related test files)
+---
+
+## 2026-01-08 - US-007: Implement Python-level retry logic for conflicts
+- Added `MAX_RETRIES = 3` constant for retry limit
+- Implemented `_is_conflict()` helper to detect row version conflicts from result message
+- Extracted `_execute_aggregation_attempt()` for single attempt execution (refactored from run_aggregation_summary)
+- Implemented retry loop in `run_aggregation_summary` with conflict detection and logging
+- Retry count tracked in AggregationSummaryResult
+- Returns failure with details after max retries exceeded
+- Non-conflict failures do not trigger retries
+- Files changed:
+  - src/atlas/src/atlas/agents/aggregation_summary.py (modified)
+  - src/atlas/tests/test_run_aggregation_summary_retry.py (new)
+- Tests implemented:
+  - test_with_success_should_return_immediately - PASS (RunAggregationSummary_WithSuccess_ShouldReturnImmediately)
+  - test_with_conflict_should_retry - PASS (RunAggregationSummary_WithConflict_ShouldRetry)
+  - test_with_persistent_conflict_should_fail_after_max_retries - PASS (RunAggregationSummary_WithPersistentConflict_ShouldFailAfterMaxRetries)
+  - test_retry_count_should_track_attempts - PASS (RunAggregationSummary_RetryCount_ShouldTrackAttempts)
+  - test_conflict_then_success_should_return_success_with_retry_count - PASS (RunAggregationSummary_ConflictThenSuccess_ShouldReturnSuccessWithRetryCount)
+  - test_non_conflict_failure_should_not_retry - PASS (bonus test for non-conflict failures)
+  - TestIsConflict class with 5 tests for _is_conflict helper - PASS
+- **Learnings:**
+  - Conflict detection uses keyword matching in error messages (conflict, row version, optimistic lock, concurrency, stale)
+  - Python-level retry provides fallback when agent-level retry (prompt-based) doesn't handle conflicts properly
+  - Using patch() on the helper function allows isolated testing of retry logic
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (30 passed, 0 failed across all aggregation-related test files)
+---
+
+## 2026-01-08 - US-008: Simplify deduplication agent JSON parsing
+- Simplified `_extract_deduplication_result` to use direct `json.loads()` + Pydantic `model_validate()`
+- Removed 3-strategy parsing approach (direct parse, markdown code block extraction, brace matching)
+- Removed unused `re` import
+- Function now raises `ValueError` for empty response, `json.JSONDecodeError` for invalid JSON
+- Files changed:
+  - src/atlas/src/atlas/agents/deduplication.py (modified)
+  - src/atlas/tests/test_extract_deduplication_result.py (new)
+- Tests implemented:
+  - test_with_valid_json_should_return_model - PASS (ExtractDeduplicationResult_WithValidJson_ShouldReturnModel)
+  - test_with_empty_string_should_raise_error - PASS (ExtractDeduplicationResult_WithEmptyString_ShouldRaiseError)
+  - test_with_invalid_json_should_raise_json_decode_error - PASS (ExtractDeduplicationResult_WithInvalidJson_ShouldRaiseJsonDecodeError)
+  - test_with_whitespace_should_trim_and_parse - PASS (bonus)
+  - test_with_missing_optional_fields_should_use_defaults - PASS (bonus)
+  - test_with_whitespace_only_should_raise_error - PASS (bonus)
+  - test_with_none_should_raise_error - PASS (bonus)
+- **Learnings:**
+  - Same simplification pattern applied to deduplication as aggregation_summary (US-003)
+  - DeduplicationResult has all default fields, so even an empty `{}` JSON is valid
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (37 passed, 0 failed across all atlas test files)
+---
+
+## 2026-01-08 - US-009: Simplify semantic agent JSON parsing
+- Simplified `_extract_semantic_analysis` to use direct `json.loads()` + Pydantic `model_validate()`
+- Removed 3-strategy parsing approach (direct parse, markdown code block extraction, brace matching)
+- Removed unused `re` import
+- Function now raises `ValueError` for empty response, `json.JSONDecodeError` for invalid JSON
+- Files changed:
+  - src/atlas/src/atlas/agents/semantic.py (modified)
+  - src/atlas/tests/test_extract_semantic_analysis.py (new)
+- Tests implemented:
+  - test_with_valid_json_should_return_model - PASS (ExtractSemanticAnalysis_WithValidJson_ShouldReturnModel)
+  - test_with_empty_string_should_raise_error - PASS (ExtractSemanticAnalysis_WithEmptyString_ShouldRaiseError)
+  - test_with_invalid_json_should_raise_json_decode_error - PASS (ExtractSemanticAnalysis_WithInvalidJson_ShouldRaiseJsonDecodeError)
+  - test_with_whitespace_should_trim_and_parse - PASS (bonus)
+  - test_with_missing_optional_fields_should_use_defaults - PASS (bonus)
+  - test_with_whitespace_only_should_raise_error - PASS (bonus)
+  - test_with_none_should_raise_error - PASS (bonus)
+- **Learnings:**
+  - Same simplification pattern applied to semantic as deduplication and aggregation_summary (US-003, US-008)
+  - SemanticAnalysis has 4 required fields (purpose, domain, data_flow, criticality) and 4 optional fields with defaults
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (44 passed, 0 failed across all atlas test files)
+---
+
+## 2026-01-08 - US-010: Simplify security agent JSON parsing
+- Security agent already had simple direct `json.loads()` parsing (no 3-strategy fallback)
+- Simplified further to match pattern from US-003, US-008, US-009:
+  - Removed try-except wrapper around `json.loads()` - let `JSONDecodeError` propagate naturally
+  - Removed unused `re` import
+  - Added comprehensive docstring matching other agents' pattern
+- Function now uses direct `json.loads(text)` + Pydantic `model_validate()`
+- Files changed:
+  - src/atlas/src/atlas/agents/security.py (modified)
+  - src/atlas/tests/test_extract_security_result.py (new)
+- Tests implemented:
+  - test_with_valid_json_should_return_model - PASS (ExtractSecurityResult_WithValidJson_ShouldReturnModel)
+  - test_with_empty_string_should_raise_error - PASS (ExtractSecurityResult_WithEmptyString_ShouldRaiseError)
+  - test_with_invalid_json_should_raise_json_decode_error - PASS (ExtractSecurityResult_WithInvalidJson_ShouldRaiseJsonDecodeError)
+  - test_with_whitespace_should_trim_and_parse - PASS (bonus)
+  - test_with_missing_optional_fields_should_use_defaults - PASS (bonus)
+  - test_with_whitespace_only_should_raise_error - PASS (bonus)
+  - test_with_none_should_raise_error - PASS (bonus)
+- **Learnings:**
+  - Security agent was already mostly simplified - just needed consistency cleanup
+  - Same pattern now consistent across all 4 agents: aggregation_summary, deduplication, semantic, security
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (63 passed, 2 pre-existing failures in test_mcp_client.py, 2 import errors in test_graph_smoke.py and test_schema_registry.py)
+---
+
+## 2026-01-08 - US-011: Remove Promotion, Alignment, and FlaggedForReview classes from deduplication types
+- Deleted `Promotion`, `Alignment`, and `FlaggedForReview` classes from `src/atlas/src/atlas/types/deduplication.py`
+- Removed `promotions`, `alignments`, and `flagged_for_review` fields from `DeduplicationResult`
+- Updated `src/atlas/src/atlas/types/__init__.py` to remove exports for deleted classes (also covers US-012)
+- Updated existing test `test_extract_deduplication_result.py` to remove assertions on deleted fields
+- Files changed:
+  - src/atlas/src/atlas/types/deduplication.py (modified - removed 3 classes and 3 fields)
+  - src/atlas/src/atlas/types/__init__.py (modified - removed exports)
+  - src/atlas/tests/test_extract_deduplication_result.py (modified - removed deleted field assertions)
+  - src/atlas/tests/test_deduplication_result.py (new)
+- Tests implemented:
+  - test_without_removed_fields_should_serialize_correctly - PASS (DeduplicationResult_WithoutRemovedFields_ShouldSerializeCorrectly)
+  - test_create_should_not_require_removed_fields - PASS (DeduplicationResult_Create_ShouldNotRequireRemovedFields)
+- **Learnings:**
+  - Removing types from a module requires updating both the module file and the `__init__.py` exports
+  - When acceptance criteria require "all tests pass", necessary import/export cleanup must be done in the same story
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (65 passed, 2 pre-existing failures in test_mcp_client.py, 2 import errors in test_graph_smoke.py and test_schema_registry.py)
+---
+
+## 2026-01-08 - US-013: Simplify deduplication prompt - remove Identity Promotion section
+- Removed entire "Identity Promotion (Post-Merge)" section from deduplication.md (lines 137-229, ~94 lines)
+- Removed reference to "identity promotion" from Staged Alignment section description
+- Removed `promotions` field from Output Format description
+- Removed `promotions` array from example JSON
+- Updated example summary to remove "Promoted name from ddd" reference
+- Files changed:
+  - src/atlas/src/atlas/llm/prompts/deduplication.md (modified - 107 lines removed)
+- Tests implemented: None (prompt-only change, no testCases defined)
+- **Learnings:**
+  - When removing a feature section from a prompt, also check for field references in Output Format and Example JSON sections
+  - Grepping for both "identity promotion" and "promotions" catches all references
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (65 passed, 2 pre-existing failures in test_mcp_client.py, 2 import errors in test_graph_smoke.py and test_schema_registry.py)
+---
+
+## 2026-01-08 - US-014: Simplify deduplication prompt - remove Staged Alignment section
+- Removed entire "Staged Alignment (Post-Merge)" section from deduplication.md (~108 lines)
+- Removed step 5 (align staged entries) and step 6 references from Example Workflow
+- Renumbered step 6 "Report with reasoning" to step 5
+- Removed `alignments` field from Output Format description
+- Removed `alignments` array from example JSON
+- Removed `flagged_for_review` field from example JSON (cleanup from US-011)
+- Updated example summary to remove "Aligned 1 staged entry to approved survivor"
+- Removed 4 alignment-related bullet points from Important Notes section
+- Files changed:
+  - src/atlas/src/atlas/llm/prompts/deduplication.md (modified - 146 lines removed)
+- Tests implemented: None (prompt-only change, no testCases defined)
+- **Learnings:**
+  - The Staged Alignment section was a Phase 1 workaround that's no longer needed after Phase 3 deployment
+  - When removing a feature section, must also update Example Workflow, Output Format, example JSON, and Important Notes
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (65 passed, 2 pre-existing failures in test_mcp_client.py, 2 import errors in test_graph_smoke.py and test_schema_registry.py)
+---
+
+## 2026-01-08 - US-015: Update deduplication prompt output format and example JSON
+- Verified all acceptance criteria already satisfied by US-013 and US-014
+- Acceptance criteria validation:
+  - ✅ Output format description no longer mentions promotions field
+  - ✅ Output format description no longer mentions alignments field
+  - ✅ Output format description no longer mentions flagged_for_review field
+  - ✅ Example JSON updated to not include promotions, alignments, or flagged_for_review
+  - ✅ Example JSON is valid JSON syntax
+  - ✅ Prompt remains valid markdown with proper structure
+- No code changes needed - this was a verification story
+- Files changed: None (US-013/US-014 already completed this work)
+- Tests implemented: None (no testCases defined - prompt-only verification)
+- **Learnings:**
+  - When story dependencies complete overlapping work, later stories may just need verification
+  - US-013 removed promotions field references, US-014 removed alignments and flagged_for_review references
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (65 passed, 2 pre-existing failures in test_mcp_client.py, 2 import errors in test_graph_smoke.py and test_schema_registry.py)
+---
+
+## 2026-01-08 - US-016: Verify no remaining references to removed types
+- Searched codebase for all references to removed types and fields
+- Verification results:
+  - ✅ No Python imports reference Promotion, Alignment, or FlaggedForReview
+  - ✅ No code references promotions, alignments, or flagged_for_review attributes on DeduplicationResult
+  - ✅ Test files contain only negative assertions (verifying fields are NOT present) - this is correct
+  - ✅ No TODO/FIXME comments related to removed types
+  - ✅ All existing tests pass
+  - ✅ Build succeeds
+- Files changed:
+  - src/atlas/tests/test_run_deduplication_integration.py (new)
+- Tests implemented:
+  - test_process_components_should_return_result_without_removed_fields - PASS (DeduplicationAgent_ProcessComponents_ShouldReturnResultWithoutRemovedFields)
+  - test_process_components_with_no_duplicates_should_return_valid_result - PASS (bonus test)
+- **Learnings:**
+  - Final validation stories are useful for catching any missed references during refactoring
+  - Integration tests that mock the agent but test the result parsing provide good coverage
+  - Negative assertions in tests (assert "X" not in data) are valid tests when verifying removal
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (69 passed, 2 pre-existing failures in test_mcp_client.py, 2 import errors in test_graph_smoke.py and test_schema_registry.py)
+---
+
+## 2026-01-08 - US-017: Create centralized JsonOptions provider
+- Created `IJsonOptionsProvider` interface in Domain/Common for JSON serialization options abstraction
+- Implemented `JsonOptionsProvider` in Infrastructure/Common/Json with CamelCase and SnakeCaseLower named options
+- Options cached via ConcurrentDictionary for instance reuse (same name = same instance)
+- Registered as singleton in DI container via `AddInfrastructure()`
+- Files changed:
+  - src/registry/src/Continuum.Registry.Domain/Common/IJsonOptionsProvider.cs (new)
+  - src/registry/src/Continuum.Registry.Infrastructure/Common/Json/JsonOptionsProvider.cs (new)
+  - src/registry/src/Continuum.Registry.Infrastructure/DependencyInjection.cs (modified)
+  - src/registry/tests/Continuum.Registry.Tests/Continuum.Registry.Tests.csproj (modified - added Infrastructure reference)
+  - src/registry/tests/Continuum.Registry.Tests/Infrastructure/Common/Json/JsonOptionsProviderTests.cs (new)
+- Tests implemented:
+  - GetOptions_CamelCase_ReturnsCamelCasePropertyNaming - PASS
+  - GetOptions_SnakeCaseLower_ReturnsSnakeCasePropertyNaming - PASS
+  - GetOptions_SameName_ReturnsSameInstance - PASS
+  - GetOptions_UnknownName_ThrowsArgumentException - PASS (bonus)
+  - GetOptions_DifferentNames_ReturnsDifferentInstances - PASS (bonus)
+- **Learnings:**
+  - ConcurrentDictionary.GetOrAdd() provides thread-safe caching with deferred creation
+  - JsonNamingPolicy.SnakeCaseLower is built-in in .NET 10 (no custom implementation needed)
+  - Test project needed Infrastructure reference added to test infrastructure classes
+- **Verification:**
+  - Build: PASS (0 warnings with --warnaserror)
+  - Tests: PASS (177 passed, 0 failed across all registry unit tests)
+---
+
+## 2026-01-08 - US-018: Create IIdGenerator interface and UUIDv7 implementation
+- IIdGenerator interface and GuidV7Generator implementation already existed in codebase
+- Added unit tests to verify the implementation
+- Tests verify: version 7 format, uniqueness across 1000 generations, time-ordered sequencing
+- Files changed:
+  - src/registry/tests/Continuum.Registry.Tests/Infrastructure/Common/GuidV7GeneratorTests.cs (new)
+- Tests implemented:
+  - NewId_Called_ReturnsVersion7Guid - PASS
+  - NewId_CalledMultipleTimes_ReturnsUniqueIds - PASS
+  - NewId_CalledInSequence_ReturnsTimeOrderedIds - PASS
+- **Learnings:**
+  - GUIDv7 version byte is at position 7 in .NET's little-endian byte array (high nibble)
+  - Guid.CreateVersion7() is built-in in .NET 10 (no external library needed)
+  - GUIDv7 sorting works via default Guid.CompareTo() due to timestamp in first 48 bits
+- **Verification:**
+  - Build: PASS (0 warnings with --warnaserror)
+  - Tests: PASS (180 passed, 0 failed across all registry unit tests)
+---
+
+## 2026-01-08 - US-019: Create RowVersionCodec utility
+- Created `RowVersionCodec` static class in `Infrastructure/Common` with centralized Base64 encoding/decoding
+- Methods: `ToString(byte[])`, `FromString(string)`, `TryParse(string?, out byte[]?)`
+- Created `MustBeValidRowVersion<T>()` FluentValidation extension in `Api/Common/Validation`
+- Extension uses `RowVersionCodec.TryParse` for consistent validation logic
+- Files changed:
+  - src/registry/src/Continuum.Registry.Infrastructure/Common/RowVersionCodec.cs (new)
+  - src/registry/src/Continuum.Registry.Api/Common/Validation/RowVersionValidationExtensions.cs (new)
+  - src/registry/tests/Continuum.Registry.Tests/Infrastructure/Common/RowVersionCodecTests.cs (new)
+  - src/registry/tests/Continuum.Registry.Tests/Api/Common/Validation/RowVersionValidationExtensionsTests.cs (new)
+  - src/registry/tests/Continuum.Registry.Tests/Continuum.Registry.Tests.csproj (modified - added Api reference)
+- Tests implemented:
+  - ToString_ValidByteArray_ReturnsBase64String - PASS
+  - FromString_ValidBase64_ReturnsOriginalBytes - PASS
+  - FromString_InvalidBase64_ThrowsFormatException - PASS
+  - TryParse_ValidBase64_ReturnsTrueAndBytes - PASS
+  - TryParse_InvalidBase64_ReturnsFalseAndNull - PASS
+  - FluentValidation_ValidRowVersion_PassesValidation - PASS
+  - FluentValidation_InvalidRowVersion_FailsValidation - PASS
+  - TryParse_NullInput_ReturnsFalseAndNull - PASS (bonus)
+  - TryParse_EmptyString_ReturnsFalseAndNull - PASS (bonus)
+  - ToString_NullInput_ThrowsArgumentNullException - PASS (bonus)
+  - FromString_NullInput_ThrowsArgumentNullException - PASS (bonus)
+  - RoundTrip_BytesToStringToBytes_PreservesOriginal - PASS (bonus)
+  - FluentValidation_NullRowVersion_FailsValidation - PASS (bonus)
+  - FluentValidation_EmptyRowVersion_FailsValidation - PASS (bonus)
+- **Learnings:**
+  - Convert.FromBase64String throws FormatException for invalid Base64 (not ArgumentException)
+  - FluentValidation extensions use IRuleBuilder<T, TProperty> pattern for method chaining
+  - Test project needed Api reference added to test FluentValidation extension
+  - Existing validators have duplicated BeValidBase64 methods that can be replaced with this extension
+- **Verification:**
+  - Build: PASS (0 warnings with --warnaserror)
+  - Tests: PASS (194 passed, 0 failed across all registry unit tests)
+---
+
+## 2026-01-08 - US-020: Create Origin helper for internal repository ID computation
+- Created `Origin` static class in `Domain/Common` with `ForInternal` method
+- Method centralizes the pattern: only Internal components have an origin repository
+- Logic: returns repositoryId if classification is Internal and repositoryId is not null; null otherwise
+- Found duplicated logic in 3 places: ComponentService.cs:600, SnapshotService.cs:952, SnapshotService.cs:1051
+- Files changed:
+  - src/registry/src/Continuum.Registry.Domain/Common/Origin.cs (new)
+  - src/registry/tests/Continuum.Registry.Tests/Domain/Common/OriginTests.cs (new)
+- Tests implemented:
+  - ForInternal_InternalClassification_ReturnsRepositoryId - PASS
+  - ForInternal_ExternalClassification_ReturnsNull - PASS
+  - ForInternal_NullRepositoryId_ReturnsNull - PASS
+- **Learnings:**
+  - Domain helpers for pure domain logic belong in Domain/Common (vs. Infrastructure/Common for infrastructure utilities)
+  - Classification has convenient factory methods: InternalService(), ExternalOrganization(), etc.
+  - The helper can be used to replace duplicate ternary expressions in ComponentService and SnapshotService
+- **Verification:**
+  - Build: PASS (0 warnings with --warnaserror)
+  - Tests: PASS (197 passed, 0 failed across all registry unit tests)
+---

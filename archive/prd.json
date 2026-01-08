@@ -1,0 +1,94 @@
+{
+  "projectName": "Registry and MCP Refactor",
+  "branchName": "ralph/feature",
+  "language": "dotnet",
+  "userStories": [
+    {
+      "id": "US-017",
+      "title": "Create centralized JsonOptions provider",
+      "description": "Introduce a centralized JSON serialization options provider to eliminate scattered JsonSerializerOptions throughout the codebase",
+      "acceptanceCriteria": [
+        "JsonOptionsProvider class created in Infrastructure/Common/Json with named options (CamelCase, SnakeCaseLower)",
+        "Provider registered in DI container",
+        "No new file-level JsonSerializerOptions in modified files",
+        "All relevant tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "GetOptions_CamelCase_ReturnsCamelCasePropertyNaming",
+        "GetOptions_SnakeCaseLower_ReturnsSnakeCasePropertyNaming",
+        "GetOptions_SameName_ReturnsSameInstance"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Phase 0 - Quick Win. Foundation for removing duplicate serialization config. DONE: Implemented JsonOptionsProvider with CamelCase and SnakeCaseLower named options, registered in DI, 5 tests passing.",
+      "dependencies": []
+    },
+    {
+      "id": "US-018",
+      "title": "Create IIdGenerator interface and UUIDv7 implementation",
+      "description": "Introduce IIdGenerator abstraction with UUIDv7 implementation for consistent entity ID generation",
+      "acceptanceCriteria": [
+        "IIdGenerator interface defined with NewId() method",
+        "GuidV7Generator implementation using Guid.CreateVersion7()",
+        "Interface registered in DI container",
+        "All relevant tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "NewId_Called_ReturnsVersion7Guid",
+        "NewId_CalledMultipleTimes_ReturnsUniqueIds",
+        "NewId_CalledInSequence_ReturnsTimeOrderedIds"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Foundation for FR-9. DONE: IIdGenerator and GuidV7Generator already existed, added 3 unit tests verifying version 7 format, uniqueness, and time-ordering.",
+      "dependencies": []
+    },
+    {
+      "id": "US-019",
+      "title": "Create RowVersionCodec utility",
+      "description": "Centralize RowVersion Base64 conversions with ToString/FromString/TryParse methods and FluentValidation extension",
+      "acceptanceCriteria": [
+        "RowVersionCodec class with ToString, FromString, TryParse static methods",
+        "FluentValidation extension for RowVersion validation",
+        "No inline Base64 parsing for RowVersion in new/modified code",
+        "All relevant tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "ToString_ValidByteArray_ReturnsBase64String",
+        "FromString_ValidBase64_ReturnsOriginalBytes",
+        "FromString_InvalidBase64_ThrowsFormatException",
+        "TryParse_ValidBase64_ReturnsTrueAndBytes",
+        "TryParse_InvalidBase64_ReturnsFalseAndNull",
+        "FluentValidation_ValidRowVersion_PassesValidation",
+        "FluentValidation_InvalidRowVersion_FailsValidation"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Phase 0 helper. DONE: Created RowVersionCodec with ToString, FromString, TryParse static methods in Infrastructure/Common. Added MustBeValidRowVersion FluentValidation extension in Api/Common/Validation. 14 tests passing (7 required + 7 bonus edge cases).",
+      "dependencies": []
+    },
+    {
+      "id": "US-020",
+      "title": "Create Origin helper for internal repository ID computation",
+      "description": "Add Origin helper to standardize internal origin repository ID computation across the codebase",
+      "acceptanceCriteria": [
+        "Origin helper class with ForInternal method accepting classification and repositoryId",
+        "Returns Guid? consistently for internal origin assignment",
+        "All relevant tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "ForInternal_InternalClassification_ReturnsRepositoryId",
+        "ForInternal_ExternalClassification_ReturnsNull",
+        "ForInternal_NullRepositoryId_ReturnsNull"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Phase 0 helper. DONE: Created Origin.ForInternal() static method in Domain/Common. Returns repositoryId for Internal classification, null for External or null input. 3 tests passing.",
+      "dependencies": []
+    }
+  ]
+}

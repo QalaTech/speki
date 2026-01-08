@@ -1,0 +1,263 @@
+{
+    "projectName": "Aggregation Summary Agent Improvements",
+    "branchName": "ralph/tasks",
+    "language": "python",
+    "standardsFile": "ralph/standards/python.md",
+    "description": "Refactor the Aggregation Summary Agent to use Pydantic models, simplified JSON parsing, validation tools, and proper conflict resolution with retry logic",
+    "userStories": [
+        {
+            "id": "US-001",
+            "title": "Create Pydantic AggregationSummaryResult model",
+            "description": "Create a new Pydantic BaseModel for AggregationSummaryResult in a dedicated types module, replacing the plain Python class",
+            "acceptanceCriteria": [
+                "New file src/atlas/src/atlas/types/aggregation_summary.py exists",
+                "AggregationSummaryResult is a Pydantic BaseModel with all required fields",
+                "Fields include: component_id, success, security_summary_updated, semantic_summary_updated, discovery_count, retry_count, message",
+                "All fields have proper Field descriptions",
+                "Model is exported from src/atlas/src/atlas/types/__init__.py",
+                "No TODO or FIXME comments",
+                "No placeholder implementations",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "AggregationSummaryResult_WithValidData_ShouldCreateModel",
+                "AggregationSummaryResult_WithMinimalData_ShouldUseDefaults",
+                "AggregationSummaryResult_ModelValidate_ShouldParseDict",
+                "AggregationSummaryResult_ModelDump_ShouldReturnDict",
+                "AggregationSummaryResult_WithInvalidComponentId_ShouldRaiseValidationError"
+            ],
+            "priority": 1,
+            "passes": false,
+            "notes": "Foundation type that other stories depend on",
+            "dependencies": []
+        },
+        {
+            "id": "US-002",
+            "title": "Add validate_aggregation_summary_output tool",
+            "description": "Add a validation tool to the tool factory that validates AggregationSummaryResult JSON output before the agent returns",
+            "acceptanceCriteria": [
+                "validate_aggregation_summary_output tool exists in src/atlas/src/atlas/tools/factory.py",
+                "Tool validates JSON against AggregationSummaryResult Pydantic model",
+                "Tool returns validation success/failure with clear error messages",
+                "Tool follows the same pattern as other validation tools in the factory",
+                "No TODO or FIXME comments",
+                "No placeholder implementations",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [
+                "ValidateAggregationSummaryOutput_WithValidJson_ShouldReturnSuccess",
+                "ValidateAggregationSummaryOutput_WithInvalidJson_ShouldReturnFailure",
+                "ValidateAggregationSummaryOutput_WithMissingRequiredFields_ShouldReturnFailure",
+                "ValidateAggregationSummaryOutput_WithExtraFields_ShouldReturnSuccess",
+                "ValidateAggregationSummaryOutput_WithEmptyInput_ShouldReturnFailure"
+            ],
+            "priority": 2,
+            "passes": false,
+            "notes": "Required before updating the agent to use validation",
+            "dependencies": [
+                "US-001"
+            ]
+        },
+        {
+            "id": "US-003",
+            "title": "Simplify JSON parsing to direct parse only",
+            "description": "Replace the hacky _extract_aggregation_result function with simple direct json.loads() parsing, relying on the validation tool guarantee",
+            "acceptanceCriteria": [
+                "_extract_aggregation_result uses simple json.loads() without fallback strategies",
+                "Function imports and uses AggregationSummaryResult from types module",
+                "Function raises ValueError for empty response",
+                "Function uses Pydantic model_validate for parsing",
+                "Remove the old plain Python AggregationSummaryResult class from aggregation_summary.py",
+                "No string matching heuristics (no 'success' in text checks)",
+                "No TODO or FIXME comments",
+                "No placeholder implementations",
+                "Build succeeds with no warnings",
+                "All existing tests pass"
+            ],
+            "testCases": [
+                "ExtractAggregationResult_WithValidJson_ShouldReturnModel",
+                "ExtractAggregationResult_WithEmptyString_ShouldRaiseValueError",
+                "ExtractAggregationResult_WithInvalidJson_ShouldRaiseJsonDecodeError",
+                "ExtractAggregationResult_WithWhitespace_ShouldTrimAndParse",
+                "ExtractAggregationResult_WithMissingFields_ShouldUseDefaults"
+            ],
+            "priority": 3,
+            "passes": false,
+            "notes": "Depends on Pydantic model being available",
+            "dependencies": [
+                "US-001"
+            ]
+        },
+        {
+            "id": "US-004",
+            "title": "Update agent prompt for structured output and validation",
+            "description": "Update the aggregation_summary.md prompt to instruct the agent to output structured JSON and call the validation tool before returning",
+            "acceptanceCriteria": [
+                "Prompt file src/atlas/src/atlas/llm/prompts/aggregation_summary.md is updated",
+                "Prompt instructs agent to output AggregationSummaryResult as JSON",
+                "Prompt requires agent to call validate_aggregation_summary_output before returning",
+                "Prompt includes JSON schema/example of expected output format",
+                "Prompt clearly states the validation requirement is mandatory",
+                "No TODO or FIXME comments",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [],
+            "priority": 4,
+            "passes": false,
+            "notes": "Prompt-only change, tested via integration",
+            "dependencies": [
+                "US-002"
+            ]
+        },
+        {
+            "id": "US-005",
+            "title": "Wire validation tool into aggregation summary agent",
+            "description": "Include the validate_aggregation_summary_output tool in the tools provided to the aggregation summary agent",
+            "acceptanceCriteria": [
+                "Aggregation summary agent receives validate_aggregation_summary_output in its tool list",
+                "Tool is properly imported and instantiated in the agent setup",
+                "Agent can successfully call the validation tool",
+                "No TODO or FIXME comments",
+                "No placeholder implementations",
+                "Build succeeds with no warnings",
+                "All existing tests pass"
+            ],
+            "testCases": [
+                "AggregationSummaryAgent_Tools_ShouldIncludeValidationTool",
+                "AggregationSummaryAgent_WithValidationTool_ShouldBeCallable"
+            ],
+            "priority": 5,
+            "passes": false,
+            "notes": "Connects the validation tool to the agent",
+            "dependencies": [
+                "US-002",
+                "US-004"
+            ]
+        },
+        {
+            "id": "US-006",
+            "title": "Add conflict resolution instructions to agent prompt",
+            "description": "Update the agent prompt to include detailed conflict resolution instructions for handling row version conflicts",
+            "acceptanceCriteria": [
+                "Prompt includes conflict resolution section",
+                "Instructions specify calling GetComponent to get fresh rowVersion on conflict",
+                "Instructions specify re-fetching discoveries via GetDiscoveriesForComponent",
+                "Instructions specify re-computing summaries from fresh data",
+                "Instructions specify retry limit of 3 attempts",
+                "Instructions specify reporting failure with details after max retries",
+                "No TODO or FIXME comments",
+                "Build succeeds with no warnings"
+            ],
+            "testCases": [],
+            "priority": 6,
+            "passes": false,
+            "notes": "Prompt update for conflict handling, tested via integration",
+            "dependencies": [
+                "US-004"
+            ]
+        },
+        {
+            "id": "US-007",
+            "title": "Implement Python-level retry logic for conflicts",
+            "description": "Add retry logic at the Python level in run_aggregation_summary function as a fallback for deterministic conflict handling",
+            "acceptanceCriteria": [
+                "MAX_RETRIES constant defined (value: 3)",
+                "run_aggregation_summary implements retry loop for conflict scenarios",
+                "Retry count is tracked in the AggregationSummaryResult",
+                "Function returns failure result with message after max retries exceeded",
+                "Logging added for retry attempts",
+                "is_conflict detection logic implemented (based on result content)",
+                "No TODO or FIXME comments",
+                "No placeholder implementations",
+                "Build succeeds with no warnings",
+                "All existing tests pass"
+            ],
+            "testCases": [
+                "RunAggregationSummary_WithSuccess_ShouldReturnImmediately",
+                "RunAggregationSummary_WithConflict_ShouldRetry",
+                "RunAggregationSummary_WithPersistentConflict_ShouldFailAfterMaxRetries",
+                "RunAggregationSummary_RetryCount_ShouldTrackAttempts",
+                "RunAggregationSummary_ConflictThenSuccess_ShouldReturnSuccessWithRetryCount"
+            ],
+            "priority": 7,
+            "passes": false,
+            "notes": "Core retry logic implementation",
+            "dependencies": [
+                "US-003",
+                "US-006"
+            ]
+        },
+        {
+            "id": "US-008",
+            "title": "Simplify deduplication agent JSON parsing",
+            "description": "Apply the same simplification to deduplication.py - replace 3-strategy parsing with direct json.loads()",
+            "acceptanceCriteria": [
+                "_extract_deduplication_result uses simple json.loads() without fallback strategies",
+                "Remove markdown code block extraction logic",
+                "Remove brace matching fallback logic",
+                "Function uses Pydantic model_validate for parsing",
+                "No TODO or FIXME comments",
+                "No placeholder implementations",
+                "Build succeeds with no warnings",
+                "All existing tests pass"
+            ],
+            "testCases": [
+                "ExtractDeduplicationResult_WithValidJson_ShouldReturnModel",
+                "ExtractDeduplicationResult_WithEmptyString_ShouldRaiseError",
+                "ExtractDeduplicationResult_WithInvalidJson_ShouldRaiseJsonDecodeError"
+            ],
+            "priority": 8,
+            "passes": false,
+            "notes": "Follow-up simplification for consistency",
+            "dependencies": []
+        },
+        {
+            "id": "US-009",
+            "title": "Simplify semantic agent JSON parsing",
+            "description": "Apply the same simplification to semantic.py - replace 3-strategy parsing with direct json.loads()",
+            "acceptanceCriteria": [
+                "_extract_semantic_analysis uses simple json.loads() without fallback strategies",
+                "Remove markdown code block extraction logic",
+                "Remove brace matching fallback logic",
+                "Function uses Pydantic model_validate for parsing",
+                "No TODO or FIXME comments",
+                "No placeholder implementations",
+                "Build succeeds with no warnings",
+                "All existing tests pass"
+            ],
+            "testCases": [
+                "ExtractSemanticAnalysis_WithValidJson_ShouldReturnModel",
+                "ExtractSemanticAnalysis_WithEmptyString_ShouldRaiseError",
+                "ExtractSemanticAnalysis_WithInvalidJson_ShouldRaiseJsonDecodeError"
+            ],
+            "priority": 9,
+            "passes": false,
+            "notes": "Follow-up simplification for consistency",
+            "dependencies": []
+        },
+        {
+            "id": "US-010",
+            "title": "Simplify security agent JSON parsing",
+            "description": "Apply the same simplification to security.py - replace any multi-strategy parsing with direct json.loads()",
+            "acceptanceCriteria": [
+                "Security agent result extraction uses simple json.loads() without fallback strategies",
+                "Remove any markdown code block extraction logic if present",
+                "Remove any brace matching fallback logic if present",
+                "Function uses Pydantic model_validate for parsing",
+                "No TODO or FIXME comments",
+                "No placeholder implementations",
+                "Build succeeds with no warnings",
+                "All existing tests pass"
+            ],
+            "testCases": [
+                "ExtractSecurityResult_WithValidJson_ShouldReturnModel",
+                "ExtractSecurityResult_WithEmptyString_ShouldRaiseError",
+                "ExtractSecurityResult_WithInvalidJson_ShouldRaiseJsonDecodeError"
+            ],
+            "priority": 10,
+            "passes": false,
+            "notes": "Follow-up simplification - may be N/A if security agent already uses simple parsing",
+            "dependencies": []
+        }
+    ]
+}

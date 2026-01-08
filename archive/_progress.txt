@@ -1,0 +1,785 @@
+# Ralph Progress Log
+
+Started: 2026-01-07
+Project: Continuum
+
+## Codebase Patterns
+
+- Registry Domain value objects: Use sealed record with required/init properties
+- File-scoped namespaces: No braces, format: `namespace Continuum.Registry.Domain.Components;`
+- Domain layer location: `src/registry/src/Continuum.Registry.Domain/Components/`
+- Pre-existing test failures: 4 tests in Cortex module (MemoryServiceTests, ScanServiceTests) fail but are unrelated to Registry work
+- **ASPIRE INTEGRATION TESTS**: If tests show 0 passed or hang, check for Aspire infrastructure failures (WaitForResourceHealthyAsync timeout, container errors, port conflicts). This means the test infrastructure failed to start, not that tests passed. Expect 20+ tests minimum.
+- **MCP Tools**: Defined in .NET MCP server (`src/registry/src/Continuum.Registry.McpServer/Tools/ComponentTools.cs`), NOT in Python atlas. Python auto-discovers tools via langchain-mcp-adapters. Pattern: `[McpServerTool]` + `[Description]` attributes.
+
+## Key Files
+
+- src/registry/src/Continuum.Registry.Domain/Components/ - Domain value objects and entities
+- src/registry/src/Continuum.Registry.Infrastructure/ - Data access and external services
+- src/registry/src/Continuum.Registry.Api/ - API endpoints
+- src/Continuum.sln - Main solution file (run commands from src/ directory)
+
+---
+
+## Progress Entries
+
+(Ralph will append entries below after each completed story)
+
+---
+
+## 2026-01-07 - US-001: Add SecuritySummary value object to Domain
+- What was implemented: Created SecuritySummary sealed record as a value object for aggregated security information across component discoveries
+- Files changed: src/registry/src/Continuum.Registry.Domain/Components/SecuritySummary.cs
+- Tests added: None (value object with no behavior)
+- **Learnings:**
+  - Registry domain value objects use sealed record pattern with required/init properties
+  - Pre-existing test failures in Cortex module (4 tests) don't affect Registry work
+  - Solution file is at src/Continuum.sln - run dotnet commands from src/ directory
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry tests pass; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-07 - US-002: Add SemanticSummary value object to Domain
+- What was implemented: Created SemanticSummary sealed record as a value object for aggregated semantic information across component discoveries
+- Files changed: src/registry/src/Continuum.Registry.Domain/Components/SemanticSummary.cs
+- Tests added: None (value object with no behavior)
+- **Learnings:**
+  - Followed same pattern as SecuritySummary for consistency
+  - Properties: Description (string), Domains (IReadOnlyList<string>), UseCases (IReadOnlyList<string>), Criticality (string), DiscoveryCount (int)
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-07 - US-003: Add SecuritySummary and SemanticSummary properties to Component entity
+- What was implemented: Verified Component entity already has SecuritySummary and SemanticSummary nullable properties with proper encapsulation
+- Files changed: src/registry/src/Continuum.Registry.Domain/Components/Component.cs (already implemented)
+- Tests added: None (properties only, covered by existing Component tests)
+- **Implementation details:**
+  - SecuritySummary property (nullable SecuritySummary type) at line 67
+  - SemanticSummary property (nullable SemanticSummary type) at line 73
+  - Both have private setters for domain entity pattern
+  - SetSecuritySummary and SetSemanticSummary methods exist for controlled updates
+  - Factory methods (Create, CreateWithId, Load) all support the new properties
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-07 - US-004: Add per-repo Security value object for ComponentDiscovery
+- What was implemented: Converted existing SecurityAssessment from sealed class to sealed record with XML documentation
+- Files changed: src/registry/src/Continuum.Registry.Domain/Components/SecurityAssessment.cs
+- Tests added: None (value object with no behavior, existing tests cover usage)
+- **Implementation details:**
+  - Changed `public sealed class` to `public sealed record`
+  - Kept all existing properties: TransportSecurity, AuthenticationMethod, CredentialStorage, Concerns, Recommendations, RawAnalysis
+  - Added comprehensive XML documentation to each property
+  - Properties already had appropriate defaults and init-only setters
+  - No breaking changes - existing code using object initializer syntax continues to work
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-07 - US-005: Add per-repo Semantic value object for ComponentDiscovery
+- What was implemented: Converted existing SemanticAnalysis from sealed class to sealed record with XML documentation
+- Files changed: src/registry/src/Continuum.Registry.Domain/Components/SemanticAnalysis.cs
+- Tests added: None (value object with no behavior, existing tests cover usage)
+- **Implementation details:**
+  - Changed `public sealed class` to `public sealed record`
+  - Kept all existing properties: Purpose, Domain, DataFlow, Criticality, SuggestedName, Description, Tags, RelatedComponents, RawAnalysis
+  - Added comprehensive XML documentation to each property
+  - Properties already had required and init-only setters
+  - No breaking changes - existing code using object initializer syntax continues to work
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-006: Add Security and Semantic properties to ComponentDiscovery entity
+- What was implemented: Extended ComponentDiscovery entity with nullable Security (SecurityAssessment) and Semantic (SemanticAnalysis) properties for per-repo analysis
+- Files changed: src/registry/src/Continuum.Registry.Domain/Components/ComponentDiscovery.cs
+- Tests added: None (properties only, covered by existing ComponentDiscovery tests)
+- **Implementation details:**
+  - Added Security property (nullable SecurityAssessment type) with private setter
+  - Added Semantic property (nullable SemanticAnalysis type) with private setter
+  - Updated Create factory method with optional security and semantic parameters
+  - Updated CreateWithId factory method with optional security and semantic parameters
+  - Updated Load method signature to include security and semantic parameters
+  - Added SetSecurity and SetSemantic methods for controlled updates following domain entity pattern
+  - All methods require IDateTimeProvider for UpdatedAt timestamp
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-007: Add EF Core configuration for Component summary JSONB columns
+- What was implemented: Added JSONB column configurations for SecuritySummary and SemanticSummary in ComponentConfiguration
+- Files changed: src/registry/src/Continuum.Registry.Infrastructure/Persistence/Configurations/ComponentConfiguration.cs
+- Tests added: None (infrastructure configuration, existing tests verify database operations)
+- **Implementation details:**
+  - Added SecuritySummary as nullable JSONB column with JSON serialization conversion
+  - Added SemanticSummary as nullable JSONB column with JSON serialization conversion
+  - Followed existing pattern from Security and Semantic property configurations
+  - Uses same JsonOptions with snake_case_lower naming policy
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-008: Add EF Core configuration for ComponentDiscovery JSONB columns
+- What was implemented: Added JSONB column configurations for Security and Semantic in ComponentDiscoveryConfiguration
+- Files changed: src/registry/src/Continuum.Registry.Infrastructure/Persistence/Configurations/ComponentDiscoveryConfiguration.cs
+- Tests added: None (infrastructure configuration, existing tests verify database operations)
+- **Implementation details:**
+  - Added Security as nullable JSONB column with JSON serialization conversion (per-repository security assessment)
+  - Added Semantic as nullable JSONB column with JSON serialization conversion (per-repository semantic analysis)
+  - Followed existing pattern from Detection property configuration
+  - Uses same JsonOptions with snake_case_lower naming policy
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122 passed; 4 pre-existing Cortex failures unrelated; integration test 500 errors are infrastructure-related pending migration)
+---
+
+## 2026-01-08 - US-009: Create database migration for summary columns
+- What was implemented: Created EF Core migration to add new JSONB columns to Components and ComponentDiscoveries tables
+- Files changed: src/registry/src/Continuum.Registry.Infrastructure/Migrations/20260108040259_AddSummaryColumns.cs, .Designer.cs, RegistryDbContextModelSnapshot.cs
+- Tests added: None (migration file, tested via integration tests at runtime)
+- **Implementation details:**
+  - Migration adds SecuritySummary JSONB column to Components table (nullable)
+  - Migration adds SemanticSummary JSONB column to Components table (nullable)
+  - Migration adds Security JSONB column to ComponentDiscoveries table (nullable)
+  - Migration adds Semantic JSONB column to ComponentDiscoveries table (nullable)
+  - Down method properly removes all four columns for rollback capability
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-010: Add SecuritySummaryDto to Application layer
+- What was implemented: Created SecuritySummaryDto sealed record for API responses matching domain SecuritySummary value object
+- Files changed: src/registry/src/Continuum.Registry.Application/Components/DTOs/ComponentDtos.cs
+- Tests added: None (DTO with no behavior, covered by integration tests)
+- **Implementation details:**
+  - Added SecuritySummaryDto using positional record syntax matching existing DTO patterns
+  - Properties: OverallRating (string), AuthMethods (IReadOnlyList<string>), Concerns (IReadOnlyList<string>), DiscoveryCount (int)
+  - Added to same file as other component DTOs
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-011: Add SemanticSummaryDto to Application layer
+- What was implemented: Created SemanticSummaryDto sealed record for API responses matching domain SemanticSummary value object
+- Files changed: src/registry/src/Continuum.Registry.Application/Components/DTOs/ComponentDtos.cs
+- Tests added: None (DTO with no behavior, covered by integration tests)
+- **Implementation details:**
+  - Added SemanticSummaryDto using positional record syntax matching existing DTO patterns
+  - Properties: Description (string), Domains (IReadOnlyList<string>), UseCases (IReadOnlyList<string>), Criticality (string), DiscoveryCount (int)
+  - Added after SecuritySummaryDto in same file
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-012: Add SecurityAssessmentDto for per-repo security
+- What was implemented: Verified SecurityAssessmentDto already exists and meets all acceptance criteria
+- Files changed: None (already exists in src/registry/src/Continuum.Registry.Application/Components/DTOs/ComponentDtos.cs)
+- Tests added: None (DTO with no behavior, already covered by existing tests)
+- **Implementation details:**
+  - SecurityAssessmentDto sealed record at lines 139-147 of ComponentDtos.cs
+  - Properties match domain SecurityAssessment: TransportSecurity, AuthenticationMethod, CredentialStorage, Concerns, Recommendations, RawAnalysis
+  - Uses file-scoped namespace
+  - All properties use init-only setters (positional record syntax)
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-013: Add SemanticAnalysisDto for per-repo semantic
+- What was implemented: Verified SemanticAnalysisDto already exists and meets all acceptance criteria
+- Files changed: None (already exists in src/registry/src/Continuum.Registry.Application/Components/DTOs/ComponentDtos.cs)
+- Tests added: None (DTO with no behavior, already covered by existing tests)
+- **Implementation details:**
+  - SemanticAnalysisDto sealed record at lines 152-162 of ComponentDtos.cs
+  - Properties match domain SemanticAnalysis: Purpose, Domain, DataFlow, Criticality, SuggestedName, Description, Tags, RelatedComponents, RawAnalysis
+  - Uses file-scoped namespace
+  - All properties use init-only setters (positional record syntax)
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-014: Update ComponentDto to include summary DTOs
+- What was implemented: Added SecuritySummary and SemanticSummary properties to ComponentDto and updated all MapToDto functions
+- Files changed:
+  - src/registry/src/Continuum.Registry.Application/Components/DTOs/ComponentDtos.cs
+  - src/registry/src/Continuum.Registry.Application/Components/Services/ComponentService.cs
+  - src/registry/src/Continuum.Registry.Application/Snapshots/Services/SnapshotService.cs
+- Tests added: None (DTO with no behavior, covered by existing integration tests)
+- **Implementation details:**
+  - Added SecuritySummary (nullable SecuritySummaryDto) and SemanticSummary (nullable SemanticSummaryDto) to ComponentDto
+  - Updated MapToDto in ComponentService.cs to map component.SecuritySummary and component.SemanticSummary
+  - Updated MapToDto in SnapshotService.cs with same mapping logic
+  - Updated MapStateToSnapshotComponentDto to pass null for summaries (state DTOs don't have summaries)
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-015: Update ComponentDiscoveryDto to include per-repo DTOs
+- What was implemented: Extended ComponentDiscoveryDto to include optional Security and Semantic properties for per-repo analysis data
+- Files changed:
+  - src/registry/src/Continuum.Registry.Application/Components/DTOs/ComponentDtos.cs
+  - src/registry/src/Continuum.Registry.Application/Components/Services/ComponentService.cs
+- Tests added: None (DTO mapping changes, covered by existing integration tests)
+- **Implementation details:**
+  - Added Security (nullable SecurityAssessmentDto) as optional parameter to ComponentDiscoveryDto
+  - Added Semantic (nullable SemanticAnalysisDto) as optional parameter to ComponentDiscoveryDto
+  - Updated MapDiscoveryToDto to map discovery.Security to SecurityAssessmentDto
+  - Updated MapDiscoveryToDto to map discovery.Semantic to SemanticAnalysisDto
+  - Used default parameter values (= null) to maintain backward compatibility with existing consumers
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-016: Add UpdateComponentSummariesRequest DTO
+- What was implemented: Created UpdateComponentSummariesRequest sealed record for API requests from Aggregation Summary Agent
+- Files changed:
+  - src/registry/src/Continuum.Registry.Application/Components/DTOs/ComponentDtos.cs
+- Tests added: None (DTO with no behavior, covered by integration tests when handler is implemented)
+- **Implementation details:**
+  - Added UpdateComponentSummariesRequest sealed record with property-based syntax (not positional) for clarity
+  - Contains required Guid ComponentId for identifying target component
+  - Contains required int RowVersion for optimistic locking
+  - Contains optional SecuritySummaryDto? SecuritySummary for aggregated security data
+  - Contains optional SemanticSummaryDto? SemanticSummary for aggregated semantic data
+  - Added comprehensive XML documentation for each property
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-017: Add IComponentService.UpdateSummariesAsync method
+- What was implemented: Added UpdateSummariesAsync method to IComponentService interface and implemented it in ComponentService
+- Files changed:
+  - src/registry/src/Continuum.Registry.Application/Components/Services/IComponentService.cs
+  - src/registry/src/Continuum.Registry.Application/Components/Services/ComponentService.cs
+  - src/registry/src/Continuum.Registry.Application/Components/DTOs/ComponentDtos.cs (fixed RowVersion type)
+- Tests added: None (service method, covered by integration tests when handler is implemented)
+- **Implementation details:**
+  - Added UpdateSummariesAsync method signature with XML documentation
+  - Implemented full method with optimistic concurrency using RowVersion validation
+  - Fixed UpdateComponentSummariesRequest.RowVersion to use string (Base64) instead of int to match codebase patterns
+  - Uses RowVersionConflictException (existing pattern) instead of ConcurrencyConflictException (not in codebase)
+  - Uses GetByIdAsync (existing pattern) instead of GetByIdForUpdateAsync (doesn't exist)
+  - Re-indexes component in search service after update
+- **Learnings:**
+  - US-017 (interface) and US-018 (implementation) are tightly coupled - can't add interface without implementation
+  - Existing codebase uses Base64-encoded string for RowVersion, not integer
+  - Existing codebase uses RowVersionConflictException, not ConcurrencyConflictException
+  - Row-level locking (GetByIdForUpdateAsync) doesn't exist - codebase uses optimistic locking via RowVersion
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-018: Implement ComponentService.UpdateSummariesAsync
+- What was implemented: Verified UpdateSummariesAsync was already implemented with US-017 (tightly coupled stories)
+- Files changed: None (already implemented in src/registry/src/Continuum.Registry.Application/Components/Services/ComponentService.cs)
+- Tests added: None (covered by integration tests when handler is added in US-021/US-022)
+- **Implementation details:**
+  - Method at lines 887-938 of ComponentService.cs
+  - Uses GetByIdAsync + RowVersion validation (codebase pattern) instead of GetByIdForUpdateAsync
+  - Throws RowVersionConflictException (codebase pattern) instead of ConcurrencyConflictException
+  - Updates SecuritySummary via SetSecuritySummary domain method
+  - Updates SemanticSummary via SetSemanticSummary domain method
+  - RowVersion managed by EF Core concurrency token (auto-incremented by database)
+  - Re-indexes component in search service after update
+- **Learnings:**
+  - US-017 and US-018 are functionally one unit - can't add interface without implementation
+  - RowVersion is byte[] managed by EF Core, not manually incremented in domain
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-020: Add GetDiscoveriesForComponent endpoint
+- What was implemented: Verified endpoint existed and added 404 response for non-existent components
+- Files changed:
+  - src/registry/src/Continuum.Registry.Api/Features/Components/GetDiscoveriesHandler.cs
+  - src/registry/src/Continuum.Registry.Api/Features/Components/ComponentEndpoints.cs
+- Tests added: None (covered by existing integration tests)
+- **Implementation details:**
+  - Endpoint already existed at GET /api/v1/organisations/{orgId}/components/{id}/discoveries
+  - Handler uses GetDiscoveriesForComponentAsync which already maps Security and Semantic per US-015
+  - Added GetByIdAsync check to return 404 if component not found or doesn't belong to org
+  - Added .ProducesProblem(404) to endpoint OpenAPI specification
+- **Learnings:**
+  - Many endpoints already existed from previous work - verify before implementing
+  - Pattern: check component existence in handler, then call service method
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-019: Add Component.UpdateSummaries domain method
+- What was implemented: Added UpdateSummaries domain method for atomic updates of SecuritySummary and SemanticSummary
+- Files changed:
+  - src/registry/src/Continuum.Registry.Domain/Components/Component.cs
+  - src/registry/src/Continuum.Registry.Application/Components/Services/ComponentService.cs
+- Tests added: None (domain method, covered by existing tests and future US-036)
+- **Implementation details:**
+  - Added public UpdateSummaries(SecuritySummary?, SemanticSummary?, IDateTimeProvider) method
+  - Method updates both summaries atomically and sets UpdatedAt timestamp
+  - Made SetSecuritySummary and SetSemanticSummary internal for encapsulation (only UpdateSummaries is public)
+  - Updated ComponentService.UpdateSummariesAsync to use new UpdateSummaries method
+  - RowVersion managed by EF Core concurrency token (auto-incremented by database on save)
+- **Learnings:**
+  - Domain encapsulation achieved by making individual setters internal while exposing combined UpdateSummaries
+  - RowVersion in this codebase is byte[] managed by EF Core, not manually incremented in domain methods
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-021: Add UpdateComponentSummariesHandler to API
+- What was implemented: Created UpdateComponentSummariesHandler static class with HandleAsync method for updating component summaries
+- Files changed:
+  - src/registry/src/Continuum.Registry.Api/Features/Components/UpdateComponentSummariesHandler.cs (new)
+- Tests added: None (handler delegates to service; covered by integration tests in US-040)
+- **Implementation details:**
+  - Static class with HandleAsync method following established handler pattern
+  - Accepts organisationId, id (route params), request DTO, IComponentService, and CancellationToken
+  - Delegates to service.UpdateSummariesAsync for all business logic
+  - Returns Results.Ok with updated ComponentDto on success
+  - RowVersionConflictException and NotFoundException handled by GlobalExceptionHandler middleware
+- **Learnings:**
+  - Handler pattern keeps handlers simple - delegates to service, middleware handles exceptions
+  - No need to catch domain exceptions - GlobalExceptionHandler converts them to appropriate HTTP responses
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-022: Map UpdateComponentSummaries endpoint
+- What was implemented: Added route mapping for UpdateComponentSummaries handler at PUT /api/v1/organisations/{orgId}/components/{id}/summaries
+- Files changed:
+  - src/registry/src/Continuum.Registry.Api/Features/Components/ComponentEndpoints.cs
+- Tests added: None (endpoint mapping, covered by integration tests in US-040)
+- **Implementation details:**
+  - Added group.MapPut("/{id:guid}/summaries", UpdateComponentSummariesHandler.HandleAsync)
+  - WithName("UpdateComponentSummaries") for endpoint naming
+  - WithSummary and WithDescription for OpenAPI documentation
+  - Produces<ComponentDto>() for success response type
+  - ProducesProblem(404) for component not found
+  - ProducesProblem(409) for concurrency conflict
+  - Tags inherited from group (.WithTags("Components"))
+- **Learnings:**
+  - Endpoint group pattern inherits tags from parent group.WithTags() call
+  - Minimal API endpoint mapping follows consistent fluent builder pattern
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-023: Add GetDiscoveriesForComponent MCP tool definition
+- What was implemented: Added GetDiscoveriesForComponent MCP tool for fetching all discoveries for a component
+- Files changed:
+  - src/registry/src/Continuum.Registry.McpServer/Clients/RegistryApiClient.cs
+  - src/registry/src/Continuum.Registry.McpServer/Tools/ComponentTools.cs
+- Tests added: None (MCP tool, covered by existing integration tests for the REST endpoint)
+- **Implementation details:**
+  - Added GetDiscoveriesForComponentAsync method to RegistryApiClient to call GET /api/v1/organisations/{orgId}/components/{id}/discoveries
+  - Added GetDiscoveriesForComponent MCP tool with [McpServerTool] attribute
+  - Tool parameter: componentId (Guid, required)
+  - Returns IReadOnlyList<ComponentDiscoveryDto>? (null if component not found)
+  - Includes logging for tool invocation tracking
+  - Tool description explains it returns all active ComponentDiscoveryDto records for org-wide aggregation
+- **Learnings:**
+  - MCP tools are defined in .NET MCP server (Continuum.Registry.McpServer), not in Python atlas
+  - Python atlas auto-discovers MCP tools via langchain-mcp-adapters
+  - MCP tools follow pattern: [McpServerTool] attribute + [Description] attribute + parameter [Description] attributes
+  - Return null for 404 cases, letting caller handle appropriately
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-024: Add SearchComponents to dedup review toolset
+- What was implemented: Added SearchComponents MCP tool to the dedup_review toolset filter for cross-repo deduplication
+- Files changed:
+  - src/atlas/src/atlas/tools/factory.py
+- Tests added: None (Python tool configuration, tested via existing integration tests)
+- **Implementation details:**
+  - Added "search_components" and "searchcomponents" to the dedup_mcp_tools filter in create_dedup_tools function (lines 660-661)
+  - SearchComponents is now available alongside ListStagedComponents, ListApprovedComponents, GetComponent
+  - Enables hybrid semantic/keyword search for cross-repo deduplication per PRD Section 17
+- **Learnings:**
+  - Atlas Python code uses create_dedup_tools factory function to configure which MCP tools are available to dedup agent
+  - MCP tool names are normalized to lowercase for matching (e.g., "search_components" and "searchcomponents")
+  - MCP tools are auto-discovered from .NET MCP server, but filtered based on toolset context
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-025: Create Aggregation Summary Agent definition
+- What was implemented: Created the Aggregation Summary Agent for post-dedup summary computation
+- Files changed:
+  - src/atlas/src/atlas/agents/aggregation_summary.py (new)
+  - src/atlas/src/atlas/agents/__init__.py
+  - src/atlas/src/atlas/tools/factory.py
+  - src/atlas/src/atlas/llm/prompts/aggregation_summary.md (new)
+- Tests added: None (agent definition, tested via integration when graph node is added in US-026)
+- **Implementation details:**
+  - Created aggregation_summary.py following existing agent patterns (deduplication.py, semantic.py)
+  - Agent has create_aggregation_summary_agent and run_aggregation_summary entry points
+  - Added AggregationSummaryResult class for structured results
+  - Created create_aggregation_summary_tools factory function for MCP tool filtering
+  - Agent has access to: GetDiscoveriesForComponent, UpdateComponent, GetComponent
+  - Created aggregation_summary.md prompt explaining the agent's purpose and workflow
+  - Exported new functions from agents/__init__.py
+- **Learnings:**
+  - Atlas agents follow consistent pattern: create_X_agent + run_X + result extraction
+  - Agents that need MCP tools take mcp_client parameter (like deduplication agent)
+  - Prompts are loaded from .md files in atlas/src/atlas/llm/prompts/
+  - Tool filtering in factory.py uses lowercase matching for MCP tool names
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-026: Add aggregation_summary node to graph workflow
+- What was implemented: Added aggregation_summary node to LangGraph workflow that runs after dedup_review and before enrichment
+- Files changed:
+  - src/atlas/src/atlas/graph/nodes/aggregation_summary.py (new)
+  - src/atlas/src/atlas/graph/build_graph.py
+  - src/atlas/src/atlas/graph/state.py
+- Tests added: None (graph node, tested via existing integration tests at runtime)
+- **Implementation details:**
+  - Created aggregation_summary_node async function following dedup_review pattern
+  - Created create_aggregation_summary_node factory for dependency injection at graph build time
+  - Added AggregationResult and AggregationSummaryUpdate state models
+  - Added persist_summaries parameter to build_graph for Persist vs Preview mode support
+  - Node iterates over discovered_components, calls run_aggregation_summary for each
+  - After aggregation_summary, routes to enrichment (if components) or persist (if none)
+  - Graph flow: dedup_review -> aggregation_summary -> [enrich_component | persist]
+- **Learnings:**
+  - LangGraph node factory pattern: create_X_node wraps async node function with captured dependencies
+  - State update models in state.py define fields that merge into AtlasScanState
+  - Edges use add_edge for unconditional, add_conditional_edges for routing logic
+  - Node returns dict via update.model_dump() not Pydantic model directly
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-027: Update dedup agent prompt for SearchComponents usage
+- What was implemented: Updated deduplication.md prompt to use SearchComponents for cross-repo dedup
+- Files changed:
+  - src/atlas/src/atlas/llm/prompts/deduplication.md
+- Tests added: None (prompt file, no code changes)
+- **Implementation details:**
+  - Added Cross-Repository Search section under Available Tools documenting SearchComponents(query, keywords, topK)
+  - Updated Workflow section: now step 2 is "search for cross-repo duplicates" before grouping
+  - Added Step 1: Search for Cross-Repository Duplicates with guidance on crafting queries/keywords
+  - Updated Example Workflow with concrete SearchComponents calls and reasoning
+  - Added Important Notes: "Always search first", "Craft semantic queries", "Include strong keywords", "Trust the search ranking", "Provide reasoning"
+  - Renumbered existing Steps (now Step 2/3/4 instead of 1/2/3)
+- **Learnings:**
+  - Prompt instructs agent to trust search service ranking - no client-side re-scoring
+  - Query should be semantic description, keywords should be lexical identifiers
+  - Agent must provide reasoning for each grouping decision
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-028: Update dedup agent prompt for identity promotion
+- What was implemented: Added Identity Promotion section to deduplication.md for post-merge metadata improvement
+- Files changed:
+  - src/atlas/src/atlas/llm/prompts/deduplication.md
+- Tests added: None (prompt file, no code changes)
+- **Implementation details:**
+  - Added "Identity Promotion (Post-Merge)" section after Step 4: Report Results
+  - Added Safe Fields table: Name, ServiceName, Tags, Responsibility with promotion criteria
+  - Added Quality Rubric for name promotion: not placeholder, reasonable length, vendor normalization, descriptive
+  - Added High-Risk Fields list: Type, Category, Direction, Classification - flagged for human review
+  - Added Promotion Workflow example showing GetComponent -> UpdateComponent with rowVersion
+  - Added Logging Rationale requirements with JSON example
+  - Added UpdateComponent and GetComponent to Available Tools section
+  - Updated Output Format to include promotions and flagged_for_review arrays
+- **Learnings:**
+  - UpdateComponent via MCP only exposes safe fields (Name, ServiceName, Responsibility, AddTags)
+  - Type/Category/Direction/Classification are intentionally not exposed - can't be changed programmatically
+  - rowVersion is required for all UpdateComponent calls for optimistic concurrency
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-029: Create Aggregation Summary Agent prompt
+- What was implemented: Enhanced aggregation_summary.md prompt with comprehensive aggregation logic and Persist vs Preview mode distinction
+- Files changed:
+  - src/atlas/src/atlas/llm/prompts/aggregation_summary.md
+- Tests added: None (prompt file, no code changes)
+- **Implementation details:**
+  - Added "Persist vs Preview Mode" section explaining both modes
+  - Restructured Workflow to include mode-based step 7
+  - Replaced prose with tables for SecuritySummary and SemanticSummary computation rules
+  - Added Rating Priority scale (worst to best): "low" → "medium" → "high"
+  - Added Criticality Priority scale (lowest to highest): "low" → "medium" → "high" → "critical"
+  - Added UpdateComponent example with JSON schema showing full payload
+  - Added structured Output Format template with Discoveries, SecuritySummary, SemanticSummary, and Result sections
+- **Learnings:**
+  - Prompt file existed from US-025 but lacked Persist vs Preview mode documentation
+  - Agent code (aggregation_summary.py) dynamically injects mode instruction at runtime
+  - Prompt provides background context; runtime injection provides mode-specific commands
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-030: Add staged alignment logic to dedup review
+- What was implemented: Added staged alignment step to deduplication.md prompt for Phase 1 compatibility with current finalize behavior
+- Files changed:
+  - src/atlas/src/atlas/llm/prompts/deduplication.md
+  - src/atlas/src/atlas/types/deduplication.py
+  - src/atlas/src/atlas/types/__init__.py
+  - src/atlas/src/atlas/tools/factory.py
+- Tests added: None (prompt and type changes, tested via existing agent execution)
+- **Implementation details:**
+  - Added "Staged Alignment (Post-Merge)" section with detailed workflow
+  - When Alignment is Required table: staged-to-staged vs staged-to-approved scenarios
+  - Alignment Workflow: SubmitComponent with survivor identity, preserve Detection/Security/Semantic from staged
+  - Key Rules for identity vs per-repo data, composed idempotency key pattern
+  - Updated Example Workflow with alignment step after merge
+  - Updated Output Format to include alignments array
+  - Added Promotion, Alignment, FlaggedForReview models to DeduplicationResult type
+  - Exported new types from types/__init__.py
+  - Added SubmitComponent, DiscardStagedComponent, UpdateComponent to dedup toolset in factory.py
+- **Learnings:**
+  - Staged alignment is an interim step for Phase 1 - re-submit staged entries with canonical identity
+  - Identity comes from survivor (Type, Category, Direction, Classification, Connection, etc.)
+  - Per-repo data (Detection, Security, Semantic) preserved from original staged entry
+  - Composed idempotency key pattern: "align-{staged_id}-to-{survivor_id}"
+  - MCP tools were previously excluded from dedup toolset - now included for direct agent access
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-031: Update SnapshotService to snapshot canonical Component into versions
+- What was implemented: Modified ProcessPersistSnapshotAsync to create versions from canonical Component instead of staged.StateJson
+- Files changed:
+  - src/registry/src/Continuum.Registry.Application/Snapshots/DTOs/SnapshotDtos.cs (added ComponentVersionState)
+  - src/registry/src/Continuum.Registry.Application/Snapshots/Services/SnapshotService.cs (added MapToVersionState, SerializeVersionState, updated version creation)
+- Tests added: None (covered by existing integration tests)
+- **Implementation details:**
+  - Added ComponentVersionState sealed record with identity/connection fields (Type, Category, Direction, Classification, Connection, ServiceName, Name, Responsibility, Tags) and aggregated summaries (SecuritySummary, SemanticSummary)
+  - Added MapToVersionState helper method to map Component entity to ComponentVersionState
+  - Added SerializeVersionState helper to serialize Component to JSON
+  - Updated version creation in ProcessPersistSnapshotAsync (both new discovery and existing modified paths) to use SerializeVersionState(component) instead of staged.StateJson
+  - Removals continue to use empty state "{}" as before
+  - Component.CurrentVersionId continues to be updated correctly
+- **Learnings:**
+  - US-031, US-032, US-033 are tightly coupled - ComponentVersionState DTO, mapper, and usage all need to be implemented together
+  - Version state now captures canonical Component identity at finalize time, not raw staged state
+  - This enables consistent versioning semantics across identity promotion and aggregation
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 130 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-034: Unit tests for SecuritySummary value object
+- What was implemented: Created unit tests for SecuritySummary sealed record covering creation, equality, and with expressions
+- Files changed: src/registry/tests/Continuum.Registry.Tests/Domain/Components/SecuritySummaryTests.cs (new)
+- Tests added:
+  - Create_ShouldReturnSecuritySummary_WithValidProperties
+  - Create_ShouldAllowEmptyCollections
+  - Create_ShouldAllowZeroDiscoveryCount
+  - Equals_ShouldReturnTrue_ForIdenticalRecords
+  - Equals_ShouldReturnFalse_ForDifferentOverallRating
+  - Equals_ShouldReturnFalse_ForDifferentDiscoveryCount
+  - GetHashCode_ShouldBeSame_ForEqualRecords
+  - With_ShouldCreateModifiedCopy
+  - With_ShouldAllowUpdatingDiscoveryCount
+- **Learnings:**
+  - Test file pattern: Domain tests go in Tests/Domain/{Feature}/ directory
+  - Use [Trait("Category", "Domain")] for domain layer tests
+  - Sealed record equality uses reference equality for collection properties when same instance is shared
+  - Record with expression creates shallow copy, preserving collection references
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 139 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-035: Unit tests for SemanticSummary value object
+- What was implemented: Created unit tests for SemanticSummary sealed record covering creation, equality, and with expressions
+- Files changed: src/registry/tests/Continuum.Registry.Tests/Domain/Components/SemanticSummaryTests.cs (new)
+- Tests added:
+  - Create_ShouldReturnSemanticSummary_WithValidProperties
+  - Create_ShouldAllowEmptyCollections
+  - Create_ShouldAllowZeroDiscoveryCount
+  - Create_ShouldAllowEmptyDescription
+  - Equals_ShouldReturnTrue_ForIdenticalRecords
+  - Equals_ShouldReturnFalse_ForDifferentDescription
+  - Equals_ShouldReturnFalse_ForDifferentCriticality
+  - Equals_ShouldReturnFalse_ForDifferentDiscoveryCount
+  - GetHashCode_ShouldBeSame_ForEqualRecords
+  - With_ShouldCreateModifiedCopy
+  - With_ShouldAllowUpdatingDiscoveryCount
+  - With_ShouldAllowUpdatingDescription
+- **Learnings:**
+  - Followed same test pattern as SecuritySummaryTests for consistency
+  - SemanticSummary has 2 collection properties (Domains, UseCases) vs SecuritySummary's 2 (AuthMethods, Concerns)
+  - Both use Description + Criticality as string fields (different names from SecuritySummary's OverallRating)
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 151 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-036: Unit tests for Component.UpdateSummaries method
+- What was implemented: Created unit tests for Component.UpdateSummaries domain method covering summary setting, clearing, and error handling
+- Files changed: src/registry/tests/Continuum.Registry.Tests/Domain/Components/ComponentTests.cs
+- Tests added:
+  - UpdateSummaries_ShouldSetSecuritySummary_WhenProvided
+  - UpdateSummaries_ShouldSetSemanticSummary_WhenProvided
+  - UpdateSummaries_ShouldSetBothSummaries_WhenBothProvided
+  - UpdateSummaries_ShouldClearSecuritySummary_WhenNullProvided
+  - UpdateSummaries_ShouldClearSemanticSummary_WhenNullProvided
+  - UpdateSummaries_ShouldClearBothSummaries_WhenBothNull
+  - UpdateSummaries_ShouldThrow_WhenDateTimeProviderIsNull
+  - UpdateSummaries_ShouldUpdateTimestamp_EvenWithNoSummaryChanges
+- **Learnings:**
+  - Added tests to existing ComponentTests.cs in new #region UpdateSummaries Tests
+  - Added CreateTestComponentWithSummaries helper for tests that need pre-populated summaries
+  - RowVersion is not manually incremented in domain - managed by EF Core concurrency token (byte[])
+  - UpdatedAt timestamp is updated on every call regardless of summary content
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 159 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-037: Unit tests for ComponentService.UpdateSummariesAsync
+- What was implemented: Created unit tests for UpdateSummariesAsync service method covering successful updates, exceptions, and edge cases
+- Files changed: src/registry/tests/Continuum.Registry.Tests/Application/Components/ComponentServiceTests.cs
+- Tests added:
+  - UpdateSummariesAsync_ShouldUpdateSummaries_WhenRowVersionMatches
+  - UpdateSummariesAsync_ShouldThrowNotFoundException_WhenComponentNotFound
+  - UpdateSummariesAsync_ShouldThrowRowVersionConflict_WhenVersionMismatch
+  - UpdateSummariesAsync_ShouldUpdateOnlySecuritySummary_WhenSemanticNotProvided
+  - UpdateSummariesAsync_ShouldUpdateOnlySemanticSummary_WhenSecurityNotProvided
+  - UpdateSummariesAsync_ShouldClearSummaries_WhenBothNull
+  - UpdateSummariesAsync_ShouldReIndexInSearchService
+- **Learnings:**
+  - Service uses GetByIdAsync (codebase pattern) instead of GetByIdForUpdateAsync (doesn't exist)
+  - Service uses componentRepository.UpdateAsync (codebase pattern) instead of IUnitOfWork.SaveChangesAsync
+  - RowVersionConflictException thrown on version mismatch, NotFoundException when component not found
+  - Added CreateTestComponentWithSummaries helper method for tests that need pre-populated summaries
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 166 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-038: Unit tests for SnapshotService versioning from canonical Component
+- What was implemented: Created 6 unit tests verifying ComponentVersion.State is created from canonical Component entity
+- Files changed: src/registry/tests/Continuum.Registry.Tests/Application/Snapshots/SnapshotServiceTests.cs
+- Tests added:
+  - FinalizeSnapshotAsync_ShouldCreateVersionState_FromCanonicalComponent_WhenAddingNewComponent
+  - FinalizeSnapshotAsync_ShouldCreateVersionState_WithAggregatedSummaries_WhenComponentHasSummaries
+  - FinalizeSnapshotAsync_ShouldUpdateCurrentVersionId_OnComponent
+  - FinalizeSnapshotAsync_ShouldCreateVersionState_ForModifiedComponent
+  - FinalizeSnapshotAsync_ShouldCreateMinimalState_ForRemovedComponent
+  - FinalizeSnapshotAsync_ShouldIncludeIdentityFields_InVersionState
+- Helper methods added:
+  - CreateTestStagingEntryWithComponentId - Staging entry with specific component ID
+  - CreateTestComponentWithId - Component with specific ID
+  - CreateTestComponentWithSummaries - Component with pre-populated summaries
+  - CreateTestDiscovery - ComponentDiscovery for testing
+- **Learnings:**
+  - Version state from canonical Component verified by checking JSON contains expected fields
+  - Added change type tests capture version through repository mock callback
+  - Removed components use minimal/empty state "{}" per existing behavior
+  - Component.CurrentVersionId is updated via UpdateCurrentVersion call
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 172 passed, Search 122+71 passed, Registry Integration 73 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-039: Integration test for GetDiscoveriesForComponent endpoint
+- What was implemented: Added 4 integration tests for GET /api/v1/organisations/{orgId}/components/{id}/discoveries endpoint
+- Files changed:
+  - src/registry/tests/Continuum.Registry.IntegrationTests/ComponentEndpointTests.cs (added tests and helper method)
+  - src/registry/src/Continuum.Registry.Application/Components/Services/ComponentService.cs (bug fix)
+- Tests added:
+  - GetDiscoveriesForComponent_WithValidComponent_ReturnsDiscoveries
+  - GetDiscoveriesForComponent_WithSecurityAndSemantic_ReturnsPerRepoData
+  - GetDiscoveriesForComponent_WithNonExistentComponent_ReturnsNotFound
+  - GetDiscoveriesForComponent_FromDifferentOrganisation_ReturnsNotFound
+  - CreateRegisterComponentDtoWithSecurityAndSemantic (helper method)
+- **Learnings:**
+  - Found and fixed bug: ComponentService.CreateComponentAndDiscovery was not passing Security/Semantic to ComponentDiscovery.Create
+  - Registration request Security and Semantic must be passed through to ComponentDiscovery for per-repo data to be persisted
+  - Pre-existing 4 Cortex test failures are unrelated to Registry work (MemoryServiceTests, ScanServiceTests)
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 172 passed, Search 122+71 passed, Registry Integration 77 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-040: Integration test for UpdateComponentSummaries endpoint
+- What was implemented: Added 4 integration tests for PUT /api/v1/organisations/{orgId}/components/{id}/summaries endpoint
+- Files changed: src/registry/tests/Continuum.Registry.IntegrationTests/ComponentEndpointTests.cs
+- Tests added:
+  - UpdateComponentSummaries_WithValidRequest_ReturnsUpdatedComponentDto
+  - UpdateComponentSummaries_WithStaleRowVersion_ReturnsConflict
+  - UpdateComponentSummaries_SummariesArePersisted_VerifiedByGet
+  - UpdateComponentSummaries_WithNonExistentComponent_ReturnsNotFound
+- **Learnings:**
+  - UpdateComponentSummariesRequest requires ComponentId in body AND id in route (handler uses request.ComponentId)
+  - RowVersion is Base64-encoded byte[] - must use same encoding when constructing test requests
+  - Aspire.Hosting.Testing framework handles container lifecycle automatically
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 172 passed, Search 122+71 passed, Registry Integration 81 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-041: Add UpdateComponent MCP tool to Aggregation Summary Agent toolset
+- What was implemented: Added dedicated UpdateComponentSummaries MCP tool for the Aggregation Summary Agent to persist SecuritySummary and SemanticSummary
+- Files changed:
+  - src/registry/src/Continuum.Registry.McpServer/Clients/RegistryApiClient.cs (added UpdateComponentSummariesAsync method)
+  - src/registry/src/Continuum.Registry.McpServer/Tools/ComponentTools.cs (added UpdateComponentSummaries MCP tool)
+  - src/atlas/src/atlas/tools/factory.py (updated aggregation_summary_tools filter to use UpdateComponentSummaries)
+  - src/atlas/src/atlas/llm/prompts/aggregation_summary.md (updated to reference UpdateComponentSummaries)
+  - src/atlas/src/atlas/agents/aggregation_summary.py (updated mode_instruction to use UpdateComponentSummaries)
+- Tests added: None (MCP tool configuration, tested via existing integration tests)
+- **Learnings:**
+  - Created a dedicated UpdateComponentSummaries tool instead of using generic UpdateComponent for clearer separation of concerns
+  - The tool accepts componentId, rowVersion, securitySummary, and semanticSummary as separate parameters
+  - Tool filter in factory.py uses lowercase names: "update_component_summaries" and "updatecomponentsummaries"
+  - MCP tool returns ConcurrencyOperationResult with Success/NotFound/RowVersionConflict states
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 172 passed, Search 122+71 passed, Registry Integration 81 passed; 4 pre-existing Cortex failures unrelated)
+---
+
+## 2026-01-08 - US-042: Update search indexing to include summaries
+- What was implemented: Updated ComponentSearchMapper to include aggregated SecuritySummary and SemanticSummary in search indexing
+- Files changed:
+  - src/registry/src/Continuum.Registry.Application/Search/ComponentSearchMapper.cs
+- Tests added: None (existing search integration tests cover this functionality)
+- **Changes:**
+  - BuildEmbeddingText: Added SemanticSummary.Description, Domains, and UseCases for richer semantic context in vector embeddings
+  - BuildSearchText: Added SecuritySummary.Concerns, AuthMethods, OverallRating and SemanticSummary.Domains, UseCases, Criticality for full-text search keywords
+  - BuildFilterData: Prefers aggregated SemanticSummary.Criticality over per-repo Semantic.Criticality; Added aggregated "domains" array for multi-domain filtering; Added "securityRating" for security filtering
+- **Learnings:**
+  - Aggregated summaries provide org-wide context while per-repo semantic analysis provides repository-specific detail
+  - Filter data can include arrays (domains) for multi-value filtering
+  - Prefer aggregated values over per-repo values when both exist (e.g., criticality)
+- **Verification:**
+  - Build: PASS (0 warnings, 0 errors)
+  - Tests: PASS (Registry 172 passed, Search 122+71 passed, Registry Integration 81 passed; 4 pre-existing Cortex failures unrelated)
+---
