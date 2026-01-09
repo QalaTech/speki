@@ -277,16 +277,16 @@ router.post('/execute-task', async (req, res) => {
     // Save updated PRD
     await req.project!.savePRD(prd);
 
-    // Mark task as executed in source file (if provided)
+    // Remove task from source file after adding to prd.json
     if (sourceFile) {
       try {
         const sourceContent = await fs.readFile(sourceFile, 'utf-8');
         const sourceData = JSON.parse(sourceContent) as PRDData;
 
-        const sourceTask = sourceData.userStories.find(s => s.id === task.id);
-        if (sourceTask) {
-          sourceTask.executedAt = new Date().toISOString();
-          sourceTask.inPrd = true;
+        const taskIndex = sourceData.userStories.findIndex(s => s.id === task.id);
+        if (taskIndex !== -1) {
+          // Remove the task from the source file
+          sourceData.userStories.splice(taskIndex, 1);
           await fs.writeFile(sourceFile, JSON.stringify(sourceData, null, 2));
         }
       } catch (err) {
@@ -321,10 +321,16 @@ router.post('/activate', async (req, res) => {
     }
 
     const content = await fs.readFile(state.draftFile, 'utf-8');
-    const prd = JSON.parse(content);
+    const prd = JSON.parse(content) as PRDData;
+    const storyCount = prd.userStories?.length || 0;
+
     await req.project!.savePRD(prd);
 
-    res.json({ success: true, storyCount: prd.userStories?.length || 0 });
+    // Clear tasks from the draft file after activation
+    prd.userStories = [];
+    await fs.writeFile(state.draftFile, JSON.stringify(prd, null, 2));
+
+    res.json({ success: true, storyCount });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to activate draft',

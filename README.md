@@ -99,8 +99,28 @@ This creates a `.ralph/` folder in your project with:
 
 ### Step 2: Write a PRD
 
-Create a PRD (Product Requirements Document) in markdown format. Place it in a `specs/`, `docs/`, or `prd/` folder:
+Create a PRD (Product Requirements Document) in markdown format. Place it in your **project folder** (not the qala-ralph folder) in one of these locations:
+- `specs/` (recommended)
+- `docs/`
+- `prd/`
 
+**Example project structure after creating a spec:**
+```
+my-project/                      # Your project root
+├── src/                         # Your source code
+├── tests/                       # Your tests
+├── package.json                 # Your project config
+├── specs/                       # Create this folder for PRDs
+│   └── auth-feature.md          # Your PRD file
+└── .ralph/                      # Created by qala init
+    ├── config.json
+    ├── prompt.md
+    ├── standards/
+    ├── tasks/
+    └── logs/
+```
+
+**Example PRD (`specs/auth-feature.md`):**
 ```markdown
 # Feature: User Authentication
 
@@ -120,14 +140,22 @@ Implement JWT-based user authentication for the API.
 
 ### Step 3: Decompose the PRD
 
-Convert your PRD into atomic, executable tasks:
+Convert your PRD into atomic, executable tasks.
 
+**Option A: Using the Dashboard (Recommended)**
 ```bash
-# Using CLI
-qala decompose specs/auth-feature.md --branch ralph/auth
-
-# Or use the dashboard (recommended)
 qala dashboard
+```
+1. Select your project from the dropdown
+2. Click **Decompose** in the sidebar
+3. Select your spec file from the list (e.g., `specs/auth-feature.md`)
+4. Set the branch name and language
+5. Click **Start Decomposition**
+6. Watch progress in real-time
+
+**Option B: Using CLI**
+```bash
+qala decompose specs/auth-feature.md --branch ralph/auth
 ```
 
 The decomposition will:

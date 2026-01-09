@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import type { ParsedEntry } from '../utils/parseJsonl';
 import './ChatLogView.css';
 
@@ -47,11 +47,27 @@ function formatToolContent(toolName: string, content: string): { title: string; 
 }
 
 export function ChatLogView({ entries, isRunning }: ChatLogViewProps) {
-  const endRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const wasNearBottomRef = useRef(true);
 
+  // Check if user is near the bottom of the scroll
+  const isNearBottom = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return true;
+    const threshold = 100; // pixels from bottom
+    return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+  }, []);
+
+  // Track scroll position to determine if we should auto-scroll
+  const handleScroll = useCallback(() => {
+    wasNearBottomRef.current = isNearBottom();
+  }, [isNearBottom]);
+
+  // Auto-scroll only if user was near the bottom
   useEffect(() => {
-    if (endRef.current) {
-      endRef.current.scrollIntoView({ behavior: 'smooth' });
+    const container = containerRef.current;
+    if (container && wasNearBottomRef.current) {
+      container.scrollTop = container.scrollHeight;
     }
   }, [entries]);
 
@@ -65,7 +81,7 @@ export function ChatLogView({ entries, isRunning }: ChatLogViewProps) {
   }
 
   return (
-    <div className="chat-log">
+    <div className="chat-log" ref={containerRef} onScroll={handleScroll}>
       {entries.map((entry, idx) => {
         // Determine if this is a "left" (Claude text) message
         const isLeft = entry.type === 'text' || entry.type === 'result';
@@ -155,8 +171,6 @@ export function ChatLogView({ entries, isRunning }: ChatLogViewProps) {
           </div>
         </div>
       )}
-
-      <div ref={endRef} />
     </div>
   );
 }

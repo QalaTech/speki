@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Routes, Route, useNavigate, useLocation, useSearchParams, Navigate } from 'react-router-dom';
 import type { PRDData, RalphStatus, DecomposeState } from './types';
 import { calculateStats } from './types';
 import { StatsBar } from './components/StatsBar';
@@ -8,14 +9,130 @@ import { ProgressView } from './components/ProgressView';
 import { DecomposeView } from './components/DecomposeView';
 import './App.css';
 
-type NavSection = 'decompose' | 'execution';
-type ExecutionTab = 'kanban' | 'tasks' | 'progress';
-
 interface ProjectEntry {
   name: string;
   path: string;
   status: string;
   lastActivity: string;
+}
+
+// ExecutionView as a separate component to prevent remounting on parent re-renders
+interface ExecutionViewProps {
+  prdData: PRDData | null;
+  error: string | null;
+  ralphStatus: RalphStatus;
+  iterationLog: string;
+  progress: string;
+  currentIteration: number | null;
+  executionTab: string;
+  projectName: string;
+  onStartRalph: () => void;
+  onStopRalph: () => void;
+  onNavigate: (path: string) => void;
+}
+
+function ExecutionView({
+  prdData,
+  error,
+  ralphStatus,
+  iterationLog,
+  progress,
+  currentIteration,
+  executionTab,
+  projectName,
+  onStartRalph,
+  onStopRalph,
+  onNavigate,
+}: ExecutionViewProps) {
+  const stats = prdData?.userStories ? calculateStats(prdData.userStories) : { total: 0, completed: 0, ready: 0, blocked: 0 };
+
+  return (
+    <>
+      {/* Stats Header */}
+      {prdData && (
+        <header className="execution-header">
+          <StatsBar
+            stats={stats}
+            projectName={prdData.projectName || projectName}
+            branchName={prdData.branchName}
+            ralphStatus={ralphStatus}
+          />
+          <div className="header-actions">
+            {!ralphStatus.running ? (
+              <button className="btn-primary" onClick={onStartRalph} disabled={stats.ready === 0}>
+                Start Ralph
+              </button>
+            ) : (
+              <button className="btn-danger" onClick={onStopRalph}>
+                Stop Ralph
+              </button>
+            )}
+          </div>
+        </header>
+      )}
+
+      {error && !prdData && (
+        <div className="no-data">
+          <h2>No prd.json found</h2>
+          <p>Use the Decompose tab to generate tasks from a PRD file.</p>
+          <button className="btn-secondary" onClick={() => onNavigate('/decompose')}>
+            Go to Decompose
+          </button>
+        </div>
+      )}
+
+      {prdData && (
+        <>
+          {/* Execution Tabs */}
+          <nav className="tab-nav">
+            <button
+              className={`tab-btn ${executionTab === 'kanban' ? 'active' : ''}`}
+              onClick={() => onNavigate('/execution/kanban')}
+            >
+              Board
+            </button>
+            <button
+              className={`tab-btn ${executionTab === 'list' ? 'active' : ''}`}
+              onClick={() => onNavigate('/execution/list')}
+            >
+              List ({prdData?.userStories?.length || 0})
+            </button>
+            <button
+              className={`tab-btn ${executionTab === 'log' ? 'active' : ''}`}
+              onClick={() => onNavigate('/execution/log')}
+            >
+              Log
+            </button>
+          </nav>
+
+          {/* Tab Content */}
+          <div className={`tab-content ${executionTab === 'kanban' ? 'kanban-active' : ''}`}>
+            {executionTab === 'kanban' && prdData?.userStories && (
+              <KanbanView
+                stories={prdData.userStories}
+                currentStory={ralphStatus.currentStory}
+                logContent={ralphStatus.running && iterationLog ? iterationLog : progress}
+                iterationLog={iterationLog}
+                currentIteration={currentIteration}
+                isRunning={ralphStatus.running}
+              />
+            )}
+            {executionTab === 'list' && prdData?.userStories && (
+              <TaskList stories={prdData.userStories} currentStory={ralphStatus.currentStory} />
+            )}
+            {executionTab === 'log' && (
+              <ProgressView
+                content={progress}
+                iterationLog={iterationLog}
+                currentIteration={currentIteration}
+                isRunning={ralphStatus.running}
+              />
+            )}
+          </div>
+        </>
+      )}
+    </>
+  );
 }
 
 const defaultStatus: RalphStatus = {
@@ -27,20 +144,30 @@ const defaultStatus: RalphStatus = {
 };
 
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [projects, setProjects] = useState<ProjectEntry[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [prdData, setPrdData] = useState<PRDData | null>(null);
   const [progress, setProgress] = useState<string>('');
   const [iterationLog, setIterationLog] = useState<string>('');
   const [currentIteration] = useState<number | null>(null);
   const [ralphStatus, setRalphStatus] = useState<RalphStatus>(defaultStatus);
   const [decomposeState, setDecomposeState] = useState<DecomposeState>({ status: 'IDLE', message: '' });
-  const [activeSection, setActiveSection] = useState<NavSection>('execution');
-  const [executionTab, setExecutionTab] = useState<ExecutionTab>('kanban');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // Get selected project from URL params
+  const selectedProject = searchParams.get('project');
+
+  // Derive active section and tab from URL path
+  const isDecomposePage = location.pathname.startsWith('/decompose');
+  const executionTab = location.pathname.includes('/list') ? 'list'
+    : location.pathname.includes('/log') ? 'log'
+    : 'kanban';
 
   // Helper to add project param to API calls
   const apiUrl = useCallback((endpoint: string) => {
@@ -48,6 +175,17 @@ function App() {
     const separator = endpoint.includes('?') ? '&' : '?';
     return `${endpoint}${separator}project=${encodeURIComponent(selectedProject)}`;
   }, [selectedProject]);
+
+  // Navigate while preserving project param
+  const navigateTo = useCallback((path: string) => {
+    const params = selectedProject ? `?project=${encodeURIComponent(selectedProject)}` : '';
+    navigate(`${path}${params}`);
+  }, [navigate, selectedProject]);
+
+  // Update project in URL
+  const setSelectedProject = useCallback((projectPath: string) => {
+    setSearchParams({ project: projectPath });
+  }, [setSearchParams]);
 
   // Fetch list of projects
   const fetchProjects = useCallback(async () => {
@@ -57,12 +195,12 @@ function App() {
       setProjects(data);
       // Auto-select first project if none selected
       if (!selectedProject && data.length > 0) {
-        setSelectedProject(data[0].path);
+        setSearchParams({ project: data[0].path });
       }
     } catch (err) {
       console.error('Failed to fetch projects:', err);
     }
-  }, [selectedProject]);
+  }, [selectedProject, setSearchParams]);
 
   useEffect(() => {
     fetchProjects();
@@ -149,7 +287,7 @@ function App() {
 
   const handleTasksActivated = () => {
     fetchData();
-    setActiveSection('execution');
+    navigateTo('/execution/kanban');
   };
 
   const handleStartRalph = async () => {
@@ -196,9 +334,23 @@ function App() {
     );
   }
 
-  const stats = prdData?.userStories ? calculateStats(prdData.userStories) : { total: 0, completed: 0, ready: 0, blocked: 0 };
   const isDecomposeActive = ['STARTING', 'INITIALIZING', 'DECOMPOSING', 'DECOMPOSED', 'REVIEWING'].includes(decomposeState.status);
   const currentProject = projects.find(p => p.path === selectedProject);
+
+  // Memoized props for ExecutionView to prevent unnecessary re-renders
+  const executionViewProps: ExecutionViewProps = {
+    prdData,
+    error,
+    ralphStatus,
+    iterationLog,
+    progress,
+    currentIteration,
+    executionTab,
+    projectName: currentProject?.name || 'Unknown',
+    onStartRalph: handleStartRalph,
+    onStopRalph: handleStopRalph,
+    onNavigate: navigateTo,
+  };
 
   return (
     <div className="app-layout">
@@ -222,8 +374,8 @@ function App() {
 
         <div className="nav-items">
           <button
-            className={`nav-item ${activeSection === 'decompose' ? 'active' : ''}`}
-            onClick={() => setActiveSection('decompose')}
+            className={`nav-item ${isDecomposePage ? 'active' : ''}`}
+            onClick={() => navigateTo('/decompose')}
           >
             <span className="nav-icon">&#9881;</span>
             <span className="nav-label">Decompose</span>
@@ -231,8 +383,8 @@ function App() {
           </button>
 
           <button
-            className={`nav-item ${activeSection === 'execution' ? 'active' : ''}`}
-            onClick={() => setActiveSection('execution')}
+            className={`nav-item ${!isDecomposePage ? 'active' : ''}`}
+            onClick={() => navigateTo('/execution/kanban')}
           >
             <span className="nav-icon">&#9654;</span>
             <span className="nav-label">Execution</span>
@@ -267,100 +419,25 @@ function App() {
           </div>
         )}
 
-        {activeSection === 'decompose' && selectedProject && (
-          <DecomposeView
-            onTasksActivated={handleTasksActivated}
-            projectPath={selectedProject}
-          />
-        )}
-
-        {activeSection === 'execution' && (
-          <>
-            {/* Stats Header */}
-            {prdData && (
-              <header className="execution-header">
-                <StatsBar
-                  stats={stats}
-                  projectName={prdData.projectName || currentProject?.name || 'Unknown'}
-                  branchName={prdData.branchName}
-                  ralphStatus={ralphStatus}
+        <Routes>
+          <Route path="/" element={<Navigate to="/execution/kanban" replace />} />
+          <Route
+            path="/decompose"
+            element={
+              selectedProject ? (
+                <DecomposeView
+                  onTasksActivated={handleTasksActivated}
+                  projectPath={selectedProject}
                 />
-                <div className="header-actions">
-                  {!ralphStatus.running ? (
-                    <button className="btn-primary" onClick={handleStartRalph} disabled={stats.ready === 0}>
-                      Start Ralph
-                    </button>
-                  ) : (
-                    <button className="btn-danger" onClick={handleStopRalph}>
-                      Stop Ralph
-                    </button>
-                  )}
-                </div>
-              </header>
-            )}
-
-            {error && !prdData && (
-              <div className="no-data">
-                <h2>No prd.json found</h2>
-                <p>Use the Decompose tab to generate tasks from a PRD file.</p>
-                <button className="btn-secondary" onClick={() => setActiveSection('decompose')}>
-                  Go to Decompose
-                </button>
-              </div>
-            )}
-
-            {prdData && (
-              <>
-                {/* Execution Tabs */}
-                <nav className="tab-nav">
-                  <button
-                    className={`tab-btn ${executionTab === 'kanban' ? 'active' : ''}`}
-                    onClick={() => setExecutionTab('kanban')}
-                  >
-                    Board
-                  </button>
-                  <button
-                    className={`tab-btn ${executionTab === 'tasks' ? 'active' : ''}`}
-                    onClick={() => setExecutionTab('tasks')}
-                  >
-                    List ({prdData?.userStories?.length || 0})
-                  </button>
-                  <button
-                    className={`tab-btn ${executionTab === 'progress' ? 'active' : ''}`}
-                    onClick={() => setExecutionTab('progress')}
-                  >
-                    Log
-                  </button>
-                </nav>
-
-                {/* Tab Content */}
-                <div className={`tab-content ${executionTab === 'kanban' ? 'kanban-active' : ''}`}>
-                  {executionTab === 'kanban' && prdData?.userStories && (
-                    <KanbanView
-                      stories={prdData.userStories}
-                      currentStory={ralphStatus.currentStory}
-                      logContent={ralphStatus.running && iterationLog ? iterationLog : progress}
-                      iterationLog={iterationLog}
-                      currentIteration={currentIteration}
-                      isRunning={ralphStatus.running}
-                    />
-                  )}
-                  {executionTab === 'tasks' && prdData?.userStories && (
-                    <TaskList stories={prdData.userStories} currentStory={ralphStatus.currentStory} />
-                  )}
-                  {executionTab === 'progress' && (
-                    <ProgressView
-                      content={progress}
-                      iterationLog={iterationLog}
-                      currentIteration={currentIteration}
-                      isRunning={ralphStatus.running}
-                    />
-                  )}
-                </div>
-              </>
-            )}
-          </>
-        )}
+              ) : null
+            }
+          />
+          <Route path="/execution" element={<Navigate to="/execution/kanban" replace />} />
+          <Route path="/execution/kanban" element={<ExecutionView {...executionViewProps} />} />
+          <Route path="/execution/list" element={<ExecutionView {...executionViewProps} />} />
+          <Route path="/execution/log" element={<ExecutionView {...executionViewProps} />} />
+          <Route path="*" element={<Navigate to="/execution/kanban" replace />} />
+        </Routes>
       </main>
     </div>
   );

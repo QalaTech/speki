@@ -107,8 +107,14 @@ router.post('/activate/:filename', async (req, res) => {
     if (!task) {
       return res.status(404).json({ error: 'Draft not found' });
     }
+    const storyCount = task.userStories?.length || 0;
     await req.project!.savePRD(task);
-    res.json({ success: true, storyCount: task.userStories?.length || 0 });
+
+    // Clear tasks from the source file after activation
+    task.userStories = [];
+    await req.project!.saveTask(req.params.filename, task);
+
+    res.json({ success: true, storyCount });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to activate draft',

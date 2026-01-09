@@ -182,15 +182,38 @@ Your project should appear in the list.
 
 ## Create Your First PRD
 
+PRD files go in your **project folder** (the folder where you ran `qala init`), not in the qala-ralph installation folder.
+
 ### Step 1: Create a Specs Directory
 
 ```bash
+# Make sure you're in your project folder
+cd /path/to/your/project
+
+# Create specs folder
 mkdir -p specs
 ```
 
 ### Step 2: Write a Simple PRD
 
-Create `specs/hello-world.md`:
+Create `specs/hello-world.md` in your project:
+
+**Your project structure should now look like:**
+```
+your-project/                    # Your project root
+├── src/                         # Your existing source code
+├── package.json                 # Your project files
+├── specs/                       # NEW: Create this folder
+│   └── hello-world.md           # NEW: Your PRD file
+└── .ralph/                      # Created by qala init
+    ├── config.json
+    ├── prompt.md
+    ├── standards/
+    ├── tasks/
+    └── logs/
+```
+
+**Contents of `specs/hello-world.md`:**
 
 ```markdown
 # Feature: Hello World Endpoint
