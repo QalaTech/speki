@@ -18,8 +18,23 @@ interface TextBlock {
 interface ToolResultBlock {
   type: 'tool_result';
   tool_use_id: string;
-  content: string;
+  content: string | Array<{ type: string; text?: string }>;
   is_error?: boolean;
+}
+
+/**
+ * Extract text from tool_result content which can be string or array of content blocks
+ */
+function extractToolResultContent(content: string | Array<{ type: string; text?: string }> | undefined): string {
+  if (!content) return '';
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter(block => block.type === 'text' && block.text)
+      .map(block => block.text)
+      .join('\n');
+  }
+  return String(content);
 }
 
 type ContentBlock = ToolUseBlock | TextBlock | ToolResultBlock;
@@ -147,7 +162,7 @@ export function parseJsonlContent(jsonlContent: string): ParsedEntry[] {
           for (const block of content) {
             if (block.type === 'tool_result') {
               const isError = block.is_error;
-              const resultContent = block.content || '';
+              const resultContent = extractToolResultContent(block.content);
               const toolId = block.tool_use_id;
 
               if (isError) {
