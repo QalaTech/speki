@@ -14,6 +14,7 @@ import { createWriteStream, promises as fs } from 'fs';
 import { join } from 'path';
 import { PassThrough } from 'stream';
 import { parseStream, createConsoleCallbacks } from './stream-parser.js';
+import { resolveCliPath } from '../cli-path.js';
 import type { ParsedOutput, StreamCallbacks } from './types.js';
 
 export interface RunOptions {
@@ -82,8 +83,11 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
     args.unshift('--dangerously-skip-permissions');
   }
 
+  // Resolve Claude CLI path - handles cases where claude is an alias not in PATH
+  const claudePath = resolveCliPath('claude');
+
   // Spawn Claude CLI
-  const claude = spawn('claude', args, {
+  const claude = spawn(claudePath, args, {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: {
@@ -159,7 +163,10 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
  */
 export async function isClaudeAvailable(): Promise<boolean> {
   return new Promise((resolve) => {
-    const check = spawn('claude', ['--version'], {
+    // Resolve Claude CLI path - handles cases where claude is an alias not in PATH
+    const claudePath = resolveCliPath('claude');
+
+    const check = spawn(claudePath, ['--version'], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
