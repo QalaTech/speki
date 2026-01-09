@@ -95,3 +95,39 @@ export interface RalphStatus {
   pid?: number;
   error?: string;
 }
+
+// CLI type for reviewer selection
+export type CliType = 'codex' | 'claude';
+
+// Reviewer configuration
+export interface ReviewerConfig {
+  cli: CliType;
+}
+
+// Global settings stored in ~/.qala/config.json
+export interface GlobalSettings {
+  reviewer: ReviewerConfig;
+}
+
+// CLI detection result
+export interface CliDetectionResult {
+  available: boolean;
+  version: string;
+  command: string;
+}
+
+// Detection results for all CLIs
+export interface AllCliDetectionResults {
+  codex: CliDetectionResult;
+  claude: CliDetectionResult;
+}
+
+// Peer review feedback schema
+export interface ReviewFeedback {
+  verdict: 'PASS' | 'FAIL';
+  missingRequirements: string[];
+  contradictions: string[];
+  dependencyErrors: string[];
+  duplicates: string[];
+  suggestions: string[];
+}
