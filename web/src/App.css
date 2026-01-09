@@ -2387,14 +2387,73 @@ body {
   border: 1px solid rgba(139, 148, 158, 0.2);
 }
 
-.config-error {
+.config-error-container {
   margin-top: 1rem;
+}
+
+.config-error {
   padding: 0.75rem 1rem;
   background: var(--color-blocked-bg);
   border: 1px solid var(--color-blocked);
   border-radius: 8px;
   color: var(--color-blocked);
   font-size: 0.875rem;
+}
+
+.error-suggestion {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.error-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: var(--color-primary-hover);
+}
+
+.btn-retry {
+  padding: 0.5rem 1rem;
+  background: var(--color-warning-bg, #fef3cd);
+  border: 1px solid var(--color-warning, #ffc107);
+  border-radius: 6px;
+  color: var(--color-warning-text, #856404);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-retry:hover:not(:disabled) {
+  background: var(--color-warning, #ffc107);
+  color: #1a1a1a;
+}
+
+.btn-retry:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Tasks Section */

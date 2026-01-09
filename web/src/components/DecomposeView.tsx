@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { DecomposeState, DecomposeFeedback, PrdFile, PRDData, UserStory, FeedbackItem } from '../types';
+import { useNavigate } from 'react-router-dom';
+import type { DecomposeState, DecomposeFeedback, PrdFile, PRDData, UserStory, FeedbackItem, DecomposeErrorType } from '../types';
 
 interface DecomposeViewProps {
   onTasksActivated: () => void;
@@ -7,6 +8,8 @@ interface DecomposeViewProps {
 }
 
 export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewProps) {
+  const navigate = useNavigate();
+
   // Helper to add project param to API calls
   const apiUrl = (endpoint: string) => {
     if (!projectPath) return endpoint;
@@ -23,6 +26,8 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
   const [draftPath, setDraftPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<DecomposeErrorType | null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -71,6 +76,18 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
       const stateRes = await fetch(apiUrl('/api/decompose/state'));
       const stateData = await stateRes.json();
       setDecomposeState(stateData);
+
+      // Update error state from decompose state
+      if (stateData.status === 'ERROR' && stateData.error) {
+        setError(stateData.error);
+        setErrorType(stateData.errorType || null);
+      } else if (stateData.status !== 'ERROR') {
+        // Clear error when not in error state
+        if (error && !loading && !retrying) {
+          setError(null);
+          setErrorType(null);
+        }
+      }
 
       const feedbackRes = await fetch(apiUrl('/api/decompose/feedback'));
       const feedbackData = await feedbackRes.json();
@@ -186,6 +203,32 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
       setError(err instanceof Error ? err.message : 'Failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRetryReview = async () => {
+    setRetrying(true);
+    setError(null);
+    setErrorType(null);
+
+    try {
+      const res = await fetch(apiUrl('/api/decompose/retry-review'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to retry peer review');
+        setErrorType(data.errorType || null);
+      } else {
+        // Refresh state to get updated verdict
+        fetchState();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to retry peer review');
+    } finally {
+      setRetrying(false);
     }
   };
 
@@ -436,7 +479,34 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
           )}
         </div>
 
-        {error && <div className="config-error">{error}</div>}
+        {error && (
+          <div className="config-error-container">
+            <div className="config-error">{error}</div>
+            {errorType === 'CLI_UNAVAILABLE' && (
+              <div className="error-suggestion">
+                <span>The selected CLI tool is not available.</span>
+                <button
+                  className="btn-link"
+                  onClick={() => navigate('/settings')}
+                >
+                  Go to Settings
+                </button>
+                <span>to configure a different reviewer CLI.</span>
+              </div>
+            )}
+            {(errorType === 'TIMEOUT' || errorType === 'CRASH') && draft && (
+              <div className="error-actions">
+                <button
+                  className="btn-retry"
+                  onClick={handleRetryReview}
+                  disabled={retrying}
+                >
+                  {retrying ? 'Retrying...' : 'Retry Peer Review'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tasks Grid */}

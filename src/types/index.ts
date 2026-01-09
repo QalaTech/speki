@@ -74,6 +74,8 @@ export interface ReviewLogEntry {
   details?: string;
 }
 
+export type DecomposeErrorType = 'CLI_UNAVAILABLE' | 'TIMEOUT' | 'CRASH';
+
 export interface DecomposeState {
   status: DecomposeStatus;
   message: string;
@@ -82,6 +84,8 @@ export interface DecomposeState {
   verdict?: 'PASS' | 'FAIL' | 'UNKNOWN' | 'SKIPPED';
   reviewLogs?: ReviewLogEntry[];
   error?: string;
+  errorType?: DecomposeErrorType;
+  startedAt?: string;
 }
 
 // Ralph execution status (matching .ralph-status.json)

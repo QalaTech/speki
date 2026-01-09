@@ -82,6 +82,8 @@ export interface ReviewLogEntry {
   path: string;
 }
 
+export type DecomposeErrorType = 'CLI_UNAVAILABLE' | 'TIMEOUT' | 'CRASH';
+
 export interface DecomposeState {
   status: DecomposeStatus;
   message: string;
@@ -94,6 +96,7 @@ export interface DecomposeState {
   feedbackFile?: string;
   logFile?: string;
   error?: string;
+  errorType?: DecomposeErrorType;
   attempts?: number;
   reviewLogs?: ReviewLogEntry[];
 }

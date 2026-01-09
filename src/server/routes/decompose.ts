@@ -13,6 +13,12 @@ import type { DecomposeState, PRDData } from '../../types/index.js';
 
 const router = Router();
 
+// Server startup time - used to detect stale status from before server restart
+const SERVER_STARTUP_TIME = new Date().toISOString();
+
+// Active decompose statuses that indicate a process is in progress
+const ACTIVE_DECOMPOSE_STATUSES = ['INITIALIZING', 'DECOMPOSING', 'REVIEWING', 'REVISING'];
+
 // Apply project context middleware to all routes
 router.use(projectContext(true));
 
@@ -89,6 +95,21 @@ router.get('/prd-files', async (req, res) => {
 router.get('/state', async (req, res) => {
   try {
     const state = await req.project!.loadDecomposeState();
+
+    // If state is "active" (decomposing, reviewing, etc.), validate it's not stale
+    if (ACTIVE_DECOMPOSE_STATUSES.includes(state.status)) {
+      // Check if startedAt is before server startup - if so, it's from a previous session
+      if (state.startedAt && state.startedAt < SERVER_STARTUP_TIME) {
+        console.log(`[Decompose] State says ${state.status} but startedAt (${state.startedAt}) is before server startup (${SERVER_STARTUP_TIME}) - resetting to IDLE`);
+        const resetState: DecomposeState = {
+          status: 'IDLE',
+          message: 'Process was interrupted (server restart detected)',
+        };
+        await req.project!.saveDecomposeState(resetState);
+        return res.json(resetState);
+      }
+    }
+
     res.json(state);
   } catch (error) {
     res.status(500).json({
@@ -494,6 +515,107 @@ router.post('/reset', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: 'Failed to reset state',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/decompose/retry-review
+ * Retry peer review for the current draft
+ */
+router.post('/retry-review', async (req, res) => {
+  try {
+    const { runPeerReview } = await import('../../core/decompose/peer-review.js');
+
+    const state = await req.project!.loadDecomposeState();
+
+    if (!state.draftFile) {
+      return res.status(400).json({ error: 'No draft available to review' });
+    }
+
+    if (!state.prdFile) {
+      return res.status(400).json({ error: 'No PRD file specified' });
+    }
+
+    // Load the draft tasks
+    const draftContent = await fs.readFile(state.draftFile, 'utf-8');
+    const tasks = JSON.parse(draftContent) as PRDData;
+
+    // Get current attempt number from logs
+    const logsDir = req.project!.logsDir;
+    let attemptNumber = 1;
+    try {
+      const files = await fs.readdir(logsDir);
+      const reviewLogs = files.filter(f =>
+        f.startsWith('peer_review_attempt_') && f.endsWith('.log')
+      );
+      if (reviewLogs.length > 0) {
+        const maxAttempt = Math.max(...reviewLogs.map(f => {
+          const match = f.match(/peer_review_attempt_(\d+)_/);
+          return match ? parseInt(match[1], 10) : 0;
+        }));
+        attemptNumber = maxAttempt + 1;
+      }
+    } catch {
+      // Logs dir might not exist yet
+    }
+
+    // Update state to indicate retry
+    await req.project!.saveDecomposeState({
+      ...state,
+      status: 'REVIEWING',
+      message: `Retrying peer review (attempt ${attemptNumber})...`,
+    });
+
+    // Run peer review
+    const result = await runPeerReview({
+      prdFile: state.prdFile,
+      tasks,
+      project: req.project!,
+      attempt: attemptNumber,
+    });
+
+    // Update state with result
+    if (result.success) {
+      await req.project!.saveDecomposeState({
+        ...state,
+        status: 'COMPLETED',
+        message: `Peer review complete: ${result.feedback.verdict}`,
+        verdict: result.feedback.verdict,
+      });
+
+      res.json({
+        success: true,
+        verdict: result.feedback.verdict,
+        logPath: result.logPath,
+      });
+    } else {
+      // Determine error type for UI
+      const errorType = result.error?.includes('not available')
+        ? 'CLI_UNAVAILABLE'
+        : result.error?.includes('timed out')
+          ? 'TIMEOUT'
+          : 'CRASH';
+
+      await req.project!.saveDecomposeState({
+        ...state,
+        status: 'ERROR',
+        message: 'Peer review failed',
+        error: result.error,
+        errorType,
+      });
+
+      res.status(500).json({
+        success: false,
+        error: result.error,
+        errorType,
+        logPath: result.logPath,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to retry peer review',
       details: error instanceof Error ? error.message : String(error),
     });
   }
