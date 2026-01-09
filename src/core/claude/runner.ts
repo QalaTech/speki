@@ -48,6 +48,8 @@ export interface RunResult {
   exitCode: number | null;
   /** Parsed output with tool calls */
   parsed: ParsedOutput;
+  /** PID of the Claude subprocess */
+  claudePid: number | undefined;
 }
 
 /**
@@ -148,6 +150,7 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
     stderrPath,
     exitCode,
     parsed,
+    claudePid: claude.pid,
   };
 }
 

@@ -12,11 +12,32 @@ import type { RalphStatus } from '../../types/index.js';
 
 const router = Router();
 
-// Track running Ralph loops by project path (using AbortController for cancellation)
-const runningLoops = new Map<string, { abort: () => void; promise: Promise<void> }>();
+// Track running Ralph loops by project path
+interface RunningLoop {
+  abort: () => void;
+  promise: Promise<void>;
+  startedAt: number;
+}
+const runningLoops = new Map<string, RunningLoop>();
+
+// Server startup time - used to detect stale status from before server restart
+const SERVER_STARTUP_TIME = new Date().toISOString();
 
 // Apply project context middleware to all routes
 router.use(projectContext(true));
+
+/**
+ * Check if a process is running
+ */
+function isProcessRunning(pid: number): boolean {
+  try {
+    // Sending signal 0 doesn't kill the process, just checks if it exists
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * GET /api/ralph/status
@@ -27,13 +48,24 @@ router.get('/status', async (req, res) => {
     const status = await req.project!.loadStatus();
     const isRunning = runningLoops.has(req.projectPath!);
 
-    // If we think it's running but our loop isn't active, it might have crashed
-    if (status.status === 'running' && !isRunning) {
-      status.status = 'idle';
-      await req.project!.saveStatus(status);
+    // If status says running, validate it's actually running
+    if (status.status === 'running') {
+      // Check 1: Is our in-memory loop tracker aware of it?
+      if (!isRunning) {
+        console.log(`[Ralph] Status says running but no active loop in memory - resetting to idle`);
+        status.status = 'idle';
+        await req.project!.saveStatus(status);
+      }
+      // Check 2: If we have a PID, is that process still alive?
+      else if (status.pid && !isProcessRunning(status.pid)) {
+        console.log(`[Ralph] Status says running but PID ${status.pid} is dead - resetting to idle`);
+        status.status = 'idle';
+        runningLoops.delete(req.projectPath!);
+        await req.project!.saveStatus(status);
+      }
     }
 
-    res.json({ ...status, isRunning });
+    res.json({ ...status, isRunning: runningLoops.has(req.projectPath!) });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to get status',
@@ -115,7 +147,7 @@ router.post('/start', async (req, res) => {
       }
     })();
 
-    runningLoops.set(projectPath, { abort, promise: loopPromise });
+    runningLoops.set(projectPath, { abort, promise: loopPromise, startedAt: Date.now() });
 
     res.json({ success: true, status });
   } catch (error) {

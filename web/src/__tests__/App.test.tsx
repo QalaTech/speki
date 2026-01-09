@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import App from '../App';
 
 // Mock fetch globally
@@ -92,13 +93,21 @@ describe('App - Settings Navigation', () => {
     });
   };
 
+  const renderApp = (initialRoute = '/') => {
+    return render(
+      <MemoryRouter initialEntries={[initialRoute]}>
+        <App />
+      </MemoryRouter>
+    );
+  };
+
   describe('SettingsNavItem_ShouldAppearInFooter', () => {
     it('should render Settings button in nav-footer', async () => {
       // Arrange
       setupMocks();
 
       // Act
-      render(<App />);
+      renderApp();
 
       // Assert
       await waitFor(() => {
@@ -118,7 +127,7 @@ describe('App - Settings Navigation', () => {
       setupMocks();
 
       // Act
-      render(<App />);
+      renderApp();
 
       // Assert
       await waitFor(() => {
@@ -145,7 +154,7 @@ describe('App - Settings Navigation', () => {
       setupMocks();
 
       // Act
-      render(<App />);
+      renderApp();
 
       await waitFor(() => {
         expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
@@ -169,7 +178,7 @@ describe('App - Settings Navigation', () => {
       setupMocks();
 
       // Act
-      render(<App />);
+      renderApp();
 
       await waitFor(() => {
         expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
@@ -194,7 +203,7 @@ describe('App - Settings Navigation', () => {
       setupMocks();
 
       // Act
-      render(<App />);
+      renderApp();
 
       await waitFor(() => {
         expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
@@ -218,6 +227,69 @@ describe('App - Settings Navigation', () => {
         expect(settingsButton).not.toHaveClass('active');
         expect(executionButton).toHaveClass('active');
       });
+    });
+  });
+
+  describe('SettingsRoute_ShouldRenderSettingsView', () => {
+    it('should render SettingsView when navigating directly to /settings', async () => {
+      // Arrange
+      setupMocks();
+
+      // Act - render with /settings as initial route
+      renderApp('/settings');
+
+      // Assert - SettingsView should be rendered immediately (after loading)
+      await waitFor(() => {
+        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Decomposition Reviewer')).toBeInTheDocument();
+
+      // Settings button should have active class (use querySelector to be specific)
+      const settingsButton = document.querySelector('.settings-nav-item');
+      expect(settingsButton).toHaveClass('active');
+    });
+  });
+
+  describe('SettingsRoute_DirectNavigation_ShouldWork', () => {
+    it('should show correct content when URL is /decompose', async () => {
+      // Arrange
+      setupMocks();
+
+      // Act - render with /decompose as initial route
+      renderApp('/decompose');
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+      });
+
+      // Assert - Decompose button should have active class
+      const decomposeButton = screen.getByRole('button', { name: /decompose/i });
+      expect(decomposeButton).toHaveClass('active');
+
+      // Settings button should NOT have active class
+      const settingsButton = screen.getByRole('button', { name: /settings/i });
+      expect(settingsButton).not.toHaveClass('active');
+    });
+
+    it('should show execution content when URL is /', async () => {
+      // Arrange
+      setupMocks();
+
+      // Act - render with / as initial route
+      renderApp('/');
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+      });
+
+      // Assert - Execution button should have active class
+      const executionButton = screen.getByRole('button', { name: /execution/i });
+      expect(executionButton).toHaveClass('active');
     });
   });
 });
