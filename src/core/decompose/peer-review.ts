@@ -5,11 +5,14 @@
  * Returns PASS/FAIL verdict without modifying the tasks.
  */
 
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import type { Project } from '../project.js';
-import type { PRDData } from '../../types/index.js';
+import type { PRDData, ReviewFeedback as TypedReviewFeedback } from '../../types/index.js';
+
+/** Timeout for Claude CLI execution in milliseconds (5 minutes) */
+export const CLAUDE_TIMEOUT_MS = 300000;
 
 export interface ReviewFeedback {
   verdict: 'PASS' | 'FAIL' | 'UNKNOWN';
@@ -59,6 +62,216 @@ export interface PeerReviewResult {
   logPath: string;
   /** Error message if failed */
   error?: string;
+}
+
+export interface ClaudeReviewResult {
+  /** Whether the review completed successfully */
+  success: boolean;
+  /** The review feedback (typed schema from types/index.ts) */
+  feedback: TypedReviewFeedback;
+  /** Error message if failed */
+  error?: string;
+  /** Captured stderr output */
+  stderr?: string;
+}
+
+export interface ClaudeReviewOptions {
+  /** The prompt to send to Claude */
+  prompt: string;
+  /** Path to write raw output file */
+  outputPath: string;
+}
+
+/**
+ * Run peer review using Claude CLI
+ *
+ * Spawns 'claude --print --output-format text' with prompt on stdin.
+ * Captures stdout as response and writes raw output to specified file path.
+ * Enforces 5-minute timeout.
+ *
+ * @throws Error with stderr message on non-zero exit or timeout
+ */
+export async function runWithClaude(options: ClaudeReviewOptions): Promise<ClaudeReviewResult> {
+  const { prompt, outputPath } = options;
+
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let processExited = false;
+
+    const claude: ChildProcess = spawn('claude', ['--print', '--output-format', 'text'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    // Set up timeout
+    const timeoutId = setTimeout(() => {
+      if (!processExited) {
+        timedOut = true;
+        claude.kill('SIGTERM');
+        // Force kill after 5 seconds if SIGTERM didn't work
+        setTimeout(() => {
+          if (!processExited) {
+            claude.kill('SIGKILL');
+          }
+        }, 5000);
+      }
+    }, CLAUDE_TIMEOUT_MS);
+
+    claude.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+
+    claude.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    // Send prompt to stdin
+    claude.stdin?.write(prompt);
+    claude.stdin?.end();
+
+    claude.on('close', async (code) => {
+      processExited = true;
+      clearTimeout(timeoutId);
+
+      // Write raw output to file
+      try {
+        await fs.writeFile(outputPath, stdout);
+      } catch (writeError) {
+        // If we can't write the file, continue but note the error
+        stderr += `\nFailed to write output file: ${writeError}`;
+      }
+
+      // Handle timeout
+      if (timedOut) {
+        reject(new Error(`Claude CLI timed out after ${CLAUDE_TIMEOUT_MS / 1000} seconds. Stderr: ${stderr}`));
+        return;
+      }
+
+      // Handle non-zero exit
+      if (code !== 0) {
+        reject(new Error(`Claude CLI exited with code ${code}. Stderr: ${stderr}`));
+        return;
+      }
+
+      // Parse the response as ReviewFeedback JSON
+      try {
+        const feedback = parseClaudeResponse(stdout);
+        resolve({
+          success: true,
+          feedback,
+        });
+      } catch (parseError) {
+        reject(new Error(`Failed to parse Claude response as ReviewFeedback JSON: ${parseError}. Raw output: ${stdout.substring(0, 500)}`));
+      }
+    });
+
+    claude.on('error', (err) => {
+      processExited = true;
+      clearTimeout(timeoutId);
+      reject(new Error(`Failed to spawn Claude CLI: ${err.message}. Stderr: ${stderr}`));
+    });
+  });
+}
+
+/**
+ * Parse Claude response to extract ReviewFeedback JSON
+ */
+function parseClaudeResponse(output: string): TypedReviewFeedback {
+  const trimmed = output.trim();
+
+  // Try direct parse first
+  try {
+    const parsed = JSON.parse(trimmed);
+    return validateReviewFeedback(parsed);
+  } catch (err) {
+    // If it's a validation error (parsed JSON but invalid schema), rethrow
+    if (err instanceof Error && err.message.includes('verdict')) {
+      throw err;
+    }
+    // Continue to other methods for parse errors
+  }
+
+  // Try to find JSON in markdown code blocks
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  if (codeBlockMatch) {
+    try {
+      const parsed = JSON.parse(codeBlockMatch[1]);
+      return validateReviewFeedback(parsed);
+    } catch (err) {
+      // If it's a validation error, rethrow
+      if (err instanceof Error && err.message.includes('verdict')) {
+        throw err;
+      }
+      // Continue for parse errors
+    }
+  }
+
+  // Try to find any JSON object by matching braces
+  let start = trimmed.indexOf('{');
+  while (start !== -1) {
+    let depth = 0;
+    for (let i = start; i < trimmed.length; i++) {
+      if (trimmed[i] === '{') depth++;
+      else if (trimmed[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          try {
+            const parsed = JSON.parse(trimmed.substring(start, i + 1));
+            return validateReviewFeedback(parsed);
+          } catch (err) {
+            // If it's a validation error, rethrow
+            if (err instanceof Error && err.message.includes('verdict')) {
+              throw err;
+            }
+            // Continue searching for parse errors
+          }
+          break;
+        }
+      }
+    }
+    start = trimmed.indexOf('{', start + 1);
+  }
+
+  throw new Error('No valid ReviewFeedback JSON found in output');
+}
+
+/**
+ * Validate and normalize parsed JSON to ReviewFeedback schema
+ */
+function validateReviewFeedback(obj: unknown): TypedReviewFeedback {
+  if (typeof obj !== 'object' || obj === null) {
+    throw new Error('Response is not an object');
+  }
+
+  const data = obj as Record<string, unknown>;
+
+  // Validate verdict
+  if (data.verdict !== 'PASS' && data.verdict !== 'FAIL') {
+    throw new Error(`Invalid verdict: ${data.verdict}. Must be 'PASS' or 'FAIL'`);
+  }
+
+  // Build validated feedback with defaults for optional arrays
+  const feedback: TypedReviewFeedback = {
+    verdict: data.verdict,
+    missingRequirements: Array.isArray(data.missingRequirements)
+      ? data.missingRequirements.map(String)
+      : [],
+    contradictions: Array.isArray(data.contradictions)
+      ? data.contradictions.map(String)
+      : [],
+    dependencyErrors: Array.isArray(data.dependencyErrors)
+      ? data.dependencyErrors.map(String)
+      : [],
+    duplicates: Array.isArray(data.duplicates)
+      ? data.duplicates.map(String)
+      : [],
+    suggestions: Array.isArray(data.suggestions)
+      ? data.suggestions.map(String)
+      : [],
+  };
+
+  return feedback;
 }
 
 /**
