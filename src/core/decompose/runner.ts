@@ -14,6 +14,7 @@ import { parseStream, createConsoleCallbacks } from '../claude/stream-parser.js'
 import { PassThrough } from 'stream';
 import { runPeerReview, ReviewFeedback } from './peer-review.js';
 import { loadGlobalSettings } from '../settings.js';
+import { resolveCliPath } from '../cli-path.js';
 import type { PRDData, DecomposeState } from '../../types/index.js';
 
 export interface DecomposeOptions {
@@ -196,7 +197,10 @@ async function runClaudeDecompose(
   logPath: string
 ): Promise<{ output: string; success: boolean }> {
   return new Promise((resolve) => {
-    const claude = spawn('claude', [
+    // Resolve the Claude CLI path - handles cases where claude is an alias not in PATH
+    const claudePath = resolveCliPath('claude');
+
+    const claude = spawn(claudePath, [
       '--dangerously-skip-permissions',
       '-p',
       '--verbose',
@@ -311,7 +315,10 @@ OUTPUT THE CORRECTED JSON ONLY. NO MARKDOWN, NO EXPLANATIONS.`;
   console.log(`  ${chalk.cyan('Revision log:')} ${logPath}`);
 
   return new Promise((resolve) => {
-    const claude = spawn('claude', [
+    // Resolve the Claude CLI path - handles cases where claude is an alias not in PATH
+    const claudePath = resolveCliPath('claude');
+
+    const claude = spawn(claudePath, [
       '--dangerously-skip-permissions',
       '-p',
       '--verbose',
