@@ -388,7 +388,7 @@ export async function runDecompose(
     freshStart = false,
     forceRedecompose = false,
     enablePeerReview = true,  // Enabled by default - uses Codex for review
-    maxReviewAttempts = 3,
+    maxReviewAttempts = parseInt(process.env.RALPH_MAX_REVIEW_ATTEMPTS || '3', 10),
     onProgress,
   } = options;
 

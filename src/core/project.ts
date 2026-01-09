@@ -1,6 +1,6 @@
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { mkdir, readFile, writeFile, access, copyFile, readdir } from 'fs/promises';
+import { mkdir, readFile, writeFile, access, copyFile, readdir, stat } from 'fs/promises';
 import type {
   ProjectConfig,
   PRDData,
@@ -293,7 +293,23 @@ export class Project {
   async listLogs(): Promise<string[]> {
     try {
       const files = await readdir(this.logsDir);
-      return files.filter((f) => f.endsWith('.jsonl') || f.endsWith('.err'));
+      const logFiles = files.filter((f) => f.endsWith('.jsonl') || f.endsWith('.err'));
+
+      // Sort by modification time (oldest first, newest last)
+      const filesWithStats = await Promise.all(
+        logFiles.map(async (f) => {
+          try {
+            const stats = await stat(join(this.logsDir, f));
+            return { name: f, mtime: stats.mtimeMs };
+          } catch {
+            return { name: f, mtime: 0 };
+          }
+        })
+      );
+
+      return filesWithStats
+        .sort((a, b) => a.mtime - b.mtime)
+        .map((f) => f.name);
     } catch {
       return [];
     }

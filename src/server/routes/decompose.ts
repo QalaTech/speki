@@ -346,6 +346,7 @@ router.post('/start', async (req, res) => {
       outputName,
       freshStart = false,
       forceRedecompose = false,
+      maxReviewAttempts,
     } = req.body;
 
     if (!prdFile) {
@@ -368,6 +369,7 @@ router.post('/start', async (req, res) => {
       outputName,
       freshStart,
       forceRedecompose,
+      maxReviewAttempts,
       onProgress: async (state) => {
         // Progress updates are saved to file for polling
         await req.project!.saveDecomposeState(state);

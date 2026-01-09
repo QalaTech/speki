@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { PRDData, RalphStatus, DecomposeState, LogEntry } from './types';
+import type { PRDData, RalphStatus, DecomposeState } from './types';
 import { calculateStats } from './types';
 import { StatsBar } from './components/StatsBar';
 import { TaskList } from './components/TaskList';
 import { KanbanView } from './components/KanbanView';
 import { ProgressView } from './components/ProgressView';
 import { DecomposeView } from './components/DecomposeView';
-import { parseJsonlContent, formatParsedEntries } from './utils/parseJsonl';
 import './App.css';
 
 type NavSection = 'decompose' | 'execution';
@@ -33,7 +32,6 @@ function App() {
   const [prdData, setPrdData] = useState<PRDData | null>(null);
   const [progress, setProgress] = useState<string>('');
   const [iterationLog, setIterationLog] = useState<string>('');
-  const [logEntries] = useState<LogEntry[]>([]);
   const [currentIteration] = useState<number | null>(null);
   const [ralphStatus, setRalphStatus] = useState<RalphStatus>(defaultStatus);
   const [decomposeState, setDecomposeState] = useState<DecomposeState>({ status: 'IDLE', message: '' });
@@ -105,19 +103,17 @@ function App() {
         message: decomposeData.message || '',
       });
 
-      // Fetch and parse JSONL when running, otherwise show progress summary
+      // Fetch raw JSONL when running - ChatLogView will parse it
       if (statusData.status === 'running') {
-        // Get latest JSONL log file and parse it for nice display
+        // Get latest JSONL log file
         const logsRes = await fetch(apiUrl('/api/ralph/logs'));
         const logs = await logsRes.json();
         if (logs.length > 0) {
           const latestLog = logs[logs.length - 1];
           const logRes = await fetch(apiUrl(`/api/ralph/logs/${latestLog}`));
           const rawJsonl = await logRes.text();
-          // Parse JSONL and format for display
-          const parsed = parseJsonlContent(rawJsonl);
-          const formatted = formatParsedEntries(parsed);
-          setIterationLog(formatted);
+          // Store raw JSONL - components will parse it
+          setIterationLog(rawJsonl);
         }
       }
 
@@ -344,7 +340,6 @@ function App() {
                       stories={prdData.userStories}
                       currentStory={ralphStatus.currentStory}
                       logContent={ralphStatus.running && iterationLog ? iterationLog : progress}
-                      logEntries={logEntries}
                       iterationLog={iterationLog}
                       currentIteration={currentIteration}
                       isRunning={ralphStatus.running}

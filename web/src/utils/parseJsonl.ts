@@ -87,9 +87,11 @@ function formatToolDetail(name: string, input: Record<string, unknown>): string 
 }
 
 export interface ParsedEntry {
-  type: 'tool' | 'text' | 'result' | 'error' | 'system';
+  type: 'tool' | 'tool_result' | 'text' | 'result' | 'error' | 'system';
   content: string;
   toolName?: string;
+  toolId?: string;
+  status?: 'success' | 'error' | 'pending';
 }
 
 export function parseJsonlContent(jsonlContent: string): ParsedEntry[] {
@@ -123,6 +125,8 @@ export function parseJsonlContent(jsonlContent: string): ParsedEntry[] {
                   type: 'tool',
                   content: detail,
                   toolName: block.name,
+                  toolId: toolId,
+                  status: 'pending',
                 });
               }
             } else if (block.type === 'text') {
@@ -143,15 +147,28 @@ export function parseJsonlContent(jsonlContent: string): ParsedEntry[] {
           for (const block of content) {
             if (block.type === 'tool_result') {
               const isError = block.is_error;
-              const resultContent = block.content;
+              const resultContent = block.content || '';
+              const toolId = block.tool_use_id;
 
-              if (isError && resultContent) {
+              if (isError) {
                 entries.push({
                   type: 'error',
                   content: extractErrorMessage(resultContent).substring(0, 200),
+                  toolId,
+                  status: 'error',
+                });
+              } else {
+                // Show brief success result
+                const briefContent = resultContent.length > 100
+                  ? resultContent.substring(0, 100) + '...'
+                  : resultContent;
+                entries.push({
+                  type: 'tool_result',
+                  content: briefContent,
+                  toolId,
+                  status: 'success',
                 });
               }
-              // Skip successful results to avoid clutter
             }
           }
         }

@@ -1,12 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
-import type { UserStory, LogEntry } from '../types';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import type { UserStory } from '../types';
 import { TaskDrawer } from './TaskDrawer';
+import { ChatLogView } from './ChatLogView';
+import { parseJsonlContent } from '../utils/parseJsonl';
 
 interface KanbanViewProps {
   stories: UserStory[];
   currentStory: string | null;
   logContent: string;
-  logEntries: LogEntry[];
   iterationLog: string;
   currentIteration: number | null;
   isRunning: boolean;
@@ -14,11 +15,17 @@ interface KanbanViewProps {
 
 type Column = 'blocked' | 'ready' | 'running' | 'done';
 
-export function KanbanView({ stories, currentStory, logContent, logEntries, iterationLog, currentIteration, isRunning }: KanbanViewProps) {
+export function KanbanView({ stories, currentStory, logContent, iterationLog, currentIteration, isRunning }: KanbanViewProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedStory, setSelectedStory] = useState<UserStory | null>(null);
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
+
+  // Parse the JSONL log into chat entries
+  const chatEntries = useMemo(() => {
+    if (!iterationLog) return [];
+    return parseJsonlContent(iterationLog);
+  }, [iterationLog]);
 
   // Auto-open log drawer when Ralph starts running
   useEffect(() => {
@@ -178,18 +185,7 @@ export function KanbanView({ stories, currentStory, logContent, logEntries, iter
           </button>
         </div>
         <div className="log-drawer-content">
-          {logEntries.length > 0 ? (
-            <div className="log-entries">
-              {logEntries.map((entry, idx) => (
-                <div key={idx} className={`log-entry log-entry-${entry.type} ${entry.status ? `log-status-${entry.status}` : ''}`}>
-                  {entry.content}
-                </div>
-              ))}
-              <div ref={logEndRef} />
-            </div>
-          ) : (
-            <pre>{iterationLog || logContent || 'No log output yet...'}</pre>
-          )}
+          <ChatLogView entries={chatEntries} isRunning={isRunning} />
         </div>
       </div>
 

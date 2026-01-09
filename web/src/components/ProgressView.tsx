@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { ChatLogView } from './ChatLogView';
+import { parseJsonlContent } from '../utils/parseJsonl';
 
 interface ProgressViewProps {
   content: string;
@@ -63,6 +65,12 @@ export function ProgressView({ content, iterationLog, currentIteration, isRunnin
 
   const entries = useMemo(() => parseLogEntries(content), [content]);
 
+  // Parse JSONL into chat entries
+  const chatEntries = useMemo(() => {
+    if (!iterationLog) return [];
+    return parseJsonlContent(iterationLog);
+  }, [iterationLog]);
+
   const toggleEntry = (id: number) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
@@ -105,8 +113,8 @@ export function ProgressView({ content, iterationLog, currentIteration, isRunnin
               {currentIteration !== null ? `Iteration ${currentIteration}` : 'Running...'}
             </span>
           </div>
-          <div className="iteration-log-content">
-            <pre>{iterationLog || 'Waiting for output...'}</pre>
+          <div className="iteration-log-content chat-log-container">
+            <ChatLogView entries={chatEntries} isRunning={isRunning} />
           </div>
         </div>
       )}

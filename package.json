@@ -9,10 +9,13 @@
     "qala": "./dist/bin/qala.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:web",
+    "build:cli": "tsc",
+    "build:web": "cd web && npm run build",
     "dev": "tsc --watch",
     "start": "node dist/bin/qala.js",
     "lint": "eslint src --ext .ts",
+    "postinstall": "cd web && npm install",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

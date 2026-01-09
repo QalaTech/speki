@@ -903,6 +903,12 @@ body {
   padding: 0;
 }
 
+.iteration-log-content.chat-log-container {
+  max-height: 500px;
+  background: linear-gradient(135deg, #1a1a24 0%, #12121a 100%);
+  border-radius: 0 0 8px 8px;
+}
+
 .iteration-log-content pre {
   margin: 0;
   padding: 1.25rem;
