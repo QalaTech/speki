@@ -1,7 +1,7 @@
 /**
  * Decomposition Peer Review
  *
- * Uses Codex to compare the source PRD with the decomposed tasks JSON.
+ * Uses configurable CLI (Codex or Claude) to compare the source PRD with the decomposed tasks JSON.
  * Returns PASS/FAIL verdict without modifying the tasks.
  */
 
@@ -9,10 +9,15 @@ import { spawn, ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import type { Project } from '../project.js';
-import type { PRDData, ReviewFeedback as TypedReviewFeedback } from '../../types/index.js';
+import type { PRDData, ReviewFeedback as TypedReviewFeedback, CliType } from '../../types/index.js';
+import { loadGlobalSettings } from '../settings.js';
+import { detectCli } from '../cli-detect.js';
 
 /** Timeout for Claude CLI execution in milliseconds (5 minutes) */
 export const CLAUDE_TIMEOUT_MS = 300000;
+
+/** Timeout for Codex CLI execution in milliseconds (5 minutes) */
+export const CODEX_TIMEOUT_MS = 300000;
 
 export interface ReviewFeedback {
   verdict: 'PASS' | 'FAIL' | 'UNKNOWN';
@@ -62,6 +67,8 @@ export interface PeerReviewResult {
   logPath: string;
   /** Error message if failed */
   error?: string;
+  /** Which CLI was used for the review */
+  cli?: CliType;
 }
 
 export interface ClaudeReviewResult {
@@ -407,78 +414,67 @@ function extractJson(text: string): ReviewFeedback | null {
 }
 
 /**
- * Check if codex CLI is available
+ * Build a standardized log entry for peer review
  */
-async function isCodexAvailable(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const check = spawn('codex', ['--version'], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+function buildLogEntry(
+  cli: CliType,
+  attempt: number,
+  timestamp: string,
+  exitCode: number | null,
+  stdout: string,
+  stderr: string,
+  parsedFeedback: ReviewFeedback | null
+): string {
+  return `=== PEER REVIEW LOG ===
+CLI: ${cli}
+Attempt: ${attempt}
+Timestamp: ${timestamp}
+Exit Code: ${exitCode}
 
-    check.on('close', (code) => {
-      resolve(code === 0);
-    });
+=== STDOUT ===
+${stdout}
 
-    check.on('error', () => {
-      resolve(false);
-    });
-  });
+=== STDERR ===
+${stderr}
+
+=== PARSED FEEDBACK ===
+${parsedFeedback ? JSON.stringify(parsedFeedback, null, 2) : 'null'}
+`;
 }
 
 /**
- * Run peer review using Codex
+ * Run peer review using Codex CLI
+ * Internal function that handles the Codex-specific execution
  */
-export async function runPeerReview(options: PeerReviewOptions): Promise<PeerReviewResult> {
-  const { prdFile, tasks, project, attempt = 1 } = options;
+async function runWithCodex(
+  prompt: string,
+  rawOutputPath: string,
+  projectPath: string
+): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let processExited = false;
 
-  // Check if codex is available
-  if (!(await isCodexAvailable())) {
-    const feedback: ReviewFeedback = {
-      verdict: 'UNKNOWN',
-      issues: ['Codex CLI not found. Install codex to enable peer review.'],
-      suggestions: [{ action: 'Install Codex CLI to enable decomposition peer review.' }],
-    };
-
-    // Save feedback
-    await fs.writeFile(
-      project.decomposeFeedbackPath,
-      JSON.stringify(feedback, null, 2)
-    );
-
-    return {
-      success: false,
-      feedback,
-      logPath: '',
-      error: 'Codex CLI not available',
-    };
-  }
-
-  // Read PRD content
-  const prdText = await fs.readFile(prdFile, 'utf-8');
-  const tasksJson = JSON.stringify(tasks, null, 2);
-
-  // Build prompt
-  const prompt = buildReviewPrompt(prdText, tasksJson);
-
-  // Create log file path
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const logPath = join(project.logsDir, `peer_review_attempt_${attempt}_${timestamp}.log`);
-  const rawOutputPath = join(project.logsDir, `peer_review_attempt_${attempt}_${timestamp}.raw`);
-
-  // Ensure logs directory exists
-  await fs.mkdir(project.logsDir, { recursive: true });
-
-  console.log(`  Running Codex peer review (attempt ${attempt})...`);
-
-  return new Promise((resolve) => {
-    // Spawn codex exec with --output-last-message to get just the response
     const codex = spawn('codex', ['exec', '--output-last-message', rawOutputPath, '-'], {
-      cwd: project.projectPath,
+      cwd: projectPath,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    let stdout = '';
-    let stderr = '';
+    // Set up timeout
+    const timeoutId = setTimeout(() => {
+      if (!processExited) {
+        timedOut = true;
+        codex.kill('SIGTERM');
+        // Force kill after 5 seconds if SIGTERM didn't work
+        setTimeout(() => {
+          if (!processExited) {
+            codex.kill('SIGKILL');
+          }
+        }, 5000);
+      }
+    }, CODEX_TIMEOUT_MS);
 
     codex.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -492,81 +488,302 @@ export async function runPeerReview(options: PeerReviewOptions): Promise<PeerRev
     codex.stdin.write(prompt);
     codex.stdin.end();
 
-    codex.on('close', async (code) => {
-      // Save full output to log
-      const fullLog = `=== CODEX PEER REVIEW LOG ===
-Attempt: ${attempt}
-Timestamp: ${new Date().toISOString()}
-Exit Code: ${code}
+    codex.on('close', (code) => {
+      processExited = true;
+      clearTimeout(timeoutId);
 
-=== STDOUT ===
-${stdout}
-
-=== STDERR ===
-${stderr}
-`;
-      await fs.writeFile(logPath, fullLog);
-
-      // Read the raw output file
-      let rawOutput = '';
-      try {
-        rawOutput = await fs.readFile(rawOutputPath, 'utf-8');
-      } catch {
-        rawOutput = stdout; // Fall back to stdout if raw file not created
+      if (timedOut) {
+        reject(new Error(`Codex CLI timed out after ${CODEX_TIMEOUT_MS / 1000} seconds. Stderr: ${stderr}`));
+        return;
       }
 
-      // Extract JSON from output
-      let feedback = extractJson(rawOutput);
-
-      if (!feedback) {
-        feedback = {
-          verdict: 'UNKNOWN',
-          issues: ['Reviewer output could not be parsed as JSON'],
-        };
-      }
-
-      // Ensure verdict exists
-      if (!feedback.verdict) {
-        feedback.verdict = 'UNKNOWN';
-      }
-
-      // Add log path to feedback
-      feedback.reviewLog = logPath;
-
-      // Save feedback
-      await fs.writeFile(
-        project.decomposeFeedbackPath,
-        JSON.stringify(feedback, null, 2)
-      );
-
-      console.log(`  Peer review complete: ${feedback.verdict}`);
-      console.log(`  Review log: ${logPath}`);
-
-      resolve({
-        success: code === 0,
-        feedback,
-        logPath,
-      });
+      resolve({ stdout, stderr, exitCode: code });
     });
 
-    codex.on('error', async (err) => {
-      const feedback: ReviewFeedback = {
-        verdict: 'UNKNOWN',
-        issues: [`Codex execution error: ${err.message}`],
-        reviewLog: logPath,
-      };
-
-      await fs.writeFile(
-        project.decomposeFeedbackPath,
-        JSON.stringify(feedback, null, 2)
-      );
-
-      resolve({
-        success: false,
-        feedback,
-        logPath,
-        error: err.message,
-      });
+    codex.on('error', (err) => {
+      processExited = true;
+      clearTimeout(timeoutId);
+      reject(new Error(`Failed to spawn Codex CLI: ${err.message}. Stderr: ${stderr}`));
     });
   });
+}
+
+/**
+ * Run peer review using the selected CLI (Codex or Claude)
+ * Loads global settings to determine which CLI to use.
+ */
+export async function runPeerReview(options: PeerReviewOptions): Promise<PeerReviewResult> {
+  const { prdFile, tasks, project, attempt = 1 } = options;
+
+  // Load global settings to get selected CLI
+  const settings = await loadGlobalSettings();
+  const selectedCli: CliType = settings.reviewer.cli;
+
+  // Check if selected CLI is available
+  const detectionResult = await detectCli(selectedCli);
+  if (!detectionResult.available) {
+    const feedback: ReviewFeedback = {
+      verdict: 'UNKNOWN',
+      issues: [`${selectedCli} CLI not available. Please install ${selectedCli} or change the reviewer CLI in Settings.`],
+      suggestions: [{ action: `Install ${selectedCli} CLI or change reviewer setting to use an available CLI.` }],
+    };
+
+    // Save feedback
+    await fs.writeFile(
+      project.decomposeFeedbackPath,
+      JSON.stringify(feedback, null, 2)
+    );
+
+    return {
+      success: false,
+      feedback,
+      logPath: '',
+      error: `${selectedCli} CLI not available`,
+      cli: selectedCli,
+    };
+  }
+
+  // Read PRD content
+  const prdText = await fs.readFile(prdFile, 'utf-8');
+  const tasksJson = JSON.stringify(tasks, null, 2);
+
+  // Build prompt
+  const prompt = buildReviewPrompt(prdText, tasksJson);
+
+  // Create log file paths with standardized naming
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const logPath = join(project.logsDir, `peer_review_attempt_${attempt}_${timestamp}.log`);
+  const rawOutputPath = join(project.logsDir, `peer_review_attempt_${attempt}_${timestamp}.raw`);
+
+  // Ensure logs directory exists
+  await fs.mkdir(project.logsDir, { recursive: true });
+
+  console.log(`  Running ${selectedCli} peer review (attempt ${attempt})...`);
+
+  // Execute based on selected CLI
+  if (selectedCli === 'claude') {
+    return runPeerReviewWithClaude(prompt, logPath, rawOutputPath, project, attempt, timestamp);
+  } else {
+    return runPeerReviewWithCodex(prompt, logPath, rawOutputPath, project, attempt, timestamp);
+  }
+}
+
+/**
+ * Run peer review using Claude CLI
+ */
+async function runPeerReviewWithClaude(
+  prompt: string,
+  logPath: string,
+  rawOutputPath: string,
+  project: Project,
+  attempt: number,
+  timestamp: string
+): Promise<PeerReviewResult> {
+  try {
+    const result = await runWithClaude({ prompt, outputPath: rawOutputPath });
+
+    // Build standardized log
+    const fullLog = buildLogEntry(
+      'claude',
+      attempt,
+      timestamp,
+      0, // exit code 0 on success
+      '', // stdout is empty for Claude (response goes to file)
+      '', // no stderr on success
+      convertToLegacyFeedback(result.feedback)
+    );
+    await fs.writeFile(logPath, fullLog);
+
+    // Convert TypedReviewFeedback to local ReviewFeedback
+    const feedback: ReviewFeedback = convertToLegacyFeedback(result.feedback);
+    feedback.reviewLog = logPath;
+
+    // Save feedback
+    await fs.writeFile(
+      project.decomposeFeedbackPath,
+      JSON.stringify(feedback, null, 2)
+    );
+
+    console.log(`  Peer review complete: ${feedback.verdict}`);
+    console.log(`  Review log: ${logPath}`);
+
+    return {
+      success: true,
+      feedback,
+      logPath,
+      cli: 'claude',
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Extract stderr from error message if present
+    const stderrMatch = errorMessage.match(/Stderr: (.*)$/);
+    const stderr = stderrMatch ? stderrMatch[1] : '';
+
+    // Determine if timeout
+    const isTimeout = errorMessage.includes('timed out');
+
+    const feedback: ReviewFeedback = {
+      verdict: 'UNKNOWN',
+      issues: [isTimeout
+        ? `Claude CLI timed out after ${CLAUDE_TIMEOUT_MS / 1000} seconds`
+        : `Claude CLI error: ${errorMessage}`
+      ],
+      reviewLog: logPath,
+    };
+
+    // Build log with captured stderr
+    const fullLog = buildLogEntry(
+      'claude',
+      attempt,
+      timestamp,
+      isTimeout ? null : 1,
+      '',
+      stderr,
+      feedback
+    );
+    await fs.writeFile(logPath, fullLog);
+
+    await fs.writeFile(
+      project.decomposeFeedbackPath,
+      JSON.stringify(feedback, null, 2)
+    );
+
+    return {
+      success: false,
+      feedback,
+      logPath,
+      error: errorMessage,
+      cli: 'claude',
+    };
+  }
+}
+
+/**
+ * Run peer review using Codex CLI
+ */
+async function runPeerReviewWithCodex(
+  prompt: string,
+  logPath: string,
+  rawOutputPath: string,
+  project: Project,
+  attempt: number,
+  timestamp: string
+): Promise<PeerReviewResult> {
+  try {
+    const { stdout, stderr, exitCode } = await runWithCodex(prompt, rawOutputPath, project.projectPath);
+
+    // Read the raw output file
+    let rawOutput = '';
+    try {
+      rawOutput = await fs.readFile(rawOutputPath, 'utf-8');
+    } catch {
+      rawOutput = stdout; // Fall back to stdout if raw file not created
+    }
+
+    // Extract JSON from output
+    let feedback = extractJson(rawOutput);
+
+    if (!feedback) {
+      feedback = {
+        verdict: 'UNKNOWN',
+        issues: ['Reviewer output could not be parsed as JSON'],
+      };
+    }
+
+    // Ensure verdict exists
+    if (!feedback.verdict) {
+      feedback.verdict = 'UNKNOWN';
+    }
+
+    // Add log path to feedback
+    feedback.reviewLog = logPath;
+
+    // Build standardized log
+    const fullLog = buildLogEntry(
+      'codex',
+      attempt,
+      timestamp,
+      exitCode,
+      stdout,
+      stderr,
+      feedback
+    );
+    await fs.writeFile(logPath, fullLog);
+
+    // Save feedback
+    await fs.writeFile(
+      project.decomposeFeedbackPath,
+      JSON.stringify(feedback, null, 2)
+    );
+
+    console.log(`  Peer review complete: ${feedback.verdict}`);
+    console.log(`  Review log: ${logPath}`);
+
+    return {
+      success: exitCode === 0,
+      feedback,
+      logPath,
+      cli: 'codex',
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Extract stderr from error message if present
+    const stderrMatch = errorMessage.match(/Stderr: (.*)$/);
+    const stderr = stderrMatch ? stderrMatch[1] : '';
+
+    // Determine if timeout
+    const isTimeout = errorMessage.includes('timed out');
+
+    const feedback: ReviewFeedback = {
+      verdict: 'UNKNOWN',
+      issues: [isTimeout
+        ? `Codex CLI timed out after ${CODEX_TIMEOUT_MS / 1000} seconds`
+        : `Codex execution error: ${errorMessage}`
+      ],
+      reviewLog: logPath,
+    };
+
+    // Build log with captured stderr
+    const fullLog = buildLogEntry(
+      'codex',
+      attempt,
+      timestamp,
+      isTimeout ? null : 1,
+      '',
+      stderr,
+      feedback
+    );
+    await fs.writeFile(logPath, fullLog);
+
+    await fs.writeFile(
+      project.decomposeFeedbackPath,
+      JSON.stringify(feedback, null, 2)
+    );
+
+    return {
+      success: false,
+      feedback,
+      logPath,
+      error: errorMessage,
+      cli: 'codex',
+    };
+  }
+}
+
+/**
+ * Convert TypedReviewFeedback to local ReviewFeedback format
+ */
+function convertToLegacyFeedback(typed: TypedReviewFeedback): ReviewFeedback {
+  return {
+    verdict: typed.verdict,
+    issues: [
+      ...typed.missingRequirements.map(r => `Missing requirement: ${r}`),
+      ...typed.contradictions.map(c => `Contradiction: ${c}`),
+      ...typed.dependencyErrors.map(d => `Dependency error: ${d}`),
+      ...typed.duplicates.map(d => `Duplicate: ${d}`),
+    ],
+    suggestions: typed.suggestions.map(s => ({ action: s })),
+  };
 }

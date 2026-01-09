@@ -5,8 +5,13 @@ import { Readable, Writable } from 'stream';
 import { promises as fs } from 'fs';
 import {
   runWithClaude,
+  runPeerReview,
   CLAUDE_TIMEOUT_MS,
+  CODEX_TIMEOUT_MS,
+  type PeerReviewOptions,
 } from '../peer-review.js';
+import type { Project } from '../../project.js';
+import type { PRDData } from '../../../types/index.js';
 
 // Mock child_process module
 vi.mock('child_process', () => ({
@@ -17,8 +22,24 @@ vi.mock('child_process', () => ({
 vi.mock('fs', () => ({
   promises: {
     writeFile: vi.fn().mockResolvedValue(undefined),
+    readFile: vi.fn().mockResolvedValue(''),
+    mkdir: vi.fn().mockResolvedValue(undefined),
   },
 }));
+
+// Mock settings module
+vi.mock('../../settings.js', () => ({
+  loadGlobalSettings: vi.fn(),
+}));
+
+// Mock cli-detect module
+vi.mock('../../cli-detect.js', () => ({
+  detectCli: vi.fn(),
+}));
+
+// Import mocked modules for assertions
+import { loadGlobalSettings } from '../../settings.js';
+import { detectCli } from '../../cli-detect.js';
 
 // Helper to create a mock child process with stdin
 function createMockChildProcess(): ChildProcess {
@@ -356,5 +377,429 @@ describe('runWithClaude', () => {
     // Act & Assert - The error includes the invalid verdict message
     await expect(resultPromise).rejects.toThrow("Invalid verdict");
     await expect(resultPromise).rejects.toThrow("Must be 'PASS' or 'FAIL'");
+  });
+});
+
+// Helper to create mock project
+function createMockProject(): Project {
+  return {
+    projectPath: '/test/project',
+    ralphDir: '/test/project/.ralph',
+    decomposeFeedbackPath: '/test/project/.ralph/decompose_feedback.json',
+    logsDir: '/test/project/.ralph/logs',
+  } as Project;
+}
+
+// Helper to create mock PRDData
+function createMockPRDData(): PRDData {
+  return {
+    projectName: 'Test Project',
+    branchName: 'main',
+    language: 'nodejs',
+    standardsFile: '.ralph/standards/nodejs.md',
+    description: 'Test description',
+    userStories: [],
+  };
+}
+
+describe('runPeerReview', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Default mock for readFile to return PRD content
+    vi.mocked(fs.readFile).mockImplementation(async (path: Parameters<typeof fs.readFile>[0]) => {
+      if (typeof path === 'string' && path.includes('.raw')) {
+        return createValidFeedbackJson();
+      }
+      return '# Test PRD\n\nTest content';
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('runPeerReview_WithCodexSelected_ShouldUseCodex', async () => {
+    // Arrange
+    vi.mocked(loadGlobalSettings).mockResolvedValue({
+      reviewer: { cli: 'codex' },
+    });
+    vi.mocked(detectCli).mockResolvedValue({
+      available: true,
+      version: '0.39.0',
+      command: 'codex',
+    });
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    const options: PeerReviewOptions = {
+      prdFile: '/test/prd.md',
+      tasks: createMockPRDData(),
+      project: createMockProject(),
+      attempt: 1,
+    };
+
+    // Use setImmediate to schedule the response after spawn
+    const resultPromise = runPeerReview(options);
+
+    // Wait for next tick to allow the async setup to complete
+    await new Promise(resolve => setImmediate(resolve));
+
+    // Simulate Codex response
+    mockChild.stdout!.emit('data', Buffer.from(''));
+    mockChild.emit('close', 0);
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert
+    expect(result.cli).toBe('codex');
+    expect(spawn).toHaveBeenCalledWith(
+      'codex',
+      expect.arrayContaining(['exec', '--output-last-message']),
+      expect.any(Object)
+    );
+  });
+
+  it('runPeerReview_WithClaudeSelected_ShouldUseClaude', async () => {
+    // Arrange
+    vi.mocked(loadGlobalSettings).mockResolvedValue({
+      reviewer: { cli: 'claude' },
+    });
+    vi.mocked(detectCli).mockResolvedValue({
+      available: true,
+      version: '2.1.2',
+      command: 'claude',
+    });
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    const options: PeerReviewOptions = {
+      prdFile: '/test/prd.md',
+      tasks: createMockPRDData(),
+      project: createMockProject(),
+      attempt: 1,
+    };
+
+    const resultPromise = runPeerReview(options);
+
+    // Wait for next tick to allow the async setup to complete
+    await new Promise(resolve => setImmediate(resolve));
+
+    // Simulate Claude response
+    mockChild.stdout!.emit('data', Buffer.from(createValidFeedbackJson()));
+    mockChild.emit('close', 0);
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert
+    expect(result.cli).toBe('claude');
+    expect(spawn).toHaveBeenCalledWith(
+      'claude',
+      ['--print', '--output-format', 'text'],
+      expect.any(Object)
+    );
+  });
+
+  it('runPeerReview_WithUnavailableCli_ShouldReturnError', async () => {
+    // Arrange
+    vi.mocked(loadGlobalSettings).mockResolvedValue({
+      reviewer: { cli: 'claude' },
+    });
+    vi.mocked(detectCli).mockResolvedValue({
+      available: false,
+      version: '',
+      command: 'claude',
+    });
+
+    const options: PeerReviewOptions = {
+      prdFile: '/test/prd.md',
+      tasks: createMockPRDData(),
+      project: createMockProject(),
+      attempt: 1,
+    };
+
+    // Act
+    const result = await runPeerReview(options);
+
+    // Assert
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('claude CLI not available');
+    expect(result.cli).toBe('claude');
+    expect(result.feedback.issues).toBeDefined();
+    expect(result.feedback.issues![0]).toContain('claude CLI not available');
+  });
+
+  it('runPeerReview_WithNoConfig_ShouldDefaultToCodex', async () => {
+    // Arrange - loadGlobalSettings returns default settings with codex
+    vi.mocked(loadGlobalSettings).mockResolvedValue({
+      reviewer: { cli: 'codex' },
+    });
+    vi.mocked(detectCli).mockResolvedValue({
+      available: true,
+      version: '0.39.0',
+      command: 'codex',
+    });
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    const options: PeerReviewOptions = {
+      prdFile: '/test/prd.md',
+      tasks: createMockPRDData(),
+      project: createMockProject(),
+      attempt: 1,
+    };
+
+    const resultPromise = runPeerReview(options);
+
+    // Wait for next tick
+    await new Promise(resolve => setImmediate(resolve));
+
+    mockChild.stdout!.emit('data', Buffer.from(''));
+    mockChild.emit('close', 0);
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert
+    expect(result.cli).toBe('codex');
+    expect(loadGlobalSettings).toHaveBeenCalled();
+  });
+
+  it('runPeerReview_ShouldProduceIdenticalLogFormat', async () => {
+    // Arrange
+    vi.mocked(loadGlobalSettings).mockResolvedValue({
+      reviewer: { cli: 'codex' },
+    });
+    vi.mocked(detectCli).mockResolvedValue({
+      available: true,
+      version: '0.39.0',
+      command: 'codex',
+    });
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    const options: PeerReviewOptions = {
+      prdFile: '/test/prd.md',
+      tasks: createMockPRDData(),
+      project: createMockProject(),
+      attempt: 1,
+    };
+
+    const resultPromise = runPeerReview(options);
+
+    // Wait for next tick
+    await new Promise(resolve => setImmediate(resolve));
+
+    mockChild.stdout!.emit('data', Buffer.from('stdout output'));
+    mockChild.stderr!.emit('data', Buffer.from('stderr output'));
+    mockChild.emit('close', 0);
+
+    await resultPromise;
+
+    // Assert - verify log format was written
+    const writeCalls = vi.mocked(fs.writeFile).mock.calls;
+    const logWriteCall = writeCalls.find(call =>
+      typeof call[0] === 'string' && call[0].includes('.log')
+    );
+
+    expect(logWriteCall).toBeDefined();
+    const logContent = logWriteCall![1] as string;
+
+    // Verify log contains all required sections
+    expect(logContent).toContain('=== PEER REVIEW LOG ===');
+    expect(logContent).toContain('CLI:');
+    expect(logContent).toContain('Attempt:');
+    expect(logContent).toContain('Timestamp:');
+    expect(logContent).toContain('Exit Code:');
+    expect(logContent).toContain('=== STDOUT ===');
+    expect(logContent).toContain('=== STDERR ===');
+    expect(logContent).toContain('=== PARSED FEEDBACK ===');
+  });
+
+  it('runPeerReview_LogFileName_ShouldMatchPattern', async () => {
+    // Arrange
+    vi.mocked(loadGlobalSettings).mockResolvedValue({
+      reviewer: { cli: 'codex' },
+    });
+    vi.mocked(detectCli).mockResolvedValue({
+      available: true,
+      version: '0.39.0',
+      command: 'codex',
+    });
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    const options: PeerReviewOptions = {
+      prdFile: '/test/prd.md',
+      tasks: createMockPRDData(),
+      project: createMockProject(),
+      attempt: 2,
+    };
+
+    const resultPromise = runPeerReview(options);
+
+    // Wait for next tick
+    await new Promise(resolve => setImmediate(resolve));
+
+    mockChild.emit('close', 0);
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert - log path should match pattern
+    expect(result.logPath).toMatch(/peer_review_attempt_2_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.log/);
+  });
+
+  it('runPeerReview_WithTimeout_ShouldFailAfter5Minutes', async () => {
+    // Arrange - use fake timers for timeout test
+    vi.useFakeTimers();
+
+    vi.mocked(loadGlobalSettings).mockResolvedValue({
+      reviewer: { cli: 'codex' },
+    });
+    vi.mocked(detectCli).mockResolvedValue({
+      available: true,
+      version: '0.39.0',
+      command: 'codex',
+    });
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    const options: PeerReviewOptions = {
+      prdFile: '/test/prd.md',
+      tasks: createMockPRDData(),
+      project: createMockProject(),
+      attempt: 1,
+    };
+
+    const resultPromise = runPeerReview(options);
+
+    // Advance timers to resolve async operations
+    await vi.advanceTimersByTimeAsync(1);
+
+    // Advance time past the timeout without response
+    await vi.advanceTimersByTimeAsync(CODEX_TIMEOUT_MS + 1);
+
+    // Emit close after timeout (simulating killed process)
+    mockChild.emit('close', null);
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('timed out');
+    expect(mockChild.kill).toHaveBeenCalledWith('SIGTERM');
+
+    vi.useRealTimers();
+  });
+
+  it('runPeerReview_WithCliCrash_ShouldCaptureStderrAndFail', async () => {
+    // Arrange
+    vi.mocked(loadGlobalSettings).mockResolvedValue({
+      reviewer: { cli: 'codex' },
+    });
+    vi.mocked(detectCli).mockResolvedValue({
+      available: true,
+      version: '0.39.0',
+      command: 'codex',
+    });
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    const stderrMessage = 'Segmentation fault';
+
+    const options: PeerReviewOptions = {
+      prdFile: '/test/prd.md',
+      tasks: createMockPRDData(),
+      project: createMockProject(),
+      attempt: 1,
+    };
+
+    const resultPromise = runPeerReview(options);
+
+    // Wait for next tick
+    await new Promise(resolve => setImmediate(resolve));
+
+    // Simulate spawn error with stderr
+    mockChild.stderr!.emit('data', Buffer.from(stderrMessage));
+    mockChild.emit('error', new Error('spawn ENOENT'));
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Failed to spawn Codex CLI');
+    expect(result.error).toContain(stderrMessage);
+
+    // Verify stderr was captured in log
+    const writeCalls = vi.mocked(fs.writeFile).mock.calls;
+    const logWriteCall = writeCalls.find(call =>
+      typeof call[0] === 'string' && call[0].includes('.log')
+    );
+    if (logWriteCall) {
+      const logContent = logWriteCall[1] as string;
+      expect(logContent).toContain(stderrMessage);
+    }
+  });
+
+  it('runPeerReview_Claude_ShouldReturnValidReviewFeedbackJson', async () => {
+    // Arrange
+    vi.mocked(loadGlobalSettings).mockResolvedValue({
+      reviewer: { cli: 'claude' },
+    });
+    vi.mocked(detectCli).mockResolvedValue({
+      available: true,
+      version: '2.1.2',
+      command: 'claude',
+    });
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    const validFeedback = {
+      verdict: 'FAIL' as const,
+      missingRequirements: ['Requirement 1'],
+      contradictions: ['Contradiction 1'],
+      dependencyErrors: ['Error 1'],
+      duplicates: ['Duplicate 1'],
+      suggestions: ['Suggestion 1'],
+    };
+
+    const options: PeerReviewOptions = {
+      prdFile: '/test/prd.md',
+      tasks: createMockPRDData(),
+      project: createMockProject(),
+      attempt: 1,
+    };
+
+    const resultPromise = runPeerReview(options);
+
+    // Wait for next tick
+    await new Promise(resolve => setImmediate(resolve));
+
+    mockChild.stdout!.emit('data', Buffer.from(JSON.stringify(validFeedback)));
+    mockChild.emit('close', 0);
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert
+    expect(result.success).toBe(true);
+    expect(result.cli).toBe('claude');
+    expect(result.feedback.verdict).toBe('FAIL');
+    // Claude feedback is converted to legacy format with issues array
+    expect(result.feedback.issues).toBeDefined();
+    expect(result.feedback.issues!.length).toBeGreaterThan(0);
   });
 });
