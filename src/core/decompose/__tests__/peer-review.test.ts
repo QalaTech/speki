@@ -88,7 +88,7 @@ describe('runWithClaude', () => {
     const outputPath = '/tmp/output.raw';
     const validJson = createValidFeedbackJson();
 
-    const resultPromise = runWithClaude({ prompt, outputPath });
+    const resultPromise = runWithClaude({ prompt, outputPath, projectPath: '/test/project' });
 
     // Simulate successful response
     setTimeout(() => {
@@ -117,6 +117,7 @@ describe('runWithClaude', () => {
     const resultPromise = runWithClaude({
       prompt: 'test',
       outputPath: '/tmp/output.raw',
+      projectPath: '/test/project',
     });
 
     // Simulate exit code 0
@@ -144,6 +145,7 @@ describe('runWithClaude', () => {
     const resultPromise = runWithClaude({
       prompt: 'test',
       outputPath: '/tmp/output.raw',
+      projectPath: '/test/project',
     });
 
     // Simulate stderr then non-zero exit
@@ -170,6 +172,7 @@ describe('runWithClaude', () => {
     const resultPromise = runWithClaude({
       prompt: 'test',
       outputPath,
+      projectPath: '/test/project',
     });
 
     // Simulate successful response
@@ -195,6 +198,7 @@ describe('runWithClaude', () => {
     const resultPromise = runWithClaude({
       prompt: 'test',
       outputPath: '/tmp/output.raw',
+      projectPath: '/test/project',
     });
 
     // Advance time past the timeout without any response
@@ -229,6 +233,7 @@ describe('runWithClaude', () => {
     const resultPromise = runWithClaude({
       prompt: 'test',
       outputPath: '/tmp/output.raw',
+      projectPath: '/test/project',
     });
 
     setTimeout(() => {
@@ -267,6 +272,7 @@ describe('runWithClaude', () => {
     const resultPromise = runWithClaude({
       prompt: 'test prompt',
       outputPath: '/tmp/output.raw',
+      projectPath: '/test/project',
     });
 
     setTimeout(() => {
@@ -278,8 +284,14 @@ describe('runWithClaude', () => {
 
     await resultPromise;
 
-    // Assert
-    expect(spawn).toHaveBeenCalledWith('claude', ['--print', '--output-format', 'text'], {
+    // Assert - verify spawn is called with correct arguments including --dangerously-skip-permissions and --tools
+    expect(spawn).toHaveBeenCalledWith('claude', [
+      '--dangerously-skip-permissions',
+      '--print',
+      '--output-format', 'text',
+      '--tools', '',
+    ], {
+      cwd: '/test/project',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
   });
@@ -292,6 +304,7 @@ describe('runWithClaude', () => {
     const resultPromise = runWithClaude({
       prompt: 'test',
       outputPath: '/tmp/output.raw',
+      projectPath: '/test/project',
     });
 
     // Simulate spawn error
@@ -313,6 +326,7 @@ describe('runWithClaude', () => {
     const resultPromise = runWithClaude({
       prompt: 'test',
       outputPath: '/tmp/output.raw',
+      projectPath: '/test/project',
     });
 
     // Simulate invalid response
@@ -337,6 +351,7 @@ describe('runWithClaude', () => {
     const resultPromise = runWithClaude({
       prompt: 'test',
       outputPath: '/tmp/output.raw',
+      projectPath: '/test/project',
     });
 
     setTimeout(() => {
@@ -367,6 +382,7 @@ describe('runWithClaude', () => {
     const resultPromise = runWithClaude({
       prompt: 'test',
       outputPath: '/tmp/output.raw',
+      projectPath: '/test/project',
     });
 
     setTimeout(() => {
@@ -501,8 +517,8 @@ describe('runPeerReview', () => {
     expect(result.cli).toBe('claude');
     expect(spawn).toHaveBeenCalledWith(
       'claude',
-      ['--print', '--output-format', 'text'],
-      expect.any(Object)
+      ['--dangerously-skip-permissions', '--print', '--output-format', 'text', '--tools', ''],
+      expect.objectContaining({ cwd: '/test/project' })
     );
   });
 

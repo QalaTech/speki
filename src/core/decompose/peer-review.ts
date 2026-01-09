@@ -22,26 +22,26 @@ export const CODEX_TIMEOUT_MS = 300000;
 export interface ReviewFeedback {
   verdict: 'PASS' | 'FAIL' | 'UNKNOWN';
   missingRequirements?: Array<{
-    requirement: string;
+    requirement?: string;
     prdSection?: string;
   }>;
   contradictions?: Array<{
-    taskId: string;
-    issue: string;
+    taskId?: string;
+    issue?: string;
     prdSection?: string;
   }>;
   dependencyErrors?: Array<{
-    taskId: string;
-    issue: string;
+    taskId?: string;
+    issue?: string;
     dependsOn?: string;
   }>;
   duplicates?: Array<{
-    taskIds: string[];
-    reason: string;
+    taskIds?: string[];
+    reason?: string;
   }>;
   suggestions?: Array<{
     taskId?: string;
-    action: string;
+    action?: string;
   }>;
   issues?: string[];
   reviewLog?: string;
@@ -78,6 +78,8 @@ export interface ClaudeReviewResult {
   feedback: TypedReviewFeedback;
   /** Error message if failed */
   error?: string;
+  /** Captured stdout output (raw response) */
+  stdout?: string;
   /** Captured stderr output */
   stderr?: string;
 }
@@ -87,6 +89,8 @@ export interface ClaudeReviewOptions {
   prompt: string;
   /** Path to write raw output file */
   outputPath: string;
+  /** Project path for working directory context */
+  projectPath: string;
 }
 
 export interface AutoSelectResult {
@@ -140,7 +144,10 @@ export async function autoSelectCli(): Promise<AutoSelectResult> {
  * @throws Error with stderr message on non-zero exit or timeout
  */
 export async function runWithClaude(options: ClaudeReviewOptions): Promise<ClaudeReviewResult> {
-  const { prompt, outputPath } = options;
+  const { prompt, outputPath, projectPath } = options;
+
+  console.log(`  [DEBUG] runWithClaude called with prompt length: ${prompt.length}, projectPath: ${projectPath}`);
+  const startTime = Date.now();
 
   return new Promise((resolve, reject) => {
     let stdout = '';
@@ -148,7 +155,15 @@ export async function runWithClaude(options: ClaudeReviewOptions): Promise<Claud
     let timedOut = false;
     let processExited = false;
 
-    const claude: ChildProcess = spawn('claude', ['--print', '--output-format', 'text'], {
+    console.log(`  [DEBUG] Spawning Claude CLI...`);
+    // Use same flags as decompose runner for consistent Claude CLI behavior
+    const claude: ChildProcess = spawn('claude', [
+      '--dangerously-skip-permissions',  // Required for non-interactive mode
+      '--print',
+      '--output-format', 'text',
+      '--tools', '',  // Disable all tools - peer review is pure text analysis
+    ], {
+      cwd: projectPath,  // Set working directory for proper context
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
@@ -181,6 +196,8 @@ export async function runWithClaude(options: ClaudeReviewOptions): Promise<Claud
     claude.on('close', async (code) => {
       processExited = true;
       clearTimeout(timeoutId);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`  [DEBUG] Claude closed after ${elapsed}s, exit code: ${code}, stdout length: ${stdout.length}`);
 
       // Write raw output to file
       try {
@@ -208,6 +225,8 @@ export async function runWithClaude(options: ClaudeReviewOptions): Promise<Claud
         resolve({
           success: true,
           feedback,
+          stdout,
+          stderr,
         });
       } catch (parseError) {
         reject(new Error(`Failed to parse Claude response as ReviewFeedback JSON: ${parseError}. Raw output: ${stdout.substring(0, 500)}`));
@@ -299,23 +318,43 @@ function validateReviewFeedback(obj: unknown): TypedReviewFeedback {
     throw new Error(`Invalid verdict: ${data.verdict}. Must be 'PASS' or 'FAIL'`);
   }
 
+  // Helper to convert item to string - handles both string and object formats
+  const itemToString = (item: unknown): string => {
+    if (typeof item === 'string') return item;
+    if (typeof item === 'object' && item !== null) {
+      const obj = item as Record<string, unknown>;
+      // Build a readable string from object properties
+      const parts: string[] = [];
+      if (obj.taskId) parts.push(`[${obj.taskId}]`);
+      if (obj.taskIds && Array.isArray(obj.taskIds)) parts.push(`[${obj.taskIds.join(', ')}]`);
+      if (obj.requirement) parts.push(String(obj.requirement));
+      if (obj.issue) parts.push(String(obj.issue));
+      if (obj.reason) parts.push(String(obj.reason));
+      if (obj.action) parts.push(String(obj.action));
+      if (obj.prdSection) parts.push(`(PRD: ${obj.prdSection})`);
+      if (obj.dependsOn) parts.push(`(depends on: ${obj.dependsOn})`);
+      return parts.join(' ') || JSON.stringify(item);
+    }
+    return String(item);
+  };
+
   // Build validated feedback with defaults for optional arrays
   const feedback: TypedReviewFeedback = {
     verdict: data.verdict,
     missingRequirements: Array.isArray(data.missingRequirements)
-      ? data.missingRequirements.map(String)
+      ? data.missingRequirements.map(itemToString)
       : [],
     contradictions: Array.isArray(data.contradictions)
-      ? data.contradictions.map(String)
+      ? data.contradictions.map(itemToString)
       : [],
     dependencyErrors: Array.isArray(data.dependencyErrors)
-      ? data.dependencyErrors.map(String)
+      ? data.dependencyErrors.map(itemToString)
       : [],
     duplicates: Array.isArray(data.duplicates)
-      ? data.duplicates.map(String)
+      ? data.duplicates.map(itemToString)
       : [],
     suggestions: Array.isArray(data.suggestions)
-      ? data.suggestions.map(String)
+      ? data.suggestions.map(itemToString)
       : [],
   };
 
@@ -338,33 +377,31 @@ DO NOT:
 YOUR ONLY TASK: Compare the PRD document to the Tasks JSON and output a verdict.
 
 ## OUTPUT FORMAT
-Reply with ONLY valid JSON in this exact structure:
+Reply with ONLY valid JSON in this EXACT structure (all arrays contain STRINGS, not objects):
 {
-  "verdict": "PASS" or "FAIL",
-  "missingRequirements": [
-    {"requirement": "description of missing PRD requirement", "prdSection": "section name from PRD"}
-  ],
-  "contradictions": [
-    {"taskId": "US-XXX", "issue": "description of how task contradicts PRD", "prdSection": "relevant PRD section"}
-  ],
-  "dependencyErrors": [
-    {"taskId": "US-XXX", "issue": "description of dependency problem", "dependsOn": "US-YYY or missing task"}
-  ],
-  "duplicates": [
-    {"taskIds": ["US-XXX", "US-YYY"], "reason": "why these tasks overlap"}
-  ],
-  "suggestions": [
-    {"taskId": "US-XXX or null for new task", "action": "specific actionable fix"}
-  ]
+  "verdict": "PASS",
+  "missingRequirements": [],
+  "contradictions": [],
+  "dependencyErrors": [],
+  "duplicates": [],
+  "suggestions": []
 }
 
+Example with issues:
+{
+  "verdict": "FAIL",
+  "missingRequirements": ["[Section: Auth] User password reset flow not covered by any task"],
+  "contradictions": ["[US-003] Task says REST API but PRD specifies GraphQL"],
+  "dependencyErrors": ["[US-005] Depends on US-999 which does not exist"],
+  "duplicates": ["[US-002, US-007] Both tasks implement user login"],
+  "suggestions": ["[US-003] Change API type from REST to GraphQL to match PRD"]
+}
+
+CRITICAL: Each array item MUST be a plain string. Do NOT use nested objects.
+
 ## VERDICT RULES
-- "PASS" = All PRD requirements are covered by tasks, dependencies are valid, no contradictions
-- "FAIL" = One or more of:
-  - Missing PRD requirements (not covered by any task)
-  - Tasks contradict the PRD
-  - Invalid dependencies (depend on non-existent tasks)
-  - Significant duplicate tasks
+- "PASS" = All PRD requirements covered, dependencies valid, no contradictions
+- "FAIL" = Any of: missing requirements, contradictions, invalid dependencies, duplicates
 
 ## REVIEW CHECKLIST
 1. List all requirements from the PRD
@@ -600,6 +637,7 @@ export async function runPeerReview(options: PeerReviewOptions): Promise<PeerRev
   await fs.mkdir(project.logsDir, { recursive: true });
 
   console.log(`  Running ${selectedCli} peer review (attempt ${attempt})...`);
+  console.log(`  Prompt size: ${prompt.length} chars, PRD: ${prdText.length} chars, Tasks: ${tasksJson.length} chars`);
 
   // Execute based on selected CLI
   if (selectedCli === 'claude') {
@@ -621,16 +659,24 @@ async function runPeerReviewWithClaude(
   timestamp: string
 ): Promise<PeerReviewResult> {
   try {
-    const result = await runWithClaude({ prompt, outputPath: rawOutputPath });
+    // Save prompt to file for debugging
+    const promptPath = rawOutputPath.replace('.raw', '.prompt.txt');
+    await fs.writeFile(promptPath, prompt);
+    console.log(`  Saved prompt to: ${promptPath}`);
 
-    // Build standardized log
+    const startTime = Date.now();
+    const result = await runWithClaude({ prompt, outputPath: rawOutputPath, projectPath: project.projectPath });
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`  Claude completed in ${elapsed}s`);
+
+    // Build standardized log with captured output
     const fullLog = buildLogEntry(
       'claude',
       attempt,
       timestamp,
       0, // exit code 0 on success
-      '', // stdout is empty for Claude (response goes to file)
-      '', // no stderr on success
+      result.stdout || '',
+      result.stderr || '',
       convertToLegacyFeedback(result.feedback)
     );
     await fs.writeFile(logPath, fullLog);
@@ -819,12 +865,10 @@ async function runPeerReviewWithCodex(
 function convertToLegacyFeedback(typed: TypedReviewFeedback): ReviewFeedback {
   return {
     verdict: typed.verdict,
-    issues: [
-      ...typed.missingRequirements.map(r => `Missing requirement: ${r}`),
-      ...typed.contradictions.map(c => `Contradiction: ${c}`),
-      ...typed.dependencyErrors.map(d => `Dependency error: ${d}`),
-      ...typed.duplicates.map(d => `Duplicate: ${d}`),
-    ],
+    missingRequirements: typed.missingRequirements.map(r => ({ requirement: r })),
+    contradictions: typed.contradictions.map(c => ({ issue: c })),
+    dependencyErrors: typed.dependencyErrors.map(d => ({ issue: d })),
+    duplicates: typed.duplicates.map(d => ({ reason: d })),
     suggestions: typed.suggestions.map(s => ({ action: s })),
   };
 }

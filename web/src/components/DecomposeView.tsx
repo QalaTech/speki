@@ -651,7 +651,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                   {/* Collapsible Review Logs */}
                   {allReviewLogs.length > 0 && (
                     <div className="logs-review-section">
-                      <div className="logs-section-title">Codex Review Logs</div>
+                      <div className="logs-section-title">Peer Review Logs</div>
                       {allReviewLogs.map((log) => (
                         <div key={log.attempt} className="collapsible-log">
                           <div
@@ -683,7 +683,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                           onClick={() => toggleLogExpanded(1)}
                         >
                           <span className="collapsible-icon">{expandedLogs.has(1) ? '▼' : '▶'}</span>
-                          <span className="collapsible-title">Codex Review Log</span>
+                          <span className="collapsible-title">Peer Review Log</span>
                         </div>
                         {expandedLogs.has(1) && (
                           <div className="collapsible-content">

@@ -13,6 +13,7 @@ import { Project } from '../project.js';
 import { parseStream, createConsoleCallbacks } from '../claude/stream-parser.js';
 import { PassThrough } from 'stream';
 import { runPeerReview, ReviewFeedback } from './peer-review.js';
+import { loadGlobalSettings } from '../settings.js';
 import type { PRDData, DecomposeState } from '../../types/index.js';
 
 export interface DecomposeOptions {
@@ -387,7 +388,7 @@ export async function runDecompose(
     outputName,
     freshStart = false,
     forceRedecompose = false,
-    enablePeerReview = true,  // Enabled by default - uses Codex for review
+    enablePeerReview = true,  // Enabled by default - uses CLI from settings
     maxReviewAttempts = parseInt(process.env.RALPH_MAX_REVIEW_ATTEMPTS || '3', 10),
     onProgress,
   } = options;
@@ -432,6 +433,7 @@ export async function runDecompose(
     status: 'INITIALIZING',
     message: 'Reading PRD file',
     prdFile,
+    startedAt: new Date().toISOString(),
   }, onProgress);
 
   // Check for existing draft
@@ -566,20 +568,24 @@ export async function runDecompose(
     }, onProgress);
   }
 
-  // Peer review using Codex - reviews ALL tasks together, revises if needed
+  // Peer review - reviews ALL tasks together, revises if needed
   let verdict: 'PASS' | 'FAIL' | 'UNKNOWN' | 'SKIPPED' = 'SKIPPED';
   let reviewAttempt = 1;
 
   if (enablePeerReview) {
+    // Load settings to get selected reviewer CLI name
+    const settings = await loadGlobalSettings();
+    const reviewerCliName = settings.reviewer.cli.charAt(0).toUpperCase() + settings.reviewer.cli.slice(1);
+
     console.log('');
     console.log(chalk.cyan('============================================'));
-    console.log(chalk.cyan('  Running Codex Peer Review'));
+    console.log(chalk.cyan(`  Running ${reviewerCliName} Peer Review`));
     console.log(chalk.cyan('============================================'));
 
     while (reviewAttempt <= maxReviewAttempts) {
       await updateState(project, {
         status: 'REVIEWING',
-        message: `Running Codex peer review (attempt ${reviewAttempt}/${maxReviewAttempts})...`,
+        message: `Running ${reviewerCliName} peer review (attempt ${reviewAttempt}/${maxReviewAttempts})...`,
         draftFile: outputPath,
       }, onProgress);
 

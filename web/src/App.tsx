@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate, useLocation, useSearchParams, Navigate } from 'react-router-dom';
+import { Sidebar, Menu, MenuItem, sidebarClasses } from 'react-pro-sidebar';
 import type { PRDData, RalphStatus, DecomposeState } from './types';
 import { calculateStats } from './types';
 import { StatsBar } from './components/StatsBar';
 import { TaskList } from './components/TaskList';
 import { KanbanView } from './components/KanbanView';
+import { LiveExecutionView } from './components/LiveExecutionView';
 import { ProgressView } from './components/ProgressView';
 import { DecomposeView } from './components/DecomposeView';
 import { SettingsView } from './components/SettingsView';
@@ -87,6 +89,13 @@ function ExecutionView({
           {/* Execution Tabs */}
           <nav className="tab-nav">
             <button
+              className={`tab-btn ${executionTab === 'live' ? 'active' : ''}`}
+              onClick={() => onNavigate('/execution/live')}
+            >
+              Live
+              {ralphStatus.running && <span className="tab-live-indicator" />}
+            </button>
+            <button
               className={`tab-btn ${executionTab === 'kanban' ? 'active' : ''}`}
               onClick={() => onNavigate('/execution/kanban')}
             >
@@ -107,7 +116,16 @@ function ExecutionView({
           </nav>
 
           {/* Tab Content */}
-          <div className={`tab-content ${executionTab === 'kanban' ? 'kanban-active' : ''}`}>
+          <div className={`tab-content ${executionTab === 'kanban' || executionTab === 'live' ? 'kanban-active' : ''}`}>
+            {executionTab === 'live' && prdData?.userStories && (
+              <LiveExecutionView
+                stories={prdData.userStories}
+                currentStory={ralphStatus.currentStory}
+                iterationLog={iterationLog}
+                currentIteration={currentIteration}
+                isRunning={ralphStatus.running}
+              />
+            )}
             {executionTab === 'kanban' && prdData?.userStories && (
               <KanbanView
                 stories={prdData.userStories}
@@ -158,8 +176,7 @@ function App() {
   const [decomposeState, setDecomposeState] = useState<DecomposeState>({ status: 'IDLE', message: '' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [navCollapsed, setNavCollapsed] = useState(false);
 
   // Get selected project from URL params
   const selectedProject = searchParams.get('project');
@@ -167,7 +184,8 @@ function App() {
   // Derive active section and tab from URL path
   const isDecomposePage = location.pathname.startsWith('/decompose');
   const isSettingsPage = location.pathname.startsWith('/settings');
-  const executionTab = location.pathname.includes('/list') ? 'list'
+  const executionTab = location.pathname.includes('/live') ? 'live'
+    : location.pathname.includes('/list') ? 'list'
     : location.pathname.includes('/log') ? 'log'
     : 'kanban';
 
@@ -266,8 +284,6 @@ function App() {
       const progressRes = await fetch(apiUrl('/api/ralph/progress'));
       const progressContent = await progressRes.text();
       setProgress(progressContent);
-
-      setLastUpdated(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data');
     } finally {
@@ -283,18 +299,18 @@ function App() {
   }, [selectedProject]);
 
   useEffect(() => {
-    if (!autoRefresh || !selectedProject) return;
+    if (!selectedProject) return;
 
     // Refresh faster when Ralph is running or decomposition is in progress
     const isActive = ralphStatus.running ||
       ['STARTING', 'INITIALIZING', 'DECOMPOSING', 'DECOMPOSED', 'REVIEWING'].includes(decomposeState.status);
     const interval = setInterval(fetchData, isActive ? 2000 : 5000);
     return () => clearInterval(interval);
-  }, [autoRefresh, fetchData, ralphStatus.running, decomposeState.status, selectedProject]);
+  }, [fetchData, ralphStatus.running, decomposeState.status, selectedProject]);
 
   const handleTasksActivated = () => {
     fetchData();
-    navigateTo('/execution/kanban');
+    navigateTo('/execution/live');
   };
 
   const handleStartRalph = async () => {
@@ -362,68 +378,118 @@ function App() {
   return (
     <div className="app-layout">
       {/* Side Navigation */}
-      <nav className="side-nav">
-        <div className="nav-header">
-          <h1>Qala</h1>
-          {/* Project Selector */}
-          <select
-            className="project-selector"
-            value={selectedProject || ''}
-            onChange={(e) => setSelectedProject(e.target.value)}
-          >
-            {projects.map((p) => (
-              <option key={p.path} value={p.path}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="nav-items">
-          <button
-            className={`nav-item ${isDecomposePage ? 'active' : ''}`}
-            onClick={() => navigateTo('/decompose')}
-          >
-            <span className="nav-icon">&#9881;</span>
-            <span className="nav-label">Decompose</span>
-            {isDecomposeActive && <span className="nav-badge active">Active</span>}
-          </button>
-
-          <button
-            className={`nav-item ${!isDecomposePage && !isSettingsPage ? 'active' : ''}`}
-            onClick={() => navigateTo('/execution/kanban')}
-          >
-            <span className="nav-icon">&#9654;</span>
-            <span className="nav-label">Execution</span>
-            {ralphStatus.running && <span className="nav-badge running">Running</span>}
-          </button>
-        </div>
-
-        <div className="nav-footer">
-          <div className="refresh-toggle">
-            <label>
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={e => setAutoRefresh(e.target.checked)}
-              />
-              Auto-refresh
-            </label>
-          </div>
-          {lastUpdated && (
-            <span className="last-updated-small">
-              {lastUpdated.toLocaleTimeString()}
-            </span>
+      <Sidebar
+        collapsed={navCollapsed}
+        backgroundColor="#161b22"
+        width="240px"
+        collapsedWidth="64px"
+        rootStyles={{
+          [`.${sidebarClasses.container}`]: {
+            borderRight: '1px solid #21262d !important',
+            borderColor: '#21262d !important',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100vh',
+          },
+        }}
+        style={{ borderRight: '1px solid #21262d' }}
+      >
+        <div className="sidebar-header">
+          <h1 className="sidebar-logo">{navCollapsed ? 'Q' : 'Qala'}</h1>
+          {!navCollapsed && projects.length > 0 && (
+            <select
+              className="project-selector"
+              value={selectedProject || ''}
+              onChange={(e) => setSelectedProject(e.target.value)}
+            >
+              {projects.map((p) => (
+                <option key={p.path} value={p.path}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           )}
-          <button
-            className={`nav-item settings-nav-item ${isSettingsPage ? 'active' : ''}`}
-            onClick={() => navigateTo('/settings')}
+        </div>
+
+        <div className="sidebar-content">
+          <Menu
+            menuItemStyles={{
+              button: ({ active }) => ({
+                backgroundColor: active ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
+                color: active ? '#58a6ff' : '#c9d1d9',
+                borderRadius: '6px',
+                margin: '2px 8px',
+                padding: '10px 12px',
+                '&:hover': {
+                  backgroundColor: '#21262d',
+                  color: '#ffffff',
+                },
+              }),
+              icon: {
+                color: 'inherit',
+                minWidth: '24px',
+              },
+              label: {
+                fontWeight: 500,
+              },
+            }}
           >
-            <span className="nav-icon">&#9881;</span>
-            <span className="nav-label">Settings</span>
+            <MenuItem
+              icon={<span style={{ fontSize: '14px' }}>⚙</span>}
+              active={isDecomposePage}
+              onClick={() => navigateTo('/decompose')}
+              suffix={isDecomposeActive && !navCollapsed ? <span className="menu-badge active">Active</span> : null}
+            >
+              Decompose
+            </MenuItem>
+            <MenuItem
+              icon={<span style={{ fontSize: '12px' }}>▶</span>}
+              active={!isDecomposePage && !isSettingsPage}
+              onClick={() => navigateTo('/execution/live')}
+              suffix={ralphStatus.running && !navCollapsed ? <span className="menu-badge running">Running</span> : null}
+            >
+              Execution
+            </MenuItem>
+          </Menu>
+        </div>
+
+        <div className="sidebar-footer">
+          <Menu
+            menuItemStyles={{
+              button: ({ active }) => ({
+                backgroundColor: active ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
+                color: active ? '#58a6ff' : '#8b949e',
+                borderRadius: '6px',
+                margin: '2px 8px',
+                padding: '10px 12px',
+                '&:hover': {
+                  backgroundColor: '#21262d',
+                  color: '#c9d1d9',
+                },
+              }),
+              icon: {
+                color: 'inherit',
+                minWidth: '24px',
+              },
+            }}
+          >
+            <MenuItem
+              icon={<span style={{ fontSize: '14px' }}>⚙</span>}
+              active={isSettingsPage}
+              onClick={() => navigateTo('/settings')}
+            >
+              Settings
+            </MenuItem>
+          </Menu>
+          <button
+            className="sidebar-collapse-btn"
+            onClick={() => setNavCollapsed(!navCollapsed)}
+            title={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {navCollapsed ? '→' : '←'}
           </button>
         </div>
-      </nav>
+      </Sidebar>
 
       {/* Main Content */}
       <main className="main-content">
@@ -434,7 +500,7 @@ function App() {
         )}
 
         <Routes>
-          <Route path="/" element={<Navigate to="/execution/kanban" replace />} />
+          <Route path="/" element={<Navigate to="/execution/live" replace />} />
           <Route
             path="/decompose"
             element={
@@ -447,11 +513,12 @@ function App() {
             }
           />
           <Route path="/settings" element={<SettingsView />} />
-          <Route path="/execution" element={<Navigate to="/execution/kanban" replace />} />
+          <Route path="/execution" element={<Navigate to="/execution/live" replace />} />
+          <Route path="/execution/live" element={<ExecutionView {...executionViewProps} />} />
           <Route path="/execution/kanban" element={<ExecutionView {...executionViewProps} />} />
           <Route path="/execution/list" element={<ExecutionView {...executionViewProps} />} />
           <Route path="/execution/log" element={<ExecutionView {...executionViewProps} />} />
-          <Route path="*" element={<Navigate to="/execution/kanban" replace />} />
+          <Route path="*" element={<Navigate to="/execution/live" replace />} />
         </Routes>
       </main>
     </div>

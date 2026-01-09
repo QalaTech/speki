@@ -56,7 +56,14 @@ router.get('/status', async (req, res) => {
         status.status = 'idle';
         await req.project!.saveStatus(status);
       }
-      // Check 2: If we have a PID, is that process still alive?
+      // Check 2: If status has a startedAt before server startup, it's stale from a previous server session
+      else if (status.startedAt && status.startedAt < SERVER_STARTUP_TIME) {
+        console.log(`[Ralph] Status says running but startedAt (${status.startedAt}) is before server startup (${SERVER_STARTUP_TIME}) - resetting to idle`);
+        status.status = 'idle';
+        runningLoops.delete(req.projectPath!);
+        await req.project!.saveStatus(status);
+      }
+      // Check 3: If we have a PID, is that process still alive?
       else if (status.pid && !isProcessRunning(status.pid)) {
         console.log(`[Ralph] Status says running but PID ${status.pid} is dead - resetting to idle`);
         status.status = 'idle';
