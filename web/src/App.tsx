@@ -7,6 +7,7 @@ import { TaskList } from './components/TaskList';
 import { KanbanView } from './components/KanbanView';
 import { ProgressView } from './components/ProgressView';
 import { DecomposeView } from './components/DecomposeView';
+import { SettingsView } from './components/SettingsView';
 import './App.css';
 
 interface ProjectEntry {
@@ -152,7 +153,7 @@ function App() {
   const [prdData, setPrdData] = useState<PRDData | null>(null);
   const [progress, setProgress] = useState<string>('');
   const [iterationLog, setIterationLog] = useState<string>('');
-  const [currentIteration] = useState<number | null>(null);
+  const [currentIteration, setCurrentIteration] = useState<number | null>(null);
   const [ralphStatus, setRalphStatus] = useState<RalphStatus>(defaultStatus);
   const [decomposeState, setDecomposeState] = useState<DecomposeState>({ status: 'IDLE', message: '' });
   const [loading, setLoading] = useState(true);
@@ -165,6 +166,7 @@ function App() {
 
   // Derive active section and tab from URL path
   const isDecomposePage = location.pathname.startsWith('/decompose');
+  const isSettingsPage = location.pathname.startsWith('/settings');
   const executionTab = location.pathname.includes('/list') ? 'list'
     : location.pathname.includes('/log') ? 'log'
     : 'kanban';
@@ -241,18 +243,23 @@ function App() {
         message: decomposeData.message || '',
       });
 
+      // Update currentIteration from status
+      setCurrentIteration(statusData.currentIteration || null);
+
       // Fetch raw JSONL when running - ChatLogView will parse it
-      if (statusData.status === 'running') {
-        // Get latest JSONL log file
-        const logsRes = await fetch(apiUrl('/api/ralph/logs'));
-        const logs = await logsRes.json();
-        if (logs.length > 0) {
-          const latestLog = logs[logs.length - 1];
-          const logRes = await fetch(apiUrl(`/api/ralph/logs/${latestLog}`));
-          const rawJsonl = await logRes.text();
-          // Store raw JSONL - components will parse it
-          setIterationLog(rawJsonl);
+      if (statusData.status === 'running' && statusData.currentIteration) {
+        const currentIterationLog = `iteration_${statusData.currentIteration}.jsonl`;
+        try {
+          const logRes = await fetch(apiUrl(`/api/ralph/logs/${currentIterationLog}`));
+          if (logRes.ok) {
+            const rawJsonl = await logRes.text();
+            setIterationLog(rawJsonl);
+          }
+        } catch (logErr) {
+          console.warn('Failed to fetch current iteration log:', logErr);
         }
+      } else {
+        setIterationLog('');
       }
 
       // Progress file for historical summary
@@ -383,7 +390,7 @@ function App() {
           </button>
 
           <button
-            className={`nav-item ${!isDecomposePage ? 'active' : ''}`}
+            className={`nav-item ${!isDecomposePage && !isSettingsPage ? 'active' : ''}`}
             onClick={() => navigateTo('/execution/kanban')}
           >
             <span className="nav-icon">&#9654;</span>
@@ -408,6 +415,13 @@ function App() {
               {lastUpdated.toLocaleTimeString()}
             </span>
           )}
+          <button
+            className={`nav-item settings-nav-item ${isSettingsPage ? 'active' : ''}`}
+            onClick={() => navigateTo('/settings')}
+          >
+            <span className="nav-icon">&#9881;</span>
+            <span className="nav-label">Settings</span>
+          </button>
         </div>
       </nav>
 
@@ -432,6 +446,7 @@ function App() {
               ) : null
             }
           />
+          <Route path="/settings" element={<SettingsView />} />
           <Route path="/execution" element={<Navigate to="/execution/kanban" replace />} />
           <Route path="/execution/kanban" element={<ExecutionView {...executionViewProps} />} />
           <Route path="/execution/list" element={<ExecutionView {...executionViewProps} />} />

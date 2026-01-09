@@ -2032,6 +2032,10 @@ body {
   font-size: 0.75rem;
 }
 
+.settings-nav-item {
+  margin-top: 0.75rem;
+}
+
 /* Main Content Area */
 .main-content {
   flex: 1;
