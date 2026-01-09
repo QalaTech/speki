@@ -1,8 +1,0 @@
-{
-  "projectName": "Qala Settings Page with Decomposition Reviewer Configuration",
-  "branchName": "ralph/feature",
-  "language": "nodejs",
-  "standardsFile": ".ralph/standards/nodejs.md",
-  "description": "Add a Settings page to the Qala dashboard allowing users to configure which CLI tool (Codex or Claude) is used for the decomposition peer review step",
-  "userStories": []
-}
