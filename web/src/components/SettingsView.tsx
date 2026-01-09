@@ -20,6 +20,35 @@ interface GlobalSettings {
 
 type CliType = 'codex' | 'claude';
 
+// Session storage key for CLI detection caching
+const CLI_DETECTION_CACHE_KEY = 'qala_cli_detection_cache';
+
+/**
+ * Get cached CLI detection results from sessionStorage
+ */
+function getCachedCliDetection(): AllCliDetectionResults | null {
+  try {
+    const cached = sessionStorage.getItem(CLI_DETECTION_CACHE_KEY);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (err) {
+    console.error('Failed to parse cached CLI detection:', err);
+  }
+  return null;
+}
+
+/**
+ * Store CLI detection results in sessionStorage
+ */
+function setCachedCliDetection(detection: AllCliDetectionResults): void {
+  try {
+    sessionStorage.setItem(CLI_DETECTION_CACHE_KEY, JSON.stringify(detection));
+  } catch (err) {
+    console.error('Failed to cache CLI detection:', err);
+  }
+}
+
 export function SettingsView() {
   const [cliDetection, setCliDetection] = useState<AllCliDetectionResults | null>(null);
   const [_settings, setSettings] = useState<GlobalSettings | null>(null);
@@ -33,12 +62,24 @@ export function SettingsView() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const fetchCliDetection = useCallback(async (): Promise<AllCliDetectionResults | null> => {
+    // Check cache first
+    const cached = getCachedCliDetection();
+    if (cached) {
+      return cached;
+    }
+
+    // No cache, fetch from API
     try {
       const res = await fetch('/api/settings/cli/detect');
       if (!res.ok) {
         throw new Error('Failed to fetch CLI detection');
       }
-      return await res.json();
+      const detection = await res.json();
+
+      // Cache the result for subsequent fetches within this session
+      setCachedCliDetection(detection);
+
+      return detection;
     } catch (err) {
       console.error('Failed to fetch CLI detection:', err);
       return null;
@@ -127,6 +168,15 @@ export function SettingsView() {
 
   const availableClis = getAvailableClis();
 
+  // Check if currently selected CLI is unavailable
+  const isSelectedCliUnavailable = (): boolean => {
+    if (!cliDetection) return false;
+    const detection = cliDetection[selectedCli];
+    return !detection.available;
+  };
+
+  const selectedCliUnavailable = isSelectedCliUnavailable();
+
   if (loading) {
     return (
       <div className="settings-page">
@@ -160,21 +210,41 @@ export function SettingsView() {
         <div className="section-content">
           <div className="config-field">
             <label>Reviewer CLI</label>
-            <select
-              value={selectedCli}
-              onChange={(e) => setSelectedCli(e.target.value as CliType)}
-              disabled={availableClis.length === 0 || saving}
-            >
-              {availableClis.length === 0 ? (
-                <option value="">No CLIs available</option>
-              ) : (
-                availableClis.map((cli) => (
-                  <option key={cli} value={cli}>
-                    {cli.charAt(0).toUpperCase() + cli.slice(1)}
-                  </option>
-                ))
+            <div className="select-wrapper">
+              <select
+                value={selectedCli}
+                onChange={(e) => setSelectedCli(e.target.value as CliType)}
+                disabled={availableClis.length === 0 || saving}
+                className={selectedCliUnavailable ? 'has-warning' : ''}
+              >
+                {availableClis.length === 0 ? (
+                  <option value="">No CLIs available</option>
+                ) : (
+                  <>
+                    {/* Include unavailable selected CLI so user can see current selection */}
+                    {selectedCliUnavailable && (
+                      <option value={selectedCli}>
+                        {selectedCli.charAt(0).toUpperCase() + selectedCli.slice(1)} (unavailable)
+                      </option>
+                    )}
+                    {availableClis.map((cli) => (
+                      <option key={cli} value={cli}>
+                        {cli.charAt(0).toUpperCase() + cli.slice(1)}
+                      </option>
+                    ))}
+                  </>
+                )}
+              </select>
+              {selectedCliUnavailable && (
+                <span className="select-warning-indicator" title="Selected CLI is unavailable">⚠</span>
               )}
-            </select>
+            </div>
+            {selectedCliUnavailable && (
+              <div className="cli-warning-message">
+                The selected CLI ({selectedCli.charAt(0).toUpperCase() + selectedCli.slice(1)}) is currently unavailable.
+                Please select a different CLI or reinstall the missing tool.
+              </div>
+            )}
           </div>
 
           <div className="cli-status-list">

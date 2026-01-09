@@ -150,11 +150,14 @@ describe('SettingsView', () => {
     });
 
     it('should only show claude in dropdown when only claude available', async () => {
-      // Arrange
-      setupMocks({
-        codex: { available: false, version: '', command: 'codex' },
-        claude: { available: true, version: '2.1.2', command: 'claude' },
-      });
+      // Arrange - settings must select an available CLI to avoid warning state
+      setupMocks(
+        {
+          codex: { available: false, version: '', command: 'codex' },
+          claude: { available: true, version: '2.1.2', command: 'claude' },
+        },
+        { reviewer: { cli: 'claude' } }
+      );
 
       // Act
       render(<SettingsView />);
@@ -591,6 +594,158 @@ describe('SettingsView', () => {
         'qala_cli_detection_cache',
         JSON.stringify(mockCliDetection)
       );
+    });
+  });
+
+  describe('SettingsWarning_WithUnavailableSelectedCli_ShouldShowWarning', () => {
+    it('should show warning indicator when selected CLI is unavailable', async () => {
+      // Arrange - settings say claude is selected, but claude is not available
+      setupMocks(
+        {
+          codex: { available: true, version: '0.39.0', command: 'codex' },
+          claude: { available: false, version: '', command: 'claude' },
+        },
+        { reviewer: { cli: 'claude' } }
+      );
+
+      // Act
+      render(<SettingsView />);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Check for warning indicator
+      expect(screen.getByTitle('Selected CLI is unavailable')).toBeInTheDocument();
+      expect(screen.getByText('⚠')).toBeInTheDocument();
+    });
+
+    it('should show warning message explaining the issue', async () => {
+      // Arrange - settings say claude is selected, but claude is not available
+      setupMocks(
+        {
+          codex: { available: true, version: '0.39.0', command: 'codex' },
+          claude: { available: false, version: '', command: 'claude' },
+        },
+        { reviewer: { cli: 'claude' } }
+      );
+
+      // Act
+      render(<SettingsView />);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Check for warning message
+      expect(screen.getByText(/The selected CLI \(Claude\) is currently unavailable/)).toBeInTheDocument();
+      expect(screen.getByText(/Please select a different CLI or reinstall the missing tool/)).toBeInTheDocument();
+    });
+
+    it('should show unavailable CLI in dropdown with "(unavailable)" suffix', async () => {
+      // Arrange - settings say claude is selected, but claude is not available
+      setupMocks(
+        {
+          codex: { available: true, version: '0.39.0', command: 'codex' },
+          claude: { available: false, version: '', command: 'claude' },
+        },
+        { reviewer: { cli: 'claude' } }
+      );
+
+      // Act
+      render(<SettingsView />);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Check that unavailable CLI is shown in dropdown with suffix
+      const dropdown = screen.getByRole('combobox');
+      expect(dropdown).toHaveValue('claude');
+
+      // Check for the unavailable option text
+      const unavailableOption = screen.getByRole('option', { name: 'Claude (unavailable)' });
+      expect(unavailableOption).toBeInTheDocument();
+    });
+
+    it('should not show warning when selected CLI is available', async () => {
+      // Arrange - settings say codex is selected, and codex is available
+      setupMocks(
+        {
+          codex: { available: true, version: '0.39.0', command: 'codex' },
+          claude: { available: false, version: '', command: 'claude' },
+        },
+        { reviewer: { cli: 'codex' } }
+      );
+
+      // Act
+      render(<SettingsView />);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Should not show warning indicator or message
+      expect(screen.queryByTitle('Selected CLI is unavailable')).not.toBeInTheDocument();
+      expect(screen.queryByText(/is currently unavailable/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('SettingsWarning_ShouldAllowChangingSelection', () => {
+    it('should allow user to change selection when selected CLI is unavailable', async () => {
+      // Arrange - settings say claude is selected, but claude is not available
+      setupMocks(
+        {
+          codex: { available: true, version: '0.39.0', command: 'codex' },
+          claude: { available: false, version: '', command: 'claude' },
+        },
+        { reviewer: { cli: 'claude' } }
+      );
+
+      // Act
+      render(<SettingsView />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Dropdown should not be disabled
+      const dropdown = screen.getByRole('combobox');
+      expect(dropdown).not.toBeDisabled();
+
+      // Change selection to codex
+      fireEvent.change(dropdown, { target: { value: 'codex' } });
+
+      // Assert - selection should change and warning should disappear
+      expect(dropdown).toHaveValue('codex');
+      expect(screen.queryByTitle('Selected CLI is unavailable')).not.toBeInTheDocument();
+      expect(screen.queryByText(/is currently unavailable/)).not.toBeInTheDocument();
+    });
+
+    it('should show available CLI option when selected CLI is unavailable', async () => {
+      // Arrange - settings say claude is selected, but claude is not available
+      setupMocks(
+        {
+          codex: { available: true, version: '0.39.0', command: 'codex' },
+          claude: { available: false, version: '', command: 'claude' },
+        },
+        { reviewer: { cli: 'claude' } }
+      );
+
+      // Act
+      render(<SettingsView />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Check that Codex is available as an option
+      const codexOption = screen.getByRole('option', { name: 'Codex' });
+      expect(codexOption).toBeInTheDocument();
     });
   });
 });
