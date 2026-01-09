@@ -1,0 +1,421 @@
+{
+  "projectName": "Qala Settings Page with Decomposition Reviewer Configuration",
+  "branchName": "ralph/feature",
+  "language": "nodejs",
+  "standardsFile": ".ralph/standards/nodejs.md",
+  "description": "Add a Settings page to the Qala dashboard allowing users to configure which CLI tool (Codex or Claude) is used for the decomposition peer review step",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create global settings type definitions",
+      "description": "Define TypeScript interfaces for global settings, CLI detection results, and reviewer configuration",
+      "acceptanceCriteria": [
+        "GlobalSettings interface defined with reviewer.cli property",
+        "CliDetectionResult interface defined with available, version, and command properties",
+        "ReviewerConfig type defined with cli field constrained to 'codex' | 'claude'",
+        "ReviewFeedback interface defined with verdict, missingRequirements, contradictions, dependencyErrors, duplicates, suggestions fields",
+        "Types exported from src/types/index.ts or dedicated settings types file",
+        "Build succeeds with no warnings",
+        "No placeholder implementations"
+      ],
+      "testCases": [],
+      "priority": 1,
+      "passes": true,
+      "notes": "Foundation types needed by settings management, CLI detection, and API endpoints. ReviewFeedback schema: { verdict: 'PASS' | 'FAIL', missingRequirements: [...], contradictions: [...], dependencyErrors: [...], duplicates: [...], suggestions: [...] }",
+      "dependencies": []
+    },
+    {
+      "id": "US-002",
+      "title": "Implement global settings file management",
+      "description": "Create core module for reading and writing global settings from ~/.qala/config.json",
+      "acceptanceCriteria": [
+        "loadGlobalSettings() reads from ~/.qala/config.json",
+        "loadGlobalSettings() returns defaults when file missing",
+        "loadGlobalSettings() handles corrupted JSON gracefully with warning log",
+        "saveGlobalSettings() persists settings to ~/.qala/config.json",
+        "saveGlobalSettings() creates ~/.qala directory if not exists",
+        "Default reviewer.cli is 'codex'",
+        "Build succeeds with no warnings",
+        "No TODO or FIXME comments"
+      ],
+      "testCases": [
+        "loadGlobalSettings_WithMissingFile_ShouldReturnDefaults",
+        "loadGlobalSettings_WithValidFile_ShouldReturnParsedSettings",
+        "loadGlobalSettings_WithCorruptedJson_ShouldReturnDefaultsAndLogWarning",
+        "saveGlobalSettings_WithNewSettings_ShouldPersistToFile",
+        "saveGlobalSettings_WithMissingDirectory_ShouldCreateDirectoryAndFile"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "File location: src/core/settings.ts. Uses ~/.qala/config.json for storage.",
+      "dependencies": [
+        "US-001"
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Implement CLI detection utility",
+      "description": "Create module to detect available CLI tools (Codex and Claude) by running version commands",
+      "acceptanceCriteria": [
+        "detectCli() spawns CLI with --version flag",
+        "detectCli() returns available=true, version string, and command string on exit code 0",
+        "detectCli() returns available=false on error or timeout",
+        "detectAllClis() returns detection results for both codex and claude with command field included",
+        "Timeout set to reasonable value (5 seconds) as a named constant",
+        "Build succeeds with no warnings",
+        "No magic numbers - timeout is a constant"
+      ],
+      "testCases": [
+        "detectCli_WithInstalledCli_ShouldReturnAvailableTrue",
+        "detectCli_WithMissingCli_ShouldReturnAvailableFalse",
+        "detectCli_WithTimeout_ShouldReturnAvailableFalse",
+        "detectAllClis_ShouldReturnBothCodexAndClaudeWithCommandField",
+        "parseCodexVersion_WithValidOutput_ShouldExtractVersion",
+        "parseClaudeVersion_WithValidOutput_ShouldExtractVersion"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "File location: src/core/cli-detect.ts. Codex: 'codex --version' returns 'OpenAI Codex v0.39.0'. Claude: 'claude --version' returns '2.1.2'. Use spawn with stdio: ['ignore', 'pipe', 'pipe']. Response must include command field (e.g., 'codex', 'claude').",
+      "dependencies": [
+        "US-001"
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "Implement settings API routes",
+      "description": "Create Express routes for GET /api/settings and PUT /api/settings endpoints",
+      "acceptanceCriteria": [
+        "GET /api/settings returns current global settings",
+        "GET /api/settings returns default { reviewer: { cli: 'codex' } } when no config file exists",
+        "PUT /api/settings accepts and persists reviewer configuration",
+        "PUT /api/settings validates cli value is 'codex' or 'claude'",
+        "PUT /api/settings returns 400 for invalid cli value",
+        "PUT /api/settings returns { success: true, settings: { reviewer: { cli: '...' } } } on success",
+        "Routes mounted in main server",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "GET_Settings_ShouldReturn200WithCurrentSettings",
+        "GET_Settings_WithNoConfig_ShouldReturnDefaultCodex",
+        "PUT_Settings_WithValidCli_ShouldReturn200WithSuccessAndSettings",
+        "PUT_Settings_WithInvalidCli_ShouldReturn400BadRequest",
+        "PUT_Settings_WithMissingBody_ShouldReturn400BadRequest",
+        "PUT_Settings_ResponseShape_ShouldIncludeSuccessAndSettingsFields"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "File location: src/server/routes/settings.ts. Mount in src/server/index.ts. PUT response must be { success: true, settings: { reviewer: { cli: '...' } } }.",
+      "dependencies": [
+        "US-002"
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Implement CLI detection API route",
+      "description": "Create Express route for GET /api/cli/detect endpoint",
+      "acceptanceCriteria": [
+        "GET /api/cli/detect returns detection results for codex and claude",
+        "Response includes available boolean, version string, and command string for each CLI",
+        "Response format: { codex: { available, version, command }, claude: { available, version, command } }",
+        "Route mounted in main server",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "GET_CliDetect_ShouldReturn200WithDetectionResults",
+        "GET_CliDetect_WithBothAvailable_ShouldShowBothTrueWithCommandField",
+        "GET_CliDetect_WithNoneAvailable_ShouldShowBothFalse",
+        "GET_CliDetect_ResponseShape_ShouldIncludeCommandFieldForEachCli"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "Can be added to src/server/routes/settings.ts or separate file. Uses detectAllClis() from cli-detect module. Response must include command field per CLI.",
+      "dependencies": [
+        "US-003",
+        "US-004"
+      ]
+    },
+    {
+      "id": "US-006",
+      "title": "Implement Claude reviewer execution",
+      "description": "Add function to run peer review using Claude CLI with proper invocation pattern",
+      "acceptanceCriteria": [
+        "runWithClaude() spawns 'claude --print --output-format text' with prompt on stdin",
+        "runWithClaude() captures stdout as response",
+        "runWithClaude() captures stderr for error reporting",
+        "runWithClaude() handles exit code 0 as success",
+        "runWithClaude() handles non-zero exit as failure with stderr captured",
+        "runWithClaude() writes raw output to specified file path",
+        "runWithClaude() enforces 5-minute (300 second) timeout",
+        "runWithClaude() returns valid ReviewFeedback JSON matching the schema",
+        "Build succeeds with no warnings",
+        "No TODO or FIXME comments"
+      ],
+      "testCases": [
+        "runWithClaude_WithValidPrompt_ShouldReturnResponse",
+        "runWithClaude_WithExitCodeZero_ShouldSucceed",
+        "runWithClaude_WithNonZeroExit_ShouldThrowWithStderr",
+        "runWithClaude_ShouldWriteRawOutputToFile",
+        "runWithClaude_WithTimeout_ShouldFailAfter5Minutes",
+        "runWithClaude_Response_ShouldMatchReviewFeedbackSchema"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": "Add to src/core/decompose/peer-review.ts. CLI invocation: echo \"$PROMPT\" | claude --print --output-format text. Response comes from stdout, not file. Must enforce 5-minute timeout. Must capture stderr on crash. Output must be valid ReviewFeedback JSON.",
+      "dependencies": [
+        "US-001"
+      ]
+    },
+    {
+      "id": "US-007",
+      "title": "Refactor peer review to support CLI selection",
+      "description": "Modify runPeerReview to load settings and use selected CLI (Codex or Claude)",
+      "acceptanceCriteria": [
+        "runPeerReview() loads global settings to get selected CLI",
+        "runPeerReview() checks if selected CLI is available before running",
+        "runPeerReview() uses runWithClaude() when claude selected",
+        "runPeerReview() uses existing Codex implementation when codex selected",
+        "runPeerReview() returns clear error if selected CLI unavailable",
+        "runPeerReview() enforces 5-minute timeout for both CLIs",
+        "runPeerReview() captures stderr and marks review as failed if CLI crashes",
+        "Log files named peer_review_attempt_N_TIMESTAMP.log and peer_review_attempt_N_TIMESTAMP.raw",
+        "Log format identical for both CLIs (CLI field, Attempt, Timestamp, Exit Code, STDOUT, STDERR, PARSED FEEDBACK sections)",
+        "Existing Codex workflow unchanged when Codex selected",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "runPeerReview_WithCodexSelected_ShouldUseCodex",
+        "runPeerReview_WithClaudeSelected_ShouldUseClaude",
+        "runPeerReview_WithUnavailableCli_ShouldReturnError",
+        "runPeerReview_WithNoConfig_ShouldDefaultToCodex",
+        "runPeerReview_ShouldProduceIdenticalLogFormat",
+        "runPeerReview_LogFileName_ShouldMatchPattern",
+        "runPeerReview_WithTimeout_ShouldFailAfter5Minutes",
+        "runPeerReview_WithCliCrash_ShouldCaptureStderrAndFail",
+        "runPeerReview_Claude_ShouldReturnValidReviewFeedbackJson"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": "Modify src/core/decompose/peer-review.ts. Must maintain backwards compatibility - Codex behavior unchanged when selected. 5-minute timeout applies to both CLIs. Stderr must be captured on crash.\n\ntechnicalContext: |\n  Codex CLI Invocation:\n  echo \"$PROMPT\" | codex exec --output-last-message /path/to/output.raw -\n\n  Flags:\n  - --output-last-message <file>: Write final response to file\n  - - (dash): Read prompt from stdin\n  - Exit code 0 on success\n\n  Claude CLI Invocation:\n  echo \"$PROMPT\" | claude --print --output-format text\n\n  Log file naming: peer_review_attempt_N_TIMESTAMP.log and peer_review_attempt_N_TIMESTAMP.raw",
+      "dependencies": [
+        "US-002",
+        "US-003",
+        "US-006"
+      ]
+    },
+    {
+      "id": "US-008",
+      "title": "Implement first-run CLI auto-selection",
+      "description": "Add logic to auto-select available CLI when no settings configured",
+      "acceptanceCriteria": [
+        "When reviewer.cli not set, auto-detect available CLIs",
+        "If Codex available, use Codex (backwards compatible default)",
+        "If only Claude available, use Claude",
+        "If neither available, return clear error message",
+        "No user prompt required - silent fallback",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "autoSelectCli_WithCodexAvailable_ShouldSelectCodex",
+        "autoSelectCli_WithOnlyClaudeAvailable_ShouldSelectClaude",
+        "autoSelectCli_WithNeitherAvailable_ShouldReturnError",
+        "autoSelectCli_WithBothAvailable_ShouldPreferCodex"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": "Add to peer-review.ts or settings.ts. Called when settings.reviewer.cli is undefined or null.",
+      "dependencies": [
+        "US-007"
+      ]
+    },
+    {
+      "id": "US-009",
+      "title": "Create SettingsView React component",
+      "description": "Build the Settings page component with CLI selection dropdown and status display",
+      "acceptanceCriteria": [
+        "SettingsView component renders at /settings route",
+        "Component fetches CLI detection on mount",
+        "Component fetches current settings on mount",
+        "Dropdown shows ONLY available CLIs (unavailable CLIs excluded from dropdown)",
+        "Status list below dropdown shows ALL CLIs with availability indicator and version",
+        "Loading state shown while fetching",
+        "Error state shown when no CLIs are detected",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "SettingsView_OnMount_ShouldFetchCliDetection",
+        "SettingsView_OnMount_ShouldFetchCurrentSettings",
+        "SettingsView_WithLoading_ShouldShowSpinner",
+        "SettingsView_WithData_ShouldShowDropdownWithOnlyAvailableClis",
+        "SettingsView_StatusList_ShouldShowAllClisWithVersionsAndAvailability",
+        "SettingsView_WithNoClisAvailable_ShouldShowErrorState"
+      ],
+      "priority": 30,
+      "passes": true,
+      "notes": "File location: web/src/components/SettingsView.tsx. Dropdown contains only available CLIs. Status list shows all CLIs with checkmark/cross and version. Error state required when no CLIs detected.",
+      "dependencies": [
+        "US-004",
+        "US-005"
+      ]
+    },
+    {
+      "id": "US-010",
+      "title": "Implement Settings save functionality",
+      "description": "Add save button and API call to persist reviewer selection",
+      "acceptanceCriteria": [
+        "Save Settings button calls PUT /api/settings",
+        "Saving state shown during API call",
+        "Success message shown after successful save",
+        "Error message shown on save failure",
+        "Selection persists after page refresh",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "handleSave_ShouldCallPutApiSettings",
+        "handleSave_WhileSaving_ShouldShowSavingState",
+        "handleSave_OnSuccess_ShouldShowSuccessMessage",
+        "handleSave_OnError_ShouldShowErrorMessage"
+      ],
+      "priority": 31,
+      "passes": true,
+      "notes": "Add to SettingsView.tsx. Handle loading, success, and error states as shown in PRD.",
+      "dependencies": [
+        "US-009"
+      ]
+    },
+    {
+      "id": "US-011",
+      "title": "Add Settings navigation item to sidebar",
+      "description": "Add Settings nav item with gear icon to the navigation footer",
+      "acceptanceCriteria": [
+        "Settings nav item appears in sidebar footer below auto-refresh toggle",
+        "Gear icon displayed with 'Settings' label",
+        "Clicking navigates to /settings route",
+        "Active state styling when on settings page",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "SettingsNavItem_ShouldAppearInFooter",
+        "SettingsNavItem_OnClick_ShouldNavigateToSettings",
+        "SettingsNavItem_WhenActive_ShouldShowActiveStyle"
+      ],
+      "priority": 32,
+      "passes": true,
+      "notes": "Modify web/src/App.tsx and web/src/App.css. Position in nav-footer section.",
+      "dependencies": []
+    },
+    {
+      "id": "US-012",
+      "title": "Add /settings route to React Router",
+      "description": "Configure React Router to render SettingsView at /settings path",
+      "acceptanceCriteria": [
+        "/settings route renders SettingsView component",
+        "Route accessible via navigation and direct URL",
+        "Route integrates with existing routing structure",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "SettingsRoute_ShouldRenderSettingsView",
+        "SettingsRoute_DirectNavigation_ShouldWork"
+      ],
+      "priority": 33,
+      "passes": true,
+      "notes": "Modify web/src/App.tsx or router configuration file.",
+      "dependencies": [
+        "US-009",
+        "US-011"
+      ]
+    },
+    {
+      "id": "US-013",
+      "title": "Style SettingsView component",
+      "description": "Create CSS styles for the Settings page matching existing app design",
+      "acceptanceCriteria": [
+        "Settings page header styled consistently with other pages",
+        "Decomposition Reviewer section has clear visual grouping",
+        "Dropdown and button styled to match existing components",
+        "CLI status list shows availability with checkmarks/crosses AND version numbers",
+        "Responsive layout maintained",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [],
+      "priority": 34,
+      "passes": true,
+      "notes": "File location: web/src/components/SettingsView.css. Follow existing app styling patterns. Status list must display version alongside availability indicator.",
+      "dependencies": [
+        "US-009",
+        "US-010"
+      ]
+    },
+    {
+      "id": "US-014",
+      "title": "Add error handling for unavailable CLI at decompose time",
+      "description": "Show clear error in decompose UI when selected CLI is unavailable and provide retry action for CLI crashes/timeouts",
+      "acceptanceCriteria": [
+        "When peer review fails due to unavailable CLI, error is shown in UI",
+        "Error message suggests checking Settings page",
+        "When peer review fails due to CLI crash or timeout, a visible Retry button is shown",
+        "Clicking Retry re-attempts the peer review",
+        "Error does not crash the decompose flow",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "DecomposeError_WithUnavailableCli_ShouldShowSettingsSuggestion",
+        "DecomposeError_WithCliCrash_ShouldShowRetryButton",
+        "DecomposeError_WithTimeout_ShouldShowRetryButton",
+        "DecomposeError_RetryButton_ShouldReAttemptPeerReview",
+        "DecomposeError_ShouldNotCrashFlow"
+      ],
+      "priority": 40,
+      "passes": true,
+      "notes": "Modify decompose UI components to handle CLI unavailable error case from peer review. Add visible Retry action for crash/timeout scenarios per PRD Error Handling section.",
+      "dependencies": [
+        "US-007"
+      ]
+    },
+    {
+      "id": "US-015",
+      "title": "Add warning state for unavailable selected CLI in Settings",
+      "description": "Show warning in Settings UI when currently selected CLI becomes unavailable",
+      "acceptanceCriteria": [
+        "Warning indicator shown next to dropdown if selected CLI unavailable",
+        "Warning message explains the issue",
+        "User can still select different CLI",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "SettingsWarning_WithUnavailableSelectedCli_ShouldShowWarning",
+        "SettingsWarning_ShouldAllowChangingSelection"
+      ],
+      "priority": 41,
+      "passes": true,
+      "notes": "Add to SettingsView.tsx. Check if current selection matches unavailable CLI from detection.",
+      "dependencies": [
+        "US-010"
+      ]
+    },
+    {
+      "id": "US-016",
+      "title": "Implement session-level CLI detection caching",
+      "description": "Cache CLI detection results for the browser session using sessionStorage, re-detect only on full page refresh",
+      "acceptanceCriteria": [
+        "CLI detection results cached in browser sessionStorage after first fetch",
+        "Subsequent fetches within same session use cached results",
+        "Cache persists across intra-session navigation (navigating between pages within the app)",
+        "Full page refresh (F5 or browser reload) triggers fresh CLI detection",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "CliDetectionCache_OnFirstFetch_ShouldStoreInSessionStorage",
+        "CliDetectionCache_OnSubsequentFetch_ShouldUseCached",
+        "CliDetectionCache_OnIntraSessionNavigation_ShouldUseCached",
+        "CliDetectionCache_OnFullPageRefresh_ShouldRedetect"
+      ],
+      "priority": 35,
+      "passes": true,
+      "notes": "Implement in SettingsView.tsx or create a custom hook. Use sessionStorage to cache detection results. sessionStorage automatically clears on full page refresh/tab close, ensuring fresh detection. Cache should persist when navigating between routes within the SPA.",
+      "dependencies": [
+        "US-009"
+      ]
+    }
+  ]
+}

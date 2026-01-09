@@ -36,7 +36,7 @@ Output ONLY valid JSON in this exact format:
     {
       "id": "US-001",
       "title": "Short descriptive title",
-      "description": "WHAT this story creates/changes + WHY it matters (the benefit or problem it solves). Include technical context that helps the implementer understand the purpose.",
+      "description": "What this story accomplishes",
       "acceptanceCriteria": [
         "Specific, testable criterion from the PRD",
         "All relevant tests pass",
@@ -216,22 +216,6 @@ When a story introduces temporary/stub code to unblock progress, the dependent s
 - "Implement UserRepository"
 - "Add CreateUserHandler endpoint"
 - "Add unit tests for User entity"
-
-### Description Quality
-
-Descriptions should explain **WHAT** is being created and **WHY** it matters. Include technical context that helps the implementer understand the purpose.
-
-**Bad Descriptions (too vague):**
-- "Create the context class"
-- "Add the service"
-- "Implement the repository"
-
-**Good Descriptions (clear purpose + context):**
-- "Create a TenantContext value object to encapsulate organisationId and repositoryId, reducing parameter bloat across method signatures"
-- "Add JobRepository implementing IJobRepository with PostgreSQL persistence, enabling jobs to be stored and retrieved across application restarts"
-- "Create JobNotFoundException as a typed exception for consistent error handling when jobs are not found, allowing API layer to return proper 404 responses"
-- "Implement the CreateJobHandler to orchestrate job creation, validating input, persisting via repository, and returning the created job ID"
-- "Add health check endpoint that verifies database connectivity, enabling Kubernetes liveness probes to detect unhealthy instances"
 
 ---
 

@@ -1,0 +1,453 @@
+## Codebase Patterns
+
+- **Vitest testing framework**: Use `vitest run` for testing. Tests go in `src/**/__tests__/*.test.ts`
+- **ESM module mocking**: Use `vi.mock()` with factory functions for mocking ESM modules. Use lazy evaluation (functions instead of constants) for module-level values that need mocking (e.g., `getQalaDir()` instead of `const QALA_DIR`)
+- **GlobalSettings default**: Default reviewer.cli is 'codex' for backwards compatibility
+- **HTTP endpoint testing**: Use supertest for Express route tests. Create isolated Express app in tests to avoid side effects.
+- **Async spawn testing**: For tests involving spawn with async setup (loadGlobalSettings, detectCli), use `await new Promise(resolve => setImmediate(resolve))` after calling the function to wait for spawn to be called, then emit events. Use `vi.advanceTimersByTimeAsync()` for timeout tests.
+- **React component testing**: Use `@testing-library/react` with Vitest. Mock fetch with `vi.stubGlobal('fetch', mockFetch)`. Use `waitFor()` for async state updates. Web tests go in `web/src/components/__tests__/*.test.tsx`.
+
+---
+
+## 2026-01-09 - US-001: Create global settings type definitions
+- What was implemented:
+  - Added CliType type ('codex' | 'claude') for reviewer selection
+  - Added ReviewerConfig interface with cli field
+  - Added GlobalSettings interface with reviewer property
+  - Added CliDetectionResult interface with available, version, and command properties
+  - Added AllCliDetectionResults interface for both codex and claude detection results
+  - Added ReviewFeedback interface with verdict, missingRequirements, contradictions, dependencyErrors, duplicates, suggestions fields
+- Files changed: src/types/index.ts
+- Tests implemented: None (type definitions only - no test cases specified)
+- **Learnings:**
+  - All types are exported from src/types/index.ts
+  - CliType is a union type constraint for reviewer selection
+  - ReviewFeedback.verdict is constrained to 'PASS' | 'FAIL' only
+- **Verification:**
+  - Build: PASS
+  - TypeCheck: PASS (npx tsc --noEmit)
+---
+
+## 2026-01-09 - US-002: Implement global settings file management
+- What was implemented:
+  - Created src/core/settings.ts with loadGlobalSettings() and saveGlobalSettings()
+  - loadGlobalSettings() reads from ~/.qala/config.json, returns defaults when file missing
+  - loadGlobalSettings() handles corrupted JSON gracefully with console.warn
+  - saveGlobalSettings() creates ~/.qala directory if needed and writes settings
+  - Default reviewer.cli is 'codex'
+  - Added Vitest test framework to project (vitest.config.ts, package.json scripts)
+- Files changed:
+  - src/core/settings.ts (new)
+  - src/core/__tests__/settings.test.ts (new)
+  - vitest.config.ts (new)
+  - package.json (added test scripts and vitest dependency)
+- Tests implemented:
+  - loadGlobalSettings_WithMissingFile_ShouldReturnDefaults - PASS
+  - loadGlobalSettings_WithValidFile_ShouldReturnParsedSettings - PASS
+  - loadGlobalSettings_WithCorruptedJson_ShouldReturnDefaultsAndLogWarning - PASS
+  - saveGlobalSettings_WithNewSettings_ShouldPersistToFile - PASS
+  - saveGlobalSettings_WithMissingDirectory_ShouldCreateDirectoryAndFile - PASS
+- **Learnings:**
+  - ESM modules require lazy evaluation for testability - use functions like getQalaDir() instead of const QALA_DIR
+  - vi.mock() factory function syntax works well for ESM modules
+  - Path helper functions (getQalaDir, getSettingsFilePath) make mocking easier
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (7 passed, 0 failed)
+---
+
+## 2026-01-09 - US-003: Implement CLI detection utility
+- What was implemented:
+  - Created src/core/cli-detect.ts with detectCli() and detectAllClis() functions
+  - detectCli() spawns CLI with --version flag, returns available/version/command
+  - detectCli() handles timeout (5 seconds) and error cases
+  - detectAllClis() returns detection results for both codex and claude
+  - Added parseCodexVersion() and parseClaudeVersion() for version extraction
+  - CLI_DETECTION_TIMEOUT_MS constant for timeout (5000ms)
+- Files changed:
+  - src/core/cli-detect.ts (new)
+  - src/core/__tests__/cli-detect.test.ts (new)
+- Tests implemented:
+  - detectCli_WithInstalledCli_ShouldReturnAvailableTrue - PASS
+  - detectCli_WithMissingCli_ShouldReturnAvailableFalse - PASS
+  - detectCli_WithTimeout_ShouldReturnAvailableFalse - PASS
+  - detectAllClis_ShouldReturnBothCodexAndClaudeWithCommandField - PASS
+  - parseCodexVersion_WithValidOutput_ShouldExtractVersion - PASS
+  - parseClaudeVersion_WithValidOutput_ShouldExtractVersion - PASS
+- **Learnings:**
+  - Use `spawn` with `stdio: ['ignore', 'pipe', 'pipe']` to capture stdout/stderr
+  - Use EventEmitter pattern for mocking ChildProcess in tests
+  - Cast to `unknown as Readable` for proper type safety in test mocks
+  - Use `vi.useFakeTimers()` and `vi.advanceTimersByTime()` for testing timeouts
+- **Verification:**
+  - Build: PASS (npx tsc --noEmit)
+  - Tests: PASS (20 passed, 0 failed)
+---
+
+## 2026-01-09 - US-004: Implement settings API routes
+- What was implemented:
+  - Created src/server/routes/settings.ts with GET and PUT endpoints
+  - GET /api/settings returns current global settings (or defaults)
+  - PUT /api/settings validates cli value ('codex' | 'claude') and persists
+  - PUT returns 400 for invalid cli value or missing body
+  - PUT response shape: { success: true, settings: { reviewer: { cli: '...' } } }
+  - Routes mounted in src/server/index.ts
+  - Added supertest dependency for HTTP endpoint testing
+- Files changed:
+  - src/server/routes/settings.ts (new)
+  - src/server/__tests__/settings.routes.test.ts (new)
+  - src/server/index.ts (added settingsRouter import and mount)
+  - package.json (added supertest and @types/supertest)
+- Tests implemented:
+  - GET_Settings_ShouldReturn200WithCurrentSettings - PASS
+  - GET_Settings_WithNoConfig_ShouldReturnDefaultCodex - PASS
+  - PUT_Settings_WithValidCli_ShouldReturn200WithSuccessAndSettings - PASS
+  - PUT_Settings_WithInvalidCli_ShouldReturn400BadRequest - PASS
+  - PUT_Settings_WithMissingBody_ShouldReturn400BadRequest - PASS
+  - PUT_Settings_ResponseShape_ShouldIncludeSuccessAndSettingsFields - PASS
+- **Learnings:**
+  - Use supertest for HTTP endpoint testing with Express routers
+  - Create isolated Express app in tests to avoid side effects
+  - Type guard function isValidCliType() works well for runtime validation
+  - VALID_CLI_TYPES array enables dynamic error messages
+- **Verification:**
+  - Build: PASS (npm run build)
+  - Tests: PASS (26 passed, 0 failed)
+---
+
+## 2026-01-09 - US-005: Implement CLI detection API route
+- What was implemented:
+  - Added GET /api/settings/cli/detect endpoint to src/server/routes/settings.ts
+  - Endpoint calls detectAllClis() and returns detection results for both CLIs
+  - Response format: { codex: { available, version, command }, claude: { available, version, command } }
+  - Route already mounted via settingsRouter at /api/settings
+- Files changed:
+  - src/server/routes/settings.ts (added cli/detect route)
+  - src/server/__tests__/settings.routes.test.ts (added 4 tests)
+- Tests implemented:
+  - GET_CliDetect_ShouldReturn200WithDetectionResults - PASS
+  - GET_CliDetect_WithBothAvailable_ShouldShowBothTrueWithCommandField - PASS
+  - GET_CliDetect_WithNoneAvailable_ShouldShowBothFalse - PASS
+  - GET_CliDetect_ResponseShape_ShouldIncludeCommandFieldForEachCli - PASS
+- **Learnings:**
+  - Added route as sub-route of settings router (/api/settings/cli/detect)
+  - Reused existing test setup pattern from settings routes tests
+  - Mock multiple modules by adding additional vi.mock() calls
+- **Verification:**
+  - Build: PASS (npm run build)
+  - Tests: PASS (30 passed, 0 failed)
+---
+
+## 2026-01-09 - US-006: Implement Claude reviewer execution
+- What was implemented:
+  - Added runWithClaude() function to src/core/decompose/peer-review.ts
+  - runWithClaude() spawns 'claude --print --output-format text' with prompt on stdin
+  - Captures stdout as response and stderr for error reporting
+  - Handles exit code 0 as success, non-zero exit as failure with stderr
+  - Writes raw output to specified file path
+  - Enforces 5-minute timeout (CLAUDE_TIMEOUT_MS = 300000)
+  - Returns valid ReviewFeedback JSON matching the typed schema
+  - Added parseClaudeResponse() and validateReviewFeedback() helper functions
+  - Created ClaudeReviewResult and ClaudeReviewOptions interfaces
+- Files changed:
+  - src/core/decompose/peer-review.ts (added runWithClaude, helpers, interfaces)
+  - src/core/decompose/__tests__/peer-review.test.ts (new - 11 tests)
+- Tests implemented:
+  - runWithClaude_WithValidPrompt_ShouldReturnResponse - PASS
+  - runWithClaude_WithExitCodeZero_ShouldSucceed - PASS
+  - runWithClaude_WithNonZeroExit_ShouldThrowWithStderr - PASS
+  - runWithClaude_ShouldWriteRawOutputToFile - PASS
+  - runWithClaude_WithTimeout_ShouldFailAfter5Minutes - PASS
+  - runWithClaude_Response_ShouldMatchReviewFeedbackSchema - PASS
+- **Learnings:**
+  - Use spawn with stdio: ['pipe', 'pipe', 'pipe'] to enable stdin writing and capture stdout/stderr
+  - ChildProcess.stdin.write() followed by .end() to send prompt
+  - Timeout implementation uses setTimeout with SIGTERM, followed by SIGKILL failsafe
+  - Validation errors should be rethrown (not swallowed) to propagate specific error messages
+  - ReviewFeedback schema from types/index.ts requires verdict to be 'PASS' | 'FAIL' only (not 'UNKNOWN')
+- **Verification:**
+  - Build: PASS (npm run build)
+  - Tests: PASS (41 passed, 0 failed)
+---
+
+## 2026-01-09 - US-007: Refactor peer review to support CLI selection
+- What was implemented:
+  - Refactored runPeerReview() to load global settings and select CLI
+  - Added detectCli() call to check if selected CLI is available before running
+  - runPeerReview() uses runWithClaude() when claude selected, runWithCodex() for codex
+  - Added CODEX_TIMEOUT_MS constant (5 minutes) for Codex timeout enforcement
+  - Standardized log file format for both CLIs with sections: CLI, Attempt, Timestamp, Exit Code, STDOUT, STDERR, PARSED FEEDBACK
+  - Captures stderr on CLI crash and includes in error message and log
+  - Added cli field to PeerReviewResult interface to track which CLI was used
+  - Added buildLogEntry() helper function for consistent log formatting
+  - Added runWithCodex() internal function for Codex-specific execution with timeout
+  - Added runPeerReviewWithClaude() and runPeerReviewWithCodex() for CLI-specific flows
+  - Added convertToLegacyFeedback() to convert TypedReviewFeedback to local format
+- Files changed:
+  - src/core/decompose/peer-review.ts (major refactor)
+  - src/core/decompose/__tests__/peer-review.test.ts (added 9 tests)
+- Tests implemented:
+  - runPeerReview_WithCodexSelected_ShouldUseCodex - PASS
+  - runPeerReview_WithClaudeSelected_ShouldUseClaude - PASS
+  - runPeerReview_WithUnavailableCli_ShouldReturnError - PASS
+  - runPeerReview_WithNoConfig_ShouldDefaultToCodex - PASS
+  - runPeerReview_ShouldProduceIdenticalLogFormat - PASS
+  - runPeerReview_LogFileName_ShouldMatchPattern - PASS
+  - runPeerReview_WithTimeout_ShouldFailAfter5Minutes - PASS
+  - runPeerReview_WithCliCrash_ShouldCaptureStderrAndFail - PASS
+  - runPeerReview_Claude_ShouldReturnValidReviewFeedbackJson - PASS
+- **Learnings:**
+  - Async operations before spawn require special handling in fake timer tests - use `await new Promise(resolve => setImmediate(resolve))` to wait for async setup
+  - Use `vi.advanceTimersByTimeAsync()` instead of `vi.advanceTimersByTime()` when testing async code with fake timers
+  - Standardized log format makes debugging easier across different CLI backends
+  - Import mocked modules after vi.mock() for proper mock resolution in tests
+- **Verification:**
+  - Build: PASS (npm run build)
+  - Tests: PASS (50 passed, 0 failed)
+---
+
+## 2026-01-09 - US-008: Implement first-run CLI auto-selection
+- What was implemented:
+  - Added autoSelectCli() function to src/core/decompose/peer-review.ts
+  - autoSelectCli() calls detectAllClis() to check availability of both CLIs
+  - Returns codex if available (backwards compatible default)
+  - Returns claude if only claude is available
+  - Returns error if neither CLI is available
+  - Added AutoSelectResult interface for return type
+  - Imported detectAllClis from cli-detect module
+- Files changed:
+  - src/core/decompose/peer-review.ts (added autoSelectCli function and interface)
+  - src/core/decompose/__tests__/peer-review.test.ts (added 4 tests)
+- Tests implemented:
+  - autoSelectCli_WithCodexAvailable_ShouldSelectCodex - PASS
+  - autoSelectCli_WithOnlyClaudeAvailable_ShouldSelectClaude - PASS
+  - autoSelectCli_WithNeitherAvailable_ShouldReturnError - PASS
+  - autoSelectCli_WithBothAvailable_ShouldPreferCodex - PASS
+- **Learnings:**
+  - Auto-selection logic prioritizes Codex for backwards compatibility
+  - The function is standalone and can be called when settings.reviewer.cli is undefined/null
+  - detectAllClis() returns both results in parallel for efficiency
+- **Verification:**
+  - Build: PASS (npm run build)
+  - Tests: PASS (54 passed, 0 failed)
+---
+
+## 2026-01-09 - US-009: Create SettingsView React component
+- What was implemented:
+  - Created web/src/components/SettingsView.tsx with CLI detection and settings fetch on mount
+  - Implemented loading state with spinner while fetching API data
+  - Dropdown shows ONLY available CLIs (unavailable CLIs excluded)
+  - Status list below dropdown shows ALL CLIs with availability indicator (✓/✗) and version
+  - Error state shown when no CLIs are available with clear message
+  - Created web/src/components/SettingsView.css with styling matching app design
+  - Configured Vitest test infrastructure for web frontend (vitest in vite.config.ts)
+  - Added test setup file (web/src/test/setup.ts)
+  - Excluded test files from production build (tsconfig.app.json)
+- Files changed:
+  - web/src/components/SettingsView.tsx (existing - verified implementation)
+  - web/src/components/SettingsView.css (existing - verified implementation)
+  - web/src/components/__tests__/SettingsView.test.tsx (new - 12 tests)
+  - web/src/test/setup.ts (new)
+  - web/tsconfig.app.json (exclude test files)
+  - web/tsconfig.node.json (add vitest/config types)
+  - web/vite.config.ts (verified test config)
+  - web/package.json (added test dependencies)
+- Tests implemented:
+  - SettingsView_OnMount_ShouldFetchCliDetection - PASS
+  - SettingsView_OnMount_ShouldFetchCurrentSettings - PASS
+  - SettingsView_WithLoading_ShouldShowSpinner - PASS
+  - SettingsView_WithData_ShouldShowDropdownWithOnlyAvailableClis - PASS (3 sub-tests)
+  - SettingsView_StatusList_ShouldShowAllClisWithVersionsAndAvailability - PASS (3 sub-tests)
+  - SettingsView_WithNoClisAvailable_ShouldShowErrorState - PASS (3 sub-tests)
+- **Learnings:**
+  - Use vi.stubGlobal('fetch', mockFetch) for mocking fetch in React components
+  - Exclude test directories from tsconfig.app.json to prevent build errors
+  - Add vitest/config to tsconfig.node.json types for vite.config.ts test config
+  - React Testing Library's waitFor() works well for async state updates
+  - Use specific queries to avoid multiple element matches (e.g., check status list header)
+- **Verification:**
+  - Build: PASS (npm run build in web/)
+  - Tests: PASS (12 passed, 0 failed in web/, 54 passed in backend)
+---
+
+## 2026-01-09 - US-010: Implement Settings save functionality
+- What was implemented:
+  - Save functionality was already present in SettingsView.tsx component
+  - Added test cases to verify save button behavior
+  - Tests cover: API call, saving state, success message, error message
+- Files changed:
+  - web/src/components/__tests__/SettingsView.test.tsx (added 5 tests)
+- Tests implemented:
+  - handleSave_ShouldCallPutApiSettings - PASS
+  - handleSave_WhileSaving_ShouldShowSavingState - PASS
+  - handleSave_OnSuccess_ShouldShowSuccessMessage - PASS
+  - handleSave_OnError_ShouldShowErrorMessage - PASS (2 sub-tests: error response and network error)
+- **Learnings:**
+  - The save functionality (handleSave) was already implemented in US-009 commit
+  - Use Promise with delayed resolve to test intermediate loading states
+  - fireEvent.click triggers async operations that can be verified with waitFor
+- **Verification:**
+  - Build: PASS (npm run build for both backend and web)
+  - Tests: PASS (17 passed in web/, 54 passed in backend)
+---
+
+## 2026-01-09 - US-011: Add Settings navigation item to sidebar
+- What was implemented:
+  - Added 'settings' to NavSection type in App.tsx
+  - Imported SettingsView component
+  - Added Settings button to nav-footer with gear icon (&#9881;)
+  - Added active state styling using existing .nav-item.active CSS
+  - Added .settings-nav-item CSS for positioning in footer
+  - Added conditional rendering of SettingsView when activeSection === 'settings'
+  - Created App.test.tsx with 5 test cases for navigation behavior
+- Files changed:
+  - web/src/App.tsx (import, type, nav button, rendering)
+  - web/src/App.css (settings-nav-item class)
+  - web/src/__tests__/App.test.tsx (new - 5 tests)
+- Tests implemented:
+  - SettingsNavItem_ShouldAppearInFooter - PASS (2 sub-tests: button in footer, gear icon with label)
+  - SettingsNavItem_OnClick_ShouldNavigateToSettings - PASS
+  - SettingsNavItem_WhenActive_ShouldShowActiveStyle - PASS (2 sub-tests: active class added, active class removed on nav away)
+- **Learnings:**
+  - The app uses internal state (activeSection) for navigation, not React Router
+  - Existing .nav-item.active CSS provides the active state styling
+  - Settings button follows same pattern as Decompose/Execution buttons
+- **Verification:**
+  - Build: PASS (npm run build for both backend and web)
+  - Tests: PASS (22 passed in web/, 54 passed in backend)
+---
+
+## 2026-01-09 - US-012: Add /settings route to React Router
+- What was implemented:
+  - Installed react-router-dom as dependency
+  - Wrapped App with BrowserRouter in main.tsx
+  - Created getActiveSectionFromPath() helper function to derive activeSection from URL
+  - Added navigateTo() callback to use navigate() instead of setState
+  - Routes: / (execution), /decompose (decompose), /settings (settings)
+  - Updated all navigation button onClick handlers to use navigateTo()
+  - Updated tests to use MemoryRouter for testing router context
+  - Added direct URL navigation tests (SettingsRoute_ShouldRenderSettingsView, SettingsRoute_DirectNavigation_ShouldWork)
+  - Fixed pre-existing TypeScript errors (claudePid in RunResult, startedAt in RunningLoop)
+- Files changed:
+  - web/package.json (added react-router-dom)
+  - web/package-lock.json (updated)
+  - web/src/main.tsx (added BrowserRouter wrapper)
+  - web/src/App.tsx (added router hooks, getActiveSectionFromPath, navigateTo)
+  - web/src/__tests__/App.test.tsx (added MemoryRouter, added 3 new tests)
+  - src/core/claude/runner.ts (fix: added claudePid to return)
+  - src/server/routes/ralph.ts (fix: added startedAt to RunningLoop)
+- Tests implemented:
+  - SettingsRoute_ShouldRenderSettingsView - PASS
+  - SettingsRoute_DirectNavigation_ShouldWork - PASS (2 sub-tests: /decompose and /)
+- **Learnings:**
+  - Use MemoryRouter with initialEntries prop for testing router-based components
+  - Derive route state from useLocation().pathname instead of React state
+  - Use useNavigate() hook for programmatic navigation
+  - getActiveSectionFromPath() maps paths to NavSection type cleanly
+- **Verification:**
+  - Build: PASS (npm run build for both backend and web)
+  - Tests: PASS (25 passed in web/, 54 passed in backend)
+---
+
+## 2026-01-09 - US-013: Style SettingsView component
+- What was implemented:
+  - Added responsive CSS styles for the Settings page at 768px breakpoint
+  - Responsive rules include: reduced page/section padding, full-width dropdown, stacked save actions layout
+  - CLI status list items wrap version text to new line on small screens
+  - Verified all acceptance criteria were already met by existing CSS from US-009
+- Files changed:
+  - web/src/components/SettingsView.css (added responsive media query)
+- Tests implemented: None (styling story - no testCases specified)
+- **Learnings:**
+  - Follow existing responsive patterns from App.css (768px breakpoint)
+  - Flexbox wrap for multi-line layouts on small screens
+  - Use margin-left to align wrapped content with existing indicator
+- **Verification:**
+  - Build: PASS (npm run build for both backend and web)
+  - Tests: PASS (25 passed in web/, 54 passed in backend)
+---
+
+## 2026-01-09 - US-014: Add error handling for unavailable CLI at decompose time
+- What was implemented:
+  - Added DecomposeErrorType type ('CLI_UNAVAILABLE' | 'TIMEOUT' | 'CRASH') to both backend and frontend types
+  - Added POST /api/decompose/retry-review endpoint for retrying peer review
+  - Updated DecomposeView to detect and handle different error types
+  - CLI_UNAVAILABLE shows Settings suggestion with "Go to Settings" link
+  - TIMEOUT/CRASH shows visible "Retry Peer Review" button
+  - Added CSS styles for error-suggestion, error-actions, btn-link, btn-retry
+  - Created comprehensive test suite for DecomposeView error handling
+- Files changed:
+  - src/types/index.ts (added DecomposeErrorType, errorType field)
+  - src/server/routes/decompose.ts (added retry-review endpoint)
+  - web/src/types.ts (added DecomposeErrorType, errorType field)
+  - web/src/components/DecomposeView.tsx (error handling UI)
+  - web/src/App.css (error styling)
+  - web/src/components/__tests__/DecomposeView.test.tsx (new test file)
+- Tests implemented:
+  - DecomposeError_WithUnavailableCli_ShouldShowSettingsSuggestion - PASS (2 tests)
+  - DecomposeError_WithCliCrash_ShouldShowRetryButton - PASS
+  - DecomposeError_WithTimeout_ShouldShowRetryButton - PASS
+  - DecomposeError_RetryButton_ShouldReAttemptPeerReview - PASS (2 tests)
+  - DecomposeError_ShouldNotCrashFlow - PASS (2 tests)
+- **Learnings:**
+  - Error type categorization allows for context-specific UI responses
+  - useNavigate() from react-router-dom enables programmatic navigation
+  - Retry endpoint increments attempt number from existing log files
+  - Mock fetch with vi.stubGlobal('fetch', mockFetch) for React component tests
+- **Verification:**
+  - Build: PASS (npm run build for both backend and web)
+  - Tests: PASS (33 passed in web/, 54 passed in backend)
+---
+
+## 2026-01-09 - US-016: Implement session-level CLI detection caching
+- What was implemented:
+  - Implementation already existed in SettingsView.tsx (getCachedCliDetection, setCachedCliDetection functions)
+  - Added sessionStorage mock to test file (mockGetItem, mockSetItem, mockClear)
+  - Added 4 test cases to verify caching behavior
+  - Tests verify: first fetch stores in cache, subsequent fetches use cache, cache persists across navigation, fresh fetch after page refresh
+- Files changed:
+  - web/src/components/__tests__/SettingsView.test.tsx (added sessionStorage mock and 4 caching tests)
+- Tests implemented:
+  - CliDetectionCache_OnFirstFetch_ShouldStoreInSessionStorage - PASS
+  - CliDetectionCache_OnSubsequentFetch_ShouldUseCached - PASS
+  - CliDetectionCache_OnIntraSessionNavigation_ShouldUseCached - PASS
+  - CliDetectionCache_OnFullPageRefresh_ShouldRedetect - PASS
+- **Learnings:**
+  - sessionStorage naturally clears on page refresh/tab close (not just tab close)
+  - Mock sessionStorage with vi.stubGlobal('sessionStorage', { getItem, setItem, ... })
+  - Track cache population with mockSetItem.toHaveBeenCalledWith()
+  - Verify API not called by filtering mockFetch.mock.calls
+- **Verification:**
+  - Build: PASS (npm run build for both backend and web)
+  - Tests: PASS (37 passed in web/, 54 passed in backend)
+---
+
+## 2026-01-09 - US-015: Add warning state for unavailable selected CLI in Settings
+- What was implemented:
+  - Added isSelectedCliUnavailable() function to detect when saved CLI is not available
+  - Added warning indicator (⚠) next to dropdown when selected CLI is unavailable
+  - Added warning message explaining the issue with suggestion to select different CLI
+  - Added unavailable CLI option to dropdown with "(unavailable)" suffix so user can see current selection
+  - Added CSS styles for .select-wrapper, .select-warning-indicator, .has-warning, .cli-warning-message
+  - User can still change selection to any available CLI
+- Files changed:
+  - web/src/components/SettingsView.tsx (added warning detection and UI)
+  - web/src/components/SettingsView.css (added warning styles)
+  - web/src/components/__tests__/SettingsView.test.tsx (added 6 tests, updated 1 existing test)
+- Tests implemented:
+  - SettingsWarning_WithUnavailableSelectedCli_ShouldShowWarning (4 sub-tests) - PASS
+    - should show warning indicator when selected CLI is unavailable
+    - should show warning message explaining the issue
+    - should show unavailable CLI in dropdown with "(unavailable)" suffix
+    - should not show warning when selected CLI is available
+  - SettingsWarning_ShouldAllowChangingSelection (2 sub-tests) - PASS
+    - should allow user to change selection when selected CLI is unavailable
+    - should show available CLI option when selected CLI is unavailable
+- **Learnings:**
+  - Include unavailable selected CLI as an option in dropdown so user can see current saved value
+  - Warning indicator uses title attribute for accessibility tooltip
+  - Warning styling uses --color-warning CSS variable with fallback value
+- **Verification:**
+  - Build: PASS (npm run build for both backend and web)
+  - Tests: PASS (43 passed in web/, 54 passed in backend)
+---
