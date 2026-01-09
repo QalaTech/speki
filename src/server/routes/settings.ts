@@ -6,6 +6,7 @@
 
 import { Router } from 'express';
 import { loadGlobalSettings, saveGlobalSettings } from '../../core/settings.js';
+import { detectAllClis } from '../../core/cli-detect.js';
 import type { CliType, GlobalSettings } from '../../types/index.js';
 
 const router = Router();
@@ -90,6 +91,24 @@ router.put('/', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: 'Failed to save settings',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/settings/cli/detect
+ * Detects available CLI tools (Codex and Claude)
+ *
+ * Response: { codex: { available, version, command }, claude: { available, version, command } }
+ */
+router.get('/cli/detect', async (req, res) => {
+  try {
+    const results = await detectAllClis();
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to detect CLI tools',
       details: error instanceof Error ? error.message : String(error),
     });
   }
