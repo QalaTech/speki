@@ -11,7 +11,7 @@ import { join } from 'path';
 import type { Project } from '../project.js';
 import type { PRDData, ReviewFeedback as TypedReviewFeedback, CliType } from '../../types/index.js';
 import { loadGlobalSettings } from '../settings.js';
-import { detectCli } from '../cli-detect.js';
+import { detectCli, detectAllClis } from '../cli-detect.js';
 
 /** Timeout for Claude CLI execution in milliseconds (5 minutes) */
 export const CLAUDE_TIMEOUT_MS = 300000;
@@ -87,6 +87,47 @@ export interface ClaudeReviewOptions {
   prompt: string;
   /** Path to write raw output file */
   outputPath: string;
+}
+
+export interface AutoSelectResult {
+  /** Whether auto-selection succeeded */
+  success: boolean;
+  /** The selected CLI (if successful) */
+  cli?: CliType;
+  /** Error message if failed */
+  error?: string;
+}
+
+/**
+ * Auto-select an available CLI when no settings are configured.
+ * Priority: Codex first (backwards compatible), then Claude.
+ *
+ * @returns AutoSelectResult with selected CLI or error
+ */
+export async function autoSelectCli(): Promise<AutoSelectResult> {
+  const detection = await detectAllClis();
+
+  // Prefer Codex for backwards compatibility
+  if (detection.codex.available) {
+    return {
+      success: true,
+      cli: 'codex',
+    };
+  }
+
+  // Fall back to Claude if only Claude is available
+  if (detection.claude.available) {
+    return {
+      success: true,
+      cli: 'claude',
+    };
+  }
+
+  // Neither CLI is available
+  return {
+    success: false,
+    error: 'No CLI tools available. Please install Codex or Claude CLI.',
+  };
 }
 
 /**

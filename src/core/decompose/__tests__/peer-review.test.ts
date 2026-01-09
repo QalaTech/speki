@@ -6,6 +6,7 @@ import { promises as fs } from 'fs';
 import {
   runWithClaude,
   runPeerReview,
+  autoSelectCli,
   CLAUDE_TIMEOUT_MS,
   CODEX_TIMEOUT_MS,
   type PeerReviewOptions,
@@ -35,11 +36,12 @@ vi.mock('../../settings.js', () => ({
 // Mock cli-detect module
 vi.mock('../../cli-detect.js', () => ({
   detectCli: vi.fn(),
+  detectAllClis: vi.fn(),
 }));
 
 // Import mocked modules for assertions
 import { loadGlobalSettings } from '../../settings.js';
-import { detectCli } from '../../cli-detect.js';
+import { detectCli, detectAllClis } from '../../cli-detect.js';
 
 // Helper to create a mock child process with stdin
 function createMockChildProcess(): ChildProcess {
@@ -801,5 +803,79 @@ describe('runPeerReview', () => {
     // Claude feedback is converted to legacy format with issues array
     expect(result.feedback.issues).toBeDefined();
     expect(result.feedback.issues!.length).toBeGreaterThan(0);
+  });
+});
+
+describe('autoSelectCli', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('autoSelectCli_WithCodexAvailable_ShouldSelectCodex', async () => {
+    // Arrange
+    vi.mocked(detectAllClis).mockResolvedValue({
+      codex: { available: true, version: '0.39.0', command: 'codex' },
+      claude: { available: false, version: '', command: 'claude' },
+    });
+
+    // Act
+    const result = await autoSelectCli();
+
+    // Assert
+    expect(result.success).toBe(true);
+    expect(result.cli).toBe('codex');
+    expect(result.error).toBeUndefined();
+  });
+
+  it('autoSelectCli_WithOnlyClaudeAvailable_ShouldSelectClaude', async () => {
+    // Arrange
+    vi.mocked(detectAllClis).mockResolvedValue({
+      codex: { available: false, version: '', command: 'codex' },
+      claude: { available: true, version: '2.1.2', command: 'claude' },
+    });
+
+    // Act
+    const result = await autoSelectCli();
+
+    // Assert
+    expect(result.success).toBe(true);
+    expect(result.cli).toBe('claude');
+    expect(result.error).toBeUndefined();
+  });
+
+  it('autoSelectCli_WithNeitherAvailable_ShouldReturnError', async () => {
+    // Arrange
+    vi.mocked(detectAllClis).mockResolvedValue({
+      codex: { available: false, version: '', command: 'codex' },
+      claude: { available: false, version: '', command: 'claude' },
+    });
+
+    // Act
+    const result = await autoSelectCli();
+
+    // Assert
+    expect(result.success).toBe(false);
+    expect(result.cli).toBeUndefined();
+    expect(result.error).toBe('No CLI tools available. Please install Codex or Claude CLI.');
+  });
+
+  it('autoSelectCli_WithBothAvailable_ShouldPreferCodex', async () => {
+    // Arrange
+    vi.mocked(detectAllClis).mockResolvedValue({
+      codex: { available: true, version: '0.39.0', command: 'codex' },
+      claude: { available: true, version: '2.1.2', command: 'claude' },
+    });
+
+    // Act
+    const result = await autoSelectCli();
+
+    // Assert
+    expect(result.success).toBe(true);
+    expect(result.cli).toBe('codex');
+    expect(result.error).toBeUndefined();
   });
 });
