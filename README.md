@@ -1,214 +1,326 @@
 # Qala
 
-**AI-powered iterative development assistant** - Break down PRDs into small tasks and execute them one at a time using Claude.
+**AI-powered iterative development assistant** - Break down PRDs into atomic tasks and execute them one at a time using Claude Code.
 
-Qala's version of Ralph is a multi-tenant CLI tool that helps you:
+## Table of Contents
 
-1. **Decompose** large PRDs into small, atomic user stories
-2. **Execute** stories iteratively using Claude Code
-3. **Track** progress across multiple projects via a web dashboard
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Getting Started](#getting-started)
+- [Usage Guide](#usage-guide)
+- [CLI Commands](#cli-commands)
+- [Web Dashboard](#web-dashboard)
+- [Documentation](#documentation)
+- [License](#license)
 
-## Quick Start
+## Prerequisites
+
+Before installing Qala, ensure you have:
+
+1. **Node.js 18+** - [Download](https://nodejs.org/)
+   ```bash
+   node --version  # Should be v18.0.0 or higher
+   ```
+
+2. **Claude Code CLI** - The `claude` command must be available
+   ```bash
+   claude --version  # Verify Claude Code is installed
+   ```
+
+3. **Codex CLI** (optional) - For peer review of decomposed tasks
+   ```bash
+   codex --version  # Optional - enables task validation
+   ```
+
+## Installation
+
+### From Source (Recommended)
 
 ```bash
-# Install globally
+# 1. Clone the repository
+git clone git@github.com:QalaTech/qala-ralph.git
+cd qala-ralph
+
+# 2. Install dependencies (this also installs web dependencies)
+npm install
+
+# 3. Build the CLI and web dashboard
+npm run build
+
+# 4. Link globally to use 'qala' command anywhere
+npm link
+
+# 5. Verify installation
+qala --help
+```
+
+### From npm (Coming Soon)
+
+```bash
 npm install -g qala
+```
 
-# Initialize a project
-cd your-project
-qala init --name "My Project" --language nodejs
+## Getting Started
 
-# Decompose a PRD into tasks
-qala decompose docs/my-feature-prd.md --branch ralph/my-feature
+### Step 1: Initialize Your Project
 
-# Start the dashboard
+Navigate to your project directory and initialize Qala:
+
+```bash
+cd /path/to/your/project
+
+# Basic initialization
+qala init
+
+# Or with options
+qala init --name "My Project" --language nodejs --branch ralph/feature
+```
+
+**Options:**
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-n, --name <name>` | Project display name | Directory name |
+| `-l, --language <lang>` | Language: `dotnet`, `python`, `nodejs`, `go` | `nodejs` |
+| `-b, --branch <branch>` | Default git branch for features | `ralph/feature` |
+
+This creates a `.ralph/` folder in your project with:
+```
+.ralph/
+├── config.json          # Project configuration
+├── prompt.md            # Instructions for Claude
+├── standards/           # Language-specific coding standards
+│   ├── dotnet.md
+│   ├── python.md
+│   ├── nodejs.md
+│   └── go.md
+├── tasks/               # Decomposed task files
+└── logs/                # Execution logs
+```
+
+### Step 2: Write a PRD
+
+Create a PRD (Product Requirements Document) in markdown format. Place it in a `specs/`, `docs/`, or `prd/` folder:
+
+```markdown
+# Feature: User Authentication
+
+## Overview
+Implement JWT-based user authentication for the API.
+
+## Requirements
+1. Users can register with email and password
+2. Users can login and receive a JWT token
+3. Protected endpoints require valid JWT
+4. Tokens expire after 24 hours
+
+## Technical Notes
+- Use bcrypt for password hashing
+- Store refresh tokens in database
+```
+
+### Step 3: Decompose the PRD
+
+Convert your PRD into atomic, executable tasks:
+
+```bash
+# Using CLI
+qala decompose specs/auth-feature.md --branch ralph/auth
+
+# Or use the dashboard (recommended)
+qala dashboard
+```
+
+The decomposition will:
+1. Send your PRD to Claude for analysis
+2. Generate atomic user stories with acceptance criteria
+3. Create test cases for each story
+4. Run peer review to validate coverage
+5. Save tasks to `.ralph/tasks/`
+
+### Step 4: Review and Activate Tasks
+
+Use the dashboard to review generated tasks:
+
+```bash
+qala dashboard
+```
+
+In the dashboard:
+1. Go to **Decompose** section
+2. Review each task's acceptance criteria and test cases
+3. Delete any unwanted tasks
+4. Click **Activate & Run** to start execution
+
+Or activate via CLI:
+```bash
+qala activate auth-feature.json
+```
+
+### Step 5: Execute Tasks
+
+Start the Ralph execution loop:
+
+```bash
+# Via dashboard - click "Start Ralph"
+
+# Or via CLI
+qala start --iterations 25
+```
+
+Ralph will automatically:
+1. Pick the next ready task (by priority, with dependencies met)
+2. Implement the code following your language standards
+3. Write and run tests
+4. Commit changes on success
+5. Move to the next task
+
+Monitor progress in the dashboard's **Kanban** view with live chat logs.
+
+## Usage Guide
+
+### Typical Workflow
+
+```bash
+# 1. Initialize (once per project)
+cd my-project
+qala init --name "My App" --language dotnet
+
+# 2. Write your PRD
+vim specs/new-feature.md
+
+# 3. Start dashboard
 qala dashboard
 
-# Or run from CLI
-qala start --iterations 10
+# 4. In dashboard:
+#    - Select your PRD file
+#    - Click "Start Decomposition"
+#    - Review generated tasks
+#    - Click "Activate & Run"
+#    - Monitor in Kanban view
+
+# 5. When complete, review commits
+git log --oneline
 ```
 
-## Features
+### Managing Multiple Projects
 
-- **Multi-project support** - Manage multiple projects from a single dashboard
-- **PRD Decomposition** - AI-powered breakdown of requirements into atomic tasks
-- **Peer Review** - Automatic review of decomposed tasks using Codex
-- **Iterative Execution** - Execute one story at a time with full test verification
-- **Progress Tracking** - Real-time status via web dashboard or CLI
-- **Language Standards** - Built-in coding standards for .NET, Python, Node.js, and Go
+Qala supports multiple projects from a single dashboard:
 
-## Architecture
+```bash
+# Initialize multiple projects
+cd ~/project-a && qala init --name "Project A"
+cd ~/project-b && qala init --name "Project B"
 
+# List all registered projects
+qala list
+
+# Start dashboard (shows all projects)
+qala dashboard
+
+# Use dropdown in dashboard to switch projects
 ```
-~/.qala/                          # Global configuration
-├── projects.json                 # Registry of all projects
-└── config.json                   # Global settings
 
-/your-project/.ralph/             # Per-project state
-├── config.json                   # Project settings
-├── prd.json                      # Active task list
-├── progress.txt                  # Execution history (managed by Claude)
-├── decompose_state.json          # Decomposition status
-├── standards/                    # Language-specific coding standards
-├── tasks/                        # Decomposed task files
-└── logs/                         # Execution logs (JSONL)
+### Stopping Execution
+
+```bash
+# Via dashboard - click "Stop Ralph"
+
+# Or via CLI
+qala stop
 ```
 
 ## CLI Commands
 
-| Command                | Description                                   |
-| ---------------------- | --------------------------------------------- |
-| `qala init`            | Initialize a project in the current directory |
-| `qala decompose <prd>` | Decompose a PRD file into tasks               |
-| `qala start`           | Start the Ralph execution loop                |
-| `qala stop`            | Stop a running Ralph loop                     |
-| `qala status`          | Show current project status                   |
-| `qala list`            | List all registered projects                  |
-| `qala dashboard`       | Launch the web dashboard                      |
-| `qala activate <file>` | Activate a task file as the current PRD       |
-| `qala unregister`      | Remove project from registry                  |
+| Command | Description |
+|---------|-------------|
+| `qala init` | Initialize project in current directory |
+| `qala decompose <prd>` | Decompose a PRD file into tasks |
+| `qala start` | Start the Ralph execution loop |
+| `qala stop` | Stop a running Ralph loop |
+| `qala status` | Show current project status |
+| `qala list` | List all registered projects |
+| `qala dashboard` | Launch the web dashboard |
+| `qala activate <file>` | Activate a task file |
+| `qala unregister` | Remove project from registry |
+
+See [CLI Reference](docs/cli-reference.md) for detailed options.
 
 ## Web Dashboard
 
-The dashboard provides a visual interface for:
-
-- Viewing all registered projects
-- Decomposing PRDs with real-time progress
-- Reviewing and editing tasks
-- Starting/stopping Ralph execution
-- Monitoring execution logs in real-time
-
-Start it with:
+The dashboard provides a visual interface at `http://localhost:3005`:
 
 ```bash
-qala dashboard
-# Opens http://localhost:3005
+qala dashboard              # Default port 3005
+qala dashboard -p 8080      # Custom port
+qala dashboard --no-open    # Don't open browser
 ```
 
-## Workflow
+**Features:**
+- **Project Selector** - Switch between registered projects
+- **Decompose View** - Select PRDs, start decomposition, review tasks
+- **Kanban Board** - Visual task status with dependency highlighting
+- **Live Chat Logs** - Real-time Claude activity with chat bubbles
+- **Progress History** - View completed task summaries
 
-### 1. Decomposition
+## Documentation
 
+- [Getting Started](docs/getting-started.md) - Detailed setup guide
+- [CLI Reference](docs/cli-reference.md) - All commands and options
+- [Architecture](docs/architecture.md) - Technical design
+- [Decomposition](docs/decomposition.md) - How PRD breakdown works
+- [Execution](docs/execution.md) - The Ralph loop explained
+- [Dashboard](docs/dashboard.md) - Web interface guide
+- [Configuration](docs/configuration.md) - Config files reference
+
+## Project Structure
+
+```
+~/.qala/                          # Global (created automatically)
+├── projects.json                 # Registry of all projects
+└── config.json                   # Global settings
+
+/your-project/.ralph/             # Per-project (created by qala init)
+├── config.json                   # Project settings
+├── prd.json                      # Active task list
+├── progress.txt                  # Execution history
+├── prompt.md                     # Claude instructions
+├── standards/                    # Coding standards
+├── tasks/                        # Decomposed tasks
+└── logs/                         # Execution logs
+```
+
+## Troubleshooting
+
+### "command not found: qala"
+
+Run `npm link` from the qala-ralph directory:
 ```bash
-qala decompose specs/my-feature.md --branch ralph/feature --language nodejs
-```
-
-This will:
-
-1. Send the PRD to Claude for decomposition
-2. Generate atomic user stories with acceptance criteria and test cases
-3. Run peer review using Codex to validate coverage
-4. Save the result to `.ralph/tasks/`
-
-### 2. Activation
-
-```bash
-qala activate my-feature.json
-```
-
-Or use the dashboard to review tasks and click "Activate & Run".
-
-### 3. Execution
-
-```bash
-qala start --iterations 25
-```
-
-Ralph will:
-
-1. Find the next incomplete story (highest priority, dependencies satisfied)
-2. Generate a prompt with the story details and coding standards
-3. Execute via Claude Code
-4. Verify tests pass
-5. Mark story complete and commit
-6. Repeat until all stories pass or max iterations reached
-
-## Configuration
-
-### Project Config (`.ralph/config.json`)
-
-```json
-{
-  "name": "My Project",
-  "path": "/path/to/project",
-  "branchName": "ralph/feature",
-  "language": "nodejs",
-  "createdAt": "2024-01-08T00:00:00.000Z"
-}
-```
-
-### Language Standards
-
-Each language has a standards file in `.ralph/standards/`:
-
-- `dotnet.md` - C#/.NET conventions
-- `python.md` - Python conventions
-- `nodejs.md` - Node.js/TypeScript conventions
-- `go.md` - Go conventions
-
-These are read by Claude during execution to ensure consistent code style.
-
-## PRD Format
-
-The decomposed PRD (`prd.json`) follows this structure:
-
-```json
-{
-  "projectName": "My Feature",
-  "branchName": "ralph/feature",
-  "language": "nodejs",
-  "standardsFile": ".ralph/standards/nodejs.md",
-  "description": "Feature description",
-  "userStories": [
-    {
-      "id": "US-001",
-      "title": "Add user authentication",
-      "description": "Implement JWT-based authentication",
-      "acceptanceCriteria": [
-        "Users can log in with email/password",
-        "JWT tokens are issued on successful login",
-        "Protected routes require valid token"
-      ],
-      "testCases": [
-        "Login_WithValidCredentials_ReturnsToken",
-        "Login_WithInvalidCredentials_Returns401",
-        "ProtectedRoute_WithoutToken_Returns401"
-      ],
-      "priority": 1,
-      "passes": false,
-      "notes": "",
-      "dependencies": []
-    }
-  ]
-}
-```
-
-## Development
-
-```bash
-# Clone the repo
-git clone git@github.com:QalaTech/qala-ralph.git
-cd qala-ralph
-
-# Install dependencies
-npm install
-cd web && npm install && cd ..
-
-# Build
-npm run build
-
-# Link for local development
+cd /path/to/qala-ralph
 npm link
-
-# Run dashboard in dev mode
-npm run dev
 ```
 
-## Requirements
+### "No projects found"
 
-- Node.js 18+
-- Claude Code CLI (`claude` command available)
-- Codex CLI (`codex` command) - optional, for peer review
+Initialize a project first:
+```bash
+cd your-project
+qala init
+```
+
+### Dashboard won't start
+
+Check if port is in use:
+```bash
+qala dashboard -p 3006  # Try different port
+```
+
+### Claude not responding
+
+Verify Claude Code is installed and authenticated:
+```bash
+claude --version
+claude "Hello"  # Test it works
+```
 
 ## License
 

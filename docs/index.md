@@ -3,6 +3,7 @@
 ## Getting Started
 
 - [README](../README.md) - Quick start guide and overview
+- [Getting Started Guide](getting-started.md) - Detailed installation and first project walkthrough
 
 ## Reference
 
