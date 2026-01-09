@@ -6,9 +6,27 @@ import { SettingsView } from '../SettingsView';
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
+// Mock sessionStorage
+const mockSessionStorage: Record<string, string> = {};
+const mockGetItem = vi.fn((key: string) => mockSessionStorage[key] ?? null);
+const mockSetItem = vi.fn((key: string, value: string) => {
+  mockSessionStorage[key] = value;
+});
+const mockClear = vi.fn(() => {
+  Object.keys(mockSessionStorage).forEach((key) => delete mockSessionStorage[key]);
+});
+
+vi.stubGlobal('sessionStorage', {
+  getItem: mockGetItem,
+  setItem: mockSetItem,
+  clear: mockClear,
+  removeItem: vi.fn((key: string) => delete mockSessionStorage[key]),
+});
+
 describe('SettingsView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockClear();
   });
 
   afterEach(() => {
@@ -439,6 +457,140 @@ describe('SettingsView', () => {
       await waitFor(() => {
         expect(screen.getByText('Network error')).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('CliDetectionCache_OnFirstFetch_ShouldStoreInSessionStorage', () => {
+    it('should store CLI detection results in sessionStorage after first API fetch', async () => {
+      // Arrange
+      setupMocks();
+
+      // Act
+      render(<SettingsView />);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Verify sessionStorage.setItem was called with the cached detection results
+      expect(mockSetItem).toHaveBeenCalledWith(
+        'qala_cli_detection_cache',
+        JSON.stringify(mockCliDetection)
+      );
+    });
+  });
+
+  describe('CliDetectionCache_OnSubsequentFetch_ShouldUseCached', () => {
+    it('should use cached results and skip API call when cache exists', async () => {
+      // Arrange - pre-populate the cache
+      const cachedDetection = {
+        codex: { available: true, version: '0.39.0', command: 'codex' },
+        claude: { available: false, version: '', command: 'claude' },
+      };
+      mockSessionStorage['qala_cli_detection_cache'] = JSON.stringify(cachedDetection);
+
+      // Setup mock for settings API only (CLI detect should not be called)
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/api/settings/cli/detect')) {
+          // This should NOT be called when cache exists
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockCliDetection),
+          });
+        }
+        if (url.includes('/api/settings')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockSettings),
+          });
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      // Act
+      render(<SettingsView />);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Verify that the CLI detection API was NOT called (cache was used)
+      const cliDetectCalls = mockFetch.mock.calls.filter(
+        (call) => typeof call[0] === 'string' && call[0].includes('/api/settings/cli/detect')
+      );
+      expect(cliDetectCalls).toHaveLength(0);
+
+      // Verify sessionStorage.getItem was called to check for cache
+      expect(mockGetItem).toHaveBeenCalledWith('qala_cli_detection_cache');
+
+      // Verify the cached data was used (only Codex should be in dropdown)
+      const dropdown = screen.getByRole('combobox');
+      const options = dropdown.querySelectorAll('option');
+      expect(options).toHaveLength(1);
+      expect(options[0]).toHaveTextContent('Codex');
+    });
+  });
+
+  describe('CliDetectionCache_OnIntraSessionNavigation_ShouldUseCached', () => {
+    it('should reuse cached results when component re-renders without full page refresh', async () => {
+      // Arrange - first render
+      setupMocks();
+      const { unmount } = render(<SettingsView />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Verify cache was populated
+      expect(mockSetItem).toHaveBeenCalledWith(
+        'qala_cli_detection_cache',
+        JSON.stringify(mockCliDetection)
+      );
+
+      // Clear fetch mock to track second render
+      mockFetch.mockClear();
+
+      // Act - unmount and re-render (simulating navigation)
+      unmount();
+      render(<SettingsView />);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Verify CLI detection API was NOT called on second render (used cache)
+      const cliDetectCalls = mockFetch.mock.calls.filter(
+        (call) => typeof call[0] === 'string' && call[0].includes('/api/settings/cli/detect')
+      );
+      expect(cliDetectCalls).toHaveLength(0);
+    });
+  });
+
+  describe('CliDetectionCache_OnFullPageRefresh_ShouldRedetect', () => {
+    it('should call API when sessionStorage is empty (simulating full page refresh)', async () => {
+      // Arrange - ensure cache is empty (simulates full page refresh clearing sessionStorage)
+      mockClear();
+      setupMocks();
+
+      // Act
+      render(<SettingsView />);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Verify CLI detection API was called (no cache)
+      expect(mockFetch).toHaveBeenCalledWith('/api/settings/cli/detect');
+
+      // Verify new results were cached
+      expect(mockSetItem).toHaveBeenCalledWith(
+        'qala_cli_detection_cache',
+        JSON.stringify(mockCliDetection)
+      );
     });
   });
 });
