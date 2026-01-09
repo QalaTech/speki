@@ -210,3 +210,33 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .settings-page {
+    padding: 1rem;
+  }
+
+  .settings-section {
+    padding: 1rem;
+  }
+
+  .settings-section .config-field {
+    max-width: 100%;
+  }
+
+  .settings-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cli-status-item {
+    flex-wrap: wrap;
+  }
+
+  .cli-status-version {
+    flex-basis: 100%;
+    margin-left: 2.25rem;
+    margin-top: 0.25rem;
+  }
+}
