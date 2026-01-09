@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { SettingsView } from '../SettingsView';
 
 // Mock fetch globally
@@ -288,6 +288,157 @@ describe('SettingsView', () => {
 
       const saveButton = screen.getByRole('button', { name: /save settings/i });
       expect(saveButton).toBeDisabled();
+    });
+  });
+
+  describe('handleSave_ShouldCallPutApiSettings', () => {
+    it('should call PUT /api/settings when save button is clicked', async () => {
+      // Arrange
+      setupMocks();
+
+      // Act
+      render(<SettingsView />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Reset mock to track only the PUT call
+      mockFetch.mockClear();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, settings: { reviewer: { cli: 'codex' } } }),
+      });
+
+      const saveButton = screen.getByRole('button', { name: /save settings/i });
+      fireEvent.click(saveButton);
+
+      // Assert
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reviewer: { cli: 'codex' } }),
+        });
+      });
+    });
+  });
+
+  describe('handleSave_WhileSaving_ShouldShowSavingState', () => {
+    it('should show "Saving..." text while save is in progress', async () => {
+      // Arrange
+      setupMocks();
+
+      // Act
+      render(<SettingsView />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      // Setup a delayed response to capture saving state
+      mockFetch.mockClear();
+      let resolvePromise: (value: unknown) => void;
+      const pendingPromise = new Promise((resolve) => {
+        resolvePromise = resolve;
+      });
+      mockFetch.mockReturnValueOnce(pendingPromise);
+
+      const saveButton = screen.getByRole('button', { name: /save settings/i });
+      fireEvent.click(saveButton);
+
+      // Assert - saving state should be shown
+      await waitFor(() => {
+        expect(screen.getByText('Saving...')).toBeInTheDocument();
+      });
+
+      // Button should be disabled while saving
+      expect(saveButton).toBeDisabled();
+
+      // Resolve the promise to clean up
+      resolvePromise!({
+        ok: true,
+        json: () => Promise.resolve({ success: true, settings: { reviewer: { cli: 'codex' } } }),
+      });
+    });
+  });
+
+  describe('handleSave_OnSuccess_ShouldShowSuccessMessage', () => {
+    it('should show success message after successful save', async () => {
+      // Arrange
+      setupMocks();
+
+      // Act
+      render(<SettingsView />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      mockFetch.mockClear();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, settings: { reviewer: { cli: 'codex' } } }),
+      });
+
+      const saveButton = screen.getByRole('button', { name: /save settings/i });
+      fireEvent.click(saveButton);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.getByText('Settings saved successfully!')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('handleSave_OnError_ShouldShowErrorMessage', () => {
+    it('should show error message when save fails with error response', async () => {
+      // Arrange
+      setupMocks();
+
+      // Act
+      render(<SettingsView />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      mockFetch.mockClear();
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: 'Invalid CLI selection' }),
+      });
+
+      const saveButton = screen.getByRole('button', { name: /save settings/i });
+      fireEvent.click(saveButton);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.getByText('Invalid CLI selection')).toBeInTheDocument();
+      });
+    });
+
+    it('should show generic error message when save throws an exception', async () => {
+      // Arrange
+      setupMocks();
+
+      // Act
+      render(<SettingsView />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading settings...')).not.toBeInTheDocument();
+      });
+
+      mockFetch.mockClear();
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+      const saveButton = screen.getByRole('button', { name: /save settings/i });
+      fireEvent.click(saveButton);
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.getByText('Network error')).toBeInTheDocument();
+      });
     });
   });
 });
