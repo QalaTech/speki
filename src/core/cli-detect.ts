@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import type { CliDetectionResult, AllCliDetectionResults, CliType } from '../types/index.js';
+import { resolveCliPath } from './cli-path.js';
 
 /** Timeout for CLI detection in milliseconds */
 const CLI_DETECTION_TIMEOUT_MS = 5000;
@@ -29,7 +30,8 @@ export function parseClaudeVersion(output: string): string {
  */
 export async function detectCli(cli: CliType): Promise<CliDetectionResult> {
   return new Promise((resolve) => {
-    const command = cli;
+    // Resolve the CLI path - handles cases where CLI is an alias not in PATH
+    const command = resolveCliPath(cli);
     let stdout = '';
     let stderr = '';
     let resolved = false;
@@ -37,7 +39,7 @@ export async function detectCli(cli: CliType): Promise<CliDetectionResult> {
     const result: CliDetectionResult = {
       available: false,
       version: '',
-      command: cli,
+      command: command,  // Use resolved path
     };
 
     const child = spawn(command, ['--version'], {
@@ -74,7 +76,7 @@ export async function detectCli(cli: CliType): Promise<CliDetectionResult> {
         resolve({
           available: true,
           version,
-          command: cli,
+          command: command,  // Use resolved path
         });
       } else {
         resolve(result);

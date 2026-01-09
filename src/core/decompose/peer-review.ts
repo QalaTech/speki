@@ -12,6 +12,7 @@ import type { Project } from '../project.js';
 import type { PRDData, ReviewFeedback as TypedReviewFeedback, CliType } from '../../types/index.js';
 import { loadGlobalSettings } from '../settings.js';
 import { detectCli, detectAllClis } from '../cli-detect.js';
+import { resolveCliPath } from '../cli-path.js';
 
 /** Timeout for Claude CLI execution in milliseconds (5 minutes) */
 export const CLAUDE_TIMEOUT_MS = 300000;
@@ -156,8 +157,11 @@ export async function runWithClaude(options: ClaudeReviewOptions): Promise<Claud
     let processExited = false;
 
     console.log(`  [DEBUG] Spawning Claude CLI...`);
+    // Resolve the Claude CLI path - handles cases where claude is an alias not in PATH
+    const claudePath = resolveCliPath('claude');
+
     // Use same flags as decompose runner for consistent Claude CLI behavior
-    const claude: ChildProcess = spawn('claude', [
+    const claude: ChildProcess = spawn(claudePath, [
       '--dangerously-skip-permissions',  // Required for non-interactive mode
       '--print',
       '--output-format', 'text',
@@ -535,7 +539,10 @@ async function runWithCodex(
     let timedOut = false;
     let processExited = false;
 
-    const codex = spawn('codex', ['exec', '--output-last-message', rawOutputPath, '-'], {
+    // Resolve the Codex CLI path - handles cases where codex is an alias not in PATH
+    const codexPath = resolveCliPath('codex');
+
+    const codex = spawn(codexPath, ['exec', '--output-last-message', rawOutputPath, '-'], {
       cwd: projectPath,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
