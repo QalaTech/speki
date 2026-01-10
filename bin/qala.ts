@@ -11,6 +11,7 @@ import { decomposeCommand } from '../src/cli/commands/decompose.js';
 import { activateCommand } from '../src/cli/commands/activate.js';
 import { unregisterCommand } from '../src/cli/commands/unregister.js';
 import { tasksCommand } from '../src/cli/commands/tasks.js';
+import { specCommand } from '../src/cli/commands/spec.js';
 
 program
   .name('qala')
@@ -27,5 +28,6 @@ program.addCommand(decomposeCommand);
 program.addCommand(activateCommand);
 program.addCommand(unregisterCommand);
 program.addCommand(tasksCommand);
+program.addCommand(specCommand);
 
 program.parse();
