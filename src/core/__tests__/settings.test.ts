@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { homedir } from 'os';
 import { readFile, writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
 import { loadGlobalSettings, saveGlobalSettings, getQalaDir, getSettingsFilePath } from '../settings.js';
 
 // Mock fs/promises module
@@ -17,7 +15,6 @@ vi.mock('os', () => ({
 }));
 
 describe('settings', () => {
-  const mockHomedir = '/mock/home';
   const mockQalaDir = '/mock/home/.qala';
   const mockSettingsFile = '/mock/home/.qala/config.json';
 
@@ -40,7 +37,7 @@ describe('settings', () => {
   });
 
   describe('loadGlobalSettings', () => {
-    it('loadGlobalSettings_WithMissingFile_ShouldReturnDefaults', async () => {
+    it('loadGlobalSettings_WithNoConfig_ShouldReturnClaudeAsDefaultCli', async () => {
       // Arrange
       const enoentError = new Error('ENOENT: no such file or directory') as NodeJS.ErrnoException;
       enoentError.code = 'ENOENT';
@@ -50,31 +47,39 @@ describe('settings', () => {
       const result = await loadGlobalSettings();
 
       // Assert
-      expect(result).toEqual({
+      expect(result.reviewer.cli).toBe('claude');
+    });
+
+    it('loadGlobalSettings_WithExplicitCodexConfig_ShouldReturnCodex', async () => {
+      // Arrange
+      const codexSettings = JSON.stringify({
         reviewer: {
           cli: 'codex',
         },
       });
-    });
-
-    it('loadGlobalSettings_WithValidFile_ShouldReturnParsedSettings', async () => {
-      // Arrange
-      const validSettings = JSON.stringify({
-        reviewer: {
-          cli: 'claude',
-        },
-      });
-      vi.mocked(readFile).mockResolvedValue(validSettings);
+      vi.mocked(readFile).mockResolvedValue(codexSettings);
 
       // Act
       const result = await loadGlobalSettings();
 
       // Assert
-      expect(result).toEqual({
+      expect(result.reviewer.cli).toBe('codex');
+    });
+
+    it('loadGlobalSettings_WithExplicitClaudeConfig_ShouldReturnClaude', async () => {
+      // Arrange
+      const claudeSettings = JSON.stringify({
         reviewer: {
           cli: 'claude',
         },
       });
+      vi.mocked(readFile).mockResolvedValue(claudeSettings);
+
+      // Act
+      const result = await loadGlobalSettings();
+
+      // Assert
+      expect(result.reviewer.cli).toBe('claude');
       expect(readFile).toHaveBeenCalledWith(mockSettingsFile, 'utf-8');
     });
 
@@ -88,17 +93,11 @@ describe('settings', () => {
       const result = await loadGlobalSettings();
 
       // Assert
-      expect(result).toEqual({
-        reviewer: {
-          cli: 'codex',
-        },
-      });
+      expect(result.reviewer.cli).toBe('claude');
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Warning: Could not parse global settings file'),
         expect.any(String)
       );
-
-      consoleSpy.mockRestore();
     });
   });
 

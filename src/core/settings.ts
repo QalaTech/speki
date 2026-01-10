@@ -21,12 +21,12 @@ export function getSettingsFilePath(): string {
 
 /**
  * Default global settings
- * - Codex as the default reviewer CLI
+ * - Claude as the default reviewer CLI (more widely available and capable)
  * - Keep awake enabled by default for overnight runs
  */
 const DEFAULT_SETTINGS: GlobalSettings = {
   reviewer: {
-    cli: 'codex',
+    cli: 'claude',
   },
   execution: {
     keepAwake: true,
