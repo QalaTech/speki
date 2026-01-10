@@ -4,7 +4,7 @@ import { join } from 'path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput } from '../spec.js';
+import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput, formatHumanOutput } from '../spec.js';
 import type { SpecReviewResult } from '../../../types/index.js';
 
 describe('spec review command', () => {
@@ -195,5 +195,155 @@ describe('spec review CLI options', () => {
     // Verify formatting (indented with 2 spaces)
     expect(jsonOutput).toContain('\n');
     expect(jsonOutput).toMatch(/"verdict":\s+"NEEDS_IMPROVEMENT"/);
+  });
+});
+
+describe('formatHumanOutput', () => {
+  const createMockResult = (overrides: Partial<SpecReviewResult> = {}): SpecReviewResult => ({
+    verdict: 'PASS',
+    categories: {},
+    codebaseContext: {
+      projectType: 'typescript',
+      existingPatterns: [],
+      relevantFiles: [],
+    },
+    suggestions: [],
+    logPath: '/test/log.json',
+    durationMs: 1000,
+    ...overrides,
+  });
+
+  let consoleLogs: string[];
+  const originalConsoleLog = console.log;
+
+  beforeEach(() => {
+    consoleLogs = [];
+    console.log = (...args: unknown[]) => {
+      consoleLogs.push(args.map(String).join(' '));
+    };
+  });
+
+  afterEach(() => {
+    console.log = originalConsoleLog;
+  });
+
+  it('formatOutput_WithPassVerdict_DisplaysPass', () => {
+    const result = createMockResult({ verdict: 'PASS' });
+
+    formatHumanOutput(result, '/path/to/my-spec.md');
+
+    const output = consoleLogs.join('\n');
+    expect(output).toContain('my-spec.md');
+    expect(output).toContain('PASS');
+    expect(output).toContain('Verdict:');
+  });
+
+  it('formatOutput_WithNeedsImprovement_ShowsIssues', () => {
+    const result = createMockResult({
+      verdict: 'NEEDS_IMPROVEMENT',
+      categories: {
+        clarity: {
+          verdict: 'NEEDS_IMPROVEMENT',
+          issues: ['Requirement 1 is ambiguous', 'Requirement 2 lacks specifics'],
+        },
+        completeness: {
+          verdict: 'PASS',
+          issues: [],
+        },
+      },
+    });
+
+    formatHumanOutput(result, '/specs/feature.md');
+
+    const output = consoleLogs.join('\n');
+    expect(output).toContain('NEEDS_IMPROVEMENT');
+    expect(output).toContain('Categories:');
+    expect(output).toContain('clarity');
+    expect(output).toContain('Requirement 1 is ambiguous');
+    expect(output).toContain('Requirement 2 lacks specifics');
+    expect(output).toContain('completeness');
+  });
+
+  it('formatOutput_WithSplitRecommended_ShowsProposal', () => {
+    const result = createMockResult({
+      verdict: 'SPLIT_RECOMMENDED',
+      splitProposal: {
+        originalFile: '/specs/god-spec.md',
+        reason: 'Spec covers too many domains',
+        proposedSpecs: [
+          {
+            filename: 'user-management.md',
+            description: 'User registration and authentication',
+            estimatedStories: 5,
+            sections: ['User Management'],
+          },
+          {
+            filename: 'api-integration.md',
+            description: 'External API integrations',
+            estimatedStories: 3,
+            sections: ['API Integration'],
+          },
+        ],
+      },
+    });
+
+    formatHumanOutput(result, '/specs/god-spec.md');
+
+    const output = consoleLogs.join('\n');
+    expect(output).toContain('SPLIT_RECOMMENDED');
+    expect(output).toContain('Split Recommended');
+    expect(output).toContain('Spec covers too many domains');
+    expect(output).toContain('user-management.md');
+    expect(output).toContain('User registration and authentication');
+    expect(output).toContain('Est. stories: 5');
+    expect(output).toContain('api-integration.md');
+  });
+
+  it('formatOutput_ShowsSuggestionsInPriorityOrder', () => {
+    const result = createMockResult({
+      verdict: 'NEEDS_IMPROVEMENT',
+      suggestions: [
+        {
+          id: 'sug-1',
+          category: 'testability',
+          severity: 'info',
+          section: 'Requirements',
+          textSnippet: 'snippet1',
+          issue: 'Minor info suggestion',
+          suggestedFix: 'Consider adding more detail',
+          status: 'pending',
+        },
+        {
+          id: 'sug-2',
+          category: 'clarity',
+          severity: 'critical',
+          section: 'Architecture',
+          textSnippet: 'snippet2',
+          issue: 'Critical clarity issue',
+          suggestedFix: 'Rewrite the section',
+          status: 'pending',
+        },
+        {
+          id: 'sug-3',
+          category: 'completeness',
+          severity: 'warning',
+          section: 'Scope',
+          textSnippet: 'snippet3',
+          issue: 'Warning about scope',
+          suggestedFix: 'Add missing requirements',
+          status: 'pending',
+        },
+      ],
+    });
+
+    formatHumanOutput(result, '/specs/test.md');
+
+    const output = consoleLogs.join('\n');
+    const criticalIndex = output.indexOf('[critical]');
+    const warningIndex = output.indexOf('[warning]');
+    const infoIndex = output.indexOf('[info]');
+
+    expect(criticalIndex).toBeLessThan(warningIndex);
+    expect(warningIndex).toBeLessThan(infoIndex);
   });
 });

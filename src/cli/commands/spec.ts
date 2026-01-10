@@ -104,13 +104,47 @@ export function formatJsonOutput(result: SpecReviewResult): string {
   return JSON.stringify(result, null, 2);
 }
 
-export function formatHumanOutput(result: SpecReviewResult): void {
+export function formatHumanOutput(result: SpecReviewResult, specFile: string): void {
+  const filename = specFile.split('/').pop() ?? specFile;
+  console.log(chalk.bold.blue(`\n═══ Spec Review: ${filename} ═══`));
+
   const verdictColor = getVerdictColor(result.verdict);
-  console.log(`\nVerdict: ${verdictColor(result.verdict)}`);
+  console.log(`\n${chalk.bold('Verdict:')} ${verdictColor(result.verdict)}`);
+
+  const categoryNames = Object.keys(result.categories);
+  if (categoryNames.length > 0) {
+    console.log(chalk.bold('\nCategories:'));
+    for (const categoryName of categoryNames) {
+      const category = result.categories[categoryName];
+      const catVerdictColor = getVerdictColor(category.verdict);
+      console.log(`  ${chalk.cyan(categoryName)}: ${catVerdictColor(category.verdict)}`);
+      if (category.issues.length > 0) {
+        for (const issue of category.issues) {
+          console.log(`    ${chalk.gray('•')} ${issue}`);
+        }
+      }
+    }
+  }
+
+  if (result.verdict === 'SPLIT_RECOMMENDED' && result.splitProposal) {
+    console.log(chalk.bold.magenta('\n⚠ Split Recommended'));
+    console.log(`  ${chalk.gray('Reason:')} ${result.splitProposal.reason}`);
+    console.log(chalk.bold('\n  Proposed Specs:'));
+    for (const spec of result.splitProposal.proposedSpecs) {
+      console.log(`    ${chalk.green('→')} ${spec.filename}`);
+      console.log(`      ${chalk.gray(spec.description)}`);
+      console.log(`      ${chalk.gray(`Est. stories: ${spec.estimatedStories}`)}`);
+    }
+  }
 
   if (result.suggestions && result.suggestions.length > 0) {
+    const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+    const sortedSuggestions = [...result.suggestions].sort(
+      (a, b) => (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3)
+    );
+
     console.log(chalk.bold('\nSuggestions:'));
-    for (const suggestion of result.suggestions) {
+    for (const suggestion of sortedSuggestions) {
       const severityColor = getSeverityColor(suggestion.severity);
       console.log(`  ${severityColor(`[${suggestion.severity}]`)} ${suggestion.issue}`);
       console.log(`    ${chalk.gray(suggestion.suggestedFix)}`);
@@ -171,7 +205,7 @@ specCommand
       if (options.json) {
         console.log(formatJsonOutput(result));
       } else {
-        formatHumanOutput(result);
+        formatHumanOutput(result, resolvedSpecFile);
       }
 
       if (result.verdict === 'FAIL') {
