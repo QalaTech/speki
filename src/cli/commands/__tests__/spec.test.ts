@@ -4,8 +4,17 @@ import { join } from 'path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput, formatHumanOutput } from '../spec.js';
+import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput, formatHumanOutput, handleGodSpec } from '../spec.js';
 import type { SpecReviewResult } from '../../../types/index.js';
+
+vi.mock('@inquirer/prompts', () => ({
+  select: vi.fn(),
+  editor: vi.fn(),
+}));
+
+vi.mock('../../../core/spec-review/splitter.js', () => ({
+  executeSplit: vi.fn(),
+}));
 
 describe('spec review command', () => {
   let tempDir: string;
@@ -345,5 +354,127 @@ describe('formatHumanOutput', () => {
 
     expect(criticalIndex).toBeLessThan(warningIndex);
     expect(warningIndex).toBeLessThan(infoIndex);
+  });
+});
+
+describe('handleGodSpec', () => {
+  const createMockGodSpecResult = (): SpecReviewResult => ({
+    verdict: 'SPLIT_RECOMMENDED',
+    categories: {
+      god_spec_detection: {
+        verdict: 'SPLIT_RECOMMENDED',
+        issues: ['Spec has 8 feature domains', 'Estimated 25+ user stories', 'Multiple system boundaries'],
+      },
+    },
+    splitProposal: {
+      originalFile: '/specs/god-spec.md',
+      reason: 'Spec covers multiple unrelated domains',
+      proposedSpecs: [
+        {
+          filename: 'user-management.md',
+          description: 'User registration and authentication',
+          estimatedStories: 8,
+          sections: ['User Management', 'Authentication'],
+        },
+        {
+          filename: 'api-integration.md',
+          description: 'External API integrations',
+          estimatedStories: 5,
+          sections: ['API Integration'],
+        },
+      ],
+    },
+    codebaseContext: {
+      projectType: 'typescript',
+      existingPatterns: [],
+      relevantFiles: [],
+    },
+    suggestions: [],
+    logPath: '/test/log.json',
+    durationMs: 1000,
+  });
+
+  let consoleLogs: string[];
+  const originalConsoleLog = console.log;
+
+  beforeEach(() => {
+    consoleLogs = [];
+    console.log = (...args: unknown[]) => {
+      consoleLogs.push(args.map(String).join(' '));
+    };
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    console.log = originalConsoleLog;
+  });
+
+  it('handleGodSpec_DisplaysWarningAndProposal', async () => {
+    const { select } = await import('@inquirer/prompts');
+    vi.mocked(select).mockResolvedValue('skip');
+
+    const result = createMockGodSpecResult();
+
+    await handleGodSpec(result, '/specs/god-spec.md');
+
+    const output = consoleLogs.join('\n');
+    expect(output).toContain('God Spec Detected');
+    expect(output).toContain('god-spec.md');
+    expect(output).toContain('Detected Issues:');
+    expect(output).toContain('8 feature domains');
+    expect(output).toContain('Recommended Split:');
+    expect(output).toContain('multiple unrelated domains');
+    expect(output).toContain('Total estimated stories:');
+    expect(output).toContain('13'); // 8 + 5
+    expect(output).toContain('user-management.md');
+    expect(output).toContain('api-integration.md');
+  });
+
+  it('handleGodSpec_AcceptCreatesFiles', async () => {
+    const { select } = await import('@inquirer/prompts');
+    const { executeSplit } = await import('../../../core/spec-review/splitter.js');
+
+    vi.mocked(select).mockResolvedValue('accept');
+    vi.mocked(executeSplit).mockResolvedValue([
+      '/specs/user-management.md',
+      '/specs/api-integration.md',
+    ]);
+
+    const result = createMockGodSpecResult();
+
+    const handleResult = await handleGodSpec(result, '/specs/god-spec.md');
+
+    expect(handleResult.action).toBe('accept');
+    expect(handleResult.createdFiles).toEqual([
+      '/specs/user-management.md',
+      '/specs/api-integration.md',
+    ]);
+    expect(executeSplit).toHaveBeenCalledWith('/specs/god-spec.md', result.splitProposal);
+
+    const output = consoleLogs.join('\n');
+    expect(output).toContain('Split complete!');
+    expect(output).toContain('Created files:');
+    expect(output).toContain('/specs/user-management.md');
+    expect(output).toContain('/specs/api-integration.md');
+  });
+
+  it('handleGodSpec_SkipContinuesWithWarning', async () => {
+    const { select } = await import('@inquirer/prompts');
+    const { executeSplit } = await import('../../../core/spec-review/splitter.js');
+
+    vi.mocked(select).mockResolvedValue('skip');
+
+    const result = createMockGodSpecResult();
+
+    const handleResult = await handleGodSpec(result, '/specs/god-spec.md');
+
+    expect(handleResult.action).toBe('skip');
+    expect(handleResult.skipped).toBe(true);
+    expect(handleResult.createdFiles).toBeUndefined();
+    expect(executeSplit).not.toHaveBeenCalled();
+
+    const output = consoleLogs.join('\n');
+    expect(output).toContain('Continuing review without splitting');
+    expect(output).toContain('may be too large');
   });
 });

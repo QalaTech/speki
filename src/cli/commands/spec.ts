@@ -2,13 +2,14 @@ import { existsSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
 import { join, relative, resolve } from 'path';
 
-import { select } from '@inquirer/prompts';
+import { editor, select } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
 import { findProjectRoot } from '../../core/project.js';
 import { runSpecReview } from '../../core/spec-review/runner.js';
-import type { CliType, SpecReviewResult } from '../../types/index.js';
+import { executeSplit } from '../../core/spec-review/splitter.js';
+import type { CliType, SplitProposal, SpecReviewResult } from '../../types/index.js';
 
 export interface SpecFileValidationResult {
   valid: boolean;
@@ -88,6 +89,170 @@ function getSeverityColor(severity: string): (text: string) => string {
     default:
       return chalk.gray;
   }
+}
+
+export type GodSpecAction = 'accept' | 'modify' | 'skip';
+
+export interface HandleGodSpecResult {
+  action: GodSpecAction;
+  createdFiles?: string[];
+  skipped?: boolean;
+}
+
+function displayGodSpecWarning(result: SpecReviewResult, specFile: string): void {
+  const filename = specFile.split('/').pop() ?? specFile;
+  console.log(chalk.bold.yellow(`\n⚠️  God Spec Detected: ${filename}`));
+
+  const godSpecCategory = result.categories['god_spec_detection'];
+  if (godSpecCategory?.issues && godSpecCategory.issues.length > 0) {
+    console.log(chalk.bold('\nDetected Issues:'));
+    for (const issue of godSpecCategory.issues) {
+      console.log(`  ${chalk.yellow('•')} ${issue}`);
+    }
+  }
+
+  if (result.splitProposal) {
+    console.log(chalk.bold('\nRecommended Split:'));
+    console.log(`  ${chalk.gray('Reason:')} ${result.splitProposal.reason}`);
+    const totalStories = result.splitProposal.proposedSpecs.reduce(
+      (sum, spec) => sum + spec.estimatedStories,
+      0
+    );
+    console.log(`  ${chalk.gray('Total estimated stories:')} ${totalStories}`);
+    console.log(chalk.bold('\nProposed Specs:'));
+    for (const spec of result.splitProposal.proposedSpecs) {
+      console.log(`  ${chalk.green('→')} ${spec.filename}`);
+      console.log(`    ${chalk.gray(spec.description)}`);
+      console.log(`    ${chalk.gray(`Est. stories: ${spec.estimatedStories}`)}`);
+    }
+  }
+}
+
+async function promptGodSpecAction(): Promise<GodSpecAction> {
+  return select({
+    message: 'How would you like to proceed?',
+    choices: [
+      {
+        name: 'Accept - Split the spec into separate files',
+        value: 'accept' as const,
+      },
+      {
+        name: 'Modify - Edit the split proposal before creating files',
+        value: 'modify' as const,
+      },
+      {
+        name: 'Skip - Continue review without splitting',
+        value: 'skip' as const,
+      },
+    ],
+  });
+}
+
+async function editProposal(proposal: SplitProposal): Promise<SplitProposal> {
+  const proposalYaml = formatProposalForEditing(proposal);
+
+  const edited = await editor({
+    message: 'Edit the split proposal (save and close to continue):',
+    default: proposalYaml,
+    postfix: '.yaml',
+  });
+
+  return parseEditedProposal(edited, proposal);
+}
+
+function formatProposalForEditing(proposal: SplitProposal): string {
+  const specsYaml = proposal.proposedSpecs.map((spec) => {
+    const sectionsYaml = spec.sections.map((section) => `      - "${section}"`).join('\n');
+    return `  - filename: ${spec.filename}
+    description: ${spec.description}
+    estimatedStories: ${spec.estimatedStories}
+    sections:
+${sectionsYaml}`;
+  }).join('\n\n');
+
+  return `# Split Proposal for: ${proposal.originalFile}
+# Reason: ${proposal.reason}
+#
+# Edit the proposed specs below. You can:
+# - Change filenames
+# - Edit descriptions
+# - Remove specs you don't want
+# - Modify sections to include
+#
+specs:
+${specsYaml}
+`;
+}
+
+function parseEditedProposal(edited: string, original: SplitProposal): SplitProposal {
+  const specBlocks = edited.split(/(?=\s+-\s+filename:)/);
+  const proposedSpecs: SplitProposal['proposedSpecs'] = [];
+
+  for (const block of specBlocks) {
+    const filenameMatch = block.match(/filename:\s*(.+)/);
+    if (!filenameMatch) {
+      continue;
+    }
+
+    const descriptionMatch = block.match(/description:\s*(.+)/);
+    const storiesMatch = block.match(/estimatedStories:\s*(\d+)/);
+    const sections = [...block.matchAll(/-\s*"([^"]+)"/g)].map((match) => match[1]);
+
+    proposedSpecs.push({
+      filename: filenameMatch[1].trim(),
+      description: descriptionMatch?.[1]?.trim() ?? '',
+      estimatedStories: storiesMatch ? parseInt(storiesMatch[1], 10) : 5,
+      sections,
+    });
+  }
+
+  if (proposedSpecs.length === 0) {
+    console.log(chalk.yellow('Could not parse edited proposal. Using original.'));
+    return original;
+  }
+
+  return {
+    ...original,
+    proposedSpecs,
+  };
+}
+
+export async function handleGodSpec(
+  result: SpecReviewResult,
+  specFile: string
+): Promise<HandleGodSpecResult> {
+  displayGodSpecWarning(result, specFile);
+
+  const action = await promptGodSpecAction();
+
+  if (action === 'skip') {
+    console.log(chalk.yellow('\nContinuing review without splitting. This spec may be too large for effective development.'));
+    return { action: 'skip', skipped: true };
+  }
+
+  if (!result.splitProposal) {
+    console.log(chalk.red('Error: No split proposal available.'));
+    return { action: 'skip', skipped: true };
+  }
+
+  const proposal = action === 'modify'
+    ? await editProposal(result.splitProposal)
+    : result.splitProposal;
+
+  if (action === 'modify') {
+    console.log(chalk.blue('\nUsing modified proposal:'));
+    for (const spec of proposal.proposedSpecs) {
+      console.log(`  ${chalk.green('→')} ${spec.filename}`);
+    }
+  }
+
+  const createdFiles = await executeSplit(specFile, proposal);
+  console.log(chalk.green('\nSplit complete! Created files:'));
+  for (const file of createdFiles) {
+    console.log(`  ${chalk.green('→')} ${file}`);
+  }
+
+  return { action, createdFiles };
 }
 
 export const specCommand = new Command('spec')
@@ -204,6 +369,8 @@ specCommand
 
       if (options.json) {
         console.log(formatJsonOutput(result));
+      } else if (result.verdict === 'SPLIT_RECOMMENDED' && result.splitProposal) {
+        await handleGodSpec(result, resolvedSpecFile);
       } else {
         formatHumanOutput(result, resolvedSpecFile);
       }
