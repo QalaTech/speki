@@ -10,19 +10,40 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 - **API contracts for product-facing APIs are requirements** - if the product exposes a REST API, those contracts define the product surface and must be implemented exactly
 - **You own the implementation** - apply your judgment, follow best practices, and build maintainable code
 
+## Task Management Commands
+
+Use these CLI commands for task operations (instead of editing prd.json directly):
+
+| Command | Description |
+|---------|-------------|
+| `qala tasks next` | Get the next pending task with full context (project, dependencies, blocks, standards) |
+| `qala tasks next --task-only` | Get just the task without context |
+| `qala tasks get <id>` | Get a specific task by ID |
+| `qala tasks complete <id>` | Mark a task as complete |
+| `qala tasks complete <id> --notes "..."` | Mark complete with notes |
+| `qala tasks deps <id>` | Show dependencies and their status |
+| `qala tasks list` | List all tasks |
+| `qala tasks list --pending` | List only pending tasks |
+
+---
+
 ## Your Task (Every Iteration)
 
-1. **Read current task context:**
+1. **Get current task:**
 
-   Read `.ralph/current-task.json` which contains:
+   Run `qala tasks next` to get the next task with full context:
+   ```bash
+   qala tasks next
+   ```
+
+   This returns JSON with:
    - `project` - project name and branch
    - `currentTask` - the task you must complete this iteration (full details)
    - `completedDependencies` - tasks this one depends on (already done)
    - `blocks` - downstream tasks waiting on this one
    - `availableStandards` - standards files available in `.ralph/standards/`
-   - `progressFile` - path to progress file
-   - `prdFile` - path to PRD file (for marking task complete)
-   - `peerFeedbackFile` - path to peer feedback (if exists)
+
+   If all tasks are complete, it returns `{ "complete": true }`.
 
 2. **Read progress file:**
 
@@ -30,7 +51,7 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 
 3. **Check branch:**
 
-   - Verify you're on the correct branch (see `project.branch` in current-task.json)
+   - Verify you're on the correct branch (see `project.branch` from step 1)
    - Create/switch if needed
 
 4. **Read and apply peer feedback:**
@@ -57,7 +78,7 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 
 5. **Load language standards:**
 
-   Check `availableStandards` in current-task.json for available standards files.
+   Check `availableStandards` from step 1 for available standards files.
 
    **Determine the correct standards file based on the codebase:**
 
@@ -74,7 +95,7 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 
    **Use Serena MCP tools** for code editing and navigation. Serena provides powerful semantic tools for finding symbols, editing code, and understanding the codebase structure. Prefer Serena tools over basic file operations when working with code.
 
-   The task to implement is in `currentTask` from current-task.json.
+   The task to implement is in `currentTask` from step 1.
 
    - Focus only on the acceptance criteria in `currentTask.acceptanceCriteria`
    - Follow the language standards from step 5
@@ -167,16 +188,23 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
     - If commit fails (pre-commit hooks, etc.), fix the issue and retry
     - **DO NOT mark the task complete if the commit failed**
 
-12. **Update prd.json (ONLY AFTER SUCCESSFUL COMMIT):**
+12. **Mark task complete (ONLY AFTER SUCCESSFUL COMMIT):**
 
     **CRITICAL:** Only perform this step if step 11 succeeded.
 
-    Update the PRD file (path in `prdFile` from current-task.json):
-    - Find the story matching `currentTask.id`
-    - Set `passes: true` for the completed story
-    - Add any notes if relevant
+    Run this command to mark the task complete:
+    ```bash
+    qala tasks complete <currentTask.id>
+    ```
 
-    **If the commit in step 11 failed, do NOT update prd.json. Fix the commit first.**
+    Optionally add notes:
+    ```bash
+    qala tasks complete <currentTask.id> --notes "Implementation notes here"
+    ```
+
+    **Do NOT edit prd.json directly.** Use the `qala tasks` commands.
+
+    **If the commit in step 11 failed, do NOT mark the task complete. Fix the commit first.**
 
 13. **Update progress.txt:**
 
@@ -315,7 +343,7 @@ After completing the current task, check if ALL stories in prd.json have `passes
 
 ## Critical Reminders
 
-- Complete the **current task** from `currentTask` in current-task.json
+- Complete the **current task** from `qala tasks next`
 - **READ peer_feedback.json** at start - check for blocking issues and relevant suggestions
 - **READ the appropriate standards file** from `availableStandards` before implementing
 - **IMPLEMENT ALL tests in `currentTask.testCases`** - this is mandatory
