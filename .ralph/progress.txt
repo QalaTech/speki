@@ -1,6 +1,10 @@
 ## Codebase Patterns
 
-- **TypeScript Type Definitions**: All shared types defined in `src/types/index.ts`, using interfaces for object shapes and type aliases for unions (e.g., `type Status = 'a' | 'b'`)
+- **TypeScript Type Definitions**: All shared types defined in `src/types/index.ts`, using interfaces for object shapes and type aliases for unions
+- **Spec Review Module**: Located in `src/core/spec-review/` - contains focused modules for spec review functionality
+- **Test Location**: Unit tests co-located with code in `__tests__` directories (e.g., `src/core/spec-review/__tests__/`)
+- **Async File Operations**: Use `fs/promises` for async file system operations
+- **Project Type Detection Order**: Check package.json first (nodejs), then requirements.txt/pyproject.toml (python), go.mod (go), *.csproj (dotnet)
 
 ---
 
@@ -67,161 +71,26 @@
   - Commit: N/A (no new changes - work already committed in 27136ea)
 ---
 
-## 2026-01-10 - US-006: Define Spec Review types in src/types/index.ts
-- What was implemented: Added all TypeScript interfaces and types needed for the spec review feature (FR-21)
-- Files changed: src/types/index.ts (239 lines added)
-- Tests implemented: None required (testCases: [] - type definitions only, no logic to test)
-- **Types Added:**
-  - Type unions: SpecReviewVerdict, SuggestionSeverity, SuggestionStatus, SessionStatus
-  - Interfaces: SpecReviewCategory, FocusedPromptResult, GodSpecIndicators, SplitSpecRef, ProposedSpec, SplitProposal, CodebaseContext, SuggestionCard, ChangeHistoryEntry, ChatMessage, SessionFile, SpecReviewResult
-- **Learnings:**
-  - Pre-existing test failures in cli-detect.test.ts, settings.test.ts, and peer-review.test.ts due to vitest mocking issues with fs and child_process modules - unrelated to type definitions
-  - Used Serena MCP tools (insert_after_symbol) for precise code insertion
-  - ralph/feature branch needed to be created fresh from main
-- **Verification:**
-  - Build: PASS (tsc --noEmit, npm run build including web)
-  - Tests: Pre-existing failures unrelated to this task (type definitions don't have runtime tests)
-  - Commit: SUCCESS (072a8cd)
----
-
-## 2026-01-10 - US-007: Change default reviewer CLI from Codex to Claude
-- What was implemented: Updated DEFAULT_SETTINGS.reviewer.cli from 'codex' to 'claude' in src/core/settings.ts
-- Files changed: src/core/settings.ts, src/core/__tests__/settings.test.ts
+## 2026-01-10 - US-013: Implement codebase context gathering for spec review
+- What was implemented: Created gatherCodebaseContext function that detects project type, identifies patterns, and lists source directories
+- Files changed:
+  - src/core/spec-review/codebase-context.ts (new, 198 lines)
+  - src/core/spec-review/__tests__/codebase-context.test.ts (new, 130 lines)
 - Tests implemented:
-  - loadGlobalSettings_WithNoConfig_ShouldReturnClaudeAsDefaultCli - PASS
-  - loadGlobalSettings_WithExplicitCodexConfig_ShouldReturnCodex - PASS
-  - loadGlobalSettings_WithExplicitClaudeConfig_ShouldReturnClaude - PASS
+  - gatherCodebaseContext_WithPackageJson_ShouldDetectNodejs - PASS
+  - gatherCodebaseContext_WithCsproj_ShouldDetectDotnet - PASS
+  - gatherCodebaseContext_WithMissingConfigs_ShouldReturnUnknownType - PASS
+  - gatherCodebaseContext_ShouldListSourceDirectories - PASS
+  - gatherCodebaseContext_ShouldIdentifyPatterns - PASS
+  - gatherCodebaseContext_WithRequirementsTxt_ShouldDetectPython - PASS (bonus)
+  - gatherCodebaseContext_WithGoMod_ShouldDetectGo - PASS (bonus)
+  - gatherCodebaseContext_WithNonExistentDirectory_ShouldReturnEmptyResults - PASS (bonus)
 - **Learnings:**
-  - Code simplifier agent removed unused imports (homedir, join) and unused constant (mockHomedir) from test file
-  - Pre-existing test failures in cli-detect.test.ts and peer-review.test.ts persist (vitest mocking issues) - unrelated to this task
+  - Code simplifier suggested renaming relevantFiles to sourceDirectories for clarity, but kept relevantFiles to match interface in types
+  - Used Set for efficient exclusion checking (excludedDirs, candidateDirs)
+  - Parallel Promise.all for concurrent detection operations improves performance
 - **Verification:**
   - Build: PASS (npm run build including web)
-  - Tests: PASS (8/8 settings tests pass; pre-existing failures in other test files unrelated to this task)
-  - Commit: SUCCESS (a90c27b)
----
-
-## 2026-01-10 - US-008: Implement configurable timeout utility for spec review
-- What was implemented: Created getReviewTimeout() and validateTimeout() functions in new spec-review module
-- Files changed: src/core/spec-review/timeout.ts (new file), src/core/__tests__/timeout.test.ts (new file)
-- Tests implemented:
-  - should return CLI value when provided - PASS
-  - should return env var value when no CLI flag - PASS
-  - should return default when no override - PASS
-  - should prefer CLI value over env var - PASS
-  - should clamp values below minimum to 30 seconds - PASS
-  - should clamp values above maximum to 30 minutes - PASS
-  - should return value unchanged when within range - PASS
-- **Learnings:**
-  - Code simplifier simplified test names from C#-style (getReviewTimeout_WithCliFlag_ShouldReturnCliValue) to behavior descriptions (should return CLI value when provided)
-  - Created new src/core/spec-review/ directory for spec review module
-- **Verification:**
-  - Build: PASS (npm run build including web)
-  - Tests: PASS (7/7 timeout tests pass)
-  - Commit: SUCCESS (b932aaf)
----
-
-## 2026-01-10 - US-009: Create focused prompt definitions for standalone spec review
-- What was implemented: Created 5 focused prompts for spec review (FR-7) in src/core/spec-review/prompts.ts
-- Files changed: src/core/spec-review/prompts.ts (new file, 334 lines)
-- Tests implemented: None required (testCases: [] - prompt string constants only, no runtime logic)
-- **Prompts Added:**
-  - GOD_SPEC_DETECTION_PROMPT: Detects specs too large/complex, includes split proposal format
-  - REQUIREMENTS_COMPLETENESS_PROMPT: Checks for missing requirements
-  - CLARITY_SPECIFICITY_PROMPT: Identifies ambiguous/vague language
-  - TESTABILITY_PROMPT: Ensures requirements can be verified
-  - SCOPE_VALIDATION_PROMPT: Validates scope against codebase context
-- **Features:**
-  - Each prompt has RULES section for evaluation criteria
-  - Each prompt specifies expected JSON output schema
-  - Prompts use {specContent} and {codebaseContext} placeholders
-  - God spec prompt includes FR-7a indicators (size, scope, cohesion) and FR-7b split proposal format
-- **Learnings:**
-  - Code simplifier extracted common patterns into helper functions (buildContextHeader, buildSeveritySection, buildStandardOutputFormat, buildVerdictGuidelines) to reduce redundancy
-  - Pre-existing test failures in cli-detect.test.ts and peer-review.test.ts persist (vitest mocking issues) - unrelated to this task
-- **Verification:**
-  - Build: PASS (npm run build including web)
-  - Tests: N/A (prompt string constants have no runtime logic to test)
-  - Commit: SUCCESS (fcd0c2d)
----
-
-## 2026-01-10 - US-010: Create focused prompt definitions for decompose review (task review)
-- What was implemented: Added 4 focused prompts for FR-6 decompose review to src/core/spec-review/prompts.ts
-- Files changed: src/core/spec-review/prompts.ts (249 lines added)
-- Tests implemented: None required (testCases: [] - prompt string constants only, no runtime logic)
-- **Prompts Added:**
-  - MISSING_REQUIREMENTS_PROMPT: Detects requirements in spec not covered by tasks
-  - CONTRADICTIONS_PROMPT: Finds contradictions between spec and tasks or between tasks
-  - DEPENDENCY_VALIDATION_PROMPT: Validates task dependencies form valid DAG
-  - DUPLICATE_DETECTION_PROMPT: Identifies duplicate or overlapping tasks
-- **Features:**
-  - Each prompt uses {specContent} and {tasksJson} placeholders
-  - Each prompt has RULES section for evaluation criteria
-  - Each prompt specifies expected JSON output schema with PASS/FAIL verdict
-  - Helper functions added: buildDecomposeContextHeader, buildDecomposeOutputFormat, buildDecomposeSeveritySection, buildDecomposeVerdictGuidelines
-- **Learnings:**
-  - Code simplifier extracted additional helper functions (buildDecomposeSeveritySection, buildDecomposeVerdictGuidelines) for decompose-specific 2-way verdicts (PASS/FAIL) vs spec review's 3-way verdicts
-  - Pre-existing test failures in cli-detect.test.ts and peer-review.test.ts persist (vitest mocking issues) - unrelated to this task
-- **Verification:**
-  - Build: PASS (npm run build including web)
-  - Tests: N/A (prompt string constants have no runtime logic to test)
-  - Commit: SUCCESS (cfcb32d)
----
-
-## 2026-01-10 - US-011: Implement result aggregation for spec review verdicts
-- What was implemented: Created aggregator module that combines FocusedPromptResult[] into SpecReviewResult
-- Files changed: src/core/spec-review/aggregator.ts (new), src/core/__tests__/aggregator.test.ts (new)
-- Tests implemented:
-  - aggregateResults_WithGodSpecDetected_ShouldReturnSplitRecommended - PASS
-  - aggregateResults_WithCriticalFailure_ShouldReturnFail - PASS
-  - aggregateResults_WithWarningsOnly_ShouldReturnNeedsImprovement - PASS
-  - aggregateResults_WithAllPass_ShouldReturnPass - PASS
-  - aggregateResults_WithMixedResults_ShouldUsePriorityOrder - PASS
-  - aggregateResults_ShouldSortSuggestionsBySeverity - PASS
-  - aggregateResults_ShouldIncludeSplitProposalWhenPresent - PASS
-  - (3 additional tests for duration, context, logPath)
-- **Features:**
-  - Verdict priority: SPLIT_RECOMMENDED (4) > FAIL (3) > NEEDS_IMPROVEMENT (2) > PASS (1)
-  - Severity sorting: critical > warning > info
-  - Categories built from prompt results (keyed by category/promptName)
-  - Split proposal extraction from god spec detection results
-  - Total duration aggregation across all prompt results
-- **Learnings:**
-  - Code simplifier cleaned up underscore prefix on used parameter (originalFile) and standardized test naming
-  - Helper functions (getHighestPriorityVerdict, sortSuggestionsBySeverity, extractSplitProposal, buildCategories) keep main function clean
-- **Verification:**
-  - Build: PASS (npm run build including web)
-  - Tests: PASS (10/10 aggregator tests pass)
-  - Commit: SUCCESS (18ccbf5)
----
-
-## 2026-01-10 - US-012: Implement JSON extraction and validation for AI responses
-- What was implemented: Created robust JSON extraction from AI responses with schema validation
-- Files changed: src/core/spec-review/json-parser.ts (new), src/core/__tests__/json-parser.test.ts (new)
-- Tests implemented:
-  - extractReviewJson_WithMarkdownCodeBlock_ShouldExtractJson - PASS
-  - extractReviewJson_WithRawJson_ShouldParse - PASS
-  - extractReviewJson_WithProseAndJson_ShouldExtractJsonOnly - PASS
-  - extractReviewJson_WithInvalidJson_ShouldReturnNull - PASS
-  - validateFocusedPromptResult_WithValidResult_ShouldReturnTrue - PASS
-  - validateFocusedPromptResult_WithMissingFields_ShouldReturnFalse - PASS
-  - validateGodSpecResult_WithSplitProposal_ShouldValidateNestedStructure - PASS
-  - validateSplitProposal_WithValidSpecs_ShouldReturnTrue - PASS
-  - (10 additional edge case tests for comprehensive coverage)
-- **Features:**
-  - extractReviewJson<T>: Generic JSON extractor that handles markdown code blocks, raw JSON, and prose mixed with JSON
-  - findJsonCandidates generator: Yields potential JSON strings from text using multiple strategies
-  - validateFocusedPromptResult: Type guard validating FocusedPromptResult schema
-  - validateGodSpecResult: Validates god spec results with nested GodSpecIndicators and SplitProposal
-  - validateSplitProposal: Validates split proposal with proposedSpecs array
-  - Logs raw output to console.error on parse failure for debugging
-  - Returns null on failure (no throwing) per acceptance criteria
-- **Learnings:**
-  - Code simplifier extracted isStringArray helper function to reduce duplicated array validation logic
-  - Code simplifier consolidated enum validation into const arrays (VALID_VERDICTS, VALID_SEVERITIES, VALID_STATUSES) at top of file
-  - Used `.includes()` with typed arrays for cleaner enum validation than chained `===` comparisons
-  - Test naming standardized to C#-style pattern: functionName_Scenario_ExpectedBehavior
-- **Verification:**
-  - Build: PASS (npm run build including web)
-  - Tests: PASS (18/18 json-parser tests pass)
-  - Commit: SUCCESS (b950773)
+  - Tests: PASS (8/8 tests pass)
+  - Commit: SUCCESS (62846cd)
 ---

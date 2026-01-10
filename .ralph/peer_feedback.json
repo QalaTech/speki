@@ -9,22 +9,10 @@
       "addedAt": "2026-01-10T12:00:00Z"
     },
     {
-      "lesson": "When creating multiple similar string constants (like prompts), the code simplifier will extract common patterns into helper functions to reduce redundancy. Design with this in mind - keep shared structure consistent across constants.",
+      "lesson": "When detecting project types from config files, check for the most common/specific configs first (package.json, requirements.txt, go.mod) before falling back to glob patterns (*.csproj). Use Set-based lookups for efficient exclusion of directories.",
       "category": "patterns",
-      "addedBy": "US-009",
-      "addedAt": "2026-01-10T16:45:00Z"
-    },
-    {
-      "lesson": "Decompose review prompts (FR-6) use different placeholders ({specContent}, {tasksJson}) and 2-way verdicts (PASS/FAIL) compared to spec review prompts (FR-7) which use ({specContent}, {codebaseContext}) and 3-way verdicts (PASS/FAIL/NEEDS_IMPROVEMENT). Separate helper functions were created to handle this distinction.",
-      "category": "patterns",
-      "addedBy": "US-010",
-      "addedAt": "2026-01-10T17:30:00Z"
-    },
-    {
-      "lesson": "For TypeScript enum validation, use const arrays with 'as const' (e.g., const VALID_STATUSES = ['a', 'b'] as const) and .includes() checks rather than chained === comparisons. This pattern is cleaner and the code simplifier prefers it.",
-      "category": "patterns",
-      "addedBy": "US-012",
-      "addedAt": "2026-01-10T17:05:00Z"
+      "addedBy": "US-013",
+      "addedAt": "2026-01-10T17:12:00Z"
     }
   ]
 }
