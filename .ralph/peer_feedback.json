@@ -1,0 +1,12 @@
+{
+  "blocking": [],
+  "suggestions": [],
+  "lessonsLearned": [
+    {
+      "lesson": "PRD can contain duplicate/near-duplicate stories (US-001, US-002, US-003, US-004 all modified the same file). Always verify existing file state before implementing to avoid redundant work.",
+      "category": "patterns",
+      "addedBy": "US-004",
+      "addedAt": "2026-01-10T12:00:00Z"
+    }
+  ]
+}

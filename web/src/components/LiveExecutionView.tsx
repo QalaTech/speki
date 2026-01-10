@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import type { UserStory } from '../types';
 import { ChatLogView } from './ChatLogView';
+import { ContextSection } from './ContextSection';
 import { parseJsonlContent } from '../utils/parseJsonl';
 import './LiveExecutionView.css';
 
@@ -149,6 +150,11 @@ export function LiveExecutionView({
                 <span className={`task-status-badge ${getStoryStatus(selectedStory)}`}>
                   {getStoryStatus(selectedStory).toUpperCase()}
                 </span>
+                {selectedStory.complexity && (
+                  <span className={`task-complexity-badge ${selectedStory.complexity}`}>
+                    {selectedStory.complexity}
+                  </span>
+                )}
                 <h2>{selectedStory.id}: {selectedStory.title}</h2>
               </div>
               {isRunning && runningStoryId === selectedStory.id && (
@@ -258,6 +264,13 @@ export function LiveExecutionView({
                     <div className="info-section">
                       <h4>Notes</h4>
                       <p className="notes-content">{selectedStory.notes}</p>
+                    </div>
+                  )}
+
+                  {selectedStory.context && (
+                    <div className="info-section">
+                      <h4>Context</h4>
+                      <ContextSection context={selectedStory.context} headingLevel="h5" />
                     </div>
                   )}
                 </div>
