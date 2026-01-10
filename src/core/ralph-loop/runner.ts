@@ -16,8 +16,8 @@ import { createConsoleCallbacks } from '../claude/stream-parser.js';
 import type { PRDData, UserStory, RalphStatus } from '../../types/index.js';
 
 export interface LoopOptions {
-  /** Maximum number of iterations */
-  maxIterations: number;
+  /** Maximum number of iterations (static value or getter for dynamic updates) */
+  maxIterations: number | (() => number);
   /** Callback when an iteration starts */
   onIterationStart?: (iteration: number, story: UserStory | null) => void;
   /** Callback when an iteration ends */
@@ -135,7 +135,12 @@ export async function runRalphLoop(
   project: Project,
   options: LoopOptions
 ): Promise<LoopResult> {
-  const { maxIterations, onIterationStart, onIterationEnd } = options;
+  const { onIterationStart, onIterationEnd } = options;
+
+  // Support both static and dynamic max iterations
+  const getMaxIterations = typeof options.maxIterations === 'function'
+    ? options.maxIterations
+    : () => options.maxIterations as number;
 
   // Check Claude is available
   if (!(await isClaudeAvailable())) {
@@ -159,7 +164,7 @@ export async function runRalphLoop(
   console.log(chalk.bold('║') + `  Project: ${chalk.cyan(prd.projectName)}`);
   console.log(chalk.bold('║') + `  Branch:  ${chalk.yellow(prd.branchName)}`);
   console.log(chalk.bold('║') + `  Stories: ${chalk.green(String(prd.userStories.length))} total`);
-  console.log(chalk.bold('║') + `  Max iterations: ${maxIterations}`);
+  console.log(chalk.bold('║') + `  Max iterations: ${getMaxIterations()} (dynamic)`);
   console.log(chalk.bold('╚═══════════════════════════════════════════════════════════════╝'));
   console.log('');
 
@@ -167,18 +172,21 @@ export async function runRalphLoop(
   await project.saveStatus({
     status: 'running',
     currentIteration: 0,
-    maxIterations,
+    maxIterations: getMaxIterations(),
     startedAt: new Date().toISOString(),
     pid: process.pid,
   });
   await Registry.updateStatus(project.projectPath, 'running', process.pid);
 
   try {
-    for (let iteration = 1; iteration <= maxIterations; iteration++) {
+    let iteration = 1;
+    // Check max iterations dynamically each loop (supports adding tasks mid-execution)
+    while (iteration <= getMaxIterations()) {
       // Check for next story
       const nextInfo = getNextStory(prd);
+      const currentMax = getMaxIterations();
 
-      printIterationHeader(iteration, maxIterations, prd, nextInfo);
+      printIterationHeader(iteration, currentMax, prd, nextInfo);
 
       onIterationStart?.(iteration, nextInfo.story);
 
@@ -186,7 +194,7 @@ export async function runRalphLoop(
       await project.saveStatus({
         status: 'running',
         currentIteration: iteration,
-        maxIterations,
+        maxIterations: currentMax,
         currentStory: nextInfo.story ? `${nextInfo.story.id}: ${nextInfo.story.title}` : undefined,
         startedAt: new Date().toISOString(),
         pid: process.pid,
@@ -278,18 +286,21 @@ export async function runRalphLoop(
 
       // Small delay between iterations
       await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      iteration++;
     }
 
     // Max iterations reached
+    const finalMax = getMaxIterations();
     console.log('');
     console.log(chalk.yellow('╔═══════════════════════════════════════════════════════════════╗'));
-    console.log(chalk.yellow(`║  ⚠ Max iterations (${maxIterations}) reached                            ║`));
+    console.log(chalk.yellow(`║  ⚠ Max iterations (${finalMax}) reached                            ║`));
     console.log(chalk.yellow('║  Check prd.json for remaining stories                         ║'));
     console.log(chalk.yellow('╚═══════════════════════════════════════════════════════════════╝'));
 
     return {
       allComplete: false,
-      iterationsRun: maxIterations,
+      iterationsRun: finalMax,
       storiesCompleted,
       finalPrd: prd,
     };

@@ -9,6 +9,8 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { projectContext } from '../middleware/project-context.js';
 import { runDecompose } from '../../core/decompose/runner.js';
+import { calculateLoopLimit } from '../../core/ralph-loop/loop-limit.js';
+import { getRunningLoop } from './ralph.js';
 import type { DecomposeState, PRDData } from '../../types/index.js';
 
 const router = Router();
@@ -298,6 +300,18 @@ router.post('/execute-task', async (req, res) => {
     // Save updated PRD
     await req.project!.savePRD(prd);
 
+    // Update loop limit if Ralph is running
+    const runningLoop = getRunningLoop(req.projectPath!);
+    if (runningLoop) {
+      const incompleteTasks = prd.userStories.filter(s => !s.passes).length;
+      const newLimit = calculateLoopLimit(incompleteTasks);
+      if (newLimit > runningLoop.maxIterations) {
+        runningLoop.updateMaxIterations(newLimit);
+        runningLoop.maxIterations = newLimit;
+        console.log(`[Decompose] Updated loop limit to ${newLimit} after adding task ${task.id}`);
+      }
+    }
+
     // Remove task from source file after adding to prd.json
     if (sourceFile) {
       try {
@@ -320,6 +334,7 @@ router.post('/execute-task', async (req, res) => {
       success: true,
       message: `Task ${task.id} queued for execution`,
       taskId: task.id,
+      loopLimitUpdated: !!runningLoop,
     });
   } catch (error) {
     res.status(500).json({

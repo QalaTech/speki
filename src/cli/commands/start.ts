@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { Project, findProjectRoot } from '../../core/project.js';
 import { Registry } from '../../core/registry.js';
 import { runRalphLoop } from '../../core/ralph-loop/runner.js';
+import { calculateLoopLimit } from '../../core/ralph-loop/loop-limit.js';
 import { isClaudeAvailable } from '../../core/claude/runner.js';
 import { preventSleep, allowSleep, isPreventingSleep } from '../../core/keep-awake.js';
 import { loadGlobalSettings } from '../../core/settings.js';
@@ -10,7 +11,7 @@ import { loadGlobalSettings } from '../../core/settings.js';
 export const startCommand = new Command('start')
   .description('Start Ralph loop for current project')
   .option('-p, --project <path>', 'Project path (defaults to current directory)')
-  .option('-i, --iterations <number>', 'Maximum iterations', '25')
+  .option('-i, --iterations <number>', 'Maximum iterations (default: auto-calculated based on task count)')
   .option('-k, --keep-awake', 'Prevent system sleep (default: from settings, use --no-keep-awake to disable)')
   .option('--no-keep-awake', 'Allow system to sleep while running')
   .option('--daemon', 'Run in background (not yet implemented)')
@@ -103,8 +104,17 @@ export const startCommand = new Command('start')
       process.on('SIGINT', cleanup);
       process.on('SIGTERM', cleanup);
 
+      // Calculate max iterations: use CLI flag if provided, otherwise auto-calculate
+      let maxIterations: number;
+      if (options.iterations) {
+        maxIterations = parseInt(options.iterations, 10);
+        console.log(chalk.gray(`  Using specified iterations: ${maxIterations}`));
+      } else {
+        maxIterations = calculateLoopLimit(incompleteStories.length);
+        console.log(chalk.gray(`  Auto-calculated iterations: ${maxIterations} (${incompleteStories.length} tasks + 20% buffer)`));
+      }
+
       // Run the loop
-      const maxIterations = parseInt(options.iterations, 10);
       const result = await runRalphLoop(project, { maxIterations });
 
       // Clean up sleep prevention after loop completes

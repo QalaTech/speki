@@ -8,6 +8,7 @@ import { Router } from 'express';
 import { projectContext } from '../middleware/project-context.js';
 import { Registry } from '../../core/registry.js';
 import { runRalphLoop } from '../../core/ralph-loop/runner.js';
+import { calculateLoopLimit } from '../../core/ralph-loop/loop-limit.js';
 import type { RalphStatus } from '../../types/index.js';
 
 const router = Router();
@@ -17,11 +18,22 @@ interface RunningLoop {
   abort: () => void;
   promise: Promise<void>;
   startedAt: number;
+  /** Current max iterations - can be updated dynamically */
+  maxIterations: number;
+  /** Update the max iterations for this loop */
+  updateMaxIterations: (newMax: number) => void;
 }
 const runningLoops = new Map<string, RunningLoop>();
 
 // Server startup time - used to detect stale status from before server restart
 const SERVER_STARTUP_TIME = new Date().toISOString();
+
+/**
+ * Get a running loop for a project path (used by other routes to update loop limit)
+ */
+export function getRunningLoop(projectPath: string): RunningLoop | undefined {
+  return runningLoops.get(projectPath);
+}
 
 // Apply project context middleware to all routes
 router.use(projectContext(true));
@@ -87,7 +99,6 @@ router.get('/status', async (req, res) => {
  */
 router.post('/start', async (req, res) => {
   try {
-    const { maxIterations = 10 } = req.body;
     const projectPath = req.projectPath!;
     const project = req.project!;
 
@@ -101,7 +112,20 @@ router.post('/start', async (req, res) => {
       return res.status(400).json({ error: 'Ralph is already running' });
     }
 
-    console.log(`[Ralph] Starting loop for ${projectPath} with max ${maxIterations} iterations`);
+    // Load PRD to count tasks
+    const prd = await project.loadPRD();
+    if (!prd) {
+      return res.status(400).json({ error: 'No PRD loaded. Run decompose first.' });
+    }
+
+    // Calculate loop limit based on incomplete task count + 20% buffer
+    const incompleteTasks = prd.userStories.filter(s => !s.passes).length;
+    const calculatedLimit = calculateLoopLimit(incompleteTasks);
+
+    // Allow override from request, but default to calculated limit
+    const maxIterations = req.body.maxIterations ?? calculatedLimit;
+
+    console.log(`[Ralph] Starting loop for ${projectPath} with ${incompleteTasks} incomplete tasks, max ${maxIterations} iterations (calculated: ${calculatedLimit})`);
 
     // Update status immediately
     const status: RalphStatus = {
@@ -120,13 +144,21 @@ router.post('/start', async (req, res) => {
       aborted = true;
     };
 
+    // Create mutable max iterations that can be updated when tasks are added
+    let currentMaxIterations = maxIterations;
+    const getMaxIterations = () => currentMaxIterations;
+    const updateMaxIterations = (newMax: number) => {
+      console.log(`[Ralph] Updating max iterations: ${currentMaxIterations} → ${newMax}`);
+      currentMaxIterations = newMax;
+    };
+
     // Note: progress.txt is managed by Claude per prompt instructions, not by the runner
 
     // Run the loop asynchronously (don't await - return immediately)
     const loopPromise = (async () => {
       try {
         const result = await runRalphLoop(project, {
-          maxIterations,
+          maxIterations: getMaxIterations, // Pass getter for dynamic updates
           onIterationStart: async (iteration, story) => {
             if (aborted) throw new Error('Aborted');
             console.log(`[Ralph] Iteration ${iteration} starting: ${story?.id || 'none'}`);
@@ -143,7 +175,7 @@ router.post('/start', async (req, res) => {
         await project.saveStatus({
           status: result.allComplete ? 'completed' : 'idle',
           currentIteration: result.iterationsRun,
-          maxIterations,
+          maxIterations: getMaxIterations(),
         });
       } catch (error) {
         console.error(`[Ralph] Loop error:`, error);
@@ -154,7 +186,13 @@ router.post('/start', async (req, res) => {
       }
     })();
 
-    runningLoops.set(projectPath, { abort, promise: loopPromise, startedAt: Date.now() });
+    runningLoops.set(projectPath, {
+      abort,
+      promise: loopPromise,
+      startedAt: Date.now(),
+      maxIterations: currentMaxIterations,
+      updateMaxIterations,
+    });
 
     res.json({ success: true, status });
   } catch (error) {
