@@ -283,4 +283,20 @@ router.get('/logs/:filename', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/ralph/peer-feedback
+ * Get peer feedback / knowledge base
+ */
+router.get('/peer-feedback', async (req, res) => {
+  try {
+    const feedback = await req.project!.loadPeerFeedback();
+    res.json(feedback);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to load peer feedback',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 export default router;

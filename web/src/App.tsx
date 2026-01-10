@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate, useLocation, useSearchParams, Navigate } from 'react-router-dom';
 import { Sidebar, Menu, MenuItem, sidebarClasses } from 'react-pro-sidebar';
-import type { PRDData, RalphStatus, DecomposeState } from './types';
+import type { PRDData, RalphStatus, DecomposeState, PeerFeedback } from './types';
 import { calculateStats } from './types';
 import { StatsBar } from './components/StatsBar';
 import { TaskList } from './components/TaskList';
@@ -10,6 +10,7 @@ import { LiveExecutionView } from './components/LiveExecutionView';
 import { ProgressView } from './components/ProgressView';
 import { DecomposeView } from './components/DecomposeView';
 import { SettingsView } from './components/SettingsView';
+import { KnowledgeView } from './components/KnowledgeView';
 import './App.css';
 
 interface ProjectEntry {
@@ -29,6 +30,7 @@ interface ExecutionViewProps {
   currentIteration: number | null;
   executionTab: string;
   projectName: string;
+  peerFeedback: PeerFeedback | null;
   onStartRalph: () => void;
   onStopRalph: () => void;
   onNavigate: (path: string) => void;
@@ -43,6 +45,7 @@ function ExecutionView({
   currentIteration,
   executionTab,
   projectName,
+  peerFeedback,
   onStartRalph,
   onStopRalph,
   onNavigate,
@@ -113,6 +116,15 @@ function ExecutionView({
             >
               Log
             </button>
+            <button
+              className={`tab-btn ${executionTab === 'knowledge' ? 'active' : ''}`}
+              onClick={() => onNavigate('/execution/knowledge')}
+            >
+              Knowledge
+              {peerFeedback && peerFeedback.lessonsLearned.length > 0 && (
+                <span className="tab-count">{peerFeedback.lessonsLearned.length}</span>
+              )}
+            </button>
           </nav>
 
           {/* Tab Content */}
@@ -147,6 +159,9 @@ function ExecutionView({
                 isRunning={ralphStatus.running}
               />
             )}
+            {executionTab === 'knowledge' && (
+              <KnowledgeView peerFeedback={peerFeedback} />
+            )}
           </div>
         </>
       )}
@@ -174,6 +189,7 @@ function App() {
   const [currentIteration, setCurrentIteration] = useState<number | null>(null);
   const [ralphStatus, setRalphStatus] = useState<RalphStatus>(defaultStatus);
   const [decomposeState, setDecomposeState] = useState<DecomposeState>({ status: 'IDLE', message: '' });
+  const [peerFeedback, setPeerFeedback] = useState<PeerFeedback | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -187,6 +203,7 @@ function App() {
   const executionTab = location.pathname.includes('/live') ? 'live'
     : location.pathname.includes('/list') ? 'list'
     : location.pathname.includes('/log') ? 'log'
+    : location.pathname.includes('/knowledge') ? 'knowledge'
     : 'kanban';
 
   // Helper to add project param to API calls
@@ -284,6 +301,17 @@ function App() {
       const progressRes = await fetch(apiUrl('/api/ralph/progress'));
       const progressContent = await progressRes.text();
       setProgress(progressContent);
+
+      // Peer feedback / knowledge base
+      try {
+        const feedbackRes = await fetch(apiUrl('/api/ralph/peer-feedback'));
+        if (feedbackRes.ok) {
+          const feedbackData = await feedbackRes.json();
+          setPeerFeedback(feedbackData);
+        }
+      } catch (feedbackErr) {
+        console.warn('Failed to fetch peer feedback:', feedbackErr);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data');
     } finally {
@@ -370,6 +398,7 @@ function App() {
     currentIteration,
     executionTab,
     projectName: currentProject?.name || 'Unknown',
+    peerFeedback,
     onStartRalph: handleStartRalph,
     onStopRalph: handleStopRalph,
     onNavigate: navigateTo,
@@ -518,6 +547,7 @@ function App() {
           <Route path="/execution/kanban" element={<ExecutionView {...executionViewProps} />} />
           <Route path="/execution/list" element={<ExecutionView {...executionViewProps} />} />
           <Route path="/execution/log" element={<ExecutionView {...executionViewProps} />} />
+          <Route path="/execution/knowledge" element={<ExecutionView {...executionViewProps} />} />
           <Route path="*" element={<Navigate to="/execution/live" replace />} />
         </Routes>
       </main>

@@ -223,6 +223,10 @@ export async function runRalphLoop(
         };
       }
 
+      // Generate focused current task context (story is guaranteed to exist here after blocked/complete checks)
+      console.log(chalk.blue('Generating task context...'));
+      await project.generateCurrentTaskContext(nextInfo.story!);
+
       console.log(chalk.yellow('Starting Claude...'));
       console.log('');
 
@@ -305,6 +309,8 @@ export async function runRalphLoop(
       finalPrd: prd,
     };
   } finally {
+    // Cleanup current task context
+    await project.cleanupCurrentTaskContext();
     // Reset status
     await project.saveStatus({ status: 'idle' });
     await Registry.updateStatus(project.projectPath, 'idle');

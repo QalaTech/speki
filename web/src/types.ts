@@ -1,3 +1,49 @@
+/**
+ * Suggestions for implementation (guidance, not mandates)
+ */
+export interface ContextSuggestions {
+  schemas?: Record<string, string>;
+  examples?: Record<string, string>;
+  patterns?: Record<string, string>;
+  prompts?: Record<string, string>;
+}
+
+/**
+ * Requirements that must be implemented exactly
+ */
+export interface ContextRequirements {
+  apiContracts?: Record<string, string>;
+}
+
+/**
+ * Contextual information for a user story.
+ * Supports both new nested format (suggestions/requirements) and legacy flat format.
+ */
+export interface StoryContext {
+  // New nested format
+  /** Implementation suggestions (use your judgment) */
+  suggestions?: ContextSuggestions;
+  /** Requirements that must be followed exactly */
+  requirements?: ContextRequirements;
+
+  // Legacy flat format (kept for backwards compatibility)
+  /** TypeScript/JSON schemas to implement exactly as specified */
+  schemas?: Record<string, string>;
+  /** Prompt templates to implement exactly as specified */
+  prompts?: Record<string, string>;
+  /** Data contracts (API payloads, responses) to implement */
+  dataContracts?: Record<string, string>;
+  /** Code examples to follow */
+  examples?: Record<string, string>;
+  /** File paths Claude should read for additional context */
+  references?: string[];
+}
+
+/**
+ * Task complexity level - determines execution strategy.
+ */
+export type TaskComplexity = 'low' | 'medium' | 'high';
+
 export interface UserStory {
   id: string;
   title: string;
@@ -8,6 +54,15 @@ export interface UserStory {
   passes: boolean;
   notes: string;
   dependencies: string[];
+  /**
+   * Contextual information from the PRD that Claude should implement verbatim.
+   * Includes schemas, prompts, data contracts, etc.
+   */
+  context?: StoryContext;
+  /**
+   * Task complexity level - set by decompose agent.
+   */
+  complexity?: TaskComplexity;
   // Tracking fields for executed tasks
   executedAt?: string;
   inPrd?: boolean;
@@ -112,6 +167,17 @@ export interface FeedbackItem {
   dependsOn?: string;
 }
 
+export interface TaskGrouping {
+  taskIds: string[];
+  reason: string;
+  complexity: 'low' | 'medium';
+}
+
+export interface StandaloneTask {
+  taskId: string;
+  reason: string;
+}
+
 export interface DecomposeFeedback {
   verdict: 'PASS' | 'FAIL' | 'UNKNOWN';
   missingRequirements?: (string | FeedbackItem)[];
@@ -119,6 +185,8 @@ export interface DecomposeFeedback {
   dependencyErrors?: (string | FeedbackItem)[];
   duplicates?: (string | FeedbackItem)[];
   suggestions?: FeedbackItem[];
+  taskGroupings?: TaskGrouping[];
+  standaloneTasks?: StandaloneTask[];
   issues?: string[];
   reviewLog?: string;
 }
@@ -136,4 +204,42 @@ export interface LogEntry {
   tool?: string;
   status?: 'success' | 'error' | 'empty';
   id?: string;
+}
+
+// Peer feedback types (inter-iteration knowledge base)
+export type PeerFeedbackCategory =
+  | 'architecture'
+  | 'testing'
+  | 'api'
+  | 'database'
+  | 'performance'
+  | 'security'
+  | 'tooling'
+  | 'patterns'
+  | 'gotchas';
+
+export interface BlockingIssue {
+  issue: string;
+  addedBy: string;
+  addedAt: string;
+}
+
+export interface TaskSuggestion {
+  suggestion: string;
+  forTask: string;
+  addedBy: string;
+  addedAt: string;
+}
+
+export interface LessonLearned {
+  lesson: string;
+  category: PeerFeedbackCategory;
+  addedBy: string;
+  addedAt: string;
+}
+
+export interface PeerFeedback {
+  blocking: BlockingIssue[];
+  suggestions: TaskSuggestion[];
+  lessonsLearned: LessonLearned[];
 }

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { UserStory } from '../types';
 import { getStoryStatus } from '../types';
+import { ContextSection } from './ContextSection';
 
 interface TaskDrawerProps {
   story: UserStory | null;
@@ -109,6 +110,9 @@ export function TaskDrawer({ story, completedIds, blocksMap, logContent, onClose
             <span className={`drawer-status ${status}`}>{status}</span>
             <span className="drawer-id">{story.id}</span>
             <span className="drawer-priority">P{story.priority}</span>
+            {story.complexity && (
+              <span className={`drawer-complexity ${story.complexity}`}>{story.complexity}</span>
+            )}
           </div>
           <button className="drawer-close" onClick={onClose}>×</button>
         </div>
@@ -207,6 +211,13 @@ export function TaskDrawer({ story, completedIds, blocksMap, logContent, onClose
                 <section className="drawer-section">
                   <h3>Notes</h3>
                   <div className="drawer-notes">{story.notes}</div>
+                </section>
+              )}
+
+              {story.context && (
+                <section className="drawer-section">
+                  <h3>Context</h3>
+                  <ContextSection context={story.context} headingLevel="h4" />
                 </section>
               )}
             </>

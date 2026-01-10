@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { DecomposeState, DecomposeFeedback, PrdFile, PRDData, UserStory, FeedbackItem, DecomposeErrorType } from '../types';
+import { ContextSection } from './ContextSection';
 
 interface DecomposeViewProps {
   onTasksActivated: () => void;
@@ -338,7 +339,12 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
       setFeedbackSuccess(true);
       setTaskFeedback('');
 
-      // Refresh the draft to get updated task
+      // Update the selected task with the response if available
+      if (data.task) {
+        setSelectedTask(data.task);
+      }
+
+      // Refresh the draft to get updated task list
       fetchState();
     } catch (err) {
       setFeedbackError(err instanceof Error ? err.message : 'Failed to submit');
@@ -772,6 +778,13 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                     <div className="detail-section">
                       <h4>Notes</h4>
                       <div className="detail-notes">{selectedTask.notes}</div>
+                    </div>
+                  )}
+
+                  {selectedTask.context && (
+                    <div className="detail-section">
+                      <h4>Context</h4>
+                      <ContextSection context={selectedTask.context} headingLevel="h5" />
                     </div>
                   )}
 

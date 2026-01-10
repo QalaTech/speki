@@ -147,16 +147,31 @@ The current task list for execution. See [PRD Format](#prd-format) below.
 }
 ```
 
-### `peer_feedback.json` - Story Feedback
+### `peer_feedback.json` - Inter-iteration Feedback & Knowledge Base
 
-Optional feedback for Claude during execution:
+Managed by the Ralph agent across iterations. Contains blocking issues, task-specific suggestions, and accumulated lessons learned:
+
 ```json
 {
-  "updatedTasks": [],
-  "blocking": ["Issue that must be addressed"],
-  "suggestions": ["Optional improvement"]
+  "blocking": [
+    { "issue": "Database connection pool exhausted under load", "addedBy": "US-005", "addedAt": "2024-01-15T10:30:00Z" }
+  ],
+  "suggestions": [
+    { "suggestion": "Use the caching pattern from US-003", "forTask": "US-007", "addedBy": "US-005", "addedAt": "2024-01-15T10:30:00Z" }
+  ],
+  "lessonsLearned": [
+    { "lesson": "Always dispose HttpClient via IHttpClientFactory", "category": "patterns", "addedBy": "US-003", "addedAt": "2024-01-14T09:00:00Z" },
+    { "lesson": "EF Core requires explicit Include() for navigation properties", "category": "database", "addedBy": "US-004", "addedAt": "2024-01-14T14:00:00Z" }
+  ]
 }
 ```
+
+**Fields:**
+- `blocking` - Issues that must be addressed before the next task (cleaned up when resolved)
+- `suggestions` - Recommendations for specific tasks (cleaned up when that task completes)
+- `lessonsLearned` - Persistent knowledge base (never deleted, accumulates across all iterations)
+
+**Categories for lessonsLearned:** `architecture`, `testing`, `api`, `database`, `performance`, `security`, `tooling`, `patterns`, `gotchas`
 
 ### `progress.txt` - Execution History
 

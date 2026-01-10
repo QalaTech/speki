@@ -536,6 +536,54 @@ router.post('/reset', async (req, res) => {
 });
 
 /**
+ * POST /api/decompose/task-feedback
+ * Submit feedback to update a specific task using Claude
+ */
+router.post('/task-feedback', async (req, res) => {
+  try {
+    const { runTaskFeedback } = await import('../../core/decompose/task-feedback.js');
+
+    const { taskId, feedback, prdFile } = req.body;
+
+    if (!taskId || !feedback) {
+      return res.status(400).json({ error: 'taskId and feedback are required' });
+    }
+
+    const state = await req.project!.loadDecomposeState();
+
+    if (!state.draftFile) {
+      return res.status(400).json({ error: 'No draft file found' });
+    }
+
+    const result = await runTaskFeedback({
+      taskId,
+      feedback,
+      draftPath: state.draftFile,
+      prdPath: prdFile || state.prdFile,
+      project: req.project!,
+    });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Task updated',
+        task: result.updatedTask,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || 'Failed to update task',
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to process task feedback',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
  * POST /api/decompose/retry-review
  * Retry peer review for the current draft
  */

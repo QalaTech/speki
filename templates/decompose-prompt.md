@@ -49,7 +49,18 @@ Output ONLY valid JSON in this exact format:
       "priority": 1,
       "passes": false,
       "notes": "",
-      "dependencies": []
+      "dependencies": [],
+      "complexity": "low|medium|high",
+      "context": {
+        "suggestions": {
+          "schemas": "Optional: Schema suggestions the agent MAY use",
+          "examples": "Optional: Code examples for guidance",
+          "patterns": "Optional: Suggested architectural patterns"
+        },
+        "requirements": {
+          "apiContracts": "Required for API products: Request/response schemas that MUST be implemented"
+        }
+      }
     }
   ]
 }
@@ -167,6 +178,63 @@ Mark these explicitly: `"testCases": []` with a note explaining why
 
 ---
 
+## PRD Intent vs Implementation Details
+
+A PRD defines **WHAT** the product needs, not **HOW** to build it. The decomposition process must respect this boundary.
+
+### What Belongs in the PRD (Requirements)
+- **Functional requirements**: What the system must do (behavior)
+- **Data contracts for product-facing APIs**: If the product exposes a REST API, those contracts are part of the product specification
+- **Acceptance criteria**: Observable, testable outcomes
+- **Constraints**: Security, performance, compliance requirements
+
+### What Are Suggestions (Implementation Guidance)
+The PRD may include technical suggestions to help the implementer, but these are **guidance, not mandates**:
+- **Schema suggestions**: Database schemas, entity structures (the execution agent decides the actual implementation)
+- **Code examples**: Sample implementations (the agent may use different patterns)
+- **Framework recommendations**: Suggested libraries or tools (the agent evaluates fit)
+- **Architectural hints**: Suggested patterns (the agent applies judgment)
+
+### Exception: Product-Facing API Contracts
+When the product IS an API (API-first or API-driven), the API specification IS the product. In this case:
+- Request/response schemas defined in the PRD are **requirements, not suggestions**
+- The execution agent MUST implement APIs that conform to the specified contracts
+- This ensures API consumers get the documented behavior
+
+### Using the Context Field
+
+Each story can include a `context` object with two sections:
+
+**`context.suggestions`** - Implementation guidance (agent decides):
+```json
+"suggestions": {
+  "schemas": "CREATE TABLE jobs (id UUID PRIMARY KEY...)",
+  "examples": "public class Job : Entity<Guid> {...}",
+  "patterns": "Consider using the Repository pattern with Unit of Work"
+}
+```
+The execution agent MAY use these as starting points but is free to implement differently if they see a better approach.
+
+**`context.requirements`** - Mandatory specifications:
+```json
+"requirements": {
+  "apiContracts": {
+    "POST /api/jobs": {
+      "request": { "name": "string", "priority": "number" },
+      "response": { "id": "uuid", "status": "queued" }
+    }
+  }
+}
+```
+For API-driven products, these contracts MUST be implemented exactly (field names, types, structure). This is the product surface.
+
+**When to use which:**
+- Internal implementation details → `suggestions`
+- Product-facing API contracts → `requirements.apiContracts`
+- If unsure → `suggestions` (let the agent decide)
+
+---
+
 ## Rules for Decomposition
 
 ### Story Size
@@ -203,6 +271,44 @@ When a story introduces temporary/stub code to unblock progress, the dependent s
 4. **API/UI (priority 41-60)**: Handlers, endpoints, components
 5. **Testing (priority 61-80)**: Unit tests, integration tests
 6. **Polish (priority 81+)**: Edge cases, additional validation
+
+### Task Complexity Assessment
+
+Every story MUST have a `complexity` field. This determines execution strategy:
+
+**LOW complexity** - can be grouped with other low tasks:
+- Type/interface definitions only (no implementation logic)
+- Simple configuration changes or constants
+- Adding enums or value objects with no business logic
+- Renaming or restructuring without logic changes
+- Documentation-only changes
+- Adding simple DTOs or request/response types
+
+**MEDIUM complexity** - execute individually:
+- Simple functions with clear input/output
+- Basic CRUD operations with standard patterns
+- Straightforward UI components
+- Single-responsibility services with < 3 dependencies
+- Tasks with 3-5 acceptance criteria
+
+**HIGH complexity** - execute individually, may need attention:
+- Integration with external services/APIs
+- Database schema changes or migrations
+- Authentication/authorization logic
+- Complex business rules with multiple edge cases
+- Tasks with 6+ acceptance criteria
+- Tasks that touch multiple bounded contexts
+- Anything involving concurrency or state management
+- Error handling with retry/fallback logic
+
+**Examples:**
+```json
+{ "id": "US-001", "title": "Define User entity types", "complexity": "low" }
+{ "id": "US-002", "title": "Add UserRepository interface", "complexity": "low" }
+{ "id": "US-003", "title": "Implement UserRepository with PostgreSQL", "complexity": "medium" }
+{ "id": "US-004", "title": "Add OAuth2 authentication flow", "complexity": "high" }
+{ "id": "US-005", "title": "Implement retry logic for external API calls", "complexity": "high" }
+```
 
 ### Good vs Bad Stories
 

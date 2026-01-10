@@ -6,6 +6,10 @@ import type {
   PRDData,
   DecomposeState,
   RalphStatus,
+  UserStory,
+  CurrentTaskContext,
+  TaskReference,
+  PeerFeedback,
 } from '../types/index.js';
 
 const RALPH_DIR_NAME = '.ralph';
@@ -56,6 +60,9 @@ export class Project {
   get standardsDir(): string {
     return join(this.ralphDir, 'standards');
   }
+  get currentTaskPath(): string {
+    return join(this.ralphDir, 'current-task.json');
+  }
 
   /**
    * Check if .ralph folder exists
@@ -105,6 +112,14 @@ export class Project {
       status: 'idle',
     };
     await this.saveStatus(ralphStatus);
+
+    // Create initial peer feedback (empty knowledge base)
+    const peerFeedback: PeerFeedback = {
+      blocking: [],
+      suggestions: [],
+      lessonsLearned: [],
+    };
+    await this.savePeerFeedback(peerFeedback);
 
     // Copy templates
     await this.copyTemplates(options.language || 'nodejs');
@@ -246,6 +261,20 @@ export class Project {
     await writeFile(this.statusPath, JSON.stringify(status, null, 2));
   }
 
+  // Peer feedback operations
+  async loadPeerFeedback(): Promise<PeerFeedback> {
+    try {
+      const content = await readFile(this.peerFeedbackPath, 'utf-8');
+      return JSON.parse(content) as PeerFeedback;
+    } catch {
+      return { blocking: [], suggestions: [], lessonsLearned: [] };
+    }
+  }
+
+  async savePeerFeedback(feedback: PeerFeedback): Promise<void> {
+    await writeFile(this.peerFeedbackPath, JSON.stringify(feedback, null, 2));
+  }
+
   // Progress log operations
   async appendProgress(message: string): Promise<void> {
     const timestamp = new Date().toISOString();
@@ -346,6 +375,88 @@ export class Project {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * List available standards files in the standards directory
+   */
+  async listAvailableStandards(): Promise<string[]> {
+    try {
+      const files = await readdir(this.standardsDir);
+      return files.filter((f) => f.endsWith('.md'));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Generate focused context for the current task iteration
+   */
+  async generateCurrentTaskContext(currentTask: UserStory): Promise<CurrentTaskContext> {
+    const prd = await this.loadPRD();
+    const config = await this.loadConfig();
+
+    if (!prd) {
+      throw new Error('No PRD loaded');
+    }
+
+    // Get completed task IDs
+    const completedIds = new Set(
+      prd.userStories.filter((s) => s.passes).map((s) => s.id)
+    );
+
+    // Get completed dependencies (just refs)
+    const completedDependencies: TaskReference[] = currentTask.dependencies
+      .filter((depId) => completedIds.has(depId))
+      .map((depId) => {
+        const dep = prd.userStories.find((s) => s.id === depId);
+        return {
+          id: depId,
+          title: dep?.title || 'Unknown',
+        };
+      });
+
+    // Get tasks that this task blocks (downstream tasks depending on this one)
+    const blocks: TaskReference[] = prd.userStories
+      .filter((s) => !s.passes && s.dependencies.includes(currentTask.id))
+      .map((s) => ({
+        id: s.id,
+        title: s.title,
+      }));
+
+    // Get available standards
+    const availableStandards = await this.listAvailableStandards();
+
+    const context: CurrentTaskContext = {
+      project: {
+        name: prd.projectName,
+        branch: prd.branchName,
+      },
+      currentTask,
+      completedDependencies,
+      blocks,
+      availableStandards,
+      progressFile: '.ralph/progress.txt',
+      prdFile: '.ralph/prd.json',
+      peerFeedbackFile: '.ralph/peer_feedback.json',
+    };
+
+    // Save to file
+    await writeFile(this.currentTaskPath, JSON.stringify(context, null, 2));
+
+    return context;
+  }
+
+  /**
+   * Clean up the current task context file
+   */
+  async cleanupCurrentTaskContext(): Promise<void> {
+    try {
+      const { unlink } = await import('fs/promises');
+      await unlink(this.currentTaskPath);
+    } catch {
+      // File doesn't exist, ignore
     }
   }
 }
