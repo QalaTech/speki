@@ -1,8 +1,26 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { resolve } from 'path';
+import { existsSync } from 'fs';
 import { runSpecReview } from '../../core/spec-review/runner.js';
 import { findProjectRoot } from '../../core/project.js';
+
+export interface SpecFileValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+export function validateSpecFile(filePath: string): SpecFileValidationResult {
+  if (!existsSync(filePath)) {
+    return { valid: false, error: `File not found: ${filePath}` };
+  }
+
+  if (!filePath.endsWith('.md')) {
+    return { valid: false, error: `File must be a markdown file (.md): ${filePath}` };
+  }
+
+  return { valid: true };
+}
 
 function getVerdictColor(verdict: string): (text: string) => string {
   switch (verdict) {
@@ -38,8 +56,15 @@ specCommand
   .option('-t, --timeout <ms>', 'Timeout in milliseconds', parseInt)
   .action(async (specFile, options) => {
     try {
-      const projectPath = options.project || (await findProjectRoot()) || process.cwd();
       const resolvedSpecFile = resolve(process.cwd(), specFile);
+
+      const validation = validateSpecFile(resolvedSpecFile);
+      if (!validation.valid) {
+        console.error(chalk.red(`Error: ${validation.error}`));
+        process.exit(1);
+      }
+
+      const projectPath = options.project || (await findProjectRoot()) || process.cwd();
 
       console.log(chalk.blue(`Reviewing spec: ${resolvedSpecFile}`));
 
