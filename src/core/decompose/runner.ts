@@ -282,7 +282,8 @@ async function reviseTasksWithFeedback(
 1. Read the original PRD requirements
 2. Review the current tasks JSON
 3. Apply the reviewer's feedback to fix ALL issues
-4. Output ONLY the corrected JSON - no explanations
+4. Apply task grouping suggestions (see below)
+5. Output ONLY the corrected JSON - no explanations
 
 ## ORIGINAL PRD
 <prd>
@@ -300,14 +301,31 @@ ${JSON.stringify(feedback, null, 2)}
 </feedback>
 
 ## REQUIREMENTS
-- Fix ALL issues identified in the feedback
+- Fix ALL issues identified in the feedback (missingRequirements, contradictions, dependencyErrors, duplicates)
 - Keep task IDs stable where possible (don't renumber unless necessary)
 - Ensure all PRD requirements have corresponding tasks
 - Ensure all dependencies reference valid task IDs
 - Remove duplicate tasks
-- Output ONLY valid JSON in the same format as the input tasks
 
-OUTPUT THE CORRECTED JSON ONLY. NO MARKDOWN, NO EXPLANATIONS.`;
+## TASK GROUPING (IMPORTANT)
+If the feedback contains \`taskGroupings\`, you MUST combine those tasks:
+- Merge the grouped task IDs into a SINGLE task
+- Use the FIRST task ID in the group as the merged task's ID
+- Combine acceptance criteria from all grouped tasks (remove duplicates)
+- Combine test cases from all grouped tasks (remove duplicates)
+- Update the title and description to reflect the combined scope
+- Set complexity to the grouping's complexity value (usually "low")
+- Update any tasks that depended on the removed task IDs to depend on the merged task ID
+- DELETE the other tasks in the group (they are now part of the merged task)
+
+Example: If taskGroupings contains {"taskIds": ["US-001", "US-002", "US-003"], "reason": "...", "complexity": "low"}
+- Keep US-001, merge in acceptance criteria and tests from US-002 and US-003
+- Delete US-002 and US-003 from the userStories array
+- Update any task with dependencies: ["US-002"] to dependencies: ["US-001"]
+
+## OUTPUT
+Output ONLY valid JSON in the same format as the input tasks.
+NO MARKDOWN, NO EXPLANATIONS.`;
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const logPath = join(project.logsDir, `revision_attempt_${attempt}_${timestamp}.log`);
