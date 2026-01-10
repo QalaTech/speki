@@ -16,7 +16,7 @@ import {
   DEPENDENCY_VALIDATION_PROMPT,
   DUPLICATE_DETECTION_PROMPT,
 } from './prompts.js';
-import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SpecReviewVerdict, ReviewFeedback } from '../../types/index.js';
+import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SpecReviewVerdict, ReviewFeedback, CliType } from '../../types/index.js';
 
 export interface SpecReviewOptions {
   /** Timeout in milliseconds (overrides default) */
@@ -27,6 +27,10 @@ export interface SpecReviewOptions {
   goldenStandardPath?: string;
   /** Directory for log files */
   logDir?: string;
+  /** CLI to use for review (claude or codex) */
+  cli?: CliType;
+  /** Callback for progress updates */
+  onProgress?: (message: string) => void;
 }
 
 interface PromptDefinition {
@@ -104,6 +108,7 @@ function createErrorResult(
 
 interface RunPromptOptions {
   disableTools?: boolean;
+  cli?: CliType;
 }
 
 async function runPrompt(
@@ -114,7 +119,8 @@ async function runPrompt(
   options: RunPromptOptions = {}
 ): Promise<FocusedPromptResult> {
   const startTime = Date.now();
-  const claudePath = resolveCliPath('claude');
+  const cliType = options.cli ?? 'claude';
+  const cliPath = resolveCliPath(cliType);
   const args = ['--dangerously-skip-permissions', '--print', '--output-format', 'text'];
 
   if (options.disableTools) {
@@ -125,7 +131,7 @@ async function runPrompt(
     let stdout = '';
     let timedOut = false;
 
-    const claude = spawn(claudePath, args, {
+    const cliProcess = spawn(cliPath, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
@@ -137,17 +143,17 @@ async function runPrompt(
 
     const timeoutId = setTimeout(() => {
       timedOut = true;
-      claude.kill('SIGTERM');
+      cliProcess.kill('SIGTERM');
     }, timeoutMs);
 
-    claude.stdout.on('data', (chunk: Buffer) => {
+    cliProcess.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
     });
 
-    claude.stdin.write(fullPrompt);
-    claude.stdin.end();
+    cliProcess.stdin.write(fullPrompt);
+    cliProcess.stdin.end();
 
-    claude.on('close', () => {
+    cliProcess.on('close', () => {
       clearTimeout(timeoutId);
       const durationMs = Date.now() - startTime;
 
@@ -159,10 +165,10 @@ async function runPrompt(
       resolve(parsePromptResponse(promptDef, stdout, durationMs));
     });
 
-    claude.on('error', () => {
+    cliProcess.on('error', () => {
       clearTimeout(timeoutId);
       const durationMs = Date.now() - startTime;
-      resolve(createErrorResult(promptDef, 'Failed to spawn Claude CLI', '', durationMs));
+      resolve(createErrorResult(promptDef, `Failed to spawn ${cliType} CLI`, '', durationMs));
     });
   });
 }
@@ -254,6 +260,7 @@ export async function runSpecReview(
   const cwd = options.cwd ?? process.cwd();
   const timeoutMs = options.timeoutMs ?? getReviewTimeout();
   const logDir = options.logDir ?? join(cwd, '.ralph', 'logs');
+  const onProgress = options.onProgress ?? (() => {});
 
   await fs.mkdir(logDir, { recursive: true });
 
@@ -262,12 +269,17 @@ export async function runSpecReview(
   const goldenStandard = await loadGoldenStandard(cwd, options.goldenStandardPath);
   const codebaseContext = await gatherCodebaseContext(dirname(specPath));
 
+  onProgress(`Loaded spec: ${specBasename}`);
+  onProgress(`Running ${STANDALONE_PROMPTS.length} review prompts...`);
+
   const promptTimeoutMs = Math.floor(timeoutMs / STANDALONE_PROMPTS.length);
   const results: FocusedPromptResult[] = [];
 
   for (const promptDef of STANDALONE_PROMPTS) {
+    onProgress(`Running ${promptDef.name}...`);
     const fullPrompt = buildPrompt(promptDef.template, specContent, codebaseContext, goldenStandard);
-    const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs);
+    const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, { cli: options.cli });
+    onProgress(`${promptDef.name}: ${result.verdict} (${result.durationMs}ms)`);
     results.push(result);
   }
 

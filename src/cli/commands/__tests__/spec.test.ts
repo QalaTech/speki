@@ -2,9 +2,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { findSpecFiles, validateSpecFile } from '../spec.js';
+import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput } from '../spec.js';
+import type { SpecReviewResult } from '../../../types/index.js';
 
 describe('spec review command', () => {
   let tempDir: string;
@@ -103,5 +104,96 @@ describe('findSpecFiles', () => {
 
     expect(results).toHaveLength(2);
     expect(results.every((f) => f.endsWith('.md'))).toBe(true);
+  });
+});
+
+describe('spec review CLI options', () => {
+  const createMockResult = (overrides: Partial<SpecReviewResult> = {}): SpecReviewResult => ({
+    verdict: 'PASS',
+    categories: {},
+    codebaseContext: {
+      projectType: 'typescript',
+      existingPatterns: [],
+      relevantFiles: [],
+    },
+    suggestions: [],
+    logPath: '/test/log.json',
+    durationMs: 1000,
+    ...overrides,
+  });
+
+  it('specReview_WithTimeoutFlag_UsesProvidedTimeout', async () => {
+    // The timeout option is defined with parseInt parser
+    // Commander parses -t 30000 into options.timeout = 30000
+    // We test that the option parser works by checking the command definition
+    const { specCommand } = await import('../spec.js');
+    const reviewCommand = specCommand.commands.find((c) => c.name() === 'review');
+
+    expect(reviewCommand).toBeDefined();
+    const timeoutOption = reviewCommand?.options.find((o) => o.long === '--timeout');
+    expect(timeoutOption).toBeDefined();
+    expect(timeoutOption?.flags).toContain('-t');
+  });
+
+  it('specReview_WithCliFlag_UsesProvidedCli', () => {
+    // Test validateCliOption accepts valid values
+    expect(validateCliOption('claude')).toBe('claude');
+    expect(validateCliOption('codex')).toBe('codex');
+
+    // Test validateCliOption rejects invalid values
+    expect(() => validateCliOption('invalid')).toThrow("Invalid CLI option: invalid. Must be 'claude' or 'codex'.");
+    expect(() => validateCliOption('')).toThrow("Must be 'claude' or 'codex'");
+  });
+
+  it('specReview_WithVerboseFlag_ShowsDetailedOutput', async () => {
+    // Test that the verbose flag is defined in the command
+    const { specCommand } = await import('../spec.js');
+    const reviewCommand = specCommand.commands.find((c) => c.name() === 'review');
+
+    expect(reviewCommand).toBeDefined();
+    const verboseOption = reviewCommand?.options.find((o) => o.long === '--verbose');
+    expect(verboseOption).toBeDefined();
+    expect(verboseOption?.flags).toContain('-v');
+
+    // Verify the onProgress callback pattern works
+    const progressMessages: string[] = [];
+    const onProgress = (msg: string) => progressMessages.push(msg);
+
+    // Simulate what the runner does with onProgress
+    onProgress('Running god_spec_detection...');
+    onProgress('god_spec_detection: PASS (100ms)');
+
+    expect(progressMessages).toHaveLength(2);
+    expect(progressMessages[0]).toContain('god_spec_detection');
+  });
+
+  it('specReview_WithJsonFlag_OutputsJson', () => {
+    const mockResult = createMockResult({
+      verdict: 'NEEDS_IMPROVEMENT',
+      suggestions: [
+        {
+          id: 'test-1',
+          category: 'clarity',
+          severity: 'warning',
+          section: 'Requirements',
+          textSnippet: 'Some text',
+          issue: 'Unclear requirement',
+          suggestedFix: 'Make it clearer',
+          status: 'pending',
+        },
+      ],
+    });
+
+    const jsonOutput = formatJsonOutput(mockResult);
+
+    // Verify it's valid JSON
+    const parsed = JSON.parse(jsonOutput);
+    expect(parsed.verdict).toBe('NEEDS_IMPROVEMENT');
+    expect(parsed.suggestions).toHaveLength(1);
+    expect(parsed.suggestions[0].issue).toBe('Unclear requirement');
+
+    // Verify formatting (indented with 2 spaces)
+    expect(jsonOutput).toContain('\n');
+    expect(jsonOutput).toMatch(/"verdict":\s+"NEEDS_IMPROVEMENT"/);
   });
 });

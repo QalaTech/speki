@@ -8,6 +8,7 @@ import { Command } from 'commander';
 
 import { findProjectRoot } from '../../core/project.js';
 import { runSpecReview } from '../../core/spec-review/runner.js';
+import type { CliType, SpecReviewResult } from '../../types/index.js';
 
 export interface SpecFileValidationResult {
   valid: boolean;
@@ -92,11 +93,43 @@ function getSeverityColor(severity: string): (text: string) => string {
 export const specCommand = new Command('spec')
   .description('Spec review and validation commands');
 
+export function validateCliOption(value: string): CliType {
+  if (value !== 'claude' && value !== 'codex') {
+    throw new Error(`Invalid CLI option: ${value}. Must be 'claude' or 'codex'.`);
+  }
+  return value;
+}
+
+export function formatJsonOutput(result: SpecReviewResult): string {
+  return JSON.stringify(result, null, 2);
+}
+
+export function formatHumanOutput(result: SpecReviewResult): void {
+  const verdictColor = getVerdictColor(result.verdict);
+  console.log(`\nVerdict: ${verdictColor(result.verdict)}`);
+
+  if (result.suggestions && result.suggestions.length > 0) {
+    console.log(chalk.bold('\nSuggestions:'));
+    for (const suggestion of result.suggestions) {
+      const severityColor = getSeverityColor(suggestion.severity);
+      console.log(`  ${severityColor(`[${suggestion.severity}]`)} ${suggestion.issue}`);
+      console.log(`    ${chalk.gray(suggestion.suggestedFix)}`);
+    }
+  }
+
+  if (result.logPath) {
+    console.log(chalk.gray(`\nDetailed log: ${result.logPath}`));
+  }
+}
+
 specCommand
   .command('review [spec-file]')
   .description('Review a specification file for quality and completeness')
   .option('-p, --project <path>', 'Project path (defaults to current directory)')
   .option('-t, --timeout <ms>', 'Timeout in milliseconds', parseInt)
+  .option('-c, --cli <cli>', 'CLI to use (claude or codex)', validateCliOption)
+  .option('-v, --verbose', 'Show detailed progress output')
+  .option('-j, --json', 'Output machine-readable JSON')
   .action(async (specFile: string | undefined, options) => {
     try {
       const projectPath = options.project || (await findProjectRoot()) || process.cwd();
@@ -120,27 +153,25 @@ specCommand
         }
       }
 
-      console.log(chalk.blue(`Reviewing spec: ${resolvedSpecFile}`));
+      if (!options.json) {
+        console.log(chalk.blue(`Reviewing spec: ${resolvedSpecFile}`));
+      }
+
+      const onProgress = options.verbose && !options.json
+        ? (message: string) => console.log(chalk.gray(`  ${message}`))
+        : undefined;
 
       const result = await runSpecReview(resolvedSpecFile, {
         cwd: projectPath,
         timeoutMs: options.timeout,
+        cli: options.cli,
+        onProgress,
       });
 
-      const verdictColor = getVerdictColor(result.verdict);
-      console.log(`\nVerdict: ${verdictColor(result.verdict)}`);
-
-      if (result.suggestions && result.suggestions.length > 0) {
-        console.log(chalk.bold('\nSuggestions:'));
-        for (const suggestion of result.suggestions) {
-          const severityColor = getSeverityColor(suggestion.severity);
-          console.log(`  ${severityColor(`[${suggestion.severity}]`)} ${suggestion.issue}`);
-          console.log(`    ${chalk.gray(suggestion.suggestedFix)}`);
-        }
-      }
-
-      if (result.logPath) {
-        console.log(chalk.gray(`\nDetailed log: ${result.logPath}`));
+      if (options.json) {
+        console.log(formatJsonOutput(result));
+      } else {
+        formatHumanOutput(result);
       }
 
       if (result.verdict === 'FAIL') {
