@@ -69,24 +69,17 @@ function extractSplitProposal(
     return undefined;
   }
 
-  // Parse the split proposal from suggestions if present
-  // The god spec prompt is expected to include split proposal details in its suggestions
   const splitSuggestion = godSpecResult.suggestions.find(
     (s) => s.category.toLowerCase().includes('split') || s.issue.toLowerCase().includes('split')
   );
 
-  if (splitSuggestion) {
-    return {
-      originalFile,
-      reason: splitSuggestion.issue,
-      proposedSpecs: [], // Actual proposed specs would be parsed from the response
-    };
-  }
+  const reason = splitSuggestion?.issue
+    ?? godSpecResult.issues[0]
+    ?? 'Spec detected as too large or complex';
 
-  // Fallback: create a basic split proposal from the result
   return {
     originalFile,
-    reason: godSpecResult.issues[0] ?? 'Spec detected as too large or complex',
+    reason,
     proposedSpecs: [],
   };
 }
