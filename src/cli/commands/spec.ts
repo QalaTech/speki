@@ -1,9 +1,13 @@
-import { Command } from 'commander';
-import chalk from 'chalk';
-import { resolve } from 'path';
 import { existsSync } from 'fs';
-import { runSpecReview } from '../../core/spec-review/runner.js';
+import { readdir, stat } from 'fs/promises';
+import { join, relative, resolve } from 'path';
+
+import { select } from '@inquirer/prompts';
+import chalk from 'chalk';
+import { Command } from 'commander';
+
 import { findProjectRoot } from '../../core/project.js';
+import { runSpecReview } from '../../core/spec-review/runner.js';
 
 export interface SpecFileValidationResult {
   valid: boolean;
@@ -20,6 +24,45 @@ export function validateSpecFile(filePath: string): SpecFileValidationResult {
   }
 
   return { valid: true };
+}
+
+const SPEC_SEARCH_DIRECTORIES = ['specs', 'docs', '.ralph/specs', '.'];
+
+export async function findSpecFiles(baseDir: string): Promise<string[]> {
+  const results: string[] = [];
+
+  for (const dir of SPEC_SEARCH_DIRECTORIES) {
+    const fullPath = join(baseDir, dir);
+    const dirStat = existsSync(fullPath) ? await stat(fullPath) : null;
+
+    if (!dirStat?.isDirectory()) {
+      continue;
+    }
+
+    const entries = await readdir(fullPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.md')) {
+        results.push(join(fullPath, entry.name));
+      }
+    }
+  }
+
+  return results;
+}
+
+async function showFilePicker(specFiles: string[], baseDir: string): Promise<string> {
+  const choices = specFiles.map((filePath) => {
+    const relativePath = relative(baseDir, filePath);
+    return {
+      name: relativePath,
+      value: filePath,
+    };
+  });
+
+  return select({
+    message: 'Select a spec file to review:',
+    choices,
+  });
 }
 
 function getVerdictColor(verdict: string): (text: string) => string {
@@ -50,21 +93,32 @@ export const specCommand = new Command('spec')
   .description('Spec review and validation commands');
 
 specCommand
-  .command('review <spec-file>')
+  .command('review [spec-file]')
   .description('Review a specification file for quality and completeness')
   .option('-p, --project <path>', 'Project path (defaults to current directory)')
   .option('-t, --timeout <ms>', 'Timeout in milliseconds', parseInt)
-  .action(async (specFile, options) => {
+  .action(async (specFile: string | undefined, options) => {
     try {
-      const resolvedSpecFile = resolve(process.cwd(), specFile);
-
-      const validation = validateSpecFile(resolvedSpecFile);
-      if (!validation.valid) {
-        console.error(chalk.red(`Error: ${validation.error}`));
-        process.exit(1);
-      }
-
       const projectPath = options.project || (await findProjectRoot()) || process.cwd();
+      let resolvedSpecFile: string;
+
+      if (!specFile) {
+        const specFiles = await findSpecFiles(projectPath);
+        if (specFiles.length === 0) {
+          console.error(chalk.red('No markdown files found in specs/, docs/, .ralph/specs/, or current directory'));
+          process.exit(1);
+        }
+
+        resolvedSpecFile = await showFilePicker(specFiles, projectPath);
+      } else {
+        resolvedSpecFile = resolve(process.cwd(), specFile);
+
+        const validation = validateSpecFile(resolvedSpecFile);
+        if (!validation.valid) {
+          console.error(chalk.red(`Error: ${validation.error}`));
+          process.exit(1);
+        }
+      }
 
       console.log(chalk.blue(`Reviewing spec: ${resolvedSpecFile}`));
 
