@@ -17,6 +17,13 @@ vi.mock('../../cli-path.js', () => ({ resolveCliPath: vi.fn(() => 'claude') }));
 vi.mock('../codebase-context.js', () => ({ gatherCodebaseContext: vi.fn() }));
 vi.mock('../aggregator.js', () => ({ aggregateResults: vi.fn() }));
 vi.mock('../timeout.js', () => ({ getReviewTimeout: vi.fn(() => 600000) }));
+vi.mock('../review-logger.js', () => ({
+  saveReviewLog: vi.fn(() => Promise.resolve({
+    logFile: '/test/project/.ralph/logs/spec_review_test.log',
+    promptsDir: '/test/project/.ralph/logs/spec_review_test.prompts',
+    jsonFile: '/test/project/.ralph/logs/spec_review_test.json',
+  })),
+}));
 
 import { promises as fs } from 'fs';
 import { gatherCodebaseContext } from '../codebase-context.js';
@@ -352,7 +359,6 @@ That's my assessment.`;
 }
 \`\`\``;
 
-    let promptIndex = 0;
     vi.mocked(spawn).mockImplementation(() => {
       const proc = createMockProcess();
       mockProcesses.push(proc);

@@ -5,6 +5,7 @@ import { resolveCliPath } from '../cli-path.js';
 import { gatherCodebaseContext } from './codebase-context.js';
 import { aggregateResults } from './aggregator.js';
 import { getReviewTimeout } from './timeout.js';
+import { saveReviewLog } from './review-logger.js';
 import {
   GOD_SPEC_DETECTION_PROMPT,
   REQUIREMENTS_COMPLETENESS_PROMPT,
@@ -274,27 +275,27 @@ export async function runSpecReview(
 
   const promptTimeoutMs = Math.floor(timeoutMs / STANDALONE_PROMPTS.length);
   const results: FocusedPromptResult[] = [];
+  const prompts: Array<{ name: string; fullPrompt: string }> = [];
 
   for (const promptDef of STANDALONE_PROMPTS) {
     onProgress(`Running ${promptDef.name}...`);
     const fullPrompt = buildPrompt(promptDef.template, specContent, codebaseContext, goldenStandard);
+    prompts.push({ name: promptDef.name, fullPrompt });
     const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, { cli: options.cli });
     onProgress(`${promptDef.name}: ${result.verdict} (${result.durationMs}ms)`);
     results.push(result);
   }
 
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const logPath = join(logDir, `spec-review-${specBasename}-${timestamp}.json`);
-  const aggregatedResult = aggregateResults(results, codebaseContext, logPath, specPath);
+  const aggregatedResult = aggregateResults(results, codebaseContext, '', specPath);
 
-  await fs.writeFile(logPath, JSON.stringify({
+  const logPaths = await saveReviewLog(logDir, {
     specPath,
-    timestamp: new Date().toISOString(),
     promptResults: results,
     aggregatedResult,
-  }, null, 2));
+    prompts,
+  });
 
-  return aggregatedResult;
+  return { ...aggregatedResult, logPath: logPaths.jsonFile };
 }
 
 export interface DecomposeReviewOptions {
