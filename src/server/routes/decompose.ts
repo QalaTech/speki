@@ -357,16 +357,47 @@ router.post('/activate', async (req, res) => {
     }
 
     const content = await fs.readFile(state.draftFile, 'utf-8');
-    const prd = JSON.parse(content) as PRDData;
-    const storyCount = prd.userStories?.length || 0;
+    const draft = JSON.parse(content) as PRDData;
+    const newTasks = draft.userStories || [];
 
-    await req.project!.savePRD(prd);
+    if (newTasks.length === 0) {
+      return res.status(400).json({ error: 'No tasks in draft to activate' });
+    }
 
-    // Clear tasks from the draft file after activation
-    prd.userStories = [];
-    await fs.writeFile(state.draftFile, JSON.stringify(prd, null, 2));
+    // Load existing PRD to merge with
+    let existingPrd = await req.project!.loadPRD();
 
-    res.json({ success: true, storyCount });
+    if (existingPrd) {
+      // Merge: add new tasks that don't already exist
+      const existingIds = new Set(existingPrd.userStories.map(s => s.id));
+      const tasksToAdd = newTasks.filter(t => !existingIds.has(t.id));
+
+      if (tasksToAdd.length === 0) {
+        return res.json({
+          success: true,
+          storyCount: 0,
+          message: 'All tasks already exist in PRD',
+        });
+      }
+
+      existingPrd.userStories.push(...tasksToAdd);
+      await req.project!.savePRD(existingPrd);
+
+      // Clear tasks from the draft file after activation
+      draft.userStories = [];
+      await fs.writeFile(state.draftFile, JSON.stringify(draft, null, 2));
+
+      res.json({ success: true, storyCount: tasksToAdd.length });
+    } else {
+      // No existing PRD - use draft as the new PRD
+      await req.project!.savePRD(draft);
+
+      // Clear tasks from the draft file after activation
+      draft.userStories = [];
+      await fs.writeFile(state.draftFile, JSON.stringify(draft, null, 2));
+
+      res.json({ success: true, storyCount: newTasks.length });
+    }
   } catch (error) {
     res.status(500).json({
       error: 'Failed to activate draft',
@@ -448,7 +479,7 @@ router.post('/start', async (req, res) => {
 
 /**
  * POST /api/decompose/approve
- * Approve the current decomposition draft
+ * Approve the current decomposition draft (merges with existing PRD)
  */
 router.post('/approve', async (req, res) => {
   try {
@@ -458,12 +489,28 @@ router.post('/approve', async (req, res) => {
       return res.status(400).json({ error: 'No draft to approve' });
     }
 
-    // Load draft and save as active PRD
-    const { promises: fs } = await import('fs');
+    // Load draft
     const content = await fs.readFile(state.draftFile, 'utf-8');
-    const prd = JSON.parse(content);
+    const draft = JSON.parse(content) as PRDData;
+    const newTasks = draft.userStories || [];
 
-    await req.project!.savePRD(prd);
+    // Load existing PRD to merge with
+    let existingPrd = await req.project!.loadPRD();
+    let addedCount = 0;
+
+    if (existingPrd) {
+      // Merge: add new tasks that don't already exist
+      const existingIds = new Set(existingPrd.userStories.map(s => s.id));
+      const tasksToAdd = newTasks.filter(t => !existingIds.has(t.id));
+      addedCount = tasksToAdd.length;
+
+      existingPrd.userStories.push(...tasksToAdd);
+      await req.project!.savePRD(existingPrd);
+    } else {
+      // No existing PRD - use draft as the new PRD
+      await req.project!.savePRD(draft);
+      addedCount = newTasks.length;
+    }
 
     // Update state
     await req.project!.saveDecomposeState({
@@ -472,7 +519,7 @@ router.post('/approve', async (req, res) => {
       message: 'Decomposition approved and activated',
     });
 
-    res.json({ success: true, storyCount: prd.userStories?.length || 0 });
+    res.json({ success: true, storyCount: addedCount });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to approve decomposition',

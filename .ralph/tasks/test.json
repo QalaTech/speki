@@ -1,0 +1,8 @@
+{
+  "projectName": "Qala Ralph - Add Readme Please",
+  "branchName": "ralph/feature",
+  "language": "nodejs",
+  "standardsFile": ".ralph/standards/nodejs.md",
+  "description": "Add a new readme_please.md file to the repository root containing hello world content",
+  "userStories": []
+}

@@ -1,0 +1,8 @@
+{
+  "status": "COMPLETED",
+  "message": "Decomposition complete",
+  "prdFile": "/Users/davidturner/dev/qala-ralph/specs/test.md",
+  "startedAt": "2026-01-10T15:58:24.995Z",
+  "draftFile": "/Users/davidturner/dev/qala-ralph/.ralph/tasks/test.json",
+  "verdict": "PASS"
+}
