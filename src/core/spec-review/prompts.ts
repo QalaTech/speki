@@ -332,3 +332,252 @@ ${buildVerdictGuidelines({
 })}
 
 ${CLOSING_INSTRUCTION}`;
+
+
+// =============================================================================
+// DECOMPOSE REVIEW PROMPTS (FR-6)
+// These prompts compare spec document against generated tasks JSON.
+// They run WITHOUT tools - pure document comparison.
+// =============================================================================
+
+/**
+ * Builds the common spec/tasks context header used by decompose review prompts.
+ */
+function buildDecomposeContextHeader(): string {
+  return `## SPEC CONTENT
+{specContent}
+
+## GENERATED TASKS JSON
+{tasksJson}`;
+}
+
+/**
+ * Builds the standard decompose review output format.
+ */
+function buildDecomposeOutputFormat(promptName: string, category: string): string {
+  return `## EXPECTED OUTPUT FORMAT
+Return a JSON object with this exact structure:
+
+\`\`\`json
+{
+  "verdict": "PASS" | "FAIL",
+  "promptName": "${promptName}",
+  "category": "${category}",
+  "issues": [
+    {
+      "id": "unique-id",
+      "severity": "critical" | "warning" | "info",
+      "description": "Description of the issue",
+      "specSection": "Section in spec where requirement is defined",
+      "affectedTasks": ["US-001", "US-002"],
+      "suggestedFix": "How to resolve this issue"
+    }
+  ],
+  "summary": "Brief summary of findings",
+  "durationMs": 0
+}
+\`\`\``;
+}
+
+
+/**
+ * Builds severity classification for decompose review prompts.
+ */
+function buildDecomposeSeveritySection(descriptions: {
+  critical: string;
+  warning: string;
+  info: string;
+}): string {
+  return `### Severity Classification
+- **Critical**: ${descriptions.critical}
+- **Warning**: ${descriptions.warning}
+- **Info**: ${descriptions.info}`;
+}
+
+/**
+ * Builds verdict guidelines for decompose review prompts (PASS/FAIL only).
+ */
+function buildDecomposeVerdictGuidelines(descriptions: {
+  pass: string;
+  fail: string;
+}): string {
+  return `### Verdict Guidelines
+- **PASS**: ${descriptions.pass}
+- **FAIL**: ${descriptions.fail}`;
+}
+
+/**
+ * MISSING_REQUIREMENTS_PROMPT - Detects requirements in spec not covered by tasks
+ *
+ * Compares spec requirements against generated tasks to find gaps
+ */
+export const MISSING_REQUIREMENTS_PROMPT = `You are analyzing a specification document against a set of generated tasks. Your goal is to identify any requirements in the spec that are NOT covered by the generated tasks.
+
+${buildDecomposeContextHeader()}
+
+## RULES FOR EVALUATION
+
+### Completeness Checks
+1. **Functional Requirements**: Every functional requirement in the spec must have at least one task addressing it
+2. **Acceptance Criteria**: All acceptance criteria listed in the spec must be covered by task acceptance criteria
+3. **Edge Cases**: Error handling, validation, and edge cases mentioned in spec must have corresponding tasks
+4. **Non-Functional Requirements**: Performance, security, and other non-functional requirements must be addressed
+5. **Integration Points**: All integration requirements must have tasks
+
+### How to Identify Missing Coverage
+1. Parse each requirement section in the spec
+2. For each requirement, search for tasks that explicitly address it
+3. Check if task acceptance criteria collectively cover spec requirements
+4. Flag requirements with no matching task coverage
+
+${buildDecomposeSeveritySection({
+  critical: 'Core functionality requirement not covered by any task',
+  warning: 'Secondary requirement or edge case missing coverage',
+  info: 'Nice-to-have or implicit requirement not explicitly tasked',
+})}
+
+${buildDecomposeOutputFormat('missing_requirements', 'coverage')}
+
+${buildDecomposeVerdictGuidelines({
+  pass: 'All requirements in spec have corresponding task coverage',
+  fail: 'One or more requirements lack task coverage',
+})}
+
+${CLOSING_INSTRUCTION}`;
+
+/**
+ * CONTRADICTIONS_PROMPT - Detects contradictions between spec and tasks
+ *
+ * Finds where tasks contradict spec requirements or each other
+ */
+export const CONTRADICTIONS_PROMPT = `You are analyzing a specification document against a set of generated tasks. Your goal is to identify any contradictions between the spec and the tasks, or contradictions between tasks themselves.
+
+${buildDecomposeContextHeader()}
+
+## RULES FOR EVALUATION
+
+### Types of Contradictions
+
+#### Spec-Task Contradictions
+1. **Behavioral Conflicts**: Task describes behavior that contradicts spec
+2. **Data Type Mismatches**: Task uses different data types than spec defines
+3. **API Contract Violations**: Task acceptance criteria violates spec's API contracts
+4. **Business Logic Conflicts**: Task implements logic differently than spec requires
+5. **Scope Violations**: Task exceeds or falls short of spec scope
+
+#### Task-Task Contradictions
+1. **Duplicate Responsibilities**: Multiple tasks claim to implement the same thing differently
+2. **Conflicting Outputs**: Tasks produce outputs that would conflict
+3. **Dependency Conflicts**: Task A depends on B, but B's output doesn't match A's input needs
+4. **Ordering Contradictions**: Tasks assume different execution orders that conflict
+
+${buildDecomposeSeveritySection({
+  critical: 'Direct contradiction that would cause implementation failure',
+  warning: 'Inconsistency that could lead to confusion or rework',
+  info: 'Minor discrepancy that should be clarified',
+})}
+
+${buildDecomposeOutputFormat('contradictions', 'consistency')}
+
+${buildDecomposeVerdictGuidelines({
+  pass: 'No contradictions found between spec and tasks or between tasks',
+  fail: 'One or more contradictions detected that need resolution',
+})}
+
+${CLOSING_INSTRUCTION}`;
+
+/**
+ * DEPENDENCY_VALIDATION_PROMPT - Validates task dependencies are correct
+ *
+ * Checks that task dependencies form a valid DAG and match logical requirements
+ */
+export const DEPENDENCY_VALIDATION_PROMPT = `You are analyzing a specification document against a set of generated tasks. Your goal is to validate that task dependencies are correctly defined and form a valid execution order.
+
+${buildDecomposeContextHeader()}
+
+## RULES FOR EVALUATION
+
+### Dependency Correctness
+1. **Missing Dependencies**: Task requires output from another task but doesn't list it as dependency
+2. **Unnecessary Dependencies**: Task lists dependencies it doesn't actually need
+3. **Circular Dependencies**: Tasks form a cycle (A depends on B, B depends on A)
+4. **Implicit Dependencies**: Tasks have implicit ordering requirements not captured in dependencies
+5. **Type Dependencies**: If Task B uses types/interfaces defined in Task A, B must depend on A
+
+### Logical Order Validation
+1. **Foundation First**: Infrastructure/setup tasks should be early with few dependencies
+2. **Feature Flow**: Feature implementation should follow logical build-up order
+3. **Integration Order**: Integration tasks should depend on component tasks
+4. **Test Dependencies**: Test tasks should depend on implementation tasks they test
+
+### Common Issues
+1. **Database before API**: Tasks creating DB entities should precede API tasks using them
+2. **Types before Implementation**: Type definition tasks should precede usage tasks
+3. **Core before Extensions**: Core functionality before optional features
+4. **Setup before Use**: Configuration/setup before dependent features
+
+${buildDecomposeSeveritySection({
+  critical: 'Circular dependency or missing critical dependency that blocks execution',
+  warning: 'Missing dependency that could cause implementation issues',
+  info: 'Unnecessary dependency that could be removed for efficiency',
+})}
+
+${buildDecomposeOutputFormat('dependency_validation', 'dependencies')}
+
+${buildDecomposeVerdictGuidelines({
+  pass: 'All dependencies are valid and form a correct execution DAG',
+  fail: 'Dependency issues found that need correction',
+})}
+
+${CLOSING_INSTRUCTION}`;
+
+/**
+ * DUPLICATE_DETECTION_PROMPT - Detects duplicate or overlapping tasks
+ *
+ * Identifies tasks that implement the same functionality
+ */
+export const DUPLICATE_DETECTION_PROMPT = `You are analyzing a specification document against a set of generated tasks. Your goal is to identify duplicate or significantly overlapping tasks that should be merged.
+
+${buildDecomposeContextHeader()}
+
+## RULES FOR EVALUATION
+
+### Types of Duplication
+
+#### Exact Duplicates
+1. **Same Title/Description**: Tasks with identical or near-identical descriptions
+2. **Same Acceptance Criteria**: Tasks with matching acceptance criteria
+3. **Same Implementation**: Tasks that would implement the same code
+
+#### Overlapping Tasks
+1. **Partial Overlap**: Tasks that both implement parts of the same feature
+2. **Scope Overlap**: Tasks with acceptance criteria that overlap significantly
+3. **Redundant Steps**: Multiple tasks include the same implementation steps
+
+### Analysis Approach
+1. Compare task titles for similarity
+2. Compare acceptance criteria across all tasks
+3. Identify tasks targeting the same files/modules
+4. Look for tasks that both address the same spec requirement
+5. Check for tasks with similar test cases
+
+### Duplication Indicators
+- >70% similarity in acceptance criteria = likely duplicate
+- Same spec section referenced by multiple tasks = potential overlap
+- Identical file paths in multiple tasks = needs review
+- Same API endpoint modified by multiple tasks = potential conflict
+
+${buildDecomposeSeveritySection({
+  critical: 'Exact duplicate tasks that should be removed',
+  warning: 'Significant overlap that should be merged or clarified',
+  info: 'Minor overlap that could be better organized',
+})}
+
+${buildDecomposeOutputFormat('duplicate_detection', 'duplication')}
+
+${buildDecomposeVerdictGuidelines({
+  pass: 'No duplicate or significantly overlapping tasks found',
+  fail: 'Duplicate or overlapping tasks detected that need resolution',
+})}
+
+${CLOSING_INSTRUCTION}`;
