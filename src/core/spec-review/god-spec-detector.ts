@@ -5,9 +5,8 @@
  * too broad, or lacks cohesion and should be split into smaller, focused specs.
  */
 
-import type { CodebaseContext, GodSpecIndicators } from '../../types/index.js';
+import type { CodebaseContext, GodSpecIndicators, ProposedSpec, SplitProposal } from '../../types/index.js';
 
-/** Patterns indicating user journey sections in a spec */
 const USER_JOURNEY_PATTERNS = [
   /\b(?:admin|administrator)\s+(?:workflow|journey|flow)/i,
   /\b(?:end-?user|customer|user)\s+(?:workflow|journey|flow)/i,
@@ -15,7 +14,6 @@ const USER_JOURNEY_PATTERNS = [
   /\b(?:as an?\s+(?:admin|user|developer|customer))/i,
 ];
 
-/** Patterns indicating system boundaries in a spec */
 const SYSTEM_BOUNDARY_PATTERNS = [
   /\b(?:auth|authentication|authorization|login|oauth|sso)/i,
   /\b(?:payment|billing|subscription|stripe|checkout)/i,
@@ -27,7 +25,6 @@ const SYSTEM_BOUNDARY_PATTERNS = [
   /\b(?:external\s+api|third-?party|integration)/i,
 ];
 
-/** Patterns indicating different personas */
 const PERSONA_PATTERNS = [
   /\badmin(?:istrator)?\b/i,
   /\bend-?user\b/i,
@@ -37,9 +34,6 @@ const PERSONA_PATTERNS = [
   /\bsupport\s+(?:team|staff|agent)\b/i,
 ];
 
-/**
- * Counts words in spec content, excluding code blocks and markdown artifacts
- */
 function countWords(content: string): number {
   const withoutCodeBlocks = content.replace(/```[\s\S]*?```/g, '');
   const withoutInlineCode = withoutCodeBlocks.replace(/`[^`]+`/g, '');
@@ -47,42 +41,35 @@ function countWords(content: string): number {
   return words.length;
 }
 
-/**
- * Counts feature sections in spec content (## level headers that indicate features)
- */
 function countFeatureSections(content: string): number {
   const featureHeaders =
     content.match(/^##\s+(?!Table of Contents|Overview|Background|Context|Introduction|Glossary|References|Appendix)/gim) || [];
   return featureHeaders.length;
 }
 
-/**
- * Estimates the number of user stories that would result from decomposing the spec
- */
 export function estimateStoryCount(content: string): number {
-  let estimate = 0;
-
-  const acceptanceCriteria = content.match(/^[-*]\s+(?:Given|When|Then|Should|Must|Can|Will)/gim) || [];
-  estimate += acceptanceCriteria.length;
-
-  const requirements = content.match(/^[-*]\s+(?:The system|Users?|Admin)/gim) || [];
-  estimate += requirements.length;
-
-  const numberedItems = content.match(/^\d+\.\s+\S/gm) || [];
-  estimate += Math.ceil(numberedItems.length * 0.5);
-
+  const indicatorEstimate = countStoryIndicators(content);
   const featureSections = countFeatureSections(content);
-  estimate += featureSections * 2;
-
+  const featureEstimate = featureSections * 2;
+  
   const wordCount = countWords(content);
   const lengthBasedEstimate = Math.ceil(wordCount / 200);
 
-  return Math.max(estimate, lengthBasedEstimate, 1);
+  return Math.max(indicatorEstimate + featureEstimate, lengthBasedEstimate, 1);
 }
 
-/**
- * Identifies distinct feature domains in the spec
- */
+const ACCEPTANCE_CRITERIA_PATTERN = /^[-*]\s+(?:Given|When|Then|Should|Must|Can|Will)/gim;
+const REQUIREMENTS_PATTERN = /^[-*]\s+(?:The system|Users?|Admin)/gim;
+const NUMBERED_ITEMS_PATTERN = /^\d+\.\s+\S/gm;
+
+function countStoryIndicators(content: string): number {
+  const acceptanceCriteria = content.match(ACCEPTANCE_CRITERIA_PATTERN) || [];
+  const requirements = content.match(REQUIREMENTS_PATTERN) || [];
+  const numberedItems = content.match(NUMBERED_ITEMS_PATTERN) || [];
+
+  return acceptanceCriteria.length + requirements.length + Math.ceil(numberedItems.length * 0.5);
+}
+
 function identifyFeatureDomains(content: string): string[] {
   const domains = new Set<string>();
   const headers = content.match(/^##\s+(.+)$/gm) || [];
@@ -98,9 +85,6 @@ function identifyFeatureDomains(content: string): string[] {
   return Array.from(domains);
 }
 
-/**
- * Identifies system boundaries touched by the spec
- */
 function identifySystemBoundaries(content: string): string[] {
   const boundaries = new Set<string>();
 
@@ -115,9 +99,17 @@ function identifySystemBoundaries(content: string): string[] {
   return Array.from(boundaries);
 }
 
-/**
- * Counts distinct user journeys in the spec
- */
+function findPersonaMatches(content: string): Set<string> {
+  const personaMatches = new Set<string>();
+  for (const pattern of PERSONA_PATTERNS) {
+    const matches = content.match(pattern);
+    if (matches) {
+      personaMatches.add(matches[0].toLowerCase());
+    }
+  }
+  return personaMatches;
+}
+
 function countUserJourneys(content: string): number {
   let journeyCount = 0;
 
@@ -127,20 +119,10 @@ function countUserJourneys(content: string): number {
     }
   }
 
-  const personaMatches = new Set<string>();
-  for (const pattern of PERSONA_PATTERNS) {
-    const matches = content.match(pattern);
-    if (matches) {
-      personaMatches.add(matches[0].toLowerCase());
-    }
-  }
-
+  const personaMatches = findPersonaMatches(content);
   return Math.max(journeyCount, personaMatches.size > 2 ? personaMatches.size : 0);
 }
 
-/**
- * Checks if the spec has a clear definition of done
- */
 function hasDefinitionOfDone(content: string): boolean {
   const donePatterns = [
     /\bdefinition\s+of\s+done\b/i,
@@ -174,9 +156,6 @@ interface CohesionIndicators {
   triggered: string[];
 }
 
-/**
- * Checks size indicators per PRD rules
- */
 function checkSizeIndicators(content: string): SizeIndicators {
   const sectionCount = countFeatureSections(content);
   const wordCount = countWords(content);
@@ -196,9 +175,6 @@ function checkSizeIndicators(content: string): SizeIndicators {
   return { sectionCount, wordCount, estimatedStories, triggered };
 }
 
-/**
- * Checks scope indicators per PRD rules
- */
 function checkScopeIndicators(content: string): ScopeIndicators {
   const userJourneys = countUserJourneys(content);
   const systemBoundaries = identifySystemBoundaries(content);
@@ -214,20 +190,9 @@ function checkScopeIndicators(content: string): ScopeIndicators {
   return { userJourneys, systemBoundaries, triggered };
 }
 
-/**
- * Checks cohesion indicators per PRD rules
- */
 function checkCohesionIndicators(content: string): CohesionIndicators {
   const hasDoD = hasDefinitionOfDone(content);
-  const personaMatches = new Set<string>();
-
-  for (const pattern of PERSONA_PATTERNS) {
-    const matches = content.match(pattern);
-    if (matches) {
-      personaMatches.add(matches[0].toLowerCase());
-    }
-  }
-
+  const personaMatches = findPersonaMatches(content);
   const personaCount = personaMatches.size;
   const triggered: string[] = [];
 
@@ -269,5 +234,148 @@ export function detectGodSpec(specContent: string, _codebaseContext: CodebaseCon
     estimatedStories: sizeIndicators.estimatedStories,
     featureDomains: identifyFeatureDomains(specContent),
     systemBoundaries: scopeIndicators.systemBoundaries,
+  };
+}
+
+
+export function generateFilename(basename: string, featureName: string): string {
+  const kebabFeature = toKebabCase(featureName);
+  return `${basename}.${kebabFeature}.md`;
+}
+
+function toKebabCase(input: string): string {
+  const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'of', 'for', 'to', 'in', 'on', 'with']);
+
+  const words = input
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .split(/\s+/)
+    .filter((word) => word.length > 0 && !stopWords.has(word))
+    .slice(0, 3);
+
+  if (words.length === 0) {
+    return 'feature';
+  }
+
+  return words.join('-');
+}
+
+function estimateSectionStories(sectionContent: string): number {
+  return Math.max(countStoryIndicators(sectionContent), 2);
+}
+
+function extractSectionContent(content: string, sectionName: string): string {
+  const escapedName = sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^##\\s+${escapedName}[\\s\\S]*?(?=^##\\s|$)`, 'gim');
+  const match = content.match(pattern);
+  return match ? match[0] : '';
+}
+
+function groupRelatedDomains(featureDomains: string[]): string[][] {
+  if (featureDomains.length <= 3) {
+    return featureDomains.map((domain) => [domain]);
+  }
+
+  const groups: string[][] = [];
+  const used = new Set<string>();
+
+  const relationPatterns: [RegExp, string][] = [
+    [/\bauth|login|password|credential|session/i, 'authentication'],
+    [/\buser|profile|account|settings/i, 'user-management'],
+    [/\badmin|management|dashboard|panel/i, 'administration'],
+    [/\bapi|integration|external|webhook/i, 'integration'],
+    [/\bnotif|email|alert|message/i, 'notifications'],
+  ];
+
+  for (const [pattern, _groupName] of relationPatterns) {
+    const relatedDomains = featureDomains.filter(
+      (domain) => pattern.test(domain) && !used.has(domain)
+    );
+
+    if (relatedDomains.length > 0) {
+      groups.push(relatedDomains);
+      relatedDomains.forEach((d) => used.add(d));
+    }
+  }
+
+  const ungrouped = featureDomains.filter((d) => !used.has(d));
+  for (const domain of ungrouped) {
+    groups.push([domain]);
+  }
+
+  return groups;
+}
+
+function generateDescription(sections: string[], specContent: string): string {
+  if (sections.length === 1) {
+    const sectionContent = extractSectionContent(specContent, sections[0]);
+    const firstParagraph = sectionContent
+      .split('\n')
+      .filter((line) => line.trim() && !line.startsWith('#'))
+      .slice(0, 2)
+      .join(' ')
+      .substring(0, 150);
+
+    return firstParagraph || `Handles ${sections[0].toLowerCase()} functionality`;
+  }
+
+  return `Covers ${sections.slice(0, 3).join(', ')}${sections.length > 3 ? ` and ${sections.length - 3} more` : ''}`;
+}
+
+/**
+ * Generates split proposals for a god spec
+ *
+ * @param specContent - The raw markdown content of the spec
+ * @param indicators - The god spec detection results
+ * @param originalFilename - Optional original filename (defaults to 'spec')
+ * @returns A split proposal with suggested smaller specs
+ */
+export function generateSplitProposal(
+  specContent: string,
+  indicators: GodSpecIndicators,
+  originalFilename: string = 'spec'
+): SplitProposal {
+  const basename = originalFilename.replace(/\.md$/i, '').replace(/\.spec$/i, '');
+
+  const reasonParts: string[] = [];
+  if (indicators.estimatedStories > 15) {
+    reasonParts.push(`estimated ${indicators.estimatedStories} stories (threshold: 15)`);
+  }
+  if (indicators.featureDomains.length > 3) {
+    reasonParts.push(`${indicators.featureDomains.length} distinct feature domains`);
+  }
+  if (indicators.indicators.length > 0) {
+    reasonParts.push(indicators.indicators[0]);
+  }
+
+  const reason =
+    reasonParts.length > 0
+      ? `Spec should be split: ${reasonParts.join('; ')}`
+      : 'Spec exceeds recommended complexity thresholds';
+
+  const domainGroups = groupRelatedDomains(indicators.featureDomains);
+
+  const proposedSpecs: ProposedSpec[] = domainGroups.map((sections) => {
+    const featureName = sections[0];
+    const filename = generateFilename(basename, featureName);
+
+    let totalStories = 0;
+    for (const section of sections) {
+      const sectionContent = extractSectionContent(specContent, section);
+      totalStories += estimateSectionStories(sectionContent);
+    }
+
+    return {
+      filename,
+      description: generateDescription(sections, specContent),
+      estimatedStories: totalStories,
+      sections,
+    };
+  });
+
+  return {
+    originalFile: originalFilename,
+    reason,
+    proposedSpecs,
   };
 }

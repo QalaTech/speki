@@ -1,16 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { detectGodSpec, estimateStoryCount } from '../god-spec-detector.js';
-import type { CodebaseContext } from '../../../types/index.js';
+import { detectGodSpec, estimateStoryCount, generateSplitProposal, generateFilename } from '../god-spec-detector.js';
+import type { CodebaseContext, GodSpecIndicators } from '../../../types/index.js';
 
-const createMockCodebaseContext = (): CodebaseContext => ({
-  projectType: 'typescript',
-  existingPatterns: ['MVC', 'Repository'],
-  relevantFiles: ['src/index.ts'],
-});
+function createMockCodebaseContext(): CodebaseContext {
+  return {
+    projectType: 'typescript',
+    existingPatterns: ['MVC', 'Repository'],
+    relevantFiles: ['src/index.ts'],
+  };
+}
 
 describe('detectGodSpec', () => {
-  it('detectGodSpec_WithSmallSpec_ReturnsNotGodSpec', () => {
-    // Arrange
+  it('returns not god spec for small focused spec', () => {
     const smallSpec = `# Simple Feature Spec
 
 ## Overview
@@ -23,17 +24,15 @@ This spec describes a simple login feature.
 `;
     const context = createMockCodebaseContext();
 
-    // Act
     const result = detectGodSpec(smallSpec, context);
 
-    // Assert
     expect(result.isGodSpec).toBe(false);
     expect(result.indicators).toHaveLength(0);
     expect(result.estimatedStories).toBeLessThanOrEqual(15);
   });
 
-  it('detectGodSpec_WithManyFeatureSections_ReturnsGodSpec', () => {
-    // Arrange - spec with >3 feature sections and no definition of done (2 categories)
+  it('returns god spec when many feature sections present', () => {
+    // Spec with >3 feature sections and no definition of done (2 categories)
     const largeSpec = `# Large Product Spec
 
 ## User Authentication
@@ -63,17 +62,15 @@ Admins can manage users.
 `;
     const context = createMockCodebaseContext();
 
-    // Act
     const result = detectGodSpec(largeSpec, context);
 
-    // Assert
     expect(result.isGodSpec).toBe(true);
     expect(result.indicators.some((i) => i.includes('feature sections'))).toBe(true);
     expect(result.featureDomains.length).toBeGreaterThan(3);
   });
 
-  it('detectGodSpec_WithHighEstimatedStories_ReturnsGodSpec', () => {
-    // Arrange - spec that would generate >15 stories and no definition of done
+  it('returns god spec when estimated stories exceed threshold', () => {
+    // Spec that would generate >15 stories and no definition of done
     const storyHeavySpec = `# Feature Rich Spec
 
 ## Main Feature
@@ -108,17 +105,15 @@ Admins can manage users.
 `;
     const context = createMockCodebaseContext();
 
-    // Act
     const result = detectGodSpec(storyHeavySpec, context);
 
-    // Assert
     expect(result.isGodSpec).toBe(true);
     expect(result.indicators.some((i) => i.includes('estimated stories'))).toBe(true);
     expect(result.estimatedStories).toBeGreaterThan(15);
   });
 
-  it('detectGodSpec_WithMultipleUserJourneys_ReturnsGodSpec', () => {
-    // Arrange - spec with multiple user journeys and no definition of done
+  it('returns god spec when multiple user journeys detected', () => {
+    // Spec with multiple user journeys and no definition of done
     const multiJourneySpec = `# Multi-Role System
 
 ## Admin Workflow
@@ -141,16 +136,14 @@ The developer workflow includes:
 `;
     const context = createMockCodebaseContext();
 
-    // Act
     const result = detectGodSpec(multiJourneySpec, context);
 
-    // Assert
     expect(result.isGodSpec).toBe(true);
     expect(result.indicators.some((i) => i.includes('user journeys') || i.includes('personas'))).toBe(true);
   });
 
-  it('detectGodSpec_WithOneIndicator_ReturnsNotGodSpec', () => {
-    // Arrange - spec with only one category triggered (just no DoD)
+  it('returns not god spec when only one indicator category triggered', () => {
+    // Spec with only one category triggered (just no DoD)
     const singleIndicatorSpec = `# Simple Feature
 
 ## Overview
@@ -162,18 +155,14 @@ A focused feature spec.
 `;
     const context = createMockCodebaseContext();
 
-    // Act
     const result = detectGodSpec(singleIndicatorSpec, context);
 
-    // Assert
-    // Only cohesion indicator (no DoD) is triggered
     expect(result.isGodSpec).toBe(false);
-    // May have one indicator from cohesion
     expect(result.indicators.filter((i) => !i.includes('Cohesion')).length).toBeLessThanOrEqual(0);
   });
 
-  it('detectGodSpec_WithTwoIndicators_ReturnsGodSpec', () => {
-    // Arrange - spec with exactly 2 categories triggered: size (>2000 words) and cohesion (no DoD)
+  it('returns god spec when two indicator categories triggered', () => {
+    // Spec with 2 categories triggered: size (>2000 words) and cohesion (no DoD)
     const longSpec = `# Long Feature Spec
 
 ## Main Feature
@@ -190,13 +179,10 @@ ${' Duis aute irure dolor in reprehenderit. '.repeat(100)}
 `;
     const context = createMockCodebaseContext();
 
-    // Act
     const result = detectGodSpec(longSpec, context);
 
-    // Assert
     expect(result.isGodSpec).toBe(true);
     expect(result.indicators.length).toBeGreaterThanOrEqual(2);
-    // Should have both size and cohesion triggers
     const hasSize = result.indicators.some((i) => i.includes('Size:'));
     const hasCohesion = result.indicators.some((i) => i.includes('Cohesion:'));
     expect(hasSize || hasCohesion).toBe(true);
@@ -204,8 +190,7 @@ ${' Duis aute irure dolor in reprehenderit. '.repeat(100)}
 });
 
 describe('estimateStoryCount', () => {
-  it('estimateStoryCount_WithTypicalSpec_ReturnsReasonableEstimate', () => {
-    // Arrange
+  it('returns reasonable estimate for typical spec', () => {
     const typicalSpec = `# User Management Feature
 
 ## Acceptance Criteria
@@ -223,12 +208,155 @@ describe('estimateStoryCount', () => {
 - The system logs authentication attempts
 `;
 
-    // Act
     const estimate = estimateStoryCount(typicalSpec);
 
-    // Assert
-    // Reasonable estimate for this spec would be 5-15 stories
     expect(estimate).toBeGreaterThanOrEqual(5);
     expect(estimate).toBeLessThanOrEqual(20);
+  });
+});
+
+describe('generateSplitProposal', () => {
+  function createMockIndicators(overrides: Partial<GodSpecIndicators> = {}): GodSpecIndicators {
+    return {
+      isGodSpec: true,
+      indicators: ['Size: 5 feature sections (threshold: 3)'],
+      estimatedStories: 20,
+      featureDomains: ['User Authentication', 'User Profile', 'User Settings', 'Admin Panel'],
+      systemBoundaries: ['auth', 'notification'],
+      ...overrides,
+    };
+  }
+
+  it('returns valid proposal for user management spec', () => {
+    const specContent = `# User Management System
+
+## User Authentication
+Users can log in with email and password.
+- Should validate credentials
+- Should handle errors
+
+## User Profile
+Users can view and edit their profile.
+- Should display user info
+- Should allow edits
+
+## User Settings
+Users can configure their preferences.
+- Should toggle notifications
+- Should change theme
+
+## Admin Panel
+Admins can manage all users.
+- Should list users
+- Should ban users
+`;
+    const indicators = createMockIndicators();
+
+    const proposal = generateSplitProposal(specContent, indicators, 'user-management.spec.md');
+
+    expect(proposal.originalFile).toBe('user-management.spec.md');
+    expect(proposal.reason).toBeDefined();
+    expect(proposal.reason.length).toBeGreaterThan(0);
+    expect(proposal.proposedSpecs).toBeDefined();
+    expect(proposal.proposedSpecs.length).toBeGreaterThan(0);
+  });
+
+  it('generates kebab-case filenames', () => {
+    const specContent = `# System Spec
+
+## User Authentication System
+Authentication features.
+- Should validate
+
+## API Integration Layer
+Integration features.
+- Should connect
+`;
+    const indicators = createMockIndicators({
+      featureDomains: ['User Authentication System', 'API Integration Layer'],
+    });
+
+    const proposal = generateSplitProposal(specContent, indicators, 'system.spec.md');
+
+    for (const spec of proposal.proposedSpecs) {
+      expect(spec.filename).toMatch(/^[a-z0-9-]+\.[a-z0-9-]+\.md$/);
+      expect(spec.filename).not.toMatch(/[A-Z]/);
+      expect(spec.filename).not.toMatch(/\s/);
+    }
+  });
+
+  it('includes estimated stories for each proposal', () => {
+    const specContent = `# Feature Spec
+
+## User Management
+- Users can register
+- Users can login
+- Should validate email
+
+## Order Processing
+- Users can create orders
+- Users can cancel orders
+- Should track status
+`;
+    const indicators = createMockIndicators({
+      featureDomains: ['User Management', 'Order Processing'],
+    });
+
+    const proposal = generateSplitProposal(specContent, indicators, 'features.md');
+
+    for (const spec of proposal.proposedSpecs) {
+      expect(spec.estimatedStories).toBeDefined();
+      expect(typeof spec.estimatedStories).toBe('number');
+      expect(spec.estimatedStories).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('includes section references for each proposal', () => {
+    const specContent = `# Platform Spec
+
+## Authentication Module
+Login and registration features.
+- Should validate
+
+## Dashboard Module
+Main user dashboard.
+- Should display
+
+## Settings Module
+User preferences.
+- Should save
+`;
+    const indicators = createMockIndicators({
+      featureDomains: ['Authentication Module', 'Dashboard Module', 'Settings Module'],
+    });
+
+    const proposal = generateSplitProposal(specContent, indicators, 'platform.md');
+
+    for (const spec of proposal.proposedSpecs) {
+      expect(spec.sections).toBeDefined();
+      expect(Array.isArray(spec.sections)).toBe(true);
+      expect(spec.sections.length).toBeGreaterThan(0);
+      for (const section of spec.sections) {
+        expect(typeof section).toBe('string');
+        expect(section.length).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+describe('generateFilename', () => {
+  it('generates correct filename pattern from basename and feature', () => {
+    const testCases = [
+      { basename: 'spec', feature: 'User Authentication', expected: 'spec.user-authentication.md' },
+      { basename: 'my-feature', feature: 'Admin Panel', expected: 'my-feature.admin-panel.md' },
+      { basename: 'system', feature: 'API Integration', expected: 'system.api-integration.md' },
+      { basename: 'feature', feature: 'The Main Feature', expected: 'feature.main-feature.md' },
+      { basename: 'app', feature: 'User Profile Settings Page', expected: 'app.user-profile-settings.md' },
+    ];
+
+    for (const { basename, feature, expected } of testCases) {
+      const result = generateFilename(basename, feature);
+      expect(result).toBe(expected);
+    }
   });
 });
