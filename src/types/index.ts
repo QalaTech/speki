@@ -314,3 +314,242 @@ export interface ReviewFeedback {
    */
   standaloneTasks?: StandaloneTask[];
 }
+
+
+// =============================================================================
+// Spec Review Types (FR-21)
+// =============================================================================
+
+/**
+ * Result verdict for spec review analysis.
+ */
+export type SpecReviewVerdict =
+  | 'PASS'
+  | 'FAIL'
+  | 'NEEDS_IMPROVEMENT'
+  | 'SPLIT_RECOMMENDED';
+
+/**
+ * Severity level for spec review suggestions.
+ */
+export type SuggestionSeverity = 'critical' | 'warning' | 'info';
+
+/**
+ * Status of a suggestion in the review workflow.
+ */
+export type SuggestionStatus = 'pending' | 'approved' | 'rejected' | 'edited';
+
+/**
+ * Status of a spec review session.
+ */
+export type SessionStatus = 'in_progress' | 'completed' | 'needs_attention';
+
+/**
+ * Individual category result from spec review analysis.
+ */
+export interface SpecReviewCategory {
+  /** Category verdict */
+  verdict: SpecReviewVerdict;
+  /** List of issues found in this category */
+  issues: string[];
+}
+
+/**
+ * Result from a single focused prompt execution.
+ */
+export interface FocusedPromptResult {
+  /** Name of the focused prompt */
+  promptName: string;
+  /** Category being analyzed */
+  category: string;
+  /** Result verdict */
+  verdict: SpecReviewVerdict;
+  /** Issues discovered */
+  issues: string[];
+  /** Suggestions generated */
+  suggestions: SuggestionCard[];
+  /** Raw AI response (for debugging) */
+  rawResponse?: string;
+  /** Duration in milliseconds */
+  durationMs: number;
+}
+
+/**
+ * Indicators that a spec may be a "god spec" (too large/complex).
+ */
+export interface GodSpecIndicators {
+  /** Whether this spec is considered a god spec */
+  isGodSpec: boolean;
+  /** Specific indicators that triggered the detection */
+  indicators: string[];
+  /** Estimated number of user stories this spec would generate */
+  estimatedStories: number;
+  /** Distinct feature domains identified in the spec */
+  featureDomains: string[];
+  /** System boundaries that would be affected */
+  systemBoundaries: string[];
+}
+
+/**
+ * Reference to a child spec created from a split.
+ */
+export interface SplitSpecRef {
+  /** Filename of the split spec */
+  filename: string;
+  /** Brief description of what this spec covers */
+  description: string;
+}
+
+/**
+ * Proposed spec from a split operation.
+ */
+export interface ProposedSpec {
+  /** Suggested filename for the new spec */
+  filename: string;
+  /** Description of what this spec covers */
+  description: string;
+  /** Estimated number of user stories */
+  estimatedStories: number;
+  /** Sections/content from original spec to include */
+  sections: string[];
+}
+
+/**
+ * Proposal for splitting a god spec into smaller specs.
+ */
+export interface SplitProposal {
+  /** Original spec file path */
+  originalFile: string;
+  /** Reason for recommending the split */
+  reason: string;
+  /** Proposed new specs */
+  proposedSpecs: ProposedSpec[];
+}
+
+/**
+ * Codebase context gathered for spec review.
+ */
+export interface CodebaseContext {
+  /** Detected project type (e.g., 'typescript', 'python', 'dotnet') */
+  projectType: string;
+  /** Existing patterns/conventions discovered */
+  existingPatterns: string[];
+  /** Files relevant to the spec being reviewed */
+  relevantFiles: string[];
+}
+
+/**
+ * Suggestion card for spec review feedback (FR-21 contract).
+ */
+export interface SuggestionCard {
+  /** Unique identifier */
+  id: string;
+  /** Category of the suggestion (e.g., 'clarity', 'completeness', 'testability') */
+  category: string;
+  /** Severity level */
+  severity: SuggestionSeverity;
+  /** Section of the spec this applies to */
+  section: string;
+  /** Starting line number in the spec */
+  lineStart?: number;
+  /** Ending line number in the spec */
+  lineEnd?: number;
+  /** Text snippet from the spec */
+  textSnippet: string;
+  /** Description of the issue */
+  issue: string;
+  /** Suggested fix */
+  suggestedFix: string;
+  /** Current status */
+  status: SuggestionStatus;
+  /** User's edited version (if status is 'edited') */
+  userVersion?: string;
+  /** ISO timestamp when reviewed */
+  reviewedAt?: string;
+}
+
+/**
+ * Entry in the change history for revert functionality (FR-21 contract).
+ */
+export interface ChangeHistoryEntry {
+  /** Unique identifier */
+  id: string;
+  /** ISO timestamp of the change */
+  timestamp: string;
+  /** Description of what changed */
+  description: string;
+  /** File path that was changed */
+  filePath: string;
+  /** Content before the change */
+  beforeContent: string;
+  /** Content after the change */
+  afterContent: string;
+  /** Whether this change has been reverted */
+  reverted: boolean;
+}
+
+/**
+ * Chat message in the review conversation (FR-21 contract).
+ */
+export interface ChatMessage {
+  /** Unique identifier */
+  id: string;
+  /** Message role */
+  role: 'user' | 'assistant';
+  /** Message content */
+  content: string;
+  /** ISO timestamp */
+  timestamp: string;
+  /** Associated suggestion ID (if responding to a suggestion) */
+  suggestionId?: string;
+}
+
+/**
+ * Session file for spec review state persistence (FR-21 contract).
+ */
+export interface SessionFile {
+  /** Unique session identifier */
+  sessionId: string;
+  /** Path to the spec file being reviewed */
+  specFilePath: string;
+  /** Session status */
+  status: SessionStatus;
+  /** ISO timestamp when session started */
+  startedAt: string;
+  /** ISO timestamp of last update */
+  lastUpdatedAt: string;
+  /** ISO timestamp when completed (if applicable) */
+  completedAt?: string;
+  /** Overall review result */
+  reviewResult?: SpecReviewResult;
+  /** All suggestions generated */
+  suggestions: SuggestionCard[];
+  /** Change history for revert */
+  changeHistory: ChangeHistoryEntry[];
+  /** Chat messages */
+  chatMessages: ChatMessage[];
+  /** Split spec references (if spec was split) */
+  splitSpecs?: SplitSpecRef[];
+  /** Path to the review log file */
+  logPath?: string;
+}
+
+/**
+ * Complete result from a spec review operation.
+ */
+export interface SpecReviewResult {
+  /** Overall verdict */
+  verdict: SpecReviewVerdict;
+  /** Results by category */
+  categories: Record<string, SpecReviewCategory>;
+  /** Split proposal (if verdict is SPLIT_RECOMMENDED) */
+  splitProposal?: SplitProposal;
+  /** Codebase context used for review */
+  codebaseContext: CodebaseContext;
+  /** Generated suggestions */
+  suggestions: SuggestionCard[];
+  /** Path to the review log file */
+  logPath: string;
+  /** Total duration in milliseconds */
+  durationMs: number;
+}

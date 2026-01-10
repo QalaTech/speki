@@ -10,20 +10,40 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 - **API contracts for product-facing APIs are requirements** - if the product exposes a REST API, those contracts define the product surface and must be implemented exactly
 - **You own the implementation** - apply your judgment, follow best practices, and build maintainable code
 
+## Task Management Commands
+
+Use these CLI commands for task operations (instead of editing prd.json directly):
+
+| Command | Description |
+|---------|-------------|
+| `qala tasks next` | Get the next pending task with full context (project, dependencies, blocks, standards) |
+| `qala tasks next --task-only` | Get just the task without context |
+| `qala tasks get <id>` | Get a specific task by ID |
+| `qala tasks complete <id>` | Mark a task as complete |
+| `qala tasks complete <id> --notes "..."` | Mark complete with notes |
+| `qala tasks deps <id>` | Show dependencies and their status |
+| `qala tasks list` | List all tasks |
+| `qala tasks list --pending` | List only pending tasks |
+
+---
+
 ## Your Task (Every Iteration)
 
-1. **Read current task context:**
+1. **Get current task:**
 
-   Read `.ralph/current-task.json` which contains:
+   Run `qala tasks next` to get the next task with full context:
+   ```bash
+   qala tasks next
+   ```
 
+   This returns JSON with:
    - `project` - project name and branch
    - `currentTask` - the task you must complete this iteration (full details)
    - `completedDependencies` - tasks this one depends on (already done)
    - `blocks` - downstream tasks waiting on this one
    - `availableStandards` - standards files available in `.ralph/standards/`
-   - `progressFile` - path to progress file
-   - `prdFile` - path to PRD file (for marking task complete)
-   - `peerFeedbackFile` - path to peer feedback (if exists)
+
+   If all tasks are complete, it returns `{ "complete": true }`.
 
 2. **Read progress file:**
 
@@ -31,7 +51,7 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 
 3. **Check branch:**
 
-   - Verify you're on the correct branch (see `project.branch` in current-task.json)
+   - Verify you're on the correct branch (see `project.branch` from step 1)
    - Create/switch if needed
 
 4. **Read and apply peer feedback:**
@@ -47,20 +67,18 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
    ```
 
    **Structure:**
-
    - `blocking` - Issues that MUST be addressed before proceeding
    - `suggestions` - Recommendations for specific tasks (check `forTask` field)
    - `lessonsLearned` - Accumulated knowledge base (never delete these)
 
    **Apply feedback:**
-
    - If any `blocking` items exist, address them FIRST before implementation
    - Check `suggestions` for items where `forTask` matches your current task ID
    - Read `lessonsLearned` for relevant knowledge (filter by `category` if helpful)
 
 5. **Load language standards:**
 
-   Check `availableStandards` in current-task.json for available standards files.
+   Check `availableStandards` from step 1 for available standards files.
 
    **Determine the correct standards file based on the codebase:**
 
@@ -77,7 +95,7 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 
    **Use Serena MCP tools** for code editing and navigation. Serena provides powerful semantic tools for finding symbols, editing code, and understanding the codebase structure. Prefer Serena tools over basic file operations when working with code.
 
-   The task to implement is in `currentTask` from current-task.json.
+   The task to implement is in `currentTask` from step 1.
 
    - Focus only on the acceptance criteria in `currentTask.acceptanceCriteria`
    - Follow the language standards from step 5
@@ -140,16 +158,18 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 
 9. **Code Simplification (MANDATORY):**
 
-   After tests pass, call the agent code-simplifier:code-simplifier agent to review and refine your implementation.
+   After tests pass, invoke the code-simplifier agent to review and refine your implementation:
+
+   ```
+   /code-simplifier:code-simplifier
+   ```
 
    **Purpose:**
-
    - Simplifies and refines code for clarity, consistency, and maintainability
    - Focuses on recently modified code
    - Preserves all functionality while improving readability
 
    **After simplification:**
-
    - Review any changes made by the simplifier
    - Re-run tests to verify the simplifier's changes didn't break functionality
    - If tests fail after simplification, fix the issues before proceeding
@@ -162,24 +182,29 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 11. **Commit (MUST SUCCEED BEFORE MARKING COMPLETE):**
 
     Create a git commit with all implementation changes:
-
     - Format: `feat: [ID] - [Title]`
     - Example: `feat: US-001 - Add Scan entity`
     - **Verify the commit succeeded** before proceeding to step 12
     - If commit fails (pre-commit hooks, etc.), fix the issue and retry
     - **DO NOT mark the task complete if the commit failed**
 
-12. **Update prd.json (ONLY AFTER SUCCESSFUL COMMIT):**
+12. **Mark task complete (ONLY AFTER SUCCESSFUL COMMIT):**
 
     **CRITICAL:** Only perform this step if step 11 succeeded.
 
-    Update the PRD file (path in `prdFile` from current-task.json):
+    Run this command to mark the task complete:
+    ```bash
+    qala tasks complete <currentTask.id>
+    ```
 
-    - Find the story matching `currentTask.id`
-    - Set `passes: true` for the completed story
-    - Add any notes if relevant
+    Optionally add notes:
+    ```bash
+    qala tasks complete <currentTask.id> --notes "Implementation notes here"
+    ```
 
-    **If the commit in step 11 failed, do NOT update prd.json. Fix the commit first.**
+    **Do NOT edit prd.json directly.** Use the `qala tasks` commands.
+
+    **If the commit in step 11 failed, do NOT mark the task complete. Fix the commit first.**
 
 13. **Update progress.txt:**
 
@@ -191,47 +216,29 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
     Update `.ralph/peer_feedback.json` to maintain the knowledge base:
 
     **Cleanup (remove resolved items):**
-
     - Remove any `blocking` items you addressed this iteration
     - Remove any `suggestions` where `forTask` matches your completed task
 
     **Add new items if applicable:**
 
     - **blocking** - Add if you discovered an issue that MUST be fixed before the next task can proceed:
-
       ```json
-      {
-        "issue": "Description of blocking issue",
-        "addedBy": "US-001",
-        "addedAt": "2024-01-15T10:30:00Z"
-      }
+      { "issue": "Description of blocking issue", "addedBy": "US-001", "addedAt": "2024-01-15T10:30:00Z" }
       ```
 
     - **suggestions** - Add if you have recommendations for a specific upcoming task:
-
       ```json
-      {
-        "suggestion": "Consider using X pattern",
-        "forTask": "US-003",
-        "addedBy": "US-001",
-        "addedAt": "2024-01-15T10:30:00Z"
-      }
+      { "suggestion": "Consider using X pattern", "forTask": "US-003", "addedBy": "US-001", "addedAt": "2024-01-15T10:30:00Z" }
       ```
 
     - **lessonsLearned** - Add if you discovered something valuable for future iterations:
       ```json
-      {
-        "lesson": "Description of what you learned",
-        "category": "testing",
-        "addedBy": "US-001",
-        "addedAt": "2024-01-15T10:30:00Z"
-      }
+      { "lesson": "Description of what you learned", "category": "testing", "addedBy": "US-001", "addedAt": "2024-01-15T10:30:00Z" }
       ```
 
     **Categories for lessonsLearned:** `architecture`, `testing`, `api`, `database`, `performance`, `security`, `tooling`, `patterns`, `gotchas`
 
     **Rules:**
-
     - NEVER delete items from `lessonsLearned` - this is a persistent knowledge base
     - Only add to `lessonsLearned` for genuinely reusable insights
     - Keep lessons concise but specific
@@ -336,7 +343,7 @@ After completing the current task, check if ALL stories in prd.json have `passes
 
 ## Critical Reminders
 
-- Complete the **current task** from `currentTask` in current-task.json
+- Complete the **current task** from `qala tasks next`
 - **READ peer_feedback.json** at start - check for blocking issues and relevant suggestions
 - **READ the appropriate standards file** from `availableStandards` before implementing
 - **IMPLEMENT ALL tests in `currentTask.testCases`** - this is mandatory
