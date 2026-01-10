@@ -15,6 +15,7 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 1. **Read current task context:**
 
    Read `.ralph/current-task.json` which contains:
+
    - `project` - project name and branch
    - `currentTask` - the task you must complete this iteration (full details)
    - `completedDependencies` - tasks this one depends on (already done)
@@ -46,11 +47,13 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
    ```
 
    **Structure:**
+
    - `blocking` - Issues that MUST be addressed before proceeding
    - `suggestions` - Recommendations for specific tasks (check `forTask` field)
    - `lessonsLearned` - Accumulated knowledge base (never delete these)
 
    **Apply feedback:**
+
    - If any `blocking` items exist, address them FIRST before implementation
    - Check `suggestions` for items where `forTask` matches your current task ID
    - Read `lessonsLearned` for relevant knowledge (filter by `category` if helpful)
@@ -137,18 +140,16 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 
 9. **Code Simplification (MANDATORY):**
 
-   After tests pass, invoke the code-simplifier agent to review and refine your implementation:
-
-   ```
-   /code-simplifier:code-simplifier
-   ```
+   After tests pass, call the agent code-simplifier:code-simplifier agent to review and refine your implementation.
 
    **Purpose:**
+
    - Simplifies and refines code for clarity, consistency, and maintainability
    - Focuses on recently modified code
    - Preserves all functionality while improving readability
 
    **After simplification:**
+
    - Review any changes made by the simplifier
    - Re-run tests to verify the simplifier's changes didn't break functionality
    - If tests fail after simplification, fix the issues before proceeding
@@ -161,6 +162,7 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 11. **Commit (MUST SUCCEED BEFORE MARKING COMPLETE):**
 
     Create a git commit with all implementation changes:
+
     - Format: `feat: [ID] - [Title]`
     - Example: `feat: US-001 - Add Scan entity`
     - **Verify the commit succeeded** before proceeding to step 12
@@ -172,6 +174,7 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
     **CRITICAL:** Only perform this step if step 11 succeeded.
 
     Update the PRD file (path in `prdFile` from current-task.json):
+
     - Find the story matching `currentTask.id`
     - Set `passes: true` for the completed story
     - Add any notes if relevant
@@ -188,29 +191,47 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
     Update `.ralph/peer_feedback.json` to maintain the knowledge base:
 
     **Cleanup (remove resolved items):**
+
     - Remove any `blocking` items you addressed this iteration
     - Remove any `suggestions` where `forTask` matches your completed task
 
     **Add new items if applicable:**
 
     - **blocking** - Add if you discovered an issue that MUST be fixed before the next task can proceed:
+
       ```json
-      { "issue": "Description of blocking issue", "addedBy": "US-001", "addedAt": "2024-01-15T10:30:00Z" }
+      {
+        "issue": "Description of blocking issue",
+        "addedBy": "US-001",
+        "addedAt": "2024-01-15T10:30:00Z"
+      }
       ```
 
     - **suggestions** - Add if you have recommendations for a specific upcoming task:
+
       ```json
-      { "suggestion": "Consider using X pattern", "forTask": "US-003", "addedBy": "US-001", "addedAt": "2024-01-15T10:30:00Z" }
+      {
+        "suggestion": "Consider using X pattern",
+        "forTask": "US-003",
+        "addedBy": "US-001",
+        "addedAt": "2024-01-15T10:30:00Z"
+      }
       ```
 
     - **lessonsLearned** - Add if you discovered something valuable for future iterations:
       ```json
-      { "lesson": "Description of what you learned", "category": "testing", "addedBy": "US-001", "addedAt": "2024-01-15T10:30:00Z" }
+      {
+        "lesson": "Description of what you learned",
+        "category": "testing",
+        "addedBy": "US-001",
+        "addedAt": "2024-01-15T10:30:00Z"
+      }
       ```
 
     **Categories for lessonsLearned:** `architecture`, `testing`, `api`, `database`, `performance`, `security`, `tooling`, `patterns`, `gotchas`
 
     **Rules:**
+
     - NEVER delete items from `lessonsLearned` - this is a persistent knowledge base
     - Only add to `lessonsLearned` for genuinely reusable insights
     - Keep lessons concise but specific

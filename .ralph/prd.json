@@ -50,6 +50,1270 @@
         },
         "requirements": {}
       }
+    },
+    {
+      "id": "US-006",
+      "title": "Define Spec Review types in src/types/index.ts",
+      "description": "Add all TypeScript interfaces and types needed for the spec review feature. This includes SpecReviewResult, SpecReviewCategory, FocusedPromptResult, GodSpecIndicators, SplitProposal, ProposedSpec, CodebaseContext, SuggestionCard, ChangeHistoryEntry, ChatMessage, and SessionFile types. These types form the foundation for both CLI and dashboard implementations.",
+      "acceptanceCriteria": [
+        "SpecReviewResult interface with verdict, categories, splitProposal, codebaseContext, suggestions, logPath, durationMs fields",
+        "SpecReviewCategory interface with verdict and issues fields",
+        "FocusedPromptResult interface for individual prompt outputs",
+        "GodSpecIndicators interface with isGodSpec, indicators, estimatedStories, featureDomains, systemBoundaries",
+        "SplitProposal interface with originalFile, reason, proposedSpecs array",
+        "ProposedSpec interface with filename, description, estimatedStories, sections",
+        "CodebaseContext interface with projectType, existingPatterns, relevantFiles",
+        "SuggestionCard interface matching FR-21 contract (id, category, severity, section, lineStart/End, textSnippet, issue, suggestedFix, status, userVersion, reviewedAt)",
+        "ChangeHistoryEntry interface matching FR-21 contract",
+        "ChatMessage interface matching FR-21 contract",
+        "SessionFile interface matching FR-21 contract with all required fields",
+        "SplitSpecRef interface for tracking child specs",
+        "SpecReviewVerdict type union: 'PASS' | 'FAIL' | 'NEEDS_IMPROVEMENT' | 'SPLIT_RECOMMENDED'",
+        "SuggestionSeverity type union: 'critical' | 'warning' | 'info'",
+        "SuggestionStatus type union: 'pending' | 'approved' | 'rejected' | 'edited'",
+        "SessionStatus type union: 'in_progress' | 'completed' | 'needs_attention'",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [],
+      "priority": 1,
+      "passes": true,
+      "notes": "Type definitions only, no implementation logic",
+      "dependencies": [],
+      "complexity": "low",
+      "context": {
+        "suggestions": {
+          "schemas": "Follow existing pattern in src/types/index.ts for interface definitions. Use type aliases for string literal unions."
+        }
+      }
+    },
+    {
+      "id": "US-007",
+      "title": "Change default reviewer CLI from Codex to Claude",
+      "description": "Update DEFAULT_SETTINGS in src/core/settings.ts to use 'claude' as the default reviewer CLI instead of 'codex'. This aligns with the PRD requirement that Claude is now the default (more widely available and capable).",
+      "acceptanceCriteria": [
+        "DEFAULT_SETTINGS.reviewer.cli is 'claude'",
+        "Existing users with no config will now use Claude by default",
+        "Users who explicitly set reviewer.cli: 'codex' are unaffected",
+        "Unit tests updated to reflect new default",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "loadGlobalSettings_WithNoConfig_ShouldReturnClaudeAsDefaultCli",
+        "loadGlobalSettings_WithExplicitCodexConfig_ShouldReturnCodex",
+        "loadGlobalSettings_WithExplicitClaudeConfig_ShouldReturnClaude"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Completed: Changed default to claude, all 3 test cases implemented and passing (commit a90c27b)",
+      "dependencies": [],
+      "complexity": "low",
+      "context": {}
+    },
+    {
+      "id": "US-008",
+      "title": "Implement configurable timeout utility for spec review",
+      "description": "Create a utility function getReviewTimeout() that resolves timeout from CLI flag > env var RALPH_REVIEW_TIMEOUT_MS > default (600000ms). Include validation to enforce min 30s, max 30min range. This is used by both CLI commands and peer review.",
+      "acceptanceCriteria": [
+        "getReviewTimeout(cliTimeout?: number): number function exported from src/core/spec-review/timeout.ts",
+        "validateTimeout(ms: number): number function validates and clamps to range",
+        "CLI flag takes precedence over env var",
+        "Env var takes precedence over default",
+        "Default is 600000ms (10 minutes)",
+        "Minimum is 30000ms (30 seconds)",
+        "Maximum is 1800000ms (30 minutes)",
+        "Console.warn when clamping to min/max",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "getReviewTimeout_WithCliFlag_ShouldReturnCliValue",
+        "getReviewTimeout_WithEnvVar_ShouldReturnEnvValue",
+        "getReviewTimeout_WithNoOverride_ShouldReturnDefault",
+        "getReviewTimeout_WithCliAndEnv_ShouldPreferCli",
+        "validateTimeout_BelowMinimum_ShouldClampToMin",
+        "validateTimeout_AboveMaximum_ShouldClampToMax",
+        "validateTimeout_WithinRange_ShouldReturnUnchanged"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Completed: All 7 test cases implemented and passing (commit b932aaf)",
+      "dependencies": [],
+      "complexity": "low",
+      "context": {
+        "suggestions": {
+          "patterns": "Use process.env.RALPH_REVIEW_TIMEOUT_MS for env var access"
+        }
+      }
+    },
+    {
+      "id": "US-009",
+      "title": "Create focused prompt definitions for standalone spec review",
+      "description": "Define the 5 focused prompts for standalone spec review (FR-7): God Spec Detection, Requirements Completeness, Clarity and Specificity, Testability, and Scope Validation. Each prompt has a single responsibility and outputs structured JSON. Prompts include placeholders for spec content and codebase context.",
+      "acceptanceCriteria": [
+        "GOD_SPEC_DETECTION_PROMPT constant exported from src/core/spec-review/prompts.ts",
+        "REQUIREMENTS_COMPLETENESS_PROMPT constant exported",
+        "CLARITY_SPECIFICITY_PROMPT constant exported",
+        "TESTABILITY_PROMPT constant exported",
+        "SCOPE_VALIDATION_PROMPT constant exported",
+        "Each prompt specifies expected JSON output schema",
+        "Each prompt has RULES section for evaluation criteria",
+        "God spec prompt includes all indicators from FR-7a (size, scope, cohesion)",
+        "God spec prompt includes split proposal format from FR-7b",
+        "Prompts use {specContent} and {codebaseContext} placeholders where needed",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [],
+      "priority": 4,
+      "passes": true,
+      "notes": "Completed: All 5 focused prompts implemented with JSON output schemas, RULES sections, placeholders, and helper functions (commit fcd0c2d)",
+      "dependencies": [],
+      "complexity": "low",
+      "context": {
+        "suggestions": {
+          "examples": "See Technical Notes section in PRD for prompt structure examples"
+        }
+      }
+    },
+    {
+      "id": "US-010",
+      "title": "Create focused prompt definitions for decompose review (task review)",
+      "description": "Define the 4 focused prompts for decompose review (FR-6): Missing Requirements, Contradictions, Dependency Validation, and Duplicate Detection. These prompts run WITHOUT tools and compare spec document against generated tasks JSON.",
+      "acceptanceCriteria": [
+        "MISSING_REQUIREMENTS_PROMPT constant exported from src/core/spec-review/prompts.ts",
+        "CONTRADICTIONS_PROMPT constant exported",
+        "DEPENDENCY_VALIDATION_PROMPT constant exported",
+        "DUPLICATE_DETECTION_PROMPT constant exported",
+        "Each prompt specifies expected JSON output schema with verdict",
+        "Each prompt has RULES section for evaluation criteria",
+        "Prompts use {specContent} and {tasksJson} placeholders",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [],
+      "priority": 5,
+      "passes": true,
+      "notes": "Completed: All 4 decompose review prompts implemented with JSON output schemas, RULES sections, and {specContent}/{tasksJson} placeholders. Helper functions extracted for consistency (commit cfcb32d)",
+      "dependencies": [],
+      "complexity": "low",
+      "context": {
+        "suggestions": {
+          "examples": "See Technical Notes section in PRD for prompt structure"
+        }
+      }
+    },
+    {
+      "id": "US-011",
+      "title": "Implement result aggregation for spec review verdicts",
+      "description": "Create aggregator module that combines results from all focused prompts into a single SpecReviewResult. Implements verdict priority: SPLIT_RECOMMENDED > FAIL > NEEDS_IMPROVEMENT > PASS. Categorizes issues and prioritizes suggestions by severity.",
+      "acceptanceCriteria": [
+        "aggregateResults function exported from src/core/spec-review/aggregator.ts",
+        "Takes array of FocusedPromptResult and returns SpecReviewResult",
+        "SPLIT_RECOMMENDED verdict if god spec detected (highest priority)",
+        "FAIL verdict if any prompt returned critical failure",
+        "NEEDS_IMPROVEMENT if non-critical issues found",
+        "PASS if all prompts passed",
+        "Combines all issues into categorized output (by prompt type)",
+        "Suggestions sorted by severity (critical > warning > info)",
+        "Includes splitProposal in output if SPLIT_RECOMMENDED",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "aggregateResults_WithGodSpecDetected_ShouldReturnSplitRecommended",
+        "aggregateResults_WithCriticalFailure_ShouldReturnFail",
+        "aggregateResults_WithWarningsOnly_ShouldReturnNeedsImprovement",
+        "aggregateResults_WithAllPass_ShouldReturnPass",
+        "aggregateResults_WithMixedResults_ShouldUsePriorityOrder",
+        "aggregateResults_ShouldSortSuggestionsBySeverity",
+        "aggregateResults_ShouldIncludeSplitProposalWhenPresent"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Completed: All 7 test cases implemented and passing (commit 18ccbf5). Code simplifier cleaned up parameter naming and test name consistency.",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-012",
+      "title": "Implement JSON extraction and validation for AI responses",
+      "description": "Create robust JSON extraction from AI responses that handles various response formats. Includes validation against expected schemas for review feedback. Extends existing extractJson pattern in peer-review.ts with better fallback strategies.",
+      "acceptanceCriteria": [
+        "extractReviewJson function exported from src/core/spec-review/json-parser.ts",
+        "Handles JSON wrapped in markdown code blocks",
+        "Handles raw JSON responses",
+        "Falls back to regex extraction for malformed responses",
+        "validateFocusedPromptResult validates against expected schema",
+        "validateGodSpecResult validates god spec specific fields",
+        "validateSplitProposal validates split proposal structure",
+        "Logs raw output on parse failure for debugging",
+        "Returns null on complete parse failure (not throw)",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "extractReviewJson_WithMarkdownCodeBlock_ShouldExtractJson",
+        "extractReviewJson_WithRawJson_ShouldParse",
+        "extractReviewJson_WithProseAndJson_ShouldExtractJsonOnly",
+        "extractReviewJson_WithInvalidJson_ShouldReturnNull",
+        "validateFocusedPromptResult_WithValidResult_ShouldReturnTrue",
+        "validateFocusedPromptResult_WithMissingFields_ShouldReturnFalse",
+        "validateGodSpecResult_WithSplitProposal_ShouldValidateNestedStructure",
+        "validateSplitProposal_WithValidSpecs_ShouldReturnTrue"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Completed: All 8 required test cases implemented and passing (commit b950773). Code simplifier extracted isStringArray helper and consolidated enum validation constants.",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-013",
+      "title": "Implement codebase context gathering for spec review",
+      "description": "Create module to gather codebase context before running spec review. Explores project structure, identifies technology stack from config files, finds existing patterns. Context is included in review prompts to enable meaningful validation against actual architecture.",
+      "acceptanceCriteria": [
+        "gatherCodebaseContext function exported from src/core/spec-review/codebase-context.ts",
+        "Returns CodebaseContext with projectType, existingPatterns, relevantFiles",
+        "Detects project type from package.json (nodejs), *.csproj (dotnet), requirements.txt (python), go.mod (go)",
+        "Identifies existing patterns from directory structure",
+        "Lists relevant source directories",
+        "Works with project root path parameter",
+        "Handles missing config files gracefully",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "gatherCodebaseContext_WithPackageJson_ShouldDetectNodejs",
+        "gatherCodebaseContext_WithCsproj_ShouldDetectDotnet",
+        "gatherCodebaseContext_WithMissingConfigs_ShouldReturnUnknownType",
+        "gatherCodebaseContext_ShouldListSourceDirectories",
+        "gatherCodebaseContext_ShouldIdentifyPatterns"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Basic implementation, agent will do deeper exploration during review",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-014",
+      "title": "Implement god spec detector with split proposal generation",
+      "description": "Create module for detecting god specs and generating split proposals. Analyzes spec for size, scope, and cohesion indicators. When 2+ indicators present, generates split proposal with correctly named files using {basename}.{feature}.md convention.",
+      "acceptanceCriteria": [
+        "detectGodSpec function exported from src/core/spec-review/god-spec-detector.ts",
+        "Takes spec content and returns GodSpecIndicators",
+        "Checks size indicators: >3 feature sections, >2000 words, estimated >15-20 stories",
+        "Checks scope indicators: multiple user journeys, independent features, >3 system boundaries",
+        "Checks cohesion indicators: no single definition of done, different personas, weak dependencies",
+        "generateSplitProposal function creates split proposal when god spec detected",
+        "Split file naming follows {basename}.{feature-name}.md pattern",
+        "Feature names are kebab-case, 1-3 words",
+        "Each proposed spec estimated at 5-15 stories",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "detectGodSpec_WithSmallSpec_ShouldNotDetectGodSpec",
+        "detectGodSpec_WithMultipleFeatureSections_ShouldFlagSizeIndicator",
+        "detectGodSpec_WithHighWordCount_ShouldFlagSizeIndicator",
+        "detectGodSpec_WithMultipleUserJourneys_ShouldFlagScopeIndicator",
+        "detectGodSpec_WithTwoIndicators_ShouldReturnIsGodSpec",
+        "generateSplitProposal_ShouldUseCorrectNamingConvention",
+        "generateSplitProposal_ShouldEstimateStoryCountsPerSpec"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Heuristic detection, refined by AI during actual review",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-015",
+      "title": "Implement spec splitter for creating split spec files",
+      "description": "Create module that executes spec splits by creating new spec files. Takes a split proposal and original spec, creates new files with relevant content, preserves original. Adds header noting origin.",
+      "acceptanceCriteria": [
+        "executeSplit function exported from src/core/spec-review/splitter.ts",
+        "Takes SplitProposal and originalSpecPath, creates new files",
+        "Creates files in same directory as original",
+        "Adds header to each: 'Split from: {original-filename}'",
+        "Does NOT delete or modify original spec",
+        "Returns array of created file paths",
+        "Handles file system errors gracefully",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "executeSplit_ShouldCreateAllProposedFiles",
+        "executeSplit_ShouldPreserveOriginalSpec",
+        "executeSplit_ShouldAddSplitFromHeader",
+        "executeSplit_ShouldPlaceFilesInSameDirectory",
+        "executeSplit_WithFileSystemError_ShouldThrowDescriptiveError"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-016",
+      "title": "Implement spec review runner for orchestrating focused prompts",
+      "description": "Create the main runner that orchestrates the spec review process. Spawns review agent WITH full tool access for codebase exploration. Runs focused prompts sequentially, handles timeout, aggregates results. Core implementation for qala spec review command.",
+      "acceptanceCriteria": [
+        "runSpecReview function exported from src/core/spec-review/runner.ts",
+        "Accepts specFile path, timeout, and cli options",
+        "Gathers codebase context first",
+        "Runs god spec detection prompt first",
+        "Runs remaining 4 prompts: requirements, clarity, testability, scope",
+        "Agent spawned WITH tool access (NOT --tools '')",
+        "Respects configurable timeout from getReviewTimeout",
+        "Terminates agent gracefully on timeout (SIGTERM, then SIGKILL after 5s)",
+        "Returns partial results if timeout occurs",
+        "Aggregates all results into SpecReviewResult",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "runSpecReview_WithValidSpec_ShouldReturnResult",
+        "runSpecReview_ShouldGatherCodebaseContextFirst",
+        "runSpecReview_ShouldRunGodSpecDetectionFirst",
+        "runSpecReview_ShouldAggregateAllPromptResults",
+        "runSpecReview_OnTimeout_ShouldReturnPartialResults",
+        "runSpecReview_ShouldSpawnAgentWithToolAccess"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Core orchestration logic, depends on multiple prior stories",
+      "dependencies": [
+        "US-006",
+        "US-008",
+        "US-009",
+        "US-011",
+        "US-012",
+        "US-013",
+        "US-014"
+      ],
+      "complexity": "high",
+      "context": {}
+    },
+    {
+      "id": "US-017",
+      "title": "Implement review logging to .ralph/logs/",
+      "description": "Create logging infrastructure for spec review. Saves human-readable summary, per-prompt details, and JSON output. Follows naming convention spec_review_<timestamp>.{log,json} and prompts subdirectory.",
+      "acceptanceCriteria": [
+        "saveReviewLog function exported from src/core/spec-review/logging.ts",
+        "Creates .ralph/logs/spec_review_<timestamp>.log (human-readable)",
+        "Creates .ralph/logs/spec_review_<timestamp>.json (machine-readable)",
+        "Creates .ralph/logs/spec_review_<timestamp>.prompts/ directory",
+        "Saves each prompt input/output in prompts subdirectory",
+        "Creates .ralph/logs/ directory if not exists",
+        "Returns log file path for display",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "saveReviewLog_ShouldCreateLogFile",
+        "saveReviewLog_ShouldCreateJsonFile",
+        "saveReviewLog_ShouldCreatePromptsDirectory",
+        "saveReviewLog_ShouldCreateLogsDirectoryIfMissing",
+        "saveReviewLog_ShouldReturnLogPath"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "low",
+      "context": {}
+    },
+    {
+      "id": "US-018",
+      "title": "Create CLI spec command with review subcommand",
+      "description": "Implement the qala spec review CLI command with all options: --timeout, --cli, --verbose, --json. Handles file argument or interactive file picker. Validates file exists and is markdown. Displays formatted output.",
+      "acceptanceCriteria": [
+        "src/cli/commands/spec.ts parent command registered",
+        "src/cli/commands/spec-review.ts review subcommand registered",
+        "qala spec review <file> runs review on specified file",
+        "qala spec review (no arg) prompts for file selection from specs/, docs/, .ralph/specs/",
+        "--timeout <ms> flag overrides default timeout",
+        "--cli claude|codex flag overrides config",
+        "--verbose flag shows detailed progress",
+        "--json flag outputs machine-readable JSON",
+        "Exit code 0 on PASS",
+        "Exit code 1 on FAIL/NEEDS_IMPROVEMENT/SPLIT_RECOMMENDED",
+        "Exit code 2 on error",
+        "File validation: exists, is .md, is readable",
+        "Displays formatted human-readable output by default",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "specReviewCommand_WithValidFile_ShouldRunReview",
+        "specReviewCommand_WithNonExistentFile_ShouldExitWithError",
+        "specReviewCommand_WithNonMarkdownFile_ShouldExitWithError",
+        "specReviewCommand_WithTimeoutFlag_ShouldUseProvidedTimeout",
+        "specReviewCommand_WithCliFlag_ShouldUseProvidedCli",
+        "specReviewCommand_WithJsonFlag_ShouldOutputJson",
+        "specReviewCommand_OnPass_ShouldExitWithCode0",
+        "specReviewCommand_OnFail_ShouldExitWithCode1"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "Main CLI entry point for spec review feature",
+      "dependencies": [
+        "US-006",
+        "US-008",
+        "US-016",
+        "US-017"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-019",
+      "title": "Add interactive split acceptance flow to CLI",
+      "description": "Implement the interactive flow for god spec detection in CLI. When split recommended, prompts user with Accept/Modify/Skip options. Accept shows preview before saving. Creates files only with explicit user confirmation.",
+      "acceptanceCriteria": [
+        "When SPLIT_RECOMMENDED verdict, displays god spec warning",
+        "Shows list of proposed split specs with estimated story counts",
+        "Prompts with Accept/Modify/Skip options",
+        "Accept: shows preview of all proposed files before saving",
+        "User confirms with Save All to write files",
+        "Skip: continues with warning message",
+        "Files created only with explicit user confirmation",
+        "Original spec preserved (not deleted)",
+        "Displays summary of created files after save",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "splitFlow_WithAccept_ShouldShowPreviewFirst",
+        "splitFlow_WithAcceptAndConfirm_ShouldCreateFiles",
+        "splitFlow_WithSkip_ShouldContinueWithWarning",
+        "splitFlow_ShouldPreserveOriginalSpec",
+        "splitFlow_ShouldDisplayCreatedFilesSummary"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "Interactive CLI flow requires readline or similar",
+      "dependencies": [
+        "US-015",
+        "US-018"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-020",
+      "title": "Refactor peer-review.ts to use focused prompts for decompose --review",
+      "description": "Update existing peer-review.ts to use the new focused prompts (FR-6) for task review. Agent runs WITHOUT tools (pure document comparison). Maintains backward compatibility with existing decompose --review flow.",
+      "acceptanceCriteria": [
+        "runPeerReview uses new focused prompts from US-010",
+        "Agent spawned with --tools '' flag (no tool access)",
+        "Runs 4 prompts: missing requirements, contradictions, dependency validation, duplicates",
+        "Aggregates results into PASS/FAIL verdict",
+        "On FAIL, sends feedback to Claude for automatic revision",
+        "Retries up to RALPH_MAX_REVIEW_ATTEMPTS (default 3)",
+        "Uses configurable timeout via getReviewTimeout",
+        "Backward compatible: qala decompose --review continues to work",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "runPeerReview_ShouldUseFocusedPrompts",
+        "runPeerReview_ShouldDisableToolAccess",
+        "runPeerReview_OnFail_ShouldRetryUpToMaxAttempts",
+        "runPeerReview_ShouldUseConfigurableTimeout",
+        "runPeerReview_ShouldAggregateAllPromptResults"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "Refactor existing code, maintain backward compatibility",
+      "dependencies": [
+        "US-008",
+        "US-010",
+        "US-012"
+      ],
+      "complexity": "high",
+      "context": {}
+    },
+    {
+      "id": "US-021",
+      "title": "Implement session file management for spec review",
+      "description": "Create file-based session management for spec review. Sessions stored in .ralph/sessions/{basename}.session.json. Auto-saves after changes. Tracks suggestions, change history, chat, and split specs.",
+      "acceptanceCriteria": [
+        "loadSession function loads existing session or returns null",
+        "saveSession function writes session to file",
+        "getSessionPath returns path for given spec file",
+        "computeContentHash computes SHA256 of spec content",
+        "Creates .ralph/sessions/ directory if not exists",
+        "Session auto-saved after every change",
+        "Detects external spec changes via content hash comparison",
+        "Session file is valid JSON matching SessionFile interface",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "loadSession_WithExistingSession_ShouldReturnSession",
+        "loadSession_WithNoSession_ShouldReturnNull",
+        "saveSession_ShouldWriteValidJson",
+        "saveSession_ShouldCreateDirectoryIfMissing",
+        "getSessionPath_ShouldReturnCorrectPath",
+        "computeContentHash_ShouldReturnSha256"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "patterns": "Use crypto.createHash('sha256') for content hashing"
+        }
+      }
+    },
+    {
+      "id": "US-022",
+      "title": "Implement change tracking for revert functionality",
+      "description": "Create change tracker that records all spec modifications for potential revert. Each change captures old/new text, location, and action type. Enables undo of approved changes.",
+      "acceptanceCriteria": [
+        "trackChange function records a change in session",
+        "revertChange function restores previous content",
+        "Each change has unique id, timestamp, suggestionId, action, section, oldText, newText",
+        "canRevert flag indicates if change is revertable",
+        "Revert updates spec file and session state",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "trackChange_ShouldAddToChangeHistory",
+        "trackChange_ShouldGenerateUniqueId",
+        "revertChange_ShouldRestorePreviousContent",
+        "revertChange_WithNonRevertable_ShouldThrowError",
+        "revertChange_ShouldUpdateSessionState"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-006",
+        "US-021"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-023",
+      "title": "Add spec review API routes for dashboard",
+      "description": "Implement Express API routes for spec review dashboard functionality. Includes endpoints for listing files, starting review, getting status, sending feedback, chat, split, and revert operations.",
+      "acceptanceCriteria": [
+        "GET /api/spec-review/files lists available spec files from specs/, docs/, .ralph/specs/",
+        "POST /api/spec-review/start starts review session, returns sessionId",
+        "GET /api/spec-review/status/:sessionId returns current review status/results",
+        "POST /api/spec-review/feedback sends approve/reject/edit feedback",
+        "POST /api/spec-review/chat sends chat message to agent",
+        "POST /api/spec-review/split executes spec split",
+        "POST /api/spec-review/split/preview returns preview of split files",
+        "POST /api/spec-review/revert reverts a specific change",
+        "GET /api/spec-review/suggestions/:sessionId returns pending suggestions",
+        "Routes registered in src/server/routes/spec-review.ts",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "getFiles_ShouldReturnMarkdownFiles",
+        "postStart_ShouldCreateSession",
+        "getStatus_WithValidSession_ShouldReturnStatus",
+        "getStatus_WithInvalidSession_ShouldReturn404",
+        "postFeedback_WithApprove_ShouldUpdateSession",
+        "postSplit_ShouldCreateSplitFiles",
+        "postRevert_ShouldRestoreContent"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-006",
+        "US-016",
+        "US-021",
+        "US-022"
+      ],
+      "complexity": "high",
+      "context": {}
+    },
+    {
+      "id": "US-024",
+      "title": "Implement agent feedback handler for dashboard",
+      "description": "Create feedback handler that processes user actions on suggestions and sends feedback to the review agent. Handles approve, reject, and edit actions. Updates session with feedback and enables agent learning within session.",
+      "acceptanceCriteria": [
+        "handleFeedback function processes approve/reject/edit actions",
+        "Approved actions apply suggested text to spec file",
+        "Rejected actions optionally include user reason",
+        "Edited actions include both original proposal and user version",
+        "Feedback sent to agent via appropriate format",
+        "Session updated with feedback details",
+        "Agent can propose alternatives after rejection",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "handleFeedback_OnApprove_ShouldApplyChange",
+        "handleFeedback_OnReject_ShouldNotApplyChange",
+        "handleFeedback_OnEdit_ShouldApplyUserVersion",
+        "handleFeedback_ShouldUpdateSessionWithFeedback",
+        "handleFeedback_ShouldSendFeedbackToAgent"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-006",
+        "US-021",
+        "US-022"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-025",
+      "title": "Implement dynamic loop limit calculation",
+      "description": "Create loop limit calculator that determines execution limit based on task count. Formula: ceil((existingTasks + newTasks) * 1.2). Recalculates when tasks added during execution. 20% buffer for subtasks, retries, overhead.",
+      "acceptanceCriteria": [
+        "calculateLoopLimit function exported from src/core/ralph-loop/loop-limit.ts",
+        "Formula: ceil((existingTasks + newTasks) * 1.2)",
+        "Returns integer value",
+        "Default 25 NOT used when task count is known",
+        "Recalculates limit when tasks added (not current index)",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "calculateLoopLimit_With10Tasks_ShouldReturn12",
+        "calculateLoopLimit_With20Existing5New_ShouldReturn30",
+        "calculateLoopLimit_ShouldRoundUp",
+        "calculateLoopLimit_With0Tasks_ShouldReturnMinimum"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": "Simple calculation function",
+      "dependencies": [],
+      "complexity": "low",
+      "context": {}
+    },
+    {
+      "id": "US-026",
+      "title": "Integrate dynamic loop limit into task executor",
+      "description": "Modify ralph-loop runner to use dynamic loop limit instead of hardcoded 25. Calculate limit based on task count from PRD. Recalculate when new tasks added during execution.",
+      "acceptanceCriteria": [
+        "Ralph loop uses calculateLoopLimit instead of hardcoded 25",
+        "Loop limit calculated from existingTasks count in PRD",
+        "When tasks added mid-execution, limit recalculated",
+        "All tasks fit within calculated window",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "ralphLoop_ShouldUseDynamicLoopLimit",
+        "ralphLoop_OnTaskAdded_ShouldRecalculateLimit",
+        "ralphLoop_ShouldCompleteAllTasksWithinLimit"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-025"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-027",
+      "title": "Create SpecReviewPage component with split view layout",
+      "description": "Implement the main SpecReviewPage React component with split view layout. Left panel: MDXEditor for spec content. Right panel: review results and chat. Panels are resizable.",
+      "acceptanceCriteria": [
+        "SpecReviewPage component created in web/src/pages/SpecReviewPage.tsx",
+        "Split view layout: editor (left) | review panel (right)",
+        "Panels are resizable",
+        "File selector dropdown to choose spec file",
+        "Start Review button initiates review",
+        "Loading state while review in progress",
+        "Integrates with spec review API routes",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "SpecReviewPage_ShouldRenderSplitView",
+        "SpecReviewPage_ShouldShowFileSelector",
+        "SpecReviewPage_OnStartReview_ShouldShowLoading"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": "Main dashboard page component",
+      "dependencies": [
+        "US-023"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-028",
+      "title": "Integrate MDXEditor for spec editing",
+      "description": "Create SpecEditor component wrapping MDXEditor with required plugins. Configure headings, lists, quotes, code blocks, tables, markdown shortcuts, and diff source plugin. Store editor ref for programmatic access.",
+      "acceptanceCriteria": [
+        "SpecEditor component in web/src/components/spec-review/SpecEditor.tsx",
+        "MDXEditor configured with headingsPlugin",
+        "listsPlugin for bullet/numbered lists",
+        "quotePlugin for blockquotes",
+        "codeBlockPlugin with syntax highlighting",
+        "tablePlugin for table editing",
+        "markdownShortcutPlugin for shortcuts",
+        "diffSourcePlugin for diff view mode",
+        "Editor ref exposed via forwardRef for programmatic control",
+        "onChange handler syncs to parent state",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "SpecEditor_ShouldRenderMDXEditor",
+        "SpecEditor_OnChange_ShouldCallHandler",
+        "SpecEditor_ShouldExposeRef"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": "npm install @mdxeditor/editor required",
+      "dependencies": [],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "examples": "See FR-13a for plugin configuration details"
+        }
+      }
+    },
+    {
+      "id": "US-029",
+      "title": "Implement Lexical utilities for scroll and highlight",
+      "description": "Create utility functions for programmatic control of MDXEditor via Lexical. Includes scroll to section, scroll to line, highlight text temporarily, find node by text, and get selected text.",
+      "acceptanceCriteria": [
+        "scrollToSection(editor, sectionHeading) scrolls to heading",
+        "scrollToLine(editor, lineNumber) scrolls to specific line",
+        "highlightText(editor, textSnippet, duration) applies temporary highlight",
+        "findNodeByText(editor, text) returns Lexical node containing text",
+        "getSelectedText(editor) returns current selection",
+        "Highlight fades after specified duration (default 3s)",
+        "Functions exported from web/src/lib/mdx-editor/lexical-utils.ts",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "scrollToSection_WithValidHeading_ShouldScroll",
+        "highlightText_ShouldApplyTemporaryHighlight",
+        "findNodeByText_WithExistingText_ShouldReturnNode",
+        "getSelectedText_WithSelection_ShouldReturnText"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": "Requires understanding of Lexical editor internals",
+      "dependencies": [
+        "US-028"
+      ],
+      "complexity": "high",
+      "context": {
+        "suggestions": {
+          "patterns": "Use Lexical's $getNodeByKey() and node.selectStart() for selection"
+        }
+      }
+    },
+    {
+      "id": "US-030",
+      "title": "Implement diff view utilities for MDXEditor",
+      "description": "Create utilities for managing diff view mode in MDXEditor. Includes entering diff mode, exiting diff mode, getting user-edited proposed content, and creating unified diffs.",
+      "acceptanceCriteria": [
+        "showDiff(editorRef, original, proposed, location) enters diff mode",
+        "exitDiffView(editorRef, applyChanges) exits diff mode",
+        "getProposedContent(editorRef) returns user-edited proposed content",
+        "createUnifiedDiff(original, modified) generates unified diff string",
+        "Functions exported from web/src/lib/mdx-editor/diff-utils.ts",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "showDiff_ShouldSwitchEditorToDiffMode",
+        "exitDiffView_WithApply_ShouldApplyChanges",
+        "exitDiffView_WithoutApply_ShouldDiscardChanges",
+        "getProposedContent_ShouldReturnEditedContent",
+        "createUnifiedDiff_ShouldGenerateValidDiff"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-028"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-031",
+      "title": "Create SuggestionCard component for review panel",
+      "description": "Implement interactive SuggestionCard component that displays a single suggestion with Review Diff, Show in Editor, and Dismiss buttons. Shows issue description, severity indicator, and location reference.",
+      "acceptanceCriteria": [
+        "SuggestionCard component in web/src/components/spec-review/SuggestionCard.tsx",
+        "Displays issue description and location (section + line numbers)",
+        "Shows severity indicator (critical/warning/info)",
+        "Preview of proposed change (truncated)",
+        "[Review Diff] button opens diff view in editor",
+        "[Show in Editor] button scrolls to location and highlights",
+        "[Dismiss] button rejects without viewing diff",
+        "Card updates status after action (approved/rejected/edited)",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "SuggestionCard_ShouldDisplayIssueDescription",
+        "SuggestionCard_ShouldShowSeverityIndicator",
+        "SuggestionCard_OnReviewDiff_ShouldCallHandler",
+        "SuggestionCard_OnDismiss_ShouldCallRejectHandler",
+        "SuggestionCard_WhenApproved_ShouldShowApprovedStatus"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-032",
+      "title": "Create GodSpecWarning component for split recommendations",
+      "description": "Implement GodSpecWarning component that displays god spec detection warning with Accept Split, Modify, and Skip options. Shows explanation, indicators found, and proposed split specs with estimated story counts.",
+      "acceptanceCriteria": [
+        "GodSpecWarning component in web/src/components/spec-review/GodSpecWarning.tsx",
+        "Shows warning icon and 'God Spec Detected' header",
+        "Explains why it's problematic",
+        "Lists indicators found",
+        "Shows proposed split specs with estimated story counts",
+        "[Accept Split] button triggers split flow",
+        "[Modify] button opens dialog to adjust split",
+        "[Skip] button dismisses with warning",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "GodSpecWarning_ShouldDisplayIndicators",
+        "GodSpecWarning_ShouldShowProposedSpecs",
+        "GodSpecWarning_OnAccept_ShouldCallSplitHandler",
+        "GodSpecWarning_OnSkip_ShouldDismissWithWarning"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-033",
+      "title": "Create ReviewPanel component for review results",
+      "description": "Implement ReviewPanel component that displays grouped suggestion cards, god spec warning (if applicable), and overall verdict. Handles suggestion navigation with Previous/Next and batch actions.",
+      "acceptanceCriteria": [
+        "ReviewPanel component in web/src/components/spec-review/ReviewPanel.tsx",
+        "Groups suggestions by category (clarity, testability, scope, etc.)",
+        "Shows GodSpecWarning if split recommended",
+        "Displays overall verdict prominently",
+        "Suggestion navigation: [Previous] [Next]",
+        "Shows 'Suggestion X of Y - Category' indicator",
+        "Batch actions: [Approve All] [Reject All] for category",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "ReviewPanel_ShouldGroupSuggestionsByCategory",
+        "ReviewPanel_WithGodSpec_ShouldShowWarning",
+        "ReviewPanel_ShouldShowOverallVerdict",
+        "ReviewPanel_OnNavigate_ShouldChangeActiveSuggestion"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-031",
+        "US-032"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-034",
+      "title": "Create ReviewChat component for conversational requests",
+      "description": "Implement ReviewChat component that allows users to ask questions and request custom changes via chat. Supports text selection context. Chat messages create new suggestion cards when changes proposed.",
+      "acceptanceCriteria": [
+        "ReviewChat component in web/src/components/spec-review/ReviewChat.tsx",
+        "Text input for user messages",
+        "Displays chat history (user messages and agent responses)",
+        "Supports selection context (selected text sent with message)",
+        "Agent responses can create new suggestion cards",
+        "Question-only responses displayed as text (no cards)",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "ReviewChat_ShouldDisplayChatHistory",
+        "ReviewChat_OnSendMessage_ShouldCallHandler",
+        "ReviewChat_WithSelection_ShouldIncludeContext",
+        "ReviewChat_OnAgentSuggestion_ShouldCreateCard"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-035",
+      "title": "Create ChangeHistory component for revert functionality",
+      "description": "Implement ChangeHistory component that displays all applied changes with timestamps and revert buttons. Shows action type, section affected, and brief description. Enables individual and bulk revert.",
+      "acceptanceCriteria": [
+        "ChangeHistory component in web/src/components/spec-review/ChangeHistory.tsx",
+        "Lists all changes: timestamp, description, section affected",
+        "Shows action type badge (approved/rejected/edited)",
+        "[Revert] button on each revertable change",
+        "[Revert All] button to restore original spec",
+        "Reverting updates spec preview and re-enables suggestion",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "ChangeHistory_ShouldListAllChanges",
+        "ChangeHistory_OnRevert_ShouldCallRevertHandler",
+        "ChangeHistory_OnRevertAll_ShouldRevertAllChanges"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "low",
+      "context": {}
+    },
+    {
+      "id": "US-036",
+      "title": "Create useSpecReview hook for state management",
+      "description": "Implement custom React hook for managing spec review state. Handles session loading/saving, review status, suggestions, changes, and API interactions. Provides clean interface for components.",
+      "acceptanceCriteria": [
+        "useSpecReview hook in web/src/hooks/useSpecReview.ts",
+        "Manages session state (load, save, track changes)",
+        "Provides review status (idle, loading, completed, error)",
+        "Provides suggestions array with pending/approved/rejected status",
+        "Provides change history array",
+        "Exposes actions: startReview, approveSuggestion, rejectSuggestion, revertChange",
+        "Auto-saves session after state changes",
+        "Handles API errors gracefully",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "useSpecReview_ShouldLoadExistingSession",
+        "useSpecReview_OnStartReview_ShouldUpdateStatus",
+        "useSpecReview_OnApprove_ShouldUpdateSuggestionStatus",
+        "useSpecReview_ShouldAutoSaveSession"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": "Core state management hook for dashboard",
+      "dependencies": [
+        "US-006"
+      ],
+      "complexity": "high",
+      "context": {}
+    },
+    {
+      "id": "US-037",
+      "title": "Create useAgentFeedback hook for feedback state",
+      "description": "Implement custom React hook for managing agent feedback interactions. Handles sending feedback to API, tracking pending feedback, and receiving agent responses.",
+      "acceptanceCriteria": [
+        "useAgentFeedback hook in web/src/hooks/useAgentFeedback.ts",
+        "sendApprovalFeedback(suggestionId, appliedText) function",
+        "sendRejectionFeedback(suggestionId, reason?) function",
+        "sendEditFeedback(suggestionId, original, userVersion) function",
+        "Tracks pending feedback operations",
+        "Returns agent response (may include alternative suggestions)",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "useAgentFeedback_OnApproval_ShouldSendToApi",
+        "useAgentFeedback_OnRejection_ShouldIncludeReason",
+        "useAgentFeedback_ShouldTrackPendingOperations"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-023"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-038",
+      "title": "Implement diff-based approval flow in dashboard",
+      "description": "Wire up the complete diff-based approval flow: clicking Review Diff shows side-by-side comparison, user can approve/reject/edit, changes applied via API, spec preview updates live.",
+      "acceptanceCriteria": [
+        "[Review Diff] switches editor to diff view mode",
+        "Diff view shows current vs proposed side-by-side",
+        "User can edit proposed side in diff view",
+        "[Approve] applies newText to document via API",
+        "[Reject] discards change, optionally with reason",
+        "[Apply Edited] applies user's modified version",
+        "On approve/edit, spec preview updates live",
+        "Changed sections highlighted briefly (2 seconds)",
+        "Feedback sent to agent after each action",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "diffFlow_OnReviewDiff_ShouldSwitchToDiffView",
+        "diffFlow_OnApprove_ShouldApplyChange",
+        "diffFlow_OnReject_ShouldDiscardChange",
+        "diffFlow_OnEdit_ShouldApplyUserVersion",
+        "diffFlow_ShouldHighlightChangedSection"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": "Integration story wiring multiple components",
+      "dependencies": [
+        "US-024",
+        "US-028",
+        "US-030",
+        "US-031",
+        "US-036",
+        "US-037"
+      ],
+      "complexity": "high",
+      "context": {}
+    },
+    {
+      "id": "US-039",
+      "title": "Implement selection-based chat in dashboard",
+      "description": "Wire up selection-based chat: user selects text in editor, types question, selection context included in message to agent. Agent responds with context-aware feedback.",
+      "acceptanceCriteria": [
+        "When user selects text in MDXEditor, selection captured",
+        "Typing in chat includes selected text context",
+        "Agent receives { selectedText, question } format",
+        "Agent response displayed in chat",
+        "If agent proposes change, new suggestion card created",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "selectionChat_WithSelection_ShouldIncludeContext",
+        "selectionChat_OnAgentProposal_ShouldCreateSuggestion"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-029",
+        "US-034",
+        "US-036"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-040",
+      "title": "Implement split preview and save flow in dashboard",
+      "description": "Wire up the split acceptance flow in dashboard: Accept shows preview of all proposed files, user can review/edit each, Save All writes files via API, creates session files for each new spec.",
+      "acceptanceCriteria": [
+        "[Accept Split] opens preview modal with all proposed files",
+        "User can review each proposed file's content",
+        "User can edit proposed content before saving",
+        "[Save All] writes files via POST /api/spec-review/split",
+        "Session files created for each new spec",
+        "Parent session updated with splitSpecs array",
+        "Original spec preserved",
+        "Success message with links to new specs",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "splitPreview_OnAccept_ShouldShowAllFiles",
+        "splitPreview_OnSave_ShouldCreateFiles",
+        "splitPreview_ShouldUpdateParentSession"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-015",
+        "US-021",
+        "US-023",
+        "US-032"
+      ],
+      "complexity": "high",
+      "context": {}
+    },
+    {
+      "id": "US-041",
+      "title": "Add spec review page to dashboard navigation",
+      "description": "Add Spec Review menu item to dashboard sidebar navigation. Wire up routing to SpecReviewPage component. Ensure navigation works from other dashboard pages.",
+      "acceptanceCriteria": [
+        "Spec Review menu item added to sidebar",
+        "Clicking navigates to /spec-review route",
+        "SpecReviewPage rendered at /spec-review",
+        "Navigation works from all dashboard pages",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "navigation_ShouldShowSpecReviewMenuItem",
+        "navigation_OnClick_ShouldNavigateToSpecReview"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-027"
+      ],
+      "complexity": "low",
+      "context": {}
+    },
+    {
+      "id": "US-042",
+      "title": "Add spec review route registration to server",
+      "description": "Register spec review API routes in the Express server. Import and mount spec-review routes at /api/spec-review prefix.",
+      "acceptanceCriteria": [
+        "specReviewRoutes imported in src/server/index.ts",
+        "Routes mounted at /api/spec-review",
+        "All spec review endpoints accessible",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "server_ShouldExposeSpecReviewEndpoints"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-023"
+      ],
+      "complexity": "low",
+      "context": {}
+    },
+    {
+      "id": "US-043",
+      "title": "Register spec command in CLI index",
+      "description": "Register the spec command (with review subcommand) in the main CLI index. Import and add to commander program.",
+      "acceptanceCriteria": [
+        "spec command imported from src/cli/commands/spec.ts",
+        "Command registered with program",
+        "qala spec review accessible from CLI",
+        "Help text displays correctly",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "cli_ShouldShowSpecCommand",
+        "cli_ShouldShowSpecReviewSubcommand"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-018"
+      ],
+      "complexity": "low",
+      "context": {}
+    },
+    {
+      "id": "US-044",
+      "title": "End-to-end integration test for CLI spec review",
+      "description": "Create integration test that runs qala spec review on a sample spec file and verifies the complete flow: file loading, review execution, result output, logging.",
+      "acceptanceCriteria": [
+        "Integration test in src/core/spec-review/__tests__/integration.test.ts",
+        "Tests CLI with sample spec file",
+        "Verifies review completes without error",
+        "Verifies log files created in .ralph/logs/",
+        "Verifies JSON output format when --json flag used",
+        "Test uses mock CLI to avoid actual AI calls",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "integration_specReview_ShouldCompleteSuccessfully",
+        "integration_specReview_ShouldCreateLogFiles",
+        "integration_specReview_WithJsonFlag_ShouldOutputJson"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": "Integration test, may need test fixtures",
+      "dependencies": [
+        "US-016",
+        "US-017",
+        "US-018",
+        "US-043"
+      ],
+      "complexity": "medium",
+      "context": {}
+    },
+    {
+      "id": "US-045",
+      "title": "End-to-end integration test for dashboard spec review",
+      "description": "Create integration test for dashboard spec review flow using API routes. Tests session creation, review start, feedback, and state persistence.",
+      "acceptanceCriteria": [
+        "Integration test in src/server/__tests__/spec-review.routes.test.ts",
+        "Tests POST /api/spec-review/start creates session",
+        "Tests GET /api/spec-review/status returns results",
+        "Tests POST /api/spec-review/feedback updates session",
+        "Tests session persistence across requests",
+        "Uses supertest for API testing",
+        "All tests pass",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "apiIntegration_startReview_ShouldCreateSession",
+        "apiIntegration_getStatus_ShouldReturnResults",
+        "apiIntegration_feedback_ShouldUpdateSession",
+        "apiIntegration_sessionShouldPersist"
+      ],
+      "priority": 40,
+      "passes": false,
+      "notes": "",
+      "dependencies": [
+        "US-023",
+        "US-042"
+      ],
+      "complexity": "medium",
+      "context": {}
     }
   ]
 }
