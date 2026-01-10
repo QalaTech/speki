@@ -1,13 +1,23 @@
-import { readdir, access, stat } from 'fs/promises';
+import { readdir, access } from 'fs/promises';
 import { join } from 'path';
 import type { CodebaseContext } from '../../types/index.js';
+
+const EXCLUDED_DIRECTORIES = new Set([
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  'vendor',
+  '__pycache__',
+]);
 
 /**
  * Detects the project type from config files in the project root.
  */
 async function detectProjectType(projectRoot: string): Promise<string> {
-  const configIndicators: Array<{ file: string; glob?: string; type: string }> = [
+  const configIndicators: Array<{ file: string; type: string }> = [
     { file: 'package.json', type: 'nodejs' },
+    { file: 'tsconfig.json', type: 'typescript' },
     { file: 'requirements.txt', type: 'python' },
     { file: 'pyproject.toml', type: 'python' },
     { file: 'go.mod', type: 'go' },
@@ -93,7 +103,7 @@ async function identifyPatterns(projectRoot: string): Promise<string[]> {
       }
     }
   } catch {
-    // Directory read failed, return empty patterns
+    // Ignore read errors
   }
 
   return patterns;
@@ -113,15 +123,7 @@ async function listSourceDirectories(projectRoot: string): Promise<string[]> {
       if (!entry.isDirectory()) continue;
 
       // Skip hidden directories and common non-source directories
-      if (
-        entry.name.startsWith('.') ||
-        entry.name === 'node_modules' ||
-        entry.name === 'dist' ||
-        entry.name === 'build' ||
-        entry.name === 'coverage' ||
-        entry.name === 'vendor' ||
-        entry.name === '__pycache__'
-      ) {
+      if (entry.name.startsWith('.') || EXCLUDED_DIRECTORIES.has(entry.name)) {
         continue;
       }
 
@@ -140,7 +142,7 @@ async function listSourceDirectories(projectRoot: string): Promise<string[]> {
       }
     }
   } catch {
-    // Directory read failed, return empty list
+    // Ignore read errors
   }
 
   return sourceDirectories;

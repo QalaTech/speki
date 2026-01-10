@@ -14,49 +14,44 @@ describe('gatherCodebaseContext', () => {
   });
 
   afterEach(async () => {
-    // Clean up temp directory
     try {
       await rm(testDir, { recursive: true, force: true });
     } catch {
-      // Ignore cleanup errors
+      // Cleanup may fail if test didn't create directory
     }
   });
 
-  it('gatherCodebaseContext_WithPackageJson_ShouldDetectNodejs', async () => {
-    // Arrange
+  it('gatherCodebaseContext_WithPackageJson_IdentifiesNodeProject', async () => {
     await writeFile(join(testDir, 'package.json'), '{"name": "test"}');
 
-    // Act
     const result = await gatherCodebaseContext(testDir);
 
-    // Assert
     expect(result.projectType).toBe('nodejs');
   });
 
-  it('gatherCodebaseContext_WithCsproj_ShouldDetectDotnet', async () => {
-    // Arrange
-    await writeFile(join(testDir, 'MyProject.csproj'), '<Project></Project>');
+  it('gatherCodebaseContext_WithTsConfig_IdentifiesTypeScript', async () => {
+    await writeFile(join(testDir, 'tsconfig.json'), '{"compilerOptions": {}}');
 
-    // Act
     const result = await gatherCodebaseContext(testDir);
 
-    // Assert
+    expect(result.projectType).toBe('typescript');
+  });
+
+  it('gatherCodebaseContext_WithCsproj_ShouldDetectDotnet', async () => {
+    await writeFile(join(testDir, 'MyProject.csproj'), '<Project></Project>');
+
+    const result = await gatherCodebaseContext(testDir);
+
     expect(result.projectType).toBe('dotnet');
   });
 
   it('gatherCodebaseContext_WithMissingConfigs_ShouldReturnUnknownType', async () => {
-    // Arrange
-    // Empty directory, no config files
-
-    // Act
     const result = await gatherCodebaseContext(testDir);
 
-    // Assert
     expect(result.projectType).toBe('unknown');
   });
 
   it('gatherCodebaseContext_ShouldListSourceDirectories', async () => {
-    // Arrange
     await mkdir(join(testDir, 'src'));
     await writeFile(join(testDir, 'src', 'index.ts'), '// source');
     await mkdir(join(testDir, 'lib'));
@@ -64,28 +59,23 @@ describe('gatherCodebaseContext', () => {
     await mkdir(join(testDir, 'node_modules')); // Should be excluded
     await mkdir(join(testDir, '.git')); // Should be excluded (hidden)
 
-    // Act
     const result = await gatherCodebaseContext(testDir);
 
-    // Assert
     expect(result.relevantFiles).toContain('src');
     expect(result.relevantFiles).toContain('lib');
     expect(result.relevantFiles).not.toContain('node_modules');
     expect(result.relevantFiles).not.toContain('.git');
   });
 
-  it('gatherCodebaseContext_ShouldIdentifyPatterns', async () => {
-    // Arrange
+  it('gatherCodebaseContext_WithSrcDirectory_ListsPatterns', async () => {
     await mkdir(join(testDir, 'src'));
     await mkdir(join(testDir, 'tests'));
     await mkdir(join(testDir, 'docs'));
     await mkdir(join(testDir, 'services'));
     await mkdir(join(testDir, 'components'));
 
-    // Act
     const result = await gatherCodebaseContext(testDir);
 
-    // Assert
     expect(result.existingPatterns).toContain('src/ directory structure');
     expect(result.existingPatterns).toContain('tests/ directory for tests');
     expect(result.existingPatterns).toContain('docs/ documentation directory');
@@ -94,37 +84,45 @@ describe('gatherCodebaseContext', () => {
   });
 
   it('gatherCodebaseContext_WithRequirementsTxt_ShouldDetectPython', async () => {
-    // Arrange
     await writeFile(join(testDir, 'requirements.txt'), 'flask==2.0.0');
 
-    // Act
     const result = await gatherCodebaseContext(testDir);
 
-    // Assert
     expect(result.projectType).toBe('python');
   });
 
   it('gatherCodebaseContext_WithGoMod_ShouldDetectGo', async () => {
-    // Arrange
     await writeFile(join(testDir, 'go.mod'), 'module example.com/myapp');
 
-    // Act
     const result = await gatherCodebaseContext(testDir);
 
-    // Assert
     expect(result.projectType).toBe('go');
   });
 
   it('gatherCodebaseContext_WithNonExistentDirectory_ShouldReturnEmptyResults', async () => {
-    // Arrange
     const nonExistentDir = join(testDir, 'does-not-exist');
 
-    // Act
     const result = await gatherCodebaseContext(nonExistentDir);
 
-    // Assert
     expect(result.projectType).toBe('unknown');
     expect(result.existingPatterns).toEqual([]);
     expect(result.relevantFiles).toEqual([]);
+  });
+
+  it('gatherCodebaseContext_ReturnsSerializableObject', async () => {
+    await writeFile(join(testDir, 'package.json'), '{"name": "test"}');
+    await mkdir(join(testDir, 'src'));
+    await writeFile(join(testDir, 'src', 'index.ts'), '// source');
+
+    const result = await gatherCodebaseContext(testDir);
+
+    // Verify the object can be serialized to JSON and back without data loss
+    const serialized = JSON.stringify(result);
+    const deserialized = JSON.parse(serialized);
+
+    expect(deserialized).toEqual(result);
+    expect(typeof deserialized.projectType).toBe('string');
+    expect(Array.isArray(deserialized.existingPatterns)).toBe(true);
+    expect(Array.isArray(deserialized.relevantFiles)).toBe(true);
   });
 });
