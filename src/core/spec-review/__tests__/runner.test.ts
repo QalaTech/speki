@@ -22,7 +22,7 @@ import { promises as fs } from 'fs';
 import { gatherCodebaseContext } from '../codebase-context.js';
 import { aggregateResults } from '../aggregator.js';
 import { getReviewTimeout } from '../timeout.js';
-import { runSpecReview } from '../runner.js';
+import { runSpecReview, runDecomposeReview } from '../runner.js';
 import type { CodebaseContext } from '../../../types/index.js';
 
 function createMockProcess(): ChildProcess {
@@ -244,5 +244,242 @@ That's my assessment.`;
     // Verify spec path was passed for split proposals
     const originalFileArg = aggregatorCall[3];
     expect(originalFileArg).toBe(mockSpecPath);
+  });
+});
+
+describe('runDecomposeReview', () => {
+  const mockSpecContent = '# Test Spec\n\n## Requirements\n\n- Feature A\n- Feature B';
+  const mockTasksJson = JSON.stringify([
+    { id: 'US-001', title: 'Implement Feature A', dependencies: [] },
+    { id: 'US-002', title: 'Implement Feature B', dependencies: ['US-001'] },
+  ]);
+
+  const mockPromptResponse = `Here is my analysis:
+
+\`\`\`json
+{
+  "verdict": "PASS",
+  "issues": [],
+  "suggestions": []
+}
+\`\`\`
+
+That's my assessment.`;
+
+  let mockProcesses: ChildProcess[];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    mockProcesses = [];
+
+    vi.mocked(spawn).mockImplementation(() => {
+      const proc = createMockProcess();
+      mockProcesses.push(proc);
+      return proc;
+    });
+
+    vi.mocked(fs.writeFile).mockResolvedValue();
+    vi.mocked(fs.mkdir).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  async function simulateDecomposeResponses(response: string = mockPromptResponse): Promise<void> {
+    for (let i = 0; i < 4; i++) {
+      while (mockProcesses.length <= i) {
+        await vi.advanceTimersByTimeAsync(10);
+      }
+
+      const proc = mockProcesses[i];
+      (proc.stdout as EventEmitter).emit('data', Buffer.from(response));
+      (proc as unknown as EventEmitter).emit('close', 0);
+
+      await vi.advanceTimersByTimeAsync(10);
+    }
+  }
+
+  it('runDecomposeReview_WithValidTasks_ReturnsResult', async () => {
+    // Arrange
+    const resultPromise = runDecomposeReview(mockSpecContent, mockTasksJson, { cwd: '/test/project' });
+    await simulateDecomposeResponses();
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert
+    expect(result).toBeDefined();
+    expect(result.verdict).toBe('PASS');
+    expect(result.missingRequirements).toEqual([]);
+    expect(result.contradictions).toEqual([]);
+    expect(result.dependencyErrors).toEqual([]);
+    expect(result.duplicates).toEqual([]);
+  });
+
+  it('runDecomposeReview_SpawnsAgentWithoutTools', async () => {
+    // Arrange
+    const resultPromise = runDecomposeReview(mockSpecContent, mockTasksJson, { cwd: '/test/project' });
+    await simulateDecomposeResponses();
+
+    // Act
+    await resultPromise;
+
+    // Assert - verify spawn was called WITH --tools '' flag
+    expect(spawn).toHaveBeenCalled();
+    const spawnCalls = vi.mocked(spawn).mock.calls;
+
+    // All 4 decompose prompts should use --tools ''
+    for (const call of spawnCalls) {
+      const args = call[1] as string[];
+      expect(args).toContain('--tools');
+      const toolsIndex = args.indexOf('--tools');
+      expect(args[toolsIndex + 1]).toBe('');
+    }
+  });
+
+  it('runDecomposeReview_ChecksMissingRequirements', async () => {
+    // Arrange
+    const missingReqResponse = `Analysis:
+
+\`\`\`json
+{
+  "verdict": "FAIL",
+  "issues": ["Requirement R1 is not covered by any task"],
+  "suggestions": []
+}
+\`\`\``;
+
+    let promptIndex = 0;
+    vi.mocked(spawn).mockImplementation(() => {
+      const proc = createMockProcess();
+      mockProcesses.push(proc);
+      return proc;
+    });
+
+    const resultPromise = runDecomposeReview(mockSpecContent, mockTasksJson, { cwd: '/test/project' });
+
+    // Send different responses for each prompt
+    for (let i = 0; i < 4; i++) {
+      while (mockProcesses.length <= i) {
+        await vi.advanceTimersByTimeAsync(10);
+      }
+      const proc = mockProcesses[i];
+      const response = i === 0 ? missingReqResponse : mockPromptResponse;
+      (proc.stdout as EventEmitter).emit('data', Buffer.from(response));
+      (proc as unknown as EventEmitter).emit('close', 0);
+      await vi.advanceTimersByTimeAsync(10);
+    }
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert
+    expect(result.verdict).toBe('FAIL');
+    expect(result.missingRequirements).toContain('Requirement R1 is not covered by any task');
+  });
+
+  it('runDecomposeReview_ChecksContradictions', async () => {
+    // Arrange
+    const contradictionResponse = `Analysis:
+
+\`\`\`json
+{
+  "verdict": "FAIL",
+  "issues": ["Task US-001 contradicts spec requirement for Feature A"],
+  "suggestions": []
+}
+\`\`\``;
+
+    const resultPromise = runDecomposeReview(mockSpecContent, mockTasksJson, { cwd: '/test/project' });
+
+    // Send contradiction response for second prompt (index 1)
+    for (let i = 0; i < 4; i++) {
+      while (mockProcesses.length <= i) {
+        await vi.advanceTimersByTimeAsync(10);
+      }
+      const proc = mockProcesses[i];
+      const response = i === 1 ? contradictionResponse : mockPromptResponse;
+      (proc.stdout as EventEmitter).emit('data', Buffer.from(response));
+      (proc as unknown as EventEmitter).emit('close', 0);
+      await vi.advanceTimersByTimeAsync(10);
+    }
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert
+    expect(result.verdict).toBe('FAIL');
+    expect(result.contradictions).toContain('Task US-001 contradicts spec requirement for Feature A');
+  });
+
+  it('runDecomposeReview_ChecksDependencies', async () => {
+    // Arrange
+    const dependencyResponse = `Analysis:
+
+\`\`\`json
+{
+  "verdict": "FAIL",
+  "issues": ["Circular dependency detected: US-001 -> US-002 -> US-001"],
+  "suggestions": []
+}
+\`\`\``;
+
+    const resultPromise = runDecomposeReview(mockSpecContent, mockTasksJson, { cwd: '/test/project' });
+
+    // Send dependency error response for third prompt (index 2)
+    for (let i = 0; i < 4; i++) {
+      while (mockProcesses.length <= i) {
+        await vi.advanceTimersByTimeAsync(10);
+      }
+      const proc = mockProcesses[i];
+      const response = i === 2 ? dependencyResponse : mockPromptResponse;
+      (proc.stdout as EventEmitter).emit('data', Buffer.from(response));
+      (proc as unknown as EventEmitter).emit('close', 0);
+      await vi.advanceTimersByTimeAsync(10);
+    }
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert
+    expect(result.verdict).toBe('FAIL');
+    expect(result.dependencyErrors).toContain('Circular dependency detected: US-001 -> US-002 -> US-001');
+  });
+
+  it('runDecomposeReview_ChecksDuplicates', async () => {
+    // Arrange
+    const duplicateResponse = `Analysis:
+
+\`\`\`json
+{
+  "verdict": "FAIL",
+  "issues": ["Tasks US-001 and US-003 appear to be duplicates"],
+  "suggestions": []
+}
+\`\`\``;
+
+    const resultPromise = runDecomposeReview(mockSpecContent, mockTasksJson, { cwd: '/test/project' });
+
+    // Send duplicate error response for fourth prompt (index 3)
+    for (let i = 0; i < 4; i++) {
+      while (mockProcesses.length <= i) {
+        await vi.advanceTimersByTimeAsync(10);
+      }
+      const proc = mockProcesses[i];
+      const response = i === 3 ? duplicateResponse : mockPromptResponse;
+      (proc.stdout as EventEmitter).emit('data', Buffer.from(response));
+      (proc as unknown as EventEmitter).emit('close', 0);
+      await vi.advanceTimersByTimeAsync(10);
+    }
+
+    // Act
+    const result = await resultPromise;
+
+    // Assert
+    expect(result.verdict).toBe('FAIL');
+    expect(result.duplicates).toContain('Tasks US-001 and US-003 appear to be duplicates');
   });
 });

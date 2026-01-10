@@ -11,8 +11,12 @@ import {
   CLARITY_SPECIFICITY_PROMPT,
   TESTABILITY_PROMPT,
   SCOPE_VALIDATION_PROMPT,
+  MISSING_REQUIREMENTS_PROMPT,
+  CONTRADICTIONS_PROMPT,
+  DEPENDENCY_VALIDATION_PROMPT,
+  DUPLICATE_DETECTION_PROMPT,
 } from './prompts.js';
-import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SpecReviewVerdict } from '../../types/index.js';
+import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SpecReviewVerdict, ReviewFeedback } from '../../types/index.js';
 
 export interface SpecReviewOptions {
   /** Timeout in milliseconds (overrides default) */
@@ -37,6 +41,13 @@ const STANDALONE_PROMPTS: PromptDefinition[] = [
   { name: 'clarity_specificity', category: 'clarity', template: CLARITY_SPECIFICITY_PROMPT },
   { name: 'testability', category: 'testability', template: TESTABILITY_PROMPT },
   { name: 'scope_validation', category: 'scope_alignment', template: SCOPE_VALIDATION_PROMPT },
+];
+
+const DECOMPOSE_PROMPTS: PromptDefinition[] = [
+  { name: 'missing_requirements', category: 'coverage', template: MISSING_REQUIREMENTS_PROMPT },
+  { name: 'contradictions', category: 'consistency', template: CONTRADICTIONS_PROMPT },
+  { name: 'dependency_validation', category: 'dependencies', template: DEPENDENCY_VALIDATION_PROMPT },
+  { name: 'duplicate_detection', category: 'duplicates', template: DUPLICATE_DETECTION_PROMPT },
 ];
 
 async function loadGoldenStandard(cwd: string, customPath?: string): Promise<string> {
@@ -68,6 +79,12 @@ function buildPrompt(
   return prompt;
 }
 
+function buildDecomposePrompt(template: string, specContent: string, tasksJson: string): string {
+  return template
+    .replace('{specContent}', specContent)
+    .replace('{tasksJson}', tasksJson);
+}
+
 function createErrorResult(
   promptDef: PromptDefinition,
   errorMessage: string,
@@ -85,15 +102,24 @@ function createErrorResult(
   };
 }
 
+interface RunPromptOptions {
+  disableTools?: boolean;
+}
+
 async function runPrompt(
   promptDef: PromptDefinition,
   fullPrompt: string,
   cwd: string,
-  timeoutMs: number
+  timeoutMs: number,
+  options: RunPromptOptions = {}
 ): Promise<FocusedPromptResult> {
   const startTime = Date.now();
   const claudePath = resolveCliPath('claude');
   const args = ['--dangerously-skip-permissions', '--print', '--output-format', 'text'];
+
+  if (options.disableTools) {
+    args.push('--tools', '');
+  }
 
   return new Promise((resolve) => {
     let stdout = '';
@@ -251,6 +277,91 @@ export async function runSpecReview(
 
   await fs.writeFile(logPath, JSON.stringify({
     specPath,
+    timestamp: new Date().toISOString(),
+    promptResults: results,
+    aggregatedResult,
+  }, null, 2));
+
+  return aggregatedResult;
+}
+
+export interface DecomposeReviewOptions {
+  /** Timeout in milliseconds (overrides default) */
+  timeoutMs?: number;
+  /** Working directory (defaults to process.cwd()) */
+  cwd?: string;
+  /** Directory for log files */
+  logDir?: string;
+}
+
+function aggregateDecomposeResults(results: FocusedPromptResult[]): ReviewFeedback {
+  const missingRequirements: string[] = [];
+  const contradictions: string[] = [];
+  const dependencyErrors: string[] = [];
+  const duplicates: string[] = [];
+  const suggestions: string[] = [];
+
+  let hasFailure = false;
+
+  for (const result of results) {
+    if (result.verdict === 'FAIL') {
+      hasFailure = true;
+    }
+
+    const issues = result.issues;
+    switch (result.promptName) {
+      case 'missing_requirements':
+        missingRequirements.push(...issues);
+        break;
+      case 'contradictions':
+        contradictions.push(...issues);
+        break;
+      case 'dependency_validation':
+        dependencyErrors.push(...issues);
+        break;
+      case 'duplicate_detection':
+        duplicates.push(...issues);
+        break;
+    }
+
+    suggestions.push(...result.suggestions.map((s) => s.issue || s.suggestedFix).filter(Boolean));
+  }
+
+  return {
+    verdict: hasFailure ? 'FAIL' : 'PASS',
+    missingRequirements,
+    contradictions,
+    dependencyErrors,
+    duplicates,
+    suggestions,
+  };
+}
+
+export async function runDecomposeReview(
+  specContent: string,
+  tasksJson: string,
+  options: DecomposeReviewOptions = {}
+): Promise<ReviewFeedback> {
+  const cwd = options.cwd ?? process.cwd();
+  const timeoutMs = options.timeoutMs ?? getReviewTimeout();
+  const logDir = options.logDir ?? join(cwd, '.ralph', 'logs');
+
+  await fs.mkdir(logDir, { recursive: true });
+
+  const promptTimeoutMs = Math.floor(timeoutMs / DECOMPOSE_PROMPTS.length);
+  const results: FocusedPromptResult[] = [];
+
+  for (const promptDef of DECOMPOSE_PROMPTS) {
+    const fullPrompt = buildDecomposePrompt(promptDef.template, specContent, tasksJson);
+    const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, { disableTools: true });
+    results.push(result);
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const logPath = join(logDir, `decompose-review-${timestamp}.json`);
+  const aggregatedResult = aggregateDecomposeResults(results);
+
+  await fs.writeFile(logPath, JSON.stringify({
     timestamp: new Date().toISOString(),
     promptResults: results,
     aggregatedResult,
