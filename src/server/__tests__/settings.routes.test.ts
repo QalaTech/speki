@@ -37,6 +37,9 @@ describe('settings routes', () => {
         reviewer: {
           cli: 'claude' as const,
         },
+        execution: {
+          keepAwake: true,
+        },
       };
       vi.mocked(settingsModule.loadGlobalSettings).mockResolvedValue(mockSettings);
 
@@ -55,6 +58,9 @@ describe('settings routes', () => {
         reviewer: {
           cli: 'codex' as const,
         },
+        execution: {
+          keepAwake: true,
+        },
       };
       vi.mocked(settingsModule.loadGlobalSettings).mockResolvedValue(defaultSettings);
 
@@ -67,13 +73,22 @@ describe('settings routes', () => {
         reviewer: {
           cli: 'codex',
         },
+        execution: {
+          keepAwake: true,
+        },
       });
     });
   });
 
   describe('PUT /api/settings', () => {
+    const defaultMockSettings = {
+      reviewer: { cli: 'codex' as const },
+      execution: { keepAwake: true },
+    };
+
     it('PUT_Settings_WithValidCli_ShouldReturn200WithSuccessAndSettings', async () => {
       // Arrange
+      vi.mocked(settingsModule.loadGlobalSettings).mockResolvedValue(defaultMockSettings);
       vi.mocked(settingsModule.saveGlobalSettings).mockResolvedValue(undefined);
       const requestBody = {
         reviewer: {
@@ -94,17 +109,24 @@ describe('settings routes', () => {
           reviewer: {
             cli: 'claude',
           },
+          execution: {
+            keepAwake: true,
+          },
         },
       });
       expect(settingsModule.saveGlobalSettings).toHaveBeenCalledWith({
         reviewer: {
           cli: 'claude',
         },
+        execution: {
+          keepAwake: true,
+        },
       });
     });
 
     it('PUT_Settings_WithInvalidCli_ShouldReturn400BadRequest', async () => {
       // Arrange
+      vi.mocked(settingsModule.loadGlobalSettings).mockResolvedValue(defaultMockSettings);
       const requestBody = {
         reviewer: {
           cli: 'invalid-cli',
@@ -124,21 +146,24 @@ describe('settings routes', () => {
       expect(settingsModule.saveGlobalSettings).not.toHaveBeenCalled();
     });
 
-    it('PUT_Settings_WithMissingBody_ShouldReturn400BadRequest', async () => {
-      // Act - Test with missing reviewer field
+    it('PUT_Settings_WithMissingBody_ShouldMergeWithExistingSettings', async () => {
+      // Arrange - PUT now merges, so empty body uses existing settings
+      vi.mocked(settingsModule.loadGlobalSettings).mockResolvedValue(defaultMockSettings);
+      vi.mocked(settingsModule.saveGlobalSettings).mockResolvedValue(undefined);
+
+      // Act - Test with empty body
       const response = await request(app)
         .put('/api/settings')
         .send({});
 
-      // Assert
-      expect(response.status).toBe(400);
-      expect(response.body.error).toBe('Invalid request body');
-      expect(response.body.details).toContain('reviewer');
-      expect(settingsModule.saveGlobalSettings).not.toHaveBeenCalled();
+      // Assert - should succeed and use existing settings
+      expect(response.status).toBe(200);
+      expect(response.body.settings).toEqual(defaultMockSettings);
     });
 
     it('PUT_Settings_ResponseShape_ShouldIncludeSuccessAndSettingsFields', async () => {
       // Arrange
+      vi.mocked(settingsModule.loadGlobalSettings).mockResolvedValue(defaultMockSettings);
       vi.mocked(settingsModule.saveGlobalSettings).mockResolvedValue(undefined);
       const requestBody = {
         reviewer: {
@@ -158,8 +183,31 @@ describe('settings routes', () => {
       expect(response.body).toHaveProperty('settings');
       expect(response.body.settings).toHaveProperty('reviewer');
       expect(response.body.settings.reviewer).toHaveProperty('cli', 'codex');
+      expect(response.body.settings).toHaveProperty('execution');
+      expect(response.body.settings.execution).toHaveProperty('keepAwake', true);
       // Verify no extra properties at root level
       expect(Object.keys(response.body)).toEqual(['success', 'settings']);
+    });
+
+    it('PUT_Settings_WithExecution_ShouldUpdateKeepAwake', async () => {
+      // Arrange
+      vi.mocked(settingsModule.loadGlobalSettings).mockResolvedValue(defaultMockSettings);
+      vi.mocked(settingsModule.saveGlobalSettings).mockResolvedValue(undefined);
+      const requestBody = {
+        execution: {
+          keepAwake: false,
+        },
+      };
+
+      // Act
+      const response = await request(app)
+        .put('/api/settings')
+        .send(requestBody);
+
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body.settings.execution.keepAwake).toBe(false);
+      expect(response.body.settings.reviewer.cli).toBe('codex'); // Unchanged
     });
   });
 

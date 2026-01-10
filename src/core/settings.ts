@@ -20,11 +20,16 @@ export function getSettingsFilePath(): string {
 }
 
 /**
- * Default global settings with Codex as the default reviewer CLI
+ * Default global settings
+ * - Codex as the default reviewer CLI
+ * - Keep awake enabled by default for overnight runs
  */
 const DEFAULT_SETTINGS: GlobalSettings = {
   reviewer: {
     cli: 'codex',
+  },
+  execution: {
+    keepAwake: true,
   },
 };
 
@@ -43,6 +48,9 @@ export async function loadGlobalSettings(): Promise<GlobalSettings> {
       return {
         reviewer: {
           cli: parsed.reviewer?.cli ?? DEFAULT_SETTINGS.reviewer.cli,
+        },
+        execution: {
+          keepAwake: parsed.execution?.keepAwake ?? DEFAULT_SETTINGS.execution.keepAwake,
         },
       };
     }

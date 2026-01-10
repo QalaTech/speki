@@ -109,6 +109,9 @@ describe('settings', () => {
         reviewer: {
           cli: 'claude' as const,
         },
+        execution: {
+          keepAwake: true,
+        },
       };
       vi.mocked(mkdir).mockResolvedValue(undefined);
       vi.mocked(writeFile).mockResolvedValue(undefined);
@@ -128,6 +131,9 @@ describe('settings', () => {
       const newSettings = {
         reviewer: {
           cli: 'codex' as const,
+        },
+        execution: {
+          keepAwake: false,
         },
       };
       vi.mocked(mkdir).mockResolvedValue(undefined);

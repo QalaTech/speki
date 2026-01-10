@@ -16,6 +16,9 @@ interface GlobalSettings {
   reviewer: {
     cli: 'codex' | 'claude';
   };
+  execution: {
+    keepAwake: boolean;
+  };
 }
 
 type CliType = 'codex' | 'claude';
@@ -53,8 +56,9 @@ export function SettingsView() {
   const [cliDetection, setCliDetection] = useState<AllCliDetectionResults | null>(null);
   const [_settings, setSettings] = useState<GlobalSettings | null>(null);
   const [selectedCli, setSelectedCli] = useState<CliType>('codex');
+  const [keepAwake, setKeepAwake] = useState<boolean>(true);
 
-  // _settings is intentionally unused - we track selectedCli locally but persist via setSettings
+  // _settings is intentionally unused - we track selectedCli/keepAwake locally but persist via setSettings
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +120,9 @@ export function SettingsView() {
         setSelectedCli(currentSettings.reviewer.cli);
       }
 
+      // keepAwake defaults to true if not set
+      setKeepAwake(currentSettings?.execution?.keepAwake ?? true);
+
       // Check if no CLIs are available
       if (detection && !detection.codex.available && !detection.claude.available) {
         setError('No CLI tools are available. Please install Codex or Claude CLI.');
@@ -136,7 +143,10 @@ export function SettingsView() {
       const res = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reviewer: { cli: selectedCli } })
+        body: JSON.stringify({
+          reviewer: { cli: selectedCli },
+          execution: { keepAwake }
+        })
       });
 
       const data = await res.json();
@@ -272,25 +282,55 @@ export function SettingsView() {
               </>
             )}
           </div>
+        </div>
+      </div>
 
-          <div className="settings-actions">
-            <button
-              className="btn-primary"
-              onClick={handleSave}
-              disabled={saving || availableClis.length === 0}
-            >
-              {saving ? 'Saving...' : 'Save Settings'}
-            </button>
+      <div className="settings-section">
+        <div className="section-header">
+          <h3>Execution</h3>
+          <p>Configure how Ralph executes tasks</p>
+        </div>
 
-            {saveSuccess && (
-              <span className="save-success">Settings saved successfully!</span>
-            )}
-
-            {saveError && (
-              <span className="save-error">{saveError}</span>
-            )}
+        <div className="section-content">
+          <div className="config-field">
+            <label htmlFor="keep-awake-toggle">Prevent System Sleep</label>
+            <div className="toggle-wrapper">
+              <label className="toggle">
+                <input
+                  id="keep-awake-toggle"
+                  type="checkbox"
+                  checked={keepAwake}
+                  onChange={(e) => setKeepAwake(e.target.checked)}
+                  disabled={saving}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+              <span className="toggle-label">{keepAwake ? 'Enabled' : 'Disabled'}</span>
+            </div>
+            <p className="field-description">
+              Prevents your computer from sleeping during long-running tasks.
+              Recommended for overnight runs. Uses caffeinate (macOS), PowerShell (Windows), or systemd-inhibit (Linux).
+            </p>
           </div>
         </div>
+      </div>
+
+      <div className="settings-actions">
+        <button
+          className="btn-primary"
+          onClick={handleSave}
+          disabled={saving || availableClis.length === 0}
+        >
+          {saving ? 'Saving...' : 'Save Settings'}
+        </button>
+
+        {saveSuccess && (
+          <span className="save-success">Settings saved successfully!</span>
+        )}
+
+        {saveError && (
+          <span className="save-error">{saveError}</span>
+        )}
       </div>
     </div>
   );

@@ -41,10 +41,13 @@ router.get('/', async (req, res) => {
 
 /**
  * PUT /api/settings
- * Updates global settings with reviewer configuration
+ * Updates global settings
  *
- * Request body: { reviewer: { cli: 'codex' | 'claude' } }
- * Response: { success: true, settings: { reviewer: { cli: '...' } } }
+ * Request body: {
+ *   reviewer: { cli: 'codex' | 'claude' },
+ *   execution: { keepAwake: boolean }
+ * }
+ * Response: { success: true, settings: { ... } }
  */
 router.put('/', async (req, res) => {
   try {
@@ -58,27 +61,39 @@ router.put('/', async (req, res) => {
       });
     }
 
-    // Validate reviewer property exists
-    if (!body.reviewer || typeof body.reviewer !== 'object') {
-      return res.status(400).json({
-        error: 'Invalid request body',
-        details: 'Missing required field: reviewer',
-      });
+    // Load current settings to merge with updates
+    const currentSettings = await loadGlobalSettings();
+
+    // Validate and update reviewer if provided
+    let reviewerCli = currentSettings.reviewer.cli;
+    if (body.reviewer && typeof body.reviewer === 'object') {
+      const { cli } = body.reviewer;
+      if (cli !== undefined) {
+        if (!isValidCliType(cli)) {
+          return res.status(400).json({
+            error: 'Invalid CLI value',
+            details: `cli must be one of: ${VALID_CLI_TYPES.join(', ')}`,
+          });
+        }
+        reviewerCli = cli;
+      }
     }
 
-    // Validate cli value
-    const { cli } = body.reviewer;
-    if (!isValidCliType(cli)) {
-      return res.status(400).json({
-        error: 'Invalid CLI value',
-        details: `cli must be one of: ${VALID_CLI_TYPES.join(', ')}`,
-      });
+    // Validate and update execution if provided
+    let keepAwake = currentSettings.execution.keepAwake;
+    if (body.execution && typeof body.execution === 'object') {
+      if (typeof body.execution.keepAwake === 'boolean') {
+        keepAwake = body.execution.keepAwake;
+      }
     }
 
     // Build and save settings
     const settings: GlobalSettings = {
       reviewer: {
-        cli,
+        cli: reviewerCli,
+      },
+      execution: {
+        keepAwake,
       },
     };
 

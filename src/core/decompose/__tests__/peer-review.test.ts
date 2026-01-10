@@ -440,7 +440,7 @@ describe('runPeerReview', () => {
   it('runPeerReview_WithCodexSelected_ShouldUseCodex', async () => {
     // Arrange
     vi.mocked(loadGlobalSettings).mockResolvedValue({
-      reviewer: { cli: 'codex' },
+      reviewer: { cli: 'codex' }, execution: { keepAwake: true },
     });
     vi.mocked(detectCli).mockResolvedValue({
       available: true,
@@ -483,7 +483,7 @@ describe('runPeerReview', () => {
   it('runPeerReview_WithClaudeSelected_ShouldUseClaude', async () => {
     // Arrange
     vi.mocked(loadGlobalSettings).mockResolvedValue({
-      reviewer: { cli: 'claude' },
+      reviewer: { cli: 'claude' }, execution: { keepAwake: true },
     });
     vi.mocked(detectCli).mockResolvedValue({
       available: true,
@@ -525,7 +525,7 @@ describe('runPeerReview', () => {
   it('runPeerReview_WithUnavailableCli_ShouldReturnError', async () => {
     // Arrange
     vi.mocked(loadGlobalSettings).mockResolvedValue({
-      reviewer: { cli: 'claude' },
+      reviewer: { cli: 'claude' }, execution: { keepAwake: true },
     });
     vi.mocked(detectCli).mockResolvedValue({
       available: false,
@@ -554,7 +554,7 @@ describe('runPeerReview', () => {
   it('runPeerReview_WithNoConfig_ShouldDefaultToCodex', async () => {
     // Arrange - loadGlobalSettings returns default settings with codex
     vi.mocked(loadGlobalSettings).mockResolvedValue({
-      reviewer: { cli: 'codex' },
+      reviewer: { cli: 'codex' }, execution: { keepAwake: true },
     });
     vi.mocked(detectCli).mockResolvedValue({
       available: true,
@@ -591,7 +591,7 @@ describe('runPeerReview', () => {
   it('runPeerReview_ShouldProduceIdenticalLogFormat', async () => {
     // Arrange
     vi.mocked(loadGlobalSettings).mockResolvedValue({
-      reviewer: { cli: 'codex' },
+      reviewer: { cli: 'codex' }, execution: { keepAwake: true },
     });
     vi.mocked(detectCli).mockResolvedValue({
       available: true,
@@ -643,7 +643,7 @@ describe('runPeerReview', () => {
   it('runPeerReview_LogFileName_ShouldMatchPattern', async () => {
     // Arrange
     vi.mocked(loadGlobalSettings).mockResolvedValue({
-      reviewer: { cli: 'codex' },
+      reviewer: { cli: 'codex' }, execution: { keepAwake: true },
     });
     vi.mocked(detectCli).mockResolvedValue({
       available: true,
@@ -680,7 +680,7 @@ describe('runPeerReview', () => {
     vi.useFakeTimers();
 
     vi.mocked(loadGlobalSettings).mockResolvedValue({
-      reviewer: { cli: 'codex' },
+      reviewer: { cli: 'codex' }, execution: { keepAwake: true },
     });
     vi.mocked(detectCli).mockResolvedValue({
       available: true,
@@ -723,7 +723,7 @@ describe('runPeerReview', () => {
   it('runPeerReview_WithCliCrash_ShouldCaptureStderrAndFail', async () => {
     // Arrange
     vi.mocked(loadGlobalSettings).mockResolvedValue({
-      reviewer: { cli: 'codex' },
+      reviewer: { cli: 'codex' }, execution: { keepAwake: true },
     });
     vi.mocked(detectCli).mockResolvedValue({
       available: true,
@@ -774,7 +774,7 @@ describe('runPeerReview', () => {
   it('runPeerReview_Claude_ShouldReturnValidReviewFeedbackJson', async () => {
     // Arrange
     vi.mocked(loadGlobalSettings).mockResolvedValue({
-      reviewer: { cli: 'claude' },
+      reviewer: { cli: 'claude' }, execution: { keepAwake: true },
     });
     vi.mocked(detectCli).mockResolvedValue({
       available: true,

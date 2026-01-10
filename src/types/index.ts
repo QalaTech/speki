@@ -108,9 +108,16 @@ export interface ReviewerConfig {
   cli: CliType;
 }
 
+// Execution configuration
+export interface ExecutionConfig {
+  /** Prevent system sleep during execution (default: true) */
+  keepAwake: boolean;
+}
+
 // Global settings stored in ~/.qala/config.json
 export interface GlobalSettings {
   reviewer: ReviewerConfig;
+  execution: ExecutionConfig;
 }
 
 // CLI detection result
