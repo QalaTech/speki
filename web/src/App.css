@@ -301,6 +301,19 @@ body {
 }
 
 /* Task List */
+.task-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.task-list .task-cards {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
 .task-list-controls {
   display: flex;
   gap: 1rem;
@@ -2073,6 +2086,9 @@ body {
   flex: 1;
   padding: 1.5rem 2rem;
   min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .tab-content.kanban-active {
