@@ -7,7 +7,7 @@ import { runSpecReview } from '../../core/spec-review/runner.js';
 import { executeSplit } from '../../core/spec-review/splitter.js';
 import { generateSplitProposal, detectGodSpec } from '../../core/spec-review/god-spec-detector.js';
 import { loadSession, saveSession } from '../../core/spec-review/session-file.js';
-import type { SessionFile, SplitProposal, CodebaseContext } from '../../types/index.js';
+import type { SessionFile, SplitProposal, CodebaseContext, ChatMessage } from '../../types/index.js';
 
 const router = Router();
 
@@ -145,40 +145,21 @@ router.get('/status/:sessionId', async (req, res) => {
     const { sessionId } = req.params;
     const projectPath = req.projectPath!;
 
-    const sessionsDir = join(projectPath, '.ralph', 'sessions');
-    let foundSession: SessionFile | null = null;
+    const session = await findSessionById(projectPath, sessionId);
 
-    try {
-      const sessionFiles = await fs.readdir(sessionsDir);
-
-      for (const file of sessionFiles) {
-        if (!file.endsWith('.session.json')) continue;
-
-        const content = await fs.readFile(join(sessionsDir, file), 'utf-8');
-        const session = JSON.parse(content) as SessionFile;
-
-        if (session.sessionId === sessionId) {
-          foundSession = session;
-          break;
-        }
-      }
-    } catch {
-      // Sessions directory doesn't exist
-    }
-
-    if (!foundSession) {
+    if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
 
     res.json({
-      sessionId: foundSession.sessionId,
-      specFilePath: foundSession.specFilePath,
-      status: foundSession.status,
-      startedAt: foundSession.startedAt,
-      completedAt: foundSession.completedAt,
-      reviewResult: foundSession.reviewResult,
-      suggestions: foundSession.suggestions,
-      logPath: foundSession.logPath,
+      sessionId: session.sessionId,
+      specFilePath: session.specFilePath,
+      status: session.status,
+      startedAt: session.startedAt,
+      completedAt: session.completedAt,
+      reviewResult: session.reviewResult,
+      suggestions: session.suggestions,
+      logPath: session.logPath,
     });
   } catch (error) {
     res.status(500).json({
@@ -274,5 +255,224 @@ router.post('/split/preview', async (req, res) => {
     });
   }
 });
+
+/**
+ * POST /api/spec-review/feedback
+ * Handle user feedback on suggestions (approve/reject/edit)
+ */
+router.post('/feedback', async (req, res) => {
+  try {
+    const { sessionId, suggestionId, action, userVersion } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' });
+    }
+
+    if (!suggestionId) {
+      return res.status(400).json({ error: 'suggestionId is required' });
+    }
+
+    if (!action || !['approved', 'rejected', 'edited'].includes(action)) {
+      return res.status(400).json({ error: 'action must be one of: approved, rejected, edited' });
+    }
+
+    if (action === 'edited' && !userVersion) {
+      return res.status(400).json({ error: 'userVersion is required when action is edited' });
+    }
+
+    const projectPath = req.projectPath!;
+    const session = await findSessionById(projectPath, sessionId);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const suggestionIndex = session.suggestions.findIndex((s) => s.id === suggestionId);
+    if (suggestionIndex === -1) {
+      return res.status(404).json({ error: 'Suggestion not found' });
+    }
+
+    session.suggestions[suggestionIndex] = {
+      ...session.suggestions[suggestionIndex],
+      status: action,
+      userVersion: action === 'edited' ? userVersion : undefined,
+      reviewedAt: new Date().toISOString(),
+    };
+    session.lastUpdatedAt = new Date().toISOString();
+
+    await saveSession(session);
+
+    res.json({
+      success: true,
+      suggestion: session.suggestions[suggestionIndex],
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to process feedback',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/spec-review/chat
+ * Send a chat message for the review session
+ */
+router.post('/chat', async (req, res) => {
+  try {
+    const { sessionId, message, suggestionId } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' });
+    }
+
+    if (!message) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+
+    const projectPath = req.projectPath!;
+    const session = await findSessionById(projectPath, sessionId);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const userMessage: ChatMessage = {
+      id: randomUUID(),
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString(),
+      suggestionId,
+    };
+
+    session.chatMessages.push(userMessage);
+    session.lastUpdatedAt = new Date().toISOString();
+
+    await saveSession(session);
+
+    res.json({
+      success: true,
+      message: userMessage,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to send chat message',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/spec-review/revert
+ * Revert a change from the change history
+ */
+router.post('/revert', async (req, res) => {
+  try {
+    const { sessionId, changeId } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' });
+    }
+
+    if (!changeId) {
+      return res.status(400).json({ error: 'changeId is required' });
+    }
+
+    const projectPath = req.projectPath!;
+    const session = await findSessionById(projectPath, sessionId);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const changeIndex = session.changeHistory.findIndex((c) => c.id === changeId);
+    if (changeIndex === -1) {
+      return res.status(404).json({ error: 'Change not found' });
+    }
+
+    const change = session.changeHistory[changeIndex];
+
+    if (change.reverted) {
+      return res.status(400).json({ error: 'Change has already been reverted' });
+    }
+
+    await fs.writeFile(change.filePath, change.beforeContent, 'utf-8');
+
+    session.changeHistory[changeIndex] = {
+      ...change,
+      reverted: true,
+    };
+    session.lastUpdatedAt = new Date().toISOString();
+
+    await saveSession(session);
+
+    res.json({
+      success: true,
+      change: session.changeHistory[changeIndex],
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to revert change',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/spec-review/suggestions/:sessionId
+ * Get pending suggestions for a session
+ */
+router.get('/suggestions/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const projectPath = req.projectPath!;
+
+    const session = await findSessionById(projectPath, sessionId);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const pendingSuggestions = session.suggestions.filter((s) => s.status === 'pending');
+
+    res.json({
+      sessionId,
+      suggestions: pendingSuggestions,
+      totalCount: session.suggestions.length,
+      pendingCount: pendingSuggestions.length,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get suggestions',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * Helper function to find a session by its ID
+ */
+async function findSessionById(projectPath: string, sessionId: string): Promise<SessionFile | null> {
+  const sessionsDir = join(projectPath, '.ralph', 'sessions');
+
+  try {
+    const sessionFiles = await fs.readdir(sessionsDir);
+
+    for (const file of sessionFiles) {
+      if (!file.endsWith('.session.json')) continue;
+
+      const content = await fs.readFile(join(sessionsDir, file), 'utf-8');
+      const session = JSON.parse(content) as SessionFile;
+
+      if (session.sessionId === sessionId) {
+        return session;
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
 
 export default router;

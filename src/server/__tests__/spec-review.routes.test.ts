@@ -297,4 +297,297 @@ describe('spec-review routes', () => {
       expect(response.body.error).toBe('specFile is required');
     });
   });
+
+  describe('POST /api/spec-review/feedback', () => {
+    it('POST_feedback_Approved_UpdatesSession', async () => {
+      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      await fs.mkdir(sessionsDir, { recursive: true });
+      const mockSession: SessionFile = {
+        sessionId: 'feedback-session-123',
+        specFilePath: testSpecPath,
+        status: 'completed',
+        startedAt: '2026-01-11T10:00:00Z',
+        lastUpdatedAt: '2026-01-11T10:01:00Z',
+        suggestions: [
+          {
+            id: 'suggestion-1',
+            category: 'clarity',
+            severity: 'warning',
+            section: 'Introduction',
+            textSnippet: 'Some text',
+            issue: 'Unclear requirement',
+            suggestedFix: 'Make it clearer',
+            status: 'pending',
+          },
+        ],
+        changeHistory: [],
+        chatMessages: [],
+      };
+
+      await fs.writeFile(
+        join(sessionsDir, 'test-spec.session.json'),
+        JSON.stringify(mockSession)
+      );
+      mockProjectPath = testDir;
+
+      const response = await request(app)
+        .post('/api/spec-review/feedback')
+        .send({
+          sessionId: 'feedback-session-123',
+          suggestionId: 'suggestion-1',
+          action: 'approved',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.suggestion.status).toBe('approved');
+      expect(response.body.suggestion.reviewedAt).toBeDefined();
+    });
+
+    it('POST_feedback_Rejected_UpdatesSession', async () => {
+      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      await fs.mkdir(sessionsDir, { recursive: true });
+      const mockSession: SessionFile = {
+        sessionId: 'reject-session-123',
+        specFilePath: testSpecPath,
+        status: 'completed',
+        startedAt: '2026-01-11T10:00:00Z',
+        lastUpdatedAt: '2026-01-11T10:01:00Z',
+        suggestions: [
+          {
+            id: 'suggestion-2',
+            category: 'testability',
+            severity: 'info',
+            section: 'Testing',
+            textSnippet: 'Some text',
+            issue: 'May be hard to test',
+            suggestedFix: 'Add mocks',
+            status: 'pending',
+          },
+        ],
+        changeHistory: [],
+        chatMessages: [],
+      };
+
+      await fs.writeFile(
+        join(sessionsDir, 'test-spec.session.json'),
+        JSON.stringify(mockSession)
+      );
+      mockProjectPath = testDir;
+
+      const response = await request(app)
+        .post('/api/spec-review/feedback')
+        .send({
+          sessionId: 'reject-session-123',
+          suggestionId: 'suggestion-2',
+          action: 'rejected',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.suggestion.status).toBe('rejected');
+      expect(response.body.suggestion.reviewedAt).toBeDefined();
+    });
+
+    it('POST_feedback_Edited_UpdatesSession', async () => {
+      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      await fs.mkdir(sessionsDir, { recursive: true });
+      const mockSession: SessionFile = {
+        sessionId: 'edit-session-123',
+        specFilePath: testSpecPath,
+        status: 'completed',
+        startedAt: '2026-01-11T10:00:00Z',
+        lastUpdatedAt: '2026-01-11T10:01:00Z',
+        suggestions: [
+          {
+            id: 'suggestion-3',
+            category: 'completeness',
+            severity: 'critical',
+            section: 'Requirements',
+            textSnippet: 'Some text',
+            issue: 'Missing requirement',
+            suggestedFix: 'Add requirement X',
+            status: 'pending',
+          },
+        ],
+        changeHistory: [],
+        chatMessages: [],
+      };
+
+      await fs.writeFile(
+        join(sessionsDir, 'test-spec.session.json'),
+        JSON.stringify(mockSession)
+      );
+      mockProjectPath = testDir;
+
+      const userVersion = 'My custom fix for this issue';
+      const response = await request(app)
+        .post('/api/spec-review/feedback')
+        .send({
+          sessionId: 'edit-session-123',
+          suggestionId: 'suggestion-3',
+          action: 'edited',
+          userVersion,
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.suggestion.status).toBe('edited');
+      expect(response.body.suggestion.userVersion).toBe(userVersion);
+      expect(response.body.suggestion.reviewedAt).toBeDefined();
+    });
+  });
+
+  describe('POST /api/spec-review/chat', () => {
+    it('POST_chat_SendsToAgent', async () => {
+      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      await fs.mkdir(sessionsDir, { recursive: true });
+      const mockSession: SessionFile = {
+        sessionId: 'chat-session-123',
+        specFilePath: testSpecPath,
+        status: 'completed',
+        startedAt: '2026-01-11T10:00:00Z',
+        lastUpdatedAt: '2026-01-11T10:01:00Z',
+        suggestions: [],
+        changeHistory: [],
+        chatMessages: [],
+      };
+
+      await fs.writeFile(
+        join(sessionsDir, 'test-spec.session.json'),
+        JSON.stringify(mockSession)
+      );
+      mockProjectPath = testDir;
+
+      const response = await request(app)
+        .post('/api/spec-review/chat')
+        .send({
+          sessionId: 'chat-session-123',
+          message: 'Can you explain this suggestion?',
+          suggestionId: 'suggestion-1',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.message.role).toBe('user');
+      expect(response.body.message.content).toBe('Can you explain this suggestion?');
+      expect(response.body.message.suggestionId).toBe('suggestion-1');
+      expect(response.body.message.id).toBeDefined();
+      expect(response.body.message.timestamp).toBeDefined();
+    });
+  });
+
+  describe('POST /api/spec-review/revert', () => {
+    it('POST_revert_RestoresPreviousContent', async () => {
+      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      await fs.mkdir(sessionsDir, { recursive: true });
+
+      const testFilePath = join(testDir, 'revert-test-file.md');
+      await fs.writeFile(testFilePath, 'Modified content');
+
+      const mockSession: SessionFile = {
+        sessionId: 'revert-session-123',
+        specFilePath: testSpecPath,
+        status: 'completed',
+        startedAt: '2026-01-11T10:00:00Z',
+        lastUpdatedAt: '2026-01-11T10:01:00Z',
+        suggestions: [],
+        changeHistory: [
+          {
+            id: 'change-1',
+            timestamp: '2026-01-11T10:00:30Z',
+            description: 'Updated file content',
+            filePath: testFilePath,
+            beforeContent: 'Original content',
+            afterContent: 'Modified content',
+            reverted: false,
+          },
+        ],
+        chatMessages: [],
+      };
+
+      await fs.writeFile(
+        join(sessionsDir, 'test-spec.session.json'),
+        JSON.stringify(mockSession)
+      );
+      mockProjectPath = testDir;
+
+      const response = await request(app)
+        .post('/api/spec-review/revert')
+        .send({
+          sessionId: 'revert-session-123',
+          changeId: 'change-1',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.change.reverted).toBe(true);
+
+      const fileContent = await fs.readFile(testFilePath, 'utf-8');
+      expect(fileContent).toBe('Original content');
+    });
+  });
+
+  describe('GET /api/spec-review/suggestions/:sessionId', () => {
+    it('GET_suggestions_ReturnsPendingSuggestions', async () => {
+      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      await fs.mkdir(sessionsDir, { recursive: true });
+      const mockSession: SessionFile = {
+        sessionId: 'suggestions-session-123',
+        specFilePath: testSpecPath,
+        status: 'completed',
+        startedAt: '2026-01-11T10:00:00Z',
+        lastUpdatedAt: '2026-01-11T10:01:00Z',
+        suggestions: [
+          {
+            id: 'suggestion-pending-1',
+            category: 'clarity',
+            severity: 'warning',
+            section: 'Introduction',
+            textSnippet: 'Some text',
+            issue: 'Unclear',
+            suggestedFix: 'Fix it',
+            status: 'pending',
+          },
+          {
+            id: 'suggestion-approved-1',
+            category: 'testability',
+            severity: 'info',
+            section: 'Testing',
+            textSnippet: 'Some text',
+            issue: 'Hard to test',
+            suggestedFix: 'Add mocks',
+            status: 'approved',
+          },
+          {
+            id: 'suggestion-pending-2',
+            category: 'completeness',
+            severity: 'critical',
+            section: 'Requirements',
+            textSnippet: 'Some text',
+            issue: 'Missing',
+            suggestedFix: 'Add it',
+            status: 'pending',
+          },
+        ],
+        changeHistory: [],
+        chatMessages: [],
+      };
+
+      await fs.writeFile(
+        join(sessionsDir, 'test-spec.session.json'),
+        JSON.stringify(mockSession)
+      );
+      mockProjectPath = testDir;
+
+      const response = await request(app).get('/api/spec-review/suggestions/suggestions-session-123');
+
+      expect(response.status).toBe(200);
+      expect(response.body.sessionId).toBe('suggestions-session-123');
+      expect(response.body.suggestions.length).toBe(2);
+      expect(response.body.totalCount).toBe(3);
+      expect(response.body.pendingCount).toBe(2);
+      expect(response.body.suggestions.every((s: { status: string }) => s.status === 'pending')).toBe(true);
+    });
+  });
 });
