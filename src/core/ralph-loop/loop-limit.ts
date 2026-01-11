@@ -14,12 +14,5 @@
  */
 export function calculateLoopLimit(existingTasks: number, newTasks: number = 0): number {
   const totalTasks = existingTasks + newTasks;
-
-  // Minimum of 5 iterations even for small task counts
-  if (totalTasks === 0) {
-    return 5;
-  }
-
-  // Apply 20% buffer and round up
   return Math.ceil(totalTasks * 1.2);
 }
