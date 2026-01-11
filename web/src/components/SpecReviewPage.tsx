@@ -1,9 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import type { SuggestionCard as SuggestionCardType, SpecReviewResult } from '../../../src/types/index.js';
+import { SpecEditor } from './SpecEditor';
+import { SuggestionCard } from './SuggestionCard';
+import { DiffApprovalBar } from './DiffApprovalBar';
+import { useSpecEditor } from '../hooks/useSpecEditor';
+import { useDiffApproval } from '../hooks/useDiffApproval';
 import './SpecReviewPage.css';
 
 interface SpecFile {
   name: string;
   path: string;
+  content?: string;
 }
 
 interface SpecReviewPageProps {
@@ -13,10 +20,18 @@ interface SpecReviewPageProps {
 export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.ReactElement {
   const [files, setFiles] = useState<SpecFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<string>('');
+  const [specContent, setSpecContent] = useState<string>('');
   const [leftPanelWidth, setLeftPanelWidth] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<SuggestionCardType[]>([]);
+  const [reviewResult, setReviewResult] = useState<SpecReviewResult | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Editor and diff approval hooks
+  const specEditor = useSpecEditor(specContent);
+  const diffApproval = useDiffApproval();
 
   const apiUrl = useCallback((endpoint: string): string => {
     if (!projectPath) return endpoint;
@@ -24,6 +39,7 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
     return `${endpoint}${separator}project=${encodeURIComponent(projectPath)}`;
   }, [projectPath]);
 
+  // Fetch spec files on mount
   useEffect(() => {
     const fetchFiles = async (): Promise<void> => {
       try {
@@ -47,6 +63,46 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
     fetchFiles();
   }, [apiUrl]);
 
+  // Load spec content when file is selected
+  useEffect(() => {
+    if (!selectedFile) return;
+
+    const loadContent = async (): Promise<void> => {
+      try {
+        const encodedPath = encodeURIComponent(selectedFile);
+        const response = await fetch(apiUrl(`/api/spec-review/content/${encodedPath}`));
+        if (response.ok) {
+          const data = await response.json();
+          setSpecContent(data.content || '');
+          specEditor.setContent(data.content || '');
+        }
+      } catch (error) {
+        console.error('Failed to load spec content:', error);
+      }
+    };
+
+    const loadSession = async (): Promise<void> => {
+      try {
+        const encodedPath = encodeURIComponent(selectedFile);
+        const response = await fetch(apiUrl(`/api/sessions/spec/${encodedPath}`));
+        if (response.ok) {
+          const data = await response.json();
+          if (data.session) {
+            setSessionId(data.session.sessionId);
+            setSuggestions(data.session.suggestions || []);
+            setReviewResult(data.session.reviewResult || null);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load session:', error);
+      }
+    };
+
+    loadContent();
+    loadSession();
+  }, [selectedFile, apiUrl, specEditor]);
+
+  // Resize handlers
   const handleMouseDown = useCallback((e: React.MouseEvent): void => {
     e.preventDefault();
     setIsResizing(true);
@@ -84,7 +140,125 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
 
   const handleFileChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     setSelectedFile(e.target.value);
+    diffApproval.reset();
   };
+
+  // Handle Review Diff button click on a suggestion
+  const handleReviewDiff = useCallback((suggestionId: string): void => {
+    const suggestion = suggestions.find((s) => s.id === suggestionId);
+    if (!suggestion) return;
+
+    diffApproval.enterDiffMode(suggestion, specEditor, specEditor.content);
+  }, [suggestions, diffApproval, specEditor]);
+
+  // Handle Show in Editor button click
+  const handleShowInEditor = useCallback((suggestionId: string): void => {
+    const suggestion = suggestions.find((s) => s.id === suggestionId);
+    if (!suggestion) return;
+
+    if (suggestion.lineStart) {
+      specEditor.scrollToLineNumber(suggestion.lineStart);
+    } else if (suggestion.section) {
+      specEditor.scrollToHeading(suggestion.section);
+    }
+
+    if (suggestion.textSnippet) {
+      specEditor.highlight(suggestion.textSnippet, 2000);
+    }
+  }, [suggestions, specEditor]);
+
+  // Handle Dismiss button click
+  const handleDismiss = useCallback((suggestionId: string): void => {
+    setSuggestions((prev) =>
+      prev.map((s) =>
+        s.id === suggestionId ? { ...s, status: 'rejected' as const } : s
+      )
+    );
+  }, []);
+
+  // Save file to disk
+  const handleSaveFile = useCallback(async (content: string): Promise<void> => {
+    if (!selectedFile) return;
+
+    const encodedPath = encodeURIComponent(selectedFile);
+    const response = await fetch(apiUrl(`/api/spec-review/content/${encodedPath}`), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to save file');
+    }
+
+    setSpecContent(content);
+  }, [selectedFile, apiUrl]);
+
+  // Diff approval action handlers
+  const handleApprove = useCallback(async (): Promise<void> => {
+    if (!sessionId) return;
+    await diffApproval.approve(sessionId, specEditor, handleSaveFile, projectPath);
+
+    // Update suggestion status
+    if (diffApproval.currentSuggestion) {
+      setSuggestions((prev) =>
+        prev.map((s) =>
+          s.id === diffApproval.currentSuggestion?.id
+            ? { ...s, status: 'approved' as const }
+            : s
+        )
+      );
+    }
+  }, [sessionId, diffApproval, specEditor, handleSaveFile, projectPath]);
+
+  const handleReject = useCallback(async (): Promise<void> => {
+    if (!sessionId) return;
+    await diffApproval.reject(sessionId, specEditor, projectPath);
+
+    // Update suggestion status
+    if (diffApproval.currentSuggestion) {
+      setSuggestions((prev) =>
+        prev.map((s) =>
+          s.id === diffApproval.currentSuggestion?.id
+            ? { ...s, status: 'rejected' as const }
+            : s
+        )
+      );
+    }
+  }, [sessionId, diffApproval, specEditor, projectPath]);
+
+  const handleEdit = useCallback((): void => {
+    diffApproval.startEdit();
+  }, [diffApproval]);
+
+  const handleApplyEdit = useCallback(async (): Promise<void> => {
+    if (!sessionId) return;
+    await diffApproval.applyEdit(sessionId, specEditor, handleSaveFile, projectPath);
+
+    // Update suggestion status
+    if (diffApproval.currentSuggestion) {
+      setSuggestions((prev) =>
+        prev.map((s) =>
+          s.id === diffApproval.currentSuggestion?.id
+            ? { ...s, status: 'edited' as const }
+            : s
+        )
+      );
+    }
+  }, [sessionId, diffApproval, specEditor, handleSaveFile, projectPath]);
+
+  const handleCancel = useCallback((): void => {
+    diffApproval.cancel(specEditor);
+  }, [diffApproval, specEditor]);
+
+  // Handle editor content changes
+  const handleEditorChange = useCallback((content: string): void => {
+    specEditor.setContent(content);
+  }, [specEditor]);
+
+  // Filter pending suggestions
+  const pendingSuggestions = suggestions.filter((s) => s.status === 'pending');
 
   if (loading) {
     return (
@@ -93,6 +267,9 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
       </div>
     );
   }
+
+  // Determine view mode based on diff state
+  const viewMode = diffApproval.isActive ? 'diff' : 'rich-text';
 
   return (
     <div className="spec-review-page" data-testid="spec-review-page">
@@ -108,6 +285,7 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
             value={selectedFile}
             onChange={handleFileChange}
             data-testid="file-selector"
+            disabled={diffApproval.isActive}
           >
             {files.length === 0 ? (
               <option value="">No spec files found</option>
@@ -122,6 +300,23 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
         </div>
       </header>
 
+      {/* Diff approval bar - shown when in diff mode */}
+      <DiffApprovalBar
+        isVisible={diffApproval.isActive}
+        suggestionIssue={diffApproval.currentSuggestion?.issue}
+        isLoading={diffApproval.isLoading}
+        onApprove={diffApproval.isEditing ? handleApplyEdit : handleApprove}
+        onReject={handleReject}
+        onEdit={handleEdit}
+        onCancel={handleCancel}
+      />
+
+      {diffApproval.error && (
+        <div className="spec-review-error" data-testid="diff-error">
+          {diffApproval.error}
+        </div>
+      )}
+
       <div
         ref={containerRef}
         className="spec-review-container"
@@ -133,17 +328,21 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
           data-testid="left-panel"
         >
           <div className="panel-header">
-            <span className="panel-title">Spec Editor</span>
+            <span className="panel-title">
+              Spec Editor
+              {diffApproval.isActive && (
+                <span className="diff-mode-indicator"> (Diff View)</span>
+              )}
+            </span>
           </div>
           <div className="panel-content">
-            <div className="placeholder">
-              Spec editor placeholder
-              {selectedFile && (
-                <div className="placeholder-file">
-                  File: {selectedFile}
-                </div>
-              )}
-            </div>
+            <SpecEditor
+              ref={specEditor.editorRef}
+              content={specEditor.content}
+              onChange={handleEditorChange}
+              viewMode={viewMode}
+              placeholder="Select a spec file to begin editing..."
+            />
           </div>
         </div>
 
@@ -165,11 +364,32 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
         >
           <div className="panel-header">
             <span className="panel-title">Review Panel</span>
+            {reviewResult && (
+              <span className={`verdict-badge verdict-${reviewResult.verdict.toLowerCase()}`}>
+                {reviewResult.verdict}
+              </span>
+            )}
           </div>
           <div className="panel-content">
-            <div className="placeholder">
-              Review panel placeholder
-            </div>
+            {pendingSuggestions.length > 0 ? (
+              <div className="suggestions-list" data-testid="suggestions-list">
+                {pendingSuggestions.map((suggestion) => (
+                  <SuggestionCard
+                    key={suggestion.id}
+                    suggestion={suggestion}
+                    onReviewDiff={handleReviewDiff}
+                    onShowInEditor={handleShowInEditor}
+                    onDismiss={handleDismiss}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="no-suggestions">
+                {suggestions.length === 0
+                  ? 'No review results yet. Start a review to see suggestions.'
+                  : 'All suggestions have been reviewed.'}
+              </div>
+            )}
           </div>
         </div>
       </div>

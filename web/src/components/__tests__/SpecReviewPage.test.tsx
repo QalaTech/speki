@@ -3,6 +3,76 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SpecReviewPage } from '../SpecReviewPage';
 
+// Mock MDXEditor to avoid CSS parsing issues in tests
+vi.mock('@mdxeditor/editor', () => ({
+  MDXEditor: vi.fn().mockImplementation(({ markdown, placeholder }) => (
+    <div data-testid="mdx-editor">
+      <textarea data-testid="editor-textarea" defaultValue={markdown} placeholder={placeholder} />
+    </div>
+  )),
+  diffSourcePlugin: vi.fn(() => ({ pluginId: 'diff-source' })),
+  headingsPlugin: vi.fn(() => ({ pluginId: 'headings' })),
+  listsPlugin: vi.fn(() => ({ pluginId: 'lists' })),
+  quotePlugin: vi.fn(() => ({ pluginId: 'quote' })),
+  thematicBreakPlugin: vi.fn(() => ({ pluginId: 'thematic-break' })),
+  markdownShortcutPlugin: vi.fn(() => ({ pluginId: 'markdown-shortcut' })),
+  codeBlockPlugin: vi.fn(() => ({ pluginId: 'code-block' })),
+  tablePlugin: vi.fn(() => ({ pluginId: 'table' })),
+  linkPlugin: vi.fn(() => ({ pluginId: 'link' })),
+  linkDialogPlugin: vi.fn(() => ({ pluginId: 'link-dialog' })),
+  imagePlugin: vi.fn(() => ({ pluginId: 'image' })),
+  frontmatterPlugin: vi.fn(() => ({ pluginId: 'frontmatter' })),
+  toolbarPlugin: vi.fn(() => ({ pluginId: 'toolbar' })),
+  Separator: vi.fn(() => null),
+  BlockTypeSelect: vi.fn(() => null),
+  BoldItalicUnderlineToggles: vi.fn(() => null),
+  CreateLink: vi.fn(() => null),
+  InsertCodeBlock: vi.fn(() => null),
+  InsertImage: vi.fn(() => null),
+  InsertTable: vi.fn(() => null),
+  InsertThematicBreak: vi.fn(() => null),
+  ListsToggle: vi.fn(() => null),
+  UndoRedo: vi.fn(() => null),
+  DiffSourceToggleWrapper: vi.fn(() => null),
+}));
+
+// Mock the useSpecEditor hook
+vi.mock('../../hooks/useSpecEditor', () => ({
+  useSpecEditor: vi.fn().mockReturnValue({
+    content: '',
+    diffState: { isActive: false },
+    isDirty: false,
+    editorRef: { current: null },
+    setContent: vi.fn(),
+    markClean: vi.fn(),
+    getSelection: vi.fn().mockReturnValue(''),
+    scrollToHeading: vi.fn().mockReturnValue(true),
+    scrollToLineNumber: vi.fn().mockReturnValue(true),
+    highlight: vi.fn().mockReturnValue(null),
+    enterDiffMode: vi.fn(),
+    exitDiffMode: vi.fn().mockReturnValue(''),
+    getDiffProposedContent: vi.fn().mockReturnValue(null),
+  }),
+}));
+
+// Mock the useDiffApproval hook
+vi.mock('../../hooks/useDiffApproval', () => ({
+  useDiffApproval: vi.fn().mockReturnValue({
+    isActive: false,
+    currentSuggestion: null,
+    isLoading: false,
+    error: null,
+    isEditing: false,
+    enterDiffMode: vi.fn(),
+    approve: vi.fn(),
+    reject: vi.fn(),
+    startEdit: vi.fn(),
+    applyEdit: vi.fn(),
+    cancel: vi.fn(),
+    reset: vi.fn(),
+  }),
+}));
+
 describe('SpecReviewPage', () => {
   let mockFetch: ReturnType<typeof vi.fn>;
 
@@ -31,6 +101,18 @@ describe('SpecReviewPage', () => {
           json: () => Promise.resolve({ files }),
         });
       }
+      if (url.includes('/api/spec-review/content/')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ content: '# Test Spec\n\nContent here' }),
+        });
+      }
+      if (url.includes('/api/sessions/spec/')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ session: null }),
+        });
+      }
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({}),
@@ -53,7 +135,7 @@ describe('SpecReviewPage', () => {
       expect(screen.getByTestId('split-view')).toBeInTheDocument();
     });
 
-    it('should render left panel with spec editor placeholder', async () => {
+    it('should render left panel with spec editor', async () => {
       setupDefaultFetches([
         { name: 'test-spec.md', path: '/specs/test-spec.md' },
       ]);
@@ -65,10 +147,9 @@ describe('SpecReviewPage', () => {
       });
 
       expect(screen.getByText('Spec Editor')).toBeInTheDocument();
-      expect(screen.getByText('Spec editor placeholder')).toBeInTheDocument();
     });
 
-    it('should render right panel with review panel placeholder', async () => {
+    it('should render right panel with review panel', async () => {
       setupDefaultFetches([
         { name: 'test-spec.md', path: '/specs/test-spec.md' },
       ]);
@@ -80,7 +161,6 @@ describe('SpecReviewPage', () => {
       });
 
       expect(screen.getByText('Review Panel')).toBeInTheDocument();
-      expect(screen.getByText('Review panel placeholder')).toBeInTheDocument();
     });
   });
 
