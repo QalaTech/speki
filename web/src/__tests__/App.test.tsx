@@ -292,4 +292,175 @@ describe('App - Settings Navigation', () => {
       expect(executionButton).toHaveClass('active');
     });
   });
+
+  describe('sidebar_ShowsSpecReviewItem', () => {
+    it('should render Spec Review button in sidebar', async () => {
+      // Arrange
+      setupMocks();
+
+      // Act
+      renderApp();
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+      });
+
+      const specReviewButton = screen.getByRole('button', { name: /spec review/i });
+      expect(specReviewButton).toBeInTheDocument();
+    });
+
+    it('should display document icon with Spec Review label', async () => {
+      // Arrange
+      setupMocks();
+
+      // Act
+      renderApp();
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+      });
+
+      const specReviewButton = screen.getByRole('button', { name: /spec review/i });
+      expect(specReviewButton).toBeInTheDocument();
+      expect(specReviewButton).toHaveTextContent('Spec Review');
+    });
+  });
+
+  describe('sidebar_ClickNavigates', () => {
+    it('should navigate to /spec-review when Spec Review button is clicked', async () => {
+      // Arrange
+      setupMocks();
+      // Mock spec-review files endpoint
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/api/spec-review/files')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ files: [] }),
+          });
+        }
+        // Return default mock for other endpoints
+        if (url.includes('/api/projects')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockProjects),
+          });
+        }
+        if (url.includes('/api/ralph/status')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockRalphStatus),
+          });
+        }
+        if (url.includes('/api/tasks')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockTasks),
+          });
+        }
+        if (url.includes('/api/decompose/state')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockDecomposeState),
+          });
+        }
+        if (url.includes('/api/ralph/progress')) {
+          return Promise.resolve({
+            ok: true,
+            text: () => Promise.resolve(''),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({}),
+          text: () => Promise.resolve(''),
+        });
+      });
+
+      // Act
+      renderApp();
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+      });
+
+      const specReviewButton = screen.getByRole('button', { name: /spec review/i });
+      fireEvent.click(specReviewButton);
+
+      // Assert - SpecReviewPage should be rendered (shows "Spec Review" heading)
+      await waitFor(() => {
+        expect(screen.getByTestId('spec-review-page')).toBeInTheDocument();
+      });
+    });
+
+    it('should have active class when on spec-review page', async () => {
+      // Arrange
+      setupMocks();
+      // Add mock for spec-review files endpoint
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/api/spec-review/files')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ files: [] }),
+          });
+        }
+        if (url.includes('/api/projects')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockProjects),
+          });
+        }
+        if (url.includes('/api/ralph/status')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockRalphStatus),
+          });
+        }
+        if (url.includes('/api/tasks')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockTasks),
+          });
+        }
+        if (url.includes('/api/decompose/state')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockDecomposeState),
+          });
+        }
+        if (url.includes('/api/ralph/progress')) {
+          return Promise.resolve({
+            ok: true,
+            text: () => Promise.resolve(''),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({}),
+          text: () => Promise.resolve(''),
+        });
+      });
+
+      // Act
+      renderApp();
+
+      await waitFor(() => {
+        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+      });
+
+      const specReviewButton = screen.getByRole('button', { name: /spec review/i });
+
+      // Initially should not have active class
+      expect(specReviewButton).not.toHaveClass('active');
+
+      // Click to navigate
+      fireEvent.click(specReviewButton);
+
+      // Assert - should now have active class
+      await waitFor(() => {
+        expect(specReviewButton).toHaveClass('active');
+      });
+    });
+  });
 });

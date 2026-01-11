@@ -201,6 +201,7 @@ function App() {
 
   // Derive active section and tab from URL path
   const isDecomposePage = location.pathname.startsWith('/decompose');
+  const isSpecReviewPage = location.pathname.startsWith('/spec-review');
   const isSettingsPage = location.pathname.startsWith('/settings');
   const executionTab = location.pathname.includes('/live') ? 'live'
     : location.pathname.includes('/list') ? 'list'
@@ -476,11 +477,19 @@ function App() {
             </MenuItem>
             <MenuItem
               icon={<span style={{ fontSize: '12px' }}>▶</span>}
-              active={!isDecomposePage && !isSettingsPage}
+              active={!isDecomposePage && !isSpecReviewPage && !isSettingsPage}
               onClick={() => navigateTo('/execution/live')}
               suffix={ralphStatus.running && !navCollapsed ? <span className="menu-badge running">Running</span> : null}
             >
               Execution
+            </MenuItem>
+            <MenuItem
+              icon={<span style={{ fontSize: '14px' }}>📄</span>}
+              active={isSpecReviewPage}
+              onClick={() => navigateTo('/spec-review')}
+              data-testid="sidebar-spec-review"
+            >
+              Spec Review
             </MenuItem>
           </Menu>
         </div>
