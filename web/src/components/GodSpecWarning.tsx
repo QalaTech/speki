@@ -21,8 +21,6 @@ export function GodSpecWarning({
   onModify,
   onSkip,
 }: GodSpecWarningProps): React.ReactElement {
-  const hasProposal = (splitProposal?.proposedSpecs.length ?? 0) > 0;
-
   return (
     <div className="god-spec-warning-container" data-testid="god-spec-warning">
       <div className="god-spec-warning-header">
@@ -54,7 +52,7 @@ export function GodSpecWarning({
           </div>
         )}
 
-        {hasProposal && (
+        {splitProposal !== undefined && splitProposal.proposedSpecs.length > 0 && (
           <div className="proposed-split" data-testid="proposed-split">
             <p className="split-header">Proposed split:</p>
             <ul className="split-list">
@@ -75,7 +73,7 @@ export function GodSpecWarning({
       </div>
 
       <div className="god-spec-warning-actions" data-testid="warning-actions">
-        {hasProposal && (
+        {splitProposal !== undefined && splitProposal.proposedSpecs.length > 0 && (
           <>
             <button
               type="button"
