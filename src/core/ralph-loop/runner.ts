@@ -22,6 +22,8 @@ export interface LoopOptions {
   onIterationStart?: (iteration: number, story: UserStory | null) => void;
   /** Callback when an iteration ends */
   onIterationEnd?: (iteration: number, storyCompleted: boolean, isAllComplete: boolean) => void;
+  /** Callback when task count changes (for recalculating loop limit) */
+  onTasksChanged?: (newTaskCount: number) => void;
 }
 
 export interface LoopResult {
@@ -135,7 +137,7 @@ export async function runRalphLoop(
   project: Project,
   options: LoopOptions
 ): Promise<LoopResult> {
-  const { onIterationStart, onIterationEnd } = options;
+  const { onIterationStart, onIterationEnd, onTasksChanged } = options;
 
   // Support both static and dynamic max iterations
   const getMaxIterations = typeof options.maxIterations === 'function'
@@ -180,7 +182,6 @@ export async function runRalphLoop(
 
   try {
     let iteration = 1;
-    // Check max iterations dynamically each loop (supports adding tasks mid-execution)
     while (iteration <= getMaxIterations()) {
       // Check for next story
       const nextInfo = getNextStory(prd);
@@ -273,7 +274,14 @@ export async function runRalphLoop(
       if (newPrd) {
         const oldCompleted = prd.userStories.filter((s) => s.passes).length;
         const newCompleted = newPrd.userStories.filter((s) => s.passes).length;
+        const oldTotal = prd.userStories.length;
+        const newTotal = newPrd.userStories.length;
         prd = newPrd;
+
+        if (newTotal > oldTotal) {
+          const incompleteCount = newPrd.userStories.filter((s) => !s.passes).length;
+          onTasksChanged?.(incompleteCount);
+        }
 
         if (newCompleted > oldCompleted) {
           console.log(chalk.green(`  ✓ Story completed! (${oldCompleted} → ${newCompleted})`));

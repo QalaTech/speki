@@ -27,7 +27,6 @@ export const startCommand = new Command('start')
         process.exit(1);
       }
 
-      // Check Claude CLI is available
       if (!(await isClaudeAvailable())) {
         console.error(
           chalk.red('Error: Claude CLI is not available.')
@@ -59,15 +58,11 @@ export const startCommand = new Command('start')
         );
       }
 
-      // Load global settings for keepAwake default
       const settings = await loadGlobalSettings();
-
-      // Use CLI flag if provided, otherwise use setting (default: true)
       const shouldKeepAwake = options.keepAwake !== undefined
         ? options.keepAwake
         : settings.execution.keepAwake;
 
-      // Prevent system sleep if enabled
       if (shouldKeepAwake) {
         const sleepResult = preventSleep();
         if (sleepResult.success) {
@@ -82,7 +77,6 @@ export const startCommand = new Command('start')
         }
       }
 
-      // Handle graceful shutdown
       let stopping = false;
       const cleanup = async () => {
         if (stopping) return;
@@ -90,7 +84,6 @@ export const startCommand = new Command('start')
         console.log('');
         console.log(chalk.yellow('Stopping Ralph loop...'));
 
-        // Stop sleep prevention
         if (isPreventingSleep()) {
           allowSleep();
           console.log(chalk.gray('  Sleep prevention disabled'));
@@ -104,25 +97,32 @@ export const startCommand = new Command('start')
       process.on('SIGINT', cleanup);
       process.on('SIGTERM', cleanup);
 
-      // Calculate max iterations: use CLI flag if provided, otherwise auto-calculate
-      let maxIterations: number;
+      let currentMaxIterations: number;
       if (options.iterations) {
-        maxIterations = parseInt(options.iterations, 10);
-        console.log(chalk.gray(`  Using specified iterations: ${maxIterations}`));
+        currentMaxIterations = parseInt(options.iterations, 10);
+        console.log(chalk.gray(`  Using specified iterations: ${currentMaxIterations}`));
       } else {
-        maxIterations = calculateLoopLimit(incompleteStories.length);
-        console.log(chalk.gray(`  Auto-calculated iterations: ${maxIterations} (${incompleteStories.length} tasks + 20% buffer)`));
+        currentMaxIterations = calculateLoopLimit(incompleteStories.length);
+        console.log(chalk.gray(`  Auto-calculated iterations: ${currentMaxIterations} (${incompleteStories.length} tasks + 20% buffer)`));
       }
 
-      // Run the loop
-      const result = await runRalphLoop(project, { maxIterations });
+      const getMaxIterations = () => currentMaxIterations;
 
-      // Clean up sleep prevention after loop completes
+      const result = await runRalphLoop(project, {
+        maxIterations: getMaxIterations,
+        onTasksChanged: (newTaskCount) => {
+          const newLimit = calculateLoopLimit(newTaskCount);
+          if (newLimit > currentMaxIterations) {
+            console.log(chalk.gray(`  Loop limit updated: ${currentMaxIterations} → ${newLimit} (${newTaskCount} tasks)`));
+            currentMaxIterations = newLimit;
+          }
+        },
+      });
+
       if (isPreventingSleep()) {
         allowSleep();
       }
 
-      // Summary
       console.log('');
       if (result.allComplete) {
         console.log(chalk.green(`Successfully completed all ${result.finalPrd.userStories.length} stories!`));
@@ -133,7 +133,6 @@ export const startCommand = new Command('start')
         );
       }
     } catch (error) {
-      // Ensure sleep prevention is cleaned up on error
       if (isPreventingSleep()) {
         allowSleep();
       }
