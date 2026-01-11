@@ -43,16 +43,31 @@ function getComplexityBadge(complexity?: string) {
 export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProps) {
   const [decomposeState, setDecomposeState] = useState<DecomposeState>({ status: 'IDLE', message: '' });
   const [draft, setDraft] = useState<PRDData | null>(null);
+  const [draftPath, setDraftPath] = useState<string | null>(null);
   const [branch, setBranch] = useState('ralph/feature');
   const [, setIsDecomposing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<UserStory | null>(null);
+  const [taskFeedback, setTaskFeedback] = useState('');
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackSuccess, setFeedbackSuccess] = useState(false);
+  const [executeLoading, setExecuteLoading] = useState(false);
+  const [executeError, setExecuteError] = useState<string | null>(null);
+  const [activateLoading, setActivateLoading] = useState(false);
 
   // API helper
   const apiUrl = useCallback((endpoint: string) => {
     const separator = endpoint.includes('?') ? '&' : '?';
     return `${endpoint}${separator}project=${encodeURIComponent(projectPath)}`;
   }, [projectPath]);
+
+  // Track selected task ID separately to avoid infinite loop
+  const selectedTaskId = selectedTask?.id;
 
   // Fetch decompose state and draft
   const fetchState = useCallback(async () => {
@@ -67,6 +82,7 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
 
       setDecomposeState(stateData);
       setDraft(draftData.draft);
+      setDraftPath(draftData.draftPath || null);
 
       if (draftData.draft?.branchName) {
         setBranch(draftData.draft.branchName);
@@ -81,10 +97,20 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
       } else {
         setError(null);
       }
+
+      // If selectedTask is open, update it with fresh data
+      if (selectedTaskId && draftData.draft?.userStories) {
+        const updatedTask = draftData.draft.userStories.find(
+          (s: UserStory) => s.id === selectedTaskId
+        );
+        if (updatedTask) {
+          setSelectedTask(updatedTask);
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch decompose state:', err);
     }
-  }, [apiUrl]);
+  }, [apiUrl, selectedTaskId]);
 
   // Initial fetch and polling
   useEffect(() => {
@@ -126,6 +152,144 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
     }
   };
 
+  // Open task in drawer
+  const openTaskDrawer = (task: UserStory) => {
+    setSelectedTask(task);
+    setDrawerOpen(true);
+    setTaskFeedback('');
+    setFeedbackError(null);
+    setFeedbackSuccess(false);
+    setExecuteError(null);
+    setExpandedTask(null); // Close inline expansion
+  };
+
+  // Close drawer
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setSelectedTask(null);
+    setTaskFeedback('');
+    setFeedbackError(null);
+    setFeedbackSuccess(false);
+    setExecuteError(null);
+  };
+
+  // Handle backdrop click
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      closeDrawer();
+    }
+  };
+
+  // Submit task feedback
+  const handleSubmitFeedback = async () => {
+    if (!selectedTask || !taskFeedback.trim()) return;
+
+    setFeedbackLoading(true);
+    setFeedbackError(null);
+    setFeedbackSuccess(false);
+
+    try {
+      const res = await fetch(apiUrl('/api/decompose/task-feedback'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: selectedTask.id,
+          feedback: taskFeedback,
+          prdFile: specPath,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to submit feedback');
+      }
+
+      setFeedbackSuccess(true);
+      setTaskFeedback('');
+
+      // Update the selected task with the response if available
+      if (data.task) {
+        setSelectedTask(data.task);
+      }
+
+      // Refresh the draft to get updated task list
+      await fetchState();
+    } catch (err) {
+      setFeedbackError(err instanceof Error ? err.message : 'Failed to submit');
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
+  // Execute single task
+  const handleExecuteTask = async () => {
+    if (!selectedTask || !draft) return;
+
+    setExecuteLoading(true);
+    setExecuteError(null);
+
+    try {
+      const res = await fetch(apiUrl('/api/decompose/execute-task'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          task: selectedTask,
+          projectName: draft.projectName,
+          branchName: draft.branchName,
+          language: draft.language,
+          sourceFile: draftPath,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to queue task');
+      }
+
+      // Update the task to show it's queued
+      setSelectedTask({ ...selectedTask, inPrd: true });
+
+      // Refresh state
+      await fetchState();
+    } catch (err) {
+      setExecuteError(err instanceof Error ? err.message : 'Failed to execute');
+    } finally {
+      setExecuteLoading(false);
+    }
+  };
+
+  // Activate all tasks and start Ralph
+  const handleActivateAndRun = async () => {
+    setActivateLoading(true);
+    setError(null);
+
+    try {
+      const activateRes = await fetch(apiUrl('/api/decompose/activate'), { method: 'POST' });
+      if (!activateRes.ok) {
+        const data = await activateRes.json();
+        throw new Error(data.error || 'Failed to activate tasks');
+      }
+
+      const ralphRes = await fetch(apiUrl('/api/ralph/start'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ iterations: 25 }),
+      });
+
+      if (!ralphRes.ok) {
+        const data = await ralphRes.json();
+        throw new Error(data.error || 'Failed to start Ralph');
+      }
+
+      // Refresh state to show tasks are queued
+      await fetchState();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to activate');
+    } finally {
+      setActivateLoading(false);
+    }
+  };
+
   // Calculate stats
   const stories = draft?.userStories || [];
   const completedIds = new Set(stories.filter(s => s.passes).map(s => s.id));
@@ -139,6 +303,8 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
   // Check if this spec has been decomposed
   const hasBeenDecomposed = stories.length > 0;
   const isInProgress = ['STARTING', 'INITIALIZING', 'DECOMPOSING', 'REVIEWING', 'REVISING'].includes(decomposeState.status);
+  const isComplete = decomposeState.status === 'COMPLETED';
+  const canActivate = (isComplete || hasBeenDecomposed) && draft && !isInProgress;
 
   return (
     <div className="spec-decompose-tab">
@@ -158,11 +324,20 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
         </div>
 
         <div className="decompose-actions">
+          {canActivate && (
+            <button
+              className="decompose-btn decompose-btn--primary"
+              onClick={handleActivateAndRun}
+              disabled={activateLoading}
+            >
+              {activateLoading ? '⏳ Starting...' : '▶ Run All Tasks'}
+            </button>
+          )}
           {hasBeenDecomposed ? (
             <button
               className="decompose-btn decompose-btn--secondary"
               onClick={() => handleDecompose(true)}
-              disabled={isInProgress}
+              disabled={isInProgress || activateLoading}
             >
               {isInProgress ? '⏳ Running...' : '🔄 Re-decompose'}
             </button>
@@ -207,8 +382,8 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
         </div>
       )}
 
-      {/* Task list */}
-      {hasBeenDecomposed && !isInProgress && (
+      {/* Task list - show even during progress if we have tasks */}
+      {hasBeenDecomposed && (
         <div className="task-list">
           {stories.map((story) => {
             const status = getTaskStatus(story, completedIds);
@@ -217,16 +392,29 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
             return (
               <div
                 key={story.id}
-                className={`task-card task-card--${status}`}
-                onClick={() => setExpandedTask(isExpanded ? null : story.id)}
+                className={`task-card task-card--${status} ${story.inPrd ? 'task-card--queued' : ''}`}
               >
-                <div className="task-header">
+                <div
+                  className="task-header"
+                  onClick={() => setExpandedTask(isExpanded ? null : story.id)}
+                >
                   <span className={`task-status task-status--${status}`}>
                     {getStatusIcon(status)}
                   </span>
                   <span className="task-id">{story.id}</span>
                   <span className="task-title">{story.title}</span>
+                  {story.inPrd && <span className="task-queued-badge">Queued</span>}
                   {getComplexityBadge(story.complexity)}
+                  <button
+                    className="task-open-drawer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openTaskDrawer(story);
+                    }}
+                    title="Open task details"
+                  >
+                    ↗
+                  </button>
                   <span className="task-chevron">{isExpanded ? '▼' : '▶'}</span>
                 </div>
 
@@ -267,6 +455,18 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
                         <p className="task-notes">{story.notes}</p>
                       </div>
                     )}
+
+                    <div className="task-inline-actions">
+                      <button
+                        className="task-action-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openTaskDrawer(story);
+                        }}
+                      >
+                        Edit / Discuss
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -283,6 +483,125 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
           <p className="empty-description">
             Decompose this spec to generate user stories and tasks
           </p>
+        </div>
+      )}
+
+      {/* Task Drawer */}
+      {drawerOpen && selectedTask && (
+        <div className="drawer-backdrop" onClick={handleBackdropClick}>
+          <div className="drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="drawer-header">
+              <div className="drawer-header-info">
+                <span className={`drawer-status drawer-status--${getTaskStatus(selectedTask, completedIds)}`}>
+                  {getStatusIcon(getTaskStatus(selectedTask, completedIds))}
+                </span>
+                <span className="drawer-id">{selectedTask.id}</span>
+                {selectedTask.inPrd && <span className="task-queued-badge">In Queue</span>}
+                {getComplexityBadge(selectedTask.complexity)}
+              </div>
+              <button className="drawer-close" onClick={closeDrawer}>×</button>
+            </div>
+
+            <div className="drawer-content">
+              <h2 className="drawer-title">{selectedTask.title}</h2>
+
+              {/* Execute and error display */}
+              <div className="drawer-actions">
+                <button
+                  className="drawer-btn drawer-btn--execute"
+                  onClick={handleExecuteTask}
+                  disabled={executeLoading || selectedTask.inPrd}
+                >
+                  {executeLoading ? 'Adding...' : selectedTask.inPrd ? 'Already Queued' : '▶ Execute This Task'}
+                </button>
+              </div>
+
+              {executeError && (
+                <div className="drawer-error">{executeError}</div>
+              )}
+
+              <div className="drawer-section">
+                <h4>Description</h4>
+                <p>{selectedTask.description}</p>
+              </div>
+
+              {selectedTask.acceptanceCriteria.length > 0 && (
+                <div className="drawer-section">
+                  <h4>Acceptance Criteria</h4>
+                  <ul>
+                    {selectedTask.acceptanceCriteria.map((ac, i) => (
+                      <li key={i}>{ac}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {selectedTask.testCases && selectedTask.testCases.length > 0 && (
+                <div className="drawer-section">
+                  <h4>Test Cases</h4>
+                  <ul className="drawer-test-cases">
+                    {selectedTask.testCases.map((tc, i) => (
+                      <li key={i}><code>{tc}</code></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {selectedTask.dependencies.length > 0 && (
+                <div className="drawer-section">
+                  <h4>Dependencies</h4>
+                  <div className="drawer-deps">
+                    {selectedTask.dependencies.map((dep) => (
+                      <span
+                        key={dep}
+                        className={`drawer-dep ${completedIds.has(dep) ? 'drawer-dep--done' : ''}`}
+                      >
+                        {completedIds.has(dep) ? '✓' : '○'} {dep}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedTask.notes && (
+                <div className="drawer-section">
+                  <h4>Notes</h4>
+                  <p className="drawer-notes">{selectedTask.notes}</p>
+                </div>
+              )}
+
+              {/* Feedback Section */}
+              <div className="drawer-section drawer-feedback">
+                <h4>Update Task</h4>
+                <p className="feedback-hint">
+                  Provide feedback to update this task. Claude will revise the task based on your comments.
+                </p>
+                <textarea
+                  className="feedback-textarea"
+                  placeholder="e.g., Add a test case for error handling, clarify the acceptance criteria, change the description..."
+                  value={taskFeedback}
+                  onChange={(e) => setTaskFeedback(e.target.value)}
+                  disabled={feedbackLoading}
+                  rows={4}
+                />
+                {feedbackError && (
+                  <div className="feedback-error">{feedbackError}</div>
+                )}
+                {feedbackSuccess && (
+                  <div className="feedback-success">Task updated successfully!</div>
+                )}
+                <div className="feedback-actions">
+                  <button
+                    className="drawer-btn drawer-btn--primary"
+                    onClick={handleSubmitFeedback}
+                    disabled={feedbackLoading || !taskFeedback.trim()}
+                  >
+                    {feedbackLoading ? 'Updating...' : 'Submit Feedback'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
