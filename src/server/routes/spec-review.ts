@@ -4,7 +4,7 @@ import { join, basename } from 'path';
 import { randomUUID } from 'crypto';
 import { projectContext } from '../middleware/project-context.js';
 import { runSpecReview } from '../../core/spec-review/runner.js';
-import { executeSplit } from '../../core/spec-review/splitter.js';
+import { executeSplit, buildSplitContent } from '../../core/spec-review/splitter.js';
 import { generateSplitProposal, detectGodSpec } from '../../core/spec-review/god-spec-detector.js';
 import { loadSession, saveSession } from '../../core/spec-review/session-file.js';
 import type { SessionFile, SplitProposal, CodebaseContext, ChatMessage } from '../../types/index.js';
@@ -444,6 +444,121 @@ router.get('/suggestions/:sessionId', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: 'Failed to get suggestions',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/spec-review/split/preview-content
+ * Generate preview content for split files without creating them
+ */
+router.post('/split/preview-content', async (req, res) => {
+  try {
+    const { specFile, proposal } = req.body;
+
+    if (!specFile) {
+      return res.status(400).json({ error: 'specFile is required' });
+    }
+
+    if (!proposal) {
+      return res.status(400).json({ error: 'proposal is required' });
+    }
+
+    // Verify file exists
+    try {
+      await fs.access(specFile);
+    } catch {
+      return res.status(404).json({ error: 'Spec file not found' });
+    }
+
+    const specContent = await fs.readFile(specFile, 'utf-8');
+    const specBasename = basename(specFile);
+    const typedProposal = proposal as SplitProposal;
+
+    const previewFiles = typedProposal.proposedSpecs.map((spec) => ({
+      filename: spec.filename,
+      description: spec.description,
+      content: buildSplitContent(
+        specContent,
+        specBasename,
+        spec.sections,
+        spec.description
+      ),
+      proposedSpec: spec,
+    }));
+
+    res.json({
+      previewFiles,
+      originalFile: specFile,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to generate preview content',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/spec-review/split/execute
+ * Execute a split with custom content (from preview editing)
+ */
+router.post('/split/execute', async (req, res) => {
+  try {
+    const { specFile, files, sessionId } = req.body;
+
+    if (!specFile) {
+      return res.status(400).json({ error: 'specFile is required' });
+    }
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ error: 'files array is required' });
+    }
+
+    // Verify original file exists
+    try {
+      await fs.access(specFile);
+    } catch {
+      return res.status(404).json({ error: 'Spec file not found' });
+    }
+
+    const projectPath = req.projectPath!;
+    const specDir = join(specFile, '..');
+    const createdFiles: string[] = [];
+
+    // Write each file
+    for (const file of files) {
+      if (!file.filename || typeof file.content !== 'string') {
+        return res.status(400).json({ error: 'Each file must have filename and content' });
+      }
+
+      const filePath = join(specDir, file.filename);
+      await fs.writeFile(filePath, file.content, 'utf-8');
+      createdFiles.push(filePath);
+    }
+
+    // Update session with splitSpecs if sessionId is provided
+    if (sessionId) {
+      const session = await findSessionById(projectPath, sessionId);
+      if (session) {
+        session.splitSpecs = files.map((file: { filename: string; description: string }) => ({
+          filename: file.filename,
+          description: file.description || '',
+        }));
+        session.lastUpdatedAt = new Date().toISOString();
+        await saveSession(session);
+      }
+    }
+
+    res.json({
+      success: true,
+      createdFiles,
+      originalFile: specFile,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to execute split',
       details: error instanceof Error ? error.message : String(error),
     });
   }

@@ -556,6 +556,8 @@ export interface SpecReviewResult {
   categories: Record<string, SpecReviewCategory>;
   /** Split proposal (if verdict is SPLIT_RECOMMENDED) */
   splitProposal?: SplitProposal;
+  /** God spec indicators (if god spec detection was performed) */
+  godSpecIndicators?: GodSpecIndicators;
   /** Codebase context used for review */
   codebaseContext: CodebaseContext;
   /** Generated suggestions */

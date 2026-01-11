@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { SuggestionCard as SuggestionCardType, SpecReviewResult } from '../../../src/types/index.js';
+import type { SuggestionCard as SuggestionCardType, SpecReviewResult, GodSpecIndicators, SplitProposal } from '../../../src/types/index.js';
 import { SpecEditor } from './SpecEditor';
 import { SuggestionCard } from './SuggestionCard';
 import { DiffApprovalBar } from './DiffApprovalBar';
 import { BatchNavigation } from './BatchNavigation';
+import { GodSpecWarning } from './GodSpecWarning';
+import { SplitPreviewModal, type SplitPreviewFile } from './SplitPreviewModal';
 import { useSpecEditor } from '../hooks/useSpecEditor';
 import { useDiffApproval } from '../hooks/useDiffApproval';
 import { useAgentFeedback } from '../hooks/useAgentFeedback';
+import { useSplitPreview } from '../hooks/useSplitPreview';
 import './SpecReviewPage.css';
 
 interface SpecFile {
@@ -37,6 +40,12 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
   const specEditor = useSpecEditor(specContent);
   const diffApproval = useDiffApproval();
   const agentFeedback = useAgentFeedback();
+  const splitPreview = useSplitPreview();
+
+  // God spec state
+  const [godSpecIndicators, setGodSpecIndicators] = useState<GodSpecIndicators | null>(null);
+  const [splitProposal, setSplitProposal] = useState<SplitProposal | null>(null);
+  const [showGodSpecWarning, setShowGodSpecWarning] = useState(false);
 
   const apiUrl = useCallback((endpoint: string): string => {
     if (!projectPath) return endpoint;
@@ -96,6 +105,18 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
             setSessionId(data.session.sessionId);
             setSuggestions(data.session.suggestions || []);
             setReviewResult(data.session.reviewResult || null);
+
+            // Check for god spec indicators in review result
+            const result = data.session.reviewResult;
+            if (result?.verdict === 'SPLIT_RECOMMENDED') {
+              setGodSpecIndicators(result.godSpecIndicators || null);
+              setSplitProposal(result.splitProposal || null);
+              setShowGodSpecWarning(true);
+            } else {
+              setGodSpecIndicators(null);
+              setSplitProposal(null);
+              setShowGodSpecWarning(false);
+            }
           }
         }
       } catch (error) {
@@ -348,6 +369,31 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
     }
   }, [sessionId, pendingSuggestions, agentFeedback, diffApproval, specEditor, projectPath]);
 
+  // God spec handlers
+  const handleAcceptSplit = useCallback(async (proposal: SplitProposal): Promise<void> => {
+    if (!selectedFile) return;
+    await splitPreview.openPreview(proposal, selectedFile, projectPath);
+  }, [selectedFile, projectPath, splitPreview]);
+
+  const handleModifySplit = useCallback(async (proposal: SplitProposal): Promise<void> => {
+    if (!selectedFile) return;
+    await splitPreview.openPreview(proposal, selectedFile, projectPath);
+  }, [selectedFile, projectPath, splitPreview]);
+
+  const handleSkipSplit = useCallback((): void => {
+    setShowGodSpecWarning(false);
+  }, []);
+
+  const handleSplitSaveAll = useCallback(async (files: SplitPreviewFile[]): Promise<void> => {
+    if (!selectedFile) return;
+    await splitPreview.saveAll(files, selectedFile, sessionId || undefined, projectPath);
+    setShowGodSpecWarning(false);
+  }, [selectedFile, sessionId, projectPath, splitPreview]);
+
+  const handleSplitCancel = useCallback((): void => {
+    splitPreview.cancel();
+  }, [splitPreview]);
+
   if (loading) {
     return (
       <div className="spec-review-page" data-testid="spec-review-page">
@@ -459,6 +505,17 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
             )}
           </div>
           <div className="panel-content">
+            {/* God spec warning */}
+            {showGodSpecWarning && godSpecIndicators && (
+              <GodSpecWarning
+                indicators={godSpecIndicators}
+                splitProposal={splitProposal || undefined}
+                onAcceptSplit={handleAcceptSplit}
+                onModify={handleModifySplit}
+                onSkip={handleSkipSplit}
+              />
+            )}
+
             {pendingSuggestions.length > 0 ? (
               <>
                 <BatchNavigation
@@ -491,6 +548,18 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
           </div>
         </div>
       </div>
+
+      {/* Split preview modal */}
+      {splitPreview.isOpen && splitPreview.proposal && (
+        <SplitPreviewModal
+          isOpen={splitPreview.isOpen}
+          proposal={splitPreview.proposal}
+          previewFiles={splitPreview.previewFiles}
+          onSaveAll={handleSplitSaveAll}
+          onCancel={handleSplitCancel}
+          isSaving={splitPreview.isSaving}
+        />
+      )}
     </div>
   );
 }

@@ -17,6 +17,7 @@ vi.mock('../../core/spec-review/runner.js', () => ({
 
 vi.mock('../../core/spec-review/splitter.js', () => ({
   executeSplit: vi.fn(),
+  buildSplitContent: vi.fn(),
 }));
 
 vi.mock('../../core/spec-review/god-spec-detector.js', () => ({
@@ -588,6 +589,154 @@ describe('spec-review routes', () => {
       expect(response.body.totalCount).toBe(3);
       expect(response.body.pendingCount).toBe(2);
       expect(response.body.suggestions.every((s: { status: string }) => s.status === 'pending')).toBe(true);
+    });
+  });
+
+  describe('POST /api/spec-review/split/preview-content', () => {
+    it('POST_splitPreviewContent_GeneratesPreviewFiles', async () => {
+      const mockProposal: SplitProposal = {
+        originalFile: testSpecPath,
+        reason: 'Too many concerns',
+        proposedSpecs: [
+          {
+            filename: 'auth-spec.md',
+            description: 'Authentication',
+            estimatedStories: 5,
+            sections: ['Authentication'],
+          },
+          {
+            filename: 'user-spec.md',
+            description: 'User Management',
+            estimatedStories: 8,
+            sections: ['Users'],
+          },
+        ],
+      };
+
+      vi.mocked(splitterModule.buildSplitContent).mockImplementation(
+        (_content, _original, _sections, description) => `# ${description}\n\nGenerated content...`
+      );
+
+      const response = await request(app)
+        .post('/api/spec-review/split/preview-content')
+        .send({
+          specFile: testSpecPath,
+          proposal: mockProposal,
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.previewFiles).toHaveLength(2);
+      expect(response.body.previewFiles[0].filename).toBe('auth-spec.md');
+      expect(response.body.previewFiles[0].content).toBe('# Authentication\n\nGenerated content...');
+      expect(response.body.previewFiles[1].filename).toBe('user-spec.md');
+      expect(response.body.originalFile).toBe(testSpecPath);
+    });
+
+    it('POST_splitPreviewContent_Returns404_WhenFileNotFound', async () => {
+      const response = await request(app)
+        .post('/api/spec-review/split/preview-content')
+        .send({
+          specFile: '/nonexistent/path/spec.md',
+          proposal: { originalFile: 'test.md', reason: '', proposedSpecs: [] },
+        });
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe('Spec file not found');
+    });
+
+    it('POST_splitPreviewContent_Returns400_WhenMissingProposal', async () => {
+      const response = await request(app)
+        .post('/api/spec-review/split/preview-content')
+        .send({
+          specFile: testSpecPath,
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('proposal is required');
+    });
+  });
+
+  describe('POST /api/spec-review/split/execute', () => {
+    it('POST_splitExecute_WritesFiles', async () => {
+      const response = await request(app)
+        .post('/api/spec-review/split/execute')
+        .send({
+          specFile: testSpecPath,
+          files: [
+            { filename: 'auth-spec.md', description: 'Auth', content: '# Auth\n\nContent...' },
+            { filename: 'user-spec.md', description: 'User', content: '# User\n\nContent...' },
+          ],
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.createdFiles).toHaveLength(2);
+      expect(response.body.originalFile).toBe(testSpecPath);
+
+      // Verify files were actually written
+      const authContent = await fs.readFile(join(testDir, 'auth-spec.md'), 'utf-8');
+      expect(authContent).toBe('# Auth\n\nContent...');
+
+      const userContent = await fs.readFile(join(testDir, 'user-spec.md'), 'utf-8');
+      expect(userContent).toBe('# User\n\nContent...');
+    });
+
+    it('POST_splitExecute_UpdatesSession', async () => {
+      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      await fs.mkdir(sessionsDir, { recursive: true });
+      const mockSession: SessionFile = {
+        sessionId: 'split-session-123',
+        specFilePath: testSpecPath,
+        status: 'completed',
+        startedAt: '2026-01-11T10:00:00Z',
+        lastUpdatedAt: '2026-01-11T10:01:00Z',
+        suggestions: [],
+        changeHistory: [],
+        chatMessages: [],
+      };
+
+      await fs.writeFile(
+        join(sessionsDir, 'test-spec.session.json'),
+        JSON.stringify(mockSession)
+      );
+      mockProjectPath = testDir;
+
+      const response = await request(app)
+        .post('/api/spec-review/split/execute')
+        .send({
+          specFile: testSpecPath,
+          sessionId: 'split-session-123',
+          files: [
+            { filename: 'auth-spec.md', description: 'Auth features', content: '# Auth' },
+            { filename: 'user-spec.md', description: 'User management', content: '# User' },
+          ],
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+
+      // Verify saveSession was called with updated splitSpecs
+      expect(sessionFileModule.saveSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 'split-session-123',
+          splitSpecs: [
+            { filename: 'auth-spec.md', description: 'Auth features' },
+            { filename: 'user-spec.md', description: 'User management' },
+          ],
+        })
+      );
+    });
+
+    it('POST_splitExecute_Returns400_WhenNoFiles', async () => {
+      const response = await request(app)
+        .post('/api/spec-review/split/execute')
+        .send({
+          specFile: testSpecPath,
+          files: [],
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('files array is required');
     });
   });
 });

@@ -6,7 +6,7 @@ import type { SplitProposal } from '../../types/index.js';
  * Extracts a section from markdown content by heading name.
  * Returns the section content from the heading to the next heading of same or higher level.
  */
-function extractSection(content: string, sectionName: string): string {
+export function extractSection(content: string, sectionName: string): string {
   const escapedName = sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`^##\\s+${escapedName}[\\s\\S]*?(?=^##\\s|$)`, 'gim');
   const match = content.match(pattern);
@@ -16,7 +16,7 @@ function extractSection(content: string, sectionName: string): string {
 /**
  * Builds the split header that identifies the source of the new spec.
  */
-function buildSplitHeader(originalFilename: string): string {
+export function buildSplitHeader(originalFilename: string): string {
   return `<!-- Split from: ${originalFilename} -->\n\n`;
 }
 
@@ -24,7 +24,7 @@ function buildSplitHeader(originalFilename: string): string {
  * Builds the content for a new split spec file by extracting
  * relevant sections from the original spec content.
  */
-function buildSplitContent(
+export function buildSplitContent(
   originalContent: string,
   originalFilename: string,
   sections: string[],
