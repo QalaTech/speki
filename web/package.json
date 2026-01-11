@@ -15,6 +15,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@mdxeditor/editor": "^3.52.3",
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "react": "^19.2.0",
