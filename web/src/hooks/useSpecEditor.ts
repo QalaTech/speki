@@ -27,6 +27,8 @@ export interface SpecEditorState {
   isDirty: boolean;
   /** Current diff view state */
   diffState: DiffViewState;
+  /** Currently selected text in the editor */
+  selectedText: string;
 }
 
 /**
@@ -39,6 +41,10 @@ export interface SpecEditorActions {
   markClean: () => void;
   /** Gets the currently selected text in the editor */
   getSelection: () => string;
+  /** Updates the tracked selected text (call this on selection change events) */
+  updateSelection: () => void;
+  /** Clears the tracked selected text */
+  clearSelection: () => void;
   /** Scrolls to a section by heading text */
   scrollToHeading: (heading: string) => boolean;
   /** Scrolls to a specific line number */
@@ -70,6 +76,7 @@ const initialState: SpecEditorState = {
   content: '',
   isDirty: false,
   diffState: createInitialDiffState(),
+  selectedText: '',
 };
 
 /**
@@ -103,6 +110,23 @@ export function useSpecEditor(initialContent: string = ''): UseSpecEditorReturn 
   const getSelection = useCallback((): string => {
     const lexicalEditor = getLexicalEditorFromRef(editorRef);
     return lexicalEditor ? getSelectedText(lexicalEditor) : '';
+  }, []);
+
+  const updateSelection = useCallback((): void => {
+    const lexicalEditor = getLexicalEditorFromRef(editorRef);
+    const text = lexicalEditor ? getSelectedText(lexicalEditor) : '';
+    setState((prev) => {
+      // Only update if selection actually changed
+      if (prev.selectedText === text) return prev;
+      return { ...prev, selectedText: text };
+    });
+  }, []);
+
+  const clearSelection = useCallback((): void => {
+    setState((prev) => {
+      if (prev.selectedText === '') return prev;
+      return { ...prev, selectedText: '' };
+    });
   }, []);
 
   const scrollToHeading = useCallback((heading: string): boolean => {
@@ -171,6 +195,8 @@ export function useSpecEditor(initialContent: string = ''): UseSpecEditorReturn 
     setContent,
     markClean,
     getSelection,
+    updateSelection,
+    clearSelection,
     scrollToHeading,
     scrollToLineNumber,
     highlight,

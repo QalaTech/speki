@@ -320,7 +320,7 @@ router.post('/feedback', async (req, res) => {
  */
 router.post('/chat', async (req, res) => {
   try {
-    const { sessionId, message, suggestionId } = req.body;
+    const { sessionId, message, suggestionId, selectedText } = req.body;
 
     if (!sessionId) {
       return res.status(400).json({ error: 'sessionId is required' });
@@ -337,10 +337,16 @@ router.post('/chat', async (req, res) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
+    // Build message content with selection context if provided
+    let messageContent = message;
+    if (selectedText && typeof selectedText === 'string' && selectedText.trim()) {
+      messageContent = `[Selection: "${selectedText.trim()}"]\n\n${message}`;
+    }
+
     const userMessage: ChatMessage = {
       id: randomUUID(),
       role: 'user',
-      content: message,
+      content: messageContent,
       timestamp: new Date().toISOString(),
       suggestionId,
     };
@@ -353,6 +359,8 @@ router.post('/chat', async (req, res) => {
     res.json({
       success: true,
       message: userMessage,
+      // Return selection context in response for debugging/UI
+      selectionContext: selectedText || null,
     });
   } catch (error) {
     res.status(500).json({

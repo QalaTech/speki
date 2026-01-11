@@ -175,6 +175,67 @@ describe('useSpecEditor', () => {
       expect(lexicalUtils.getSelectedText).toHaveBeenCalled();
       expect(selection).toBe('selected text');
     });
+
+    it('should initialize with empty selectedText', () => {
+      const { result } = renderHook(() => useSpecEditor());
+      expect(result.current.selectedText).toBe('');
+    });
+
+    it('should update selectedText via updateSelection', () => {
+      const { result } = renderHook(() => useSpecEditor());
+      const mockEditor = createMockEditorRef();
+
+      (result.current.editorRef as { current: SpecEditorRef | null }).current =
+        mockEditor;
+
+      act(() => {
+        result.current.updateSelection();
+      });
+
+      expect(result.current.selectedText).toBe('selected text');
+    });
+
+    it('should clear selectedText via clearSelection', () => {
+      const { result } = renderHook(() => useSpecEditor());
+      const mockEditor = createMockEditorRef();
+
+      (result.current.editorRef as { current: SpecEditorRef | null }).current =
+        mockEditor;
+
+      // First set a selection
+      act(() => {
+        result.current.updateSelection();
+      });
+      expect(result.current.selectedText).toBe('selected text');
+
+      // Then clear it
+      act(() => {
+        result.current.clearSelection();
+      });
+      expect(result.current.selectedText).toBe('');
+    });
+
+    it('should not re-render if selection has not changed', () => {
+      const { result } = renderHook(() => useSpecEditor());
+      const mockEditor = createMockEditorRef();
+
+      (result.current.editorRef as { current: SpecEditorRef | null }).current =
+        mockEditor;
+
+      // Update selection
+      act(() => {
+        result.current.updateSelection();
+      });
+      const firstSelectedText = result.current.selectedText;
+
+      // Update again with same value
+      act(() => {
+        result.current.updateSelection();
+      });
+
+      // Should still be the same reference (no unnecessary update)
+      expect(result.current.selectedText).toBe(firstSelectedText);
+    });
   });
 
   describe('useSpecEditor_ProvideDiffFunctions', () => {

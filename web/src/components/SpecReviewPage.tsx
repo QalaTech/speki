@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { SuggestionCard as SuggestionCardType, SpecReviewResult, GodSpecIndicators, SplitProposal } from '../../../src/types/index.js';
+import type { SuggestionCard as SuggestionCardType, SpecReviewResult, GodSpecIndicators, SplitProposal, ChatMessage } from '../../../src/types/index.js';
 import { SpecEditor } from './SpecEditor';
 import { SuggestionCard } from './SuggestionCard';
 import { DiffApprovalBar } from './DiffApprovalBar';
 import { BatchNavigation } from './BatchNavigation';
 import { GodSpecWarning } from './GodSpecWarning';
 import { SplitPreviewModal, type SplitPreviewFile } from './SplitPreviewModal';
+import { ReviewChat } from './ReviewChat';
 import { useSpecEditor } from '../hooks/useSpecEditor';
 import { useDiffApproval } from '../hooks/useDiffApproval';
 import { useAgentFeedback } from '../hooks/useAgentFeedback';
@@ -46,6 +47,10 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
   const [godSpecIndicators, setGodSpecIndicators] = useState<GodSpecIndicators | null>(null);
   const [splitProposal, setSplitProposal] = useState<SplitProposal | null>(null);
   const [showGodSpecWarning, setShowGodSpecWarning] = useState(false);
+
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   const apiUrl = useCallback((endpoint: string): string => {
     if (!projectPath) return endpoint;
@@ -105,6 +110,7 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
             setSessionId(data.session.sessionId);
             setSuggestions(data.session.suggestions || []);
             setReviewResult(data.session.reviewResult || null);
+            setChatMessages(data.session.chatMessages || []);
 
             // Check for god spec indicators in review result
             const result = data.session.reviewResult;
@@ -369,6 +375,61 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
     }
   }, [sessionId, pendingSuggestions, agentFeedback, diffApproval, specEditor, projectPath]);
 
+  // Selection change handler - update selection when user selects text in editor
+  const handleEditorMouseUp = useCallback((): void => {
+    // Small delay to ensure selection is complete
+    setTimeout(() => {
+      specEditor.updateSelection();
+    }, 10);
+  }, [specEditor]);
+
+  // Clear selection when clicking outside editor
+  const handleEditorBlur = useCallback((): void => {
+    // Don't clear immediately - allow click on chat input
+    setTimeout(() => {
+      const activeElement = document.activeElement;
+      const chatInput = document.querySelector('[data-testid="chat-input"]');
+      if (activeElement !== chatInput) {
+        specEditor.clearSelection();
+      }
+    }, 100);
+  }, [specEditor]);
+
+  // Chat message handler
+  const handleSendMessage = useCallback(async (message: string, selectionContext?: string): Promise<void> => {
+    if (!sessionId) return;
+
+    setIsSendingMessage(true);
+    try {
+      const response = await fetch(apiUrl('/api/spec-review/chat'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          message,
+          selectedText: selectionContext,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to send message');
+      }
+
+      const data = await response.json();
+      if (data.message) {
+        setChatMessages((prev) => [...prev, data.message]);
+      }
+
+      // Clear selection after sending
+      specEditor.clearSelection();
+    } catch (error) {
+      console.error('Failed to send chat message:', error);
+    } finally {
+      setIsSendingMessage(false);
+    }
+  }, [sessionId, apiUrl, specEditor]);
+
   // God spec handlers
   const handleAcceptSplit = useCallback(async (proposal: SplitProposal): Promise<void> => {
     if (!selectedFile) return;
@@ -469,7 +530,11 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
               )}
             </span>
           </div>
-          <div className="panel-content">
+          <div
+            className="panel-content"
+            onMouseUp={handleEditorMouseUp}
+            onBlur={handleEditorBlur}
+          >
             <SpecEditor
               ref={specEditor.editorRef}
               content={specEditor.content}
@@ -543,6 +608,20 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
                 {suggestions.length === 0
                   ? 'No review results yet. Start a review to see suggestions.'
                   : 'All suggestions have been reviewed.'}
+              </div>
+            )}
+
+            {/* Review Chat */}
+            {sessionId && (
+              <div className="review-chat-section" data-testid="review-chat-section">
+                <div className="section-header">Chat</div>
+                <ReviewChat
+                  messages={chatMessages}
+                  sessionId={sessionId}
+                  selectedText={specEditor.selectedText || undefined}
+                  onSendMessage={handleSendMessage}
+                  isSending={isSendingMessage}
+                />
               </div>
             )}
           </div>

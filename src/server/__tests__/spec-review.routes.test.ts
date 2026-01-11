@@ -476,6 +476,114 @@ describe('spec-review routes', () => {
       expect(response.body.message.id).toBeDefined();
       expect(response.body.message.timestamp).toBeDefined();
     });
+
+    it('POST_chat_IncludesSelectionContext', async () => {
+      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      await fs.mkdir(sessionsDir, { recursive: true });
+      const mockSession: SessionFile = {
+        sessionId: 'selection-chat-session',
+        specFilePath: testSpecPath,
+        status: 'completed',
+        startedAt: '2026-01-11T10:00:00Z',
+        lastUpdatedAt: '2026-01-11T10:01:00Z',
+        suggestions: [],
+        changeHistory: [],
+        chatMessages: [],
+      };
+
+      await fs.writeFile(
+        join(sessionsDir, 'selection-spec.session.json'),
+        JSON.stringify(mockSession)
+      );
+      mockProjectPath = testDir;
+
+      const response = await request(app)
+        .post('/api/spec-review/chat')
+        .send({
+          sessionId: 'selection-chat-session',
+          message: 'What does this mean?',
+          selectedText: 'The user authentication system',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.message.role).toBe('user');
+      // Message should include selection context
+      expect(response.body.message.content).toContain('[Selection: "The user authentication system"]');
+      expect(response.body.message.content).toContain('What does this mean?');
+      // Response should include selectionContext for debugging
+      expect(response.body.selectionContext).toBe('The user authentication system');
+    });
+
+    it('POST_chat_HandlesEmptySelectedText', async () => {
+      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      await fs.mkdir(sessionsDir, { recursive: true });
+      const mockSession: SessionFile = {
+        sessionId: 'empty-selection-session',
+        specFilePath: testSpecPath,
+        status: 'completed',
+        startedAt: '2026-01-11T10:00:00Z',
+        lastUpdatedAt: '2026-01-11T10:01:00Z',
+        suggestions: [],
+        changeHistory: [],
+        chatMessages: [],
+      };
+
+      await fs.writeFile(
+        join(sessionsDir, 'empty-selection.session.json'),
+        JSON.stringify(mockSession)
+      );
+      mockProjectPath = testDir;
+
+      const response = await request(app)
+        .post('/api/spec-review/chat')
+        .send({
+          sessionId: 'empty-selection-session',
+          message: 'General question?',
+          selectedText: '',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      // Message should NOT include selection context for empty string
+      expect(response.body.message.content).toBe('General question?');
+      expect(response.body.message.content).not.toContain('[Selection:');
+    });
+
+    it('POST_chat_HandlesWhitespaceOnlySelectedText', async () => {
+      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      await fs.mkdir(sessionsDir, { recursive: true });
+      const mockSession: SessionFile = {
+        sessionId: 'whitespace-selection-session',
+        specFilePath: testSpecPath,
+        status: 'completed',
+        startedAt: '2026-01-11T10:00:00Z',
+        lastUpdatedAt: '2026-01-11T10:01:00Z',
+        suggestions: [],
+        changeHistory: [],
+        chatMessages: [],
+      };
+
+      await fs.writeFile(
+        join(sessionsDir, 'whitespace-selection.session.json'),
+        JSON.stringify(mockSession)
+      );
+      mockProjectPath = testDir;
+
+      const response = await request(app)
+        .post('/api/spec-review/chat')
+        .send({
+          sessionId: 'whitespace-selection-session',
+          message: 'Another question?',
+          selectedText: '   \n\t  ',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      // Message should NOT include selection context for whitespace-only
+      expect(response.body.message.content).toBe('Another question?');
+      expect(response.body.message.content).not.toContain('[Selection:');
+    });
   });
 
   describe('POST /api/spec-review/revert', () => {

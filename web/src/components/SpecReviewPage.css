@@ -212,3 +212,19 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Review chat section */
+.review-chat-section {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+  padding-top: 1rem;
+}
+
+.section-header {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+}
