@@ -3,8 +3,10 @@ import type { SuggestionCard as SuggestionCardType, SpecReviewResult } from '../
 import { SpecEditor } from './SpecEditor';
 import { SuggestionCard } from './SuggestionCard';
 import { DiffApprovalBar } from './DiffApprovalBar';
+import { BatchNavigation } from './BatchNavigation';
 import { useSpecEditor } from '../hooks/useSpecEditor';
 import { useDiffApproval } from '../hooks/useDiffApproval';
+import { useAgentFeedback } from '../hooks/useAgentFeedback';
 import './SpecReviewPage.css';
 
 interface SpecFile {
@@ -27,11 +29,14 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestionCardType[]>([]);
   const [reviewResult, setReviewResult] = useState<SpecReviewResult | null>(null);
+  const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Editor and diff approval hooks
   const specEditor = useSpecEditor(specContent);
   const diffApproval = useDiffApproval();
+  const agentFeedback = useAgentFeedback();
 
   const apiUrl = useCallback((endpoint: string): string => {
     if (!projectPath) return endpoint;
@@ -260,6 +265,89 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
   // Filter pending suggestions
   const pendingSuggestions = suggestions.filter((s) => s.status === 'pending');
 
+  // Batch navigation: navigate to a suggestion and enter diff mode
+  const handleBatchNavigate = useCallback((index: number): void => {
+    if (index < 0 || index >= pendingSuggestions.length) return;
+
+    setCurrentSuggestionIndex(index);
+    const suggestion = pendingSuggestions[index];
+
+    // Enter diff mode for the selected suggestion
+    diffApproval.enterDiffMode(suggestion, specEditor, specEditor.content);
+  }, [pendingSuggestions, diffApproval, specEditor]);
+
+  // Batch approve all pending suggestions
+  const handleApproveAll = useCallback(async (): Promise<void> => {
+    if (!sessionId || pendingSuggestions.length === 0) return;
+
+    setIsBatchProcessing(true);
+
+    try {
+      // Mark all pending suggestions as approved
+      const approvedIds = pendingSuggestions.map((s) => s.id);
+
+      // Send approval feedback for each suggestion
+      for (const suggestion of pendingSuggestions) {
+        await agentFeedback.sendApprovalFeedback(sessionId, suggestion.id, projectPath);
+      }
+
+      // Update all suggestions to approved status
+      setSuggestions((prev) =>
+        prev.map((s) =>
+          approvedIds.includes(s.id) ? { ...s, status: 'approved' as const } : s
+        )
+      );
+
+      // Exit diff mode if active
+      if (diffApproval.isActive) {
+        diffApproval.cancel(specEditor);
+      }
+
+      // Reset index
+      setCurrentSuggestionIndex(0);
+    } catch (error) {
+      console.error('Failed to approve all suggestions:', error);
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  }, [sessionId, pendingSuggestions, agentFeedback, diffApproval, specEditor, projectPath]);
+
+  // Batch reject all pending suggestions
+  const handleRejectAll = useCallback(async (): Promise<void> => {
+    if (!sessionId || pendingSuggestions.length === 0) return;
+
+    setIsBatchProcessing(true);
+
+    try {
+      // Mark all pending suggestions as rejected
+      const rejectedIds = pendingSuggestions.map((s) => s.id);
+
+      // Send rejection feedback for each suggestion
+      for (const suggestion of pendingSuggestions) {
+        await agentFeedback.sendRejectionFeedback(sessionId, suggestion.id, projectPath);
+      }
+
+      // Update all suggestions to rejected status
+      setSuggestions((prev) =>
+        prev.map((s) =>
+          rejectedIds.includes(s.id) ? { ...s, status: 'rejected' as const } : s
+        )
+      );
+
+      // Exit diff mode if active
+      if (diffApproval.isActive) {
+        diffApproval.cancel(specEditor);
+      }
+
+      // Reset index
+      setCurrentSuggestionIndex(0);
+    } catch (error) {
+      console.error('Failed to reject all suggestions:', error);
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  }, [sessionId, pendingSuggestions, agentFeedback, diffApproval, specEditor, projectPath]);
+
   if (loading) {
     return (
       <div className="spec-review-page" data-testid="spec-review-page">
@@ -372,17 +460,27 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
           </div>
           <div className="panel-content">
             {pendingSuggestions.length > 0 ? (
-              <div className="suggestions-list" data-testid="suggestions-list">
-                {pendingSuggestions.map((suggestion) => (
-                  <SuggestionCard
-                    key={suggestion.id}
-                    suggestion={suggestion}
-                    onReviewDiff={handleReviewDiff}
-                    onShowInEditor={handleShowInEditor}
-                    onDismiss={handleDismiss}
-                  />
-                ))}
-              </div>
+              <>
+                <BatchNavigation
+                  suggestions={pendingSuggestions}
+                  currentIndex={currentSuggestionIndex}
+                  onNavigate={handleBatchNavigate}
+                  onApproveAll={handleApproveAll}
+                  onRejectAll={handleRejectAll}
+                  disabled={isBatchProcessing || diffApproval.isLoading}
+                />
+                <div className="suggestions-list" data-testid="suggestions-list">
+                  {pendingSuggestions.map((suggestion) => (
+                    <SuggestionCard
+                      key={suggestion.id}
+                      suggestion={suggestion}
+                      onReviewDiff={handleReviewDiff}
+                      onShowInEditor={handleShowInEditor}
+                      onDismiss={handleDismiss}
+                    />
+                  ))}
+                </div>
+              </>
             ) : (
               <div className="no-suggestions">
                 {suggestions.length === 0
