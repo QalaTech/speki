@@ -8,11 +8,32 @@ const CLOSING_INSTRUCTION =
   'Analyze the spec and return ONLY the JSON response, no additional commentary.';
 
 /**
+ * Critical guidance about factual claims - appended to prompts that might
+ * involve external knowledge (versions, APIs, libraries, etc.)
+ */
+const FACTUAL_CLAIMS_WARNING = `
+## CRITICAL: Factual Claims Policy
+You MUST NOT make claims about:
+- Software version releases, release dates, or version availability
+- Current API specifications or library features you haven't verified
+- Whether specific technologies exist or are deprecated
+- Any external facts that could become outdated
+
+If the spec mentions specific versions, technologies, or external dependencies:
+- Do NOT claim they don't exist or aren't released
+- Do NOT claim features are missing from specific versions
+- Instead, use \`"type": "comment"\` to ask clarifying questions like "Please verify this version is correct for your deployment timeline"
+- Focus ONLY on the spec's internal consistency, clarity, and completeness
+
+Your knowledge has a cutoff date. The spec author likely has more current information about their technology choices.`;
+
+/**
  * Builds the common spec/codebase context header used by all prompts.
  */
 function buildContextHeader(): string {
-  return `## SPEC CONTENT
-{specContent}
+  return `## SPEC FILE
+**IMPORTANT**: First, read the spec file at: {specPath}
+Use your Read tool to read this file - it will show line numbers which you MUST use when reporting issues.
 
 ## CODEBASE CONTEXT
 {codebaseContext}`;
@@ -52,18 +73,29 @@ Return a JSON object with this exact structure:
       "id": "unique-id",
       "category": "${category}",
       "severity": "critical" | "warning" | "info",
+      "type": "change" | "comment",
       "section": "Section name where issue found",
       "lineStart": number | null,
       "lineEnd": number | null,
-      "textSnippet": "Relevant text from spec",
+      "textSnippet": "Relevant text from spec (required for 'change' type)",
       "issue": "Description of the issue",
-      "suggestedFix": "Proposed fix or improvement",
+      "suggestedFix": "Proposed replacement text (for 'change') OR clarifying question/comment (for 'comment')",
       "status": "pending"
     }
   ],
   "durationMs": 0
 }
-\`\`\``;
+\`\`\`
+
+### Line Number Guidelines
+- **lineStart/lineEnd**: Count actual line numbers in the spec content (1-indexed). Find the exact lines containing the problematic text.
+- For "change" type suggestions, line numbers are REQUIRED - locate the exact lines to modify.
+- For "comment" type suggestions about overall structure, you may use null if no specific line applies.
+- The textSnippet should match text found at the specified line range.
+
+### Suggestion Type Guidelines
+- Use \`"type": "change"\` when you have specific text to replace (textSnippet + suggestedFix as concrete text modification)
+- Use \`"type": "comment"\` when asking a clarifying question, noting a general concern, or the issue requires human judgment`;
 }
 
 /**
@@ -194,6 +226,7 @@ ${buildVerdictGuidelines({
   fail: 'Critical requirements missing that block implementation',
   needsImprovement: 'No critical gaps but significant warnings present',
 })}
+${FACTUAL_CLAIMS_WARNING}
 
 ${CLOSING_INSTRUCTION}`;
 
@@ -235,6 +268,7 @@ ${buildVerdictGuidelines({
   fail: 'Critical ambiguities that could cause major misimplementation',
   needsImprovement: 'Several warnings that should be addressed',
 })}
+${FACTUAL_CLAIMS_WARNING}
 
 ${CLOSING_INSTRUCTION}`;
 
@@ -330,6 +364,7 @@ ${buildVerdictGuidelines({
   fail: 'Scope violates architecture or would cause significant problems',
   needsImprovement: 'Scope needs refinement for better alignment',
 })}
+${FACTUAL_CLAIMS_WARNING}
 
 ${CLOSING_INSTRUCTION}`;
 

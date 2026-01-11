@@ -89,6 +89,16 @@ export function useDiffApproval(): UseDiffApprovalReturn {
       editorActions: SpecEditorActions,
       currentContent: string
     ): void => {
+      // Prevent entering diff mode if already active with same suggestion
+      if (state.isActive && state.currentSuggestion?.id === suggestion.id) {
+        return;
+      }
+
+      // If switching to different suggestion while in diff mode, exit first
+      if (state.isActive) {
+        editorActions.exitDiffMode(false);
+      }
+
       // Create proposed content by applying the suggested fix
       const proposedContent = applyFix(currentContent, suggestion);
 
@@ -106,7 +116,7 @@ export function useDiffApproval(): UseDiffApprovalReturn {
         isEditing: false,
       });
     },
-    []
+    [state.isActive, state.currentSuggestion?.id]
   );
 
   const approve = useCallback(

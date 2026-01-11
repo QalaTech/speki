@@ -1519,7 +1519,7 @@ Note: Session data is file-based (`.ralph/sessions/`) and persists in git, so no
 
 ### Failure: Spec File Not Found
 - Condition: Specified file doesn't exist or isn't readable
-- Expected System Response: Display "File not found: <path>"
+- Expected System Response: Display "File not found: `<path>`"
 - Observable Outcome: Error message, exit code 1
 
 ### Failure: Agent Crash

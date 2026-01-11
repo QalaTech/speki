@@ -1,0 +1,253 @@
+/* ===== Top Navigation Bar ===== */
+
+.topnav {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: linear-gradient(
+    180deg,
+    rgba(22, 27, 34, 0.98) 0%,
+    rgba(22, 27, 34, 0.95) 100%
+  );
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.topnav-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 24px;
+  max-width: 100%;
+}
+
+/* ===== Left Section: Logo & Project ===== */
+
+.topnav-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
+
+.topnav-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.topnav-logo-icon {
+  font-size: 20px;
+  color: var(--color-accent);
+  filter: drop-shadow(0 0 8px rgba(88, 166, 255, 0.4));
+}
+
+.topnav-logo-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.02em;
+}
+
+/* Project selector */
+.topnav-project {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.topnav-project-select {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 32px 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topnav-project-select:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.topnav-project-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+}
+
+.topnav-project-chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+/* ===== Center Section: Nav Items ===== */
+
+.topnav-center {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.topnav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.topnav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text);
+}
+
+.topnav-item--active {
+  background: rgba(88, 166, 255, 0.12);
+  color: var(--color-accent);
+}
+
+.topnav-item--active:hover {
+  background: rgba(88, 166, 255, 0.18);
+}
+
+.topnav-item-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.topnav-item-label {
+  font-weight: 500;
+}
+
+/* Badges */
+.topnav-badge {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+}
+
+.topnav-badge--active {
+  background: rgba(63, 185, 80, 0.2);
+  color: #3fb950;
+}
+
+.topnav-badge--running {
+  background: rgba(88, 166, 255, 0.2);
+  color: #58a6ff;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ===== Right Section: Settings ===== */
+
+.topnav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topnav-settings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.topnav-settings:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--color-text);
+}
+
+.topnav-settings--active {
+  background: rgba(88, 166, 255, 0.12);
+  border-color: rgba(88, 166, 255, 0.2);
+  color: var(--color-accent);
+}
+
+.topnav-settings-icon {
+  font-size: 16px;
+}
+
+/* ===== Responsive ===== */
+
+@media (max-width: 768px) {
+  .topnav-content {
+    padding: 0 16px;
+    height: 52px;
+  }
+
+  .topnav-logo-text {
+    display: none;
+  }
+
+  .topnav-project-select {
+    max-width: 120px;
+    padding: 6px 28px 6px 10px;
+    font-size: 12px;
+  }
+
+  .topnav-item {
+    padding: 8px 12px;
+  }
+
+  .topnav-item-label {
+    display: none;
+  }
+
+  .topnav-badge {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .topnav-project {
+    display: none;
+  }
+
+  .topnav-center {
+    gap: 2px;
+  }
+
+  .topnav-item {
+    padding: 8px;
+  }
+}

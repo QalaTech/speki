@@ -1338,3 +1338,86 @@
   - Tests: PASS (13/13 SplitNavigation tests, 11/11 SpecReviewPage tests, 27/27 spec-review routes tests)
   - Commit: SUCCESS (18f8c5c)
 ---
+
+## 2026-01-11 - US-053: Add Spec Review to dashboard sidebar navigation
+- What was implemented: Added "Spec Review" menu item to sidebar navigation between Execution and Settings
+- Files changed:
+  - web/src/App.tsx (modified - added isSpecReviewPage detection and MenuItem)
+  - web/src/__tests__/App.test.tsx (modified - added sidebar navigation tests)
+- Tests implemented:
+  - sidebar_ShowsSpecReviewItem - 2 test cases written
+  - sidebar_ClickNavigates - 2 test cases written
+- **Learnings:**
+  - The Execution menu's active prop needs to exclude all other pages (decompose, spec-review, settings) to prevent multiple items being active
+  - App.test.tsx has a pre-existing issue with sandpack-react CSS parsing in jsdom - the test file fails to load due to @stitches/core CSS injection
+  - react-pro-sidebar MenuItem uses `active` prop to highlight the current selection
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (via build)
+  - Tests: App.test.tsx has pre-existing test environment failure (not related to changes)
+  - Commit: SUCCESS (c0b9fff)
+---
+
+## 2026-01-11 - US-054: End-to-end integration test for CLI spec review
+- What was implemented: Created comprehensive E2E integration tests for CLI spec review covering file validation, review execution, result display, and exit codes
+- Files changed:
+  - src/cli/commands/__tests__/spec.e2e.test.ts (new, 456 lines)
+- Tests implemented:
+  - e2e_specReview_ValidFile_CompletesSuccessfully - PASS (2 tests: PASS verdict/exit 0, NEEDS_IMPROVEMENT/exit 1)
+  - e2e_specReview_MissingFile_ReturnsError - PASS (2 tests: non-existent file, non-markdown file)
+  - e2e_specReview_JsonOutput_ValidJson - PASS (2 tests: valid JSON output, timeout JSON handling)
+  - e2e_specReview_Timeout_HandlesGracefully - PASS (3 tests: timeout message, partial results, custom timeout option)
+  - Exit codes for each verdict - PASS (4 tests: PASS=0, NEEDS_IMPROVEMENT=1, FAIL=1, SPLIT_RECOMMENDED=1)
+- **Learnings:**
+  - Mock process.exit with vi.fn() that captures only the FIRST exit code to avoid test interference
+  - Use vi.resetModules() before each test to get fresh Commander instance
+  - Mock chalk with passthrough functions including nested bold.color support to avoid ANSI code complexity in tests
+  - Capture console.log and console.error in arrays for output assertions
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (13/13 E2E tests, 40/40 total spec CLI tests)
+  - Commit: SUCCESS (42e8f17)
+---
+
+## 2026-01-11 - US-055: End-to-end integration test for god spec detection
+- What was implemented: Created comprehensive E2E integration tests for god spec detection and splitting functionality
+- Files changed:
+  - src/core/spec-review/__tests__/god-spec.e2e.test.ts (new, 415 lines)
+- Tests implemented:
+  - e2e_godSpec_LargeSpec_Detected - PASS (3 tests: many sections, multiple categories, not for focused specs)
+  - e2e_godSpec_SplitProposal_Generated - PASS (2 tests: meaningful filenames, reason explanation)
+  - e2e_godSpec_Accept_CreatesFiles - PASS (3 tests: file creation, original preserved, split header added)
+  - e2e_godSpec_Naming_FollowsConvention - PASS (4 tests: kebab-case, stop words, 3-word limit, lowercase)
+- **Learnings:**
+  - God spec detection requires 2 of 3 categories triggered: Size (>3 sections OR >2000 words OR >15 stories), Scope (>=2 user journeys OR >3 system boundaries), Cohesion (no DoD OR >2 personas)
+  - User journey patterns are detected via "As a [user/admin/developer/manager]" patterns
+  - executeSplit creates files and adds "Split from: {original}" header to each split file
+  - generateFilename filters stop words and limits to 3 words for cleaner filenames
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (via build)
+  - Tests: PASS (12/12 god-spec E2E tests)
+  - Commit: SUCCESS (95c58bd)
+---
+
+## 2026-01-11 - US-056: End-to-end integration test for dashboard spec review
+- What was implemented: Created comprehensive E2E integration tests for dashboard spec review flow covering split view, suggestions, diff approval, and session persistence
+- Files changed:
+  - web/src/components/__tests__/SpecReview.e2e.test.tsx (new, 403 lines)
+- Tests implemented:
+  - e2e_dashboard_SplitView_Renders - PASS (4 tests: complete layout, editor/review panels, content loading, resize)
+  - e2e_dashboard_Suggestions_Interactive - PASS (3 tests: session suggestions, severity indicators, file selection)
+  - e2e_dashboard_DiffApproval_Works - PASS (4 tests: bar rendering, issue display, approve/reject actions)
+  - e2e_dashboard_Session_Persists - PASS (5 tests: file loading, project path, file switching, structure, file selector)
+- **Learnings:**
+  - Mock MDXEditor with passthrough textarea to avoid CSS parsing issues in Vitest
+  - Mock useSpecEditor and useDiffApproval hooks to control diff state in tests
+  - Use vi.stubGlobal('fetch', mockFetch) for intercepting API calls
+  - waitFor + getByTestId pattern for async component assertions
+  - Component tests focus on structure and API calls rather than internal state
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (via build)
+  - Tests: PASS (16/16 dashboard E2E tests)
+  - Commit: SUCCESS (7c0bf69)
+---

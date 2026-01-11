@@ -7,10 +7,17 @@ import {
   headingsPlugin,
   listsPlugin,
   quotePlugin,
+  thematicBreakPlugin,
   codeBlockPlugin,
+  codeMirrorPlugin,
+  linkPlugin,
+  linkDialogPlugin,
   tablePlugin,
   markdownShortcutPlugin,
   diffSourcePlugin,
+  frontmatterPlugin,
+  directivesPlugin,
+  AdmonitionDirectiveDescriptor,
   type RealmPlugin,
 } from '@mdxeditor/editor';
 
@@ -32,11 +39,120 @@ export function createEditorPlugins(): RealmPlugin[] {
     headingsPlugin(),
     listsPlugin(),
     quotePlugin(),
+    thematicBreakPlugin(),
+    linkPlugin(),
+    linkDialogPlugin(),
+    frontmatterPlugin(),
     codeBlockPlugin({
-      defaultCodeBlockLanguage: 'typescript',
+      defaultCodeBlockLanguage: '',
+    }),
+    codeMirrorPlugin({
+      codeBlockLanguages: {
+        // Default / fallback
+        '': 'Plain Text',
+        text: 'Plain Text',
+        plaintext: 'Plain Text',
+        txt: 'Plain Text',
+
+        // JavaScript / TypeScript
+        typescript: 'TypeScript',
+        ts: 'TypeScript',
+        tsx: 'TypeScript',
+        javascript: 'JavaScript',
+        js: 'JavaScript',
+        jsx: 'JavaScript',
+        json: 'JSON',
+        jsonc: 'JSON',
+
+        // Shell
+        bash: 'Bash',
+        sh: 'Bash',
+        shell: 'Bash',
+        zsh: 'Bash',
+        powershell: 'PowerShell',
+        ps1: 'PowerShell',
+        cmd: 'Bash',
+
+        // Config / Data
+        yaml: 'YAML',
+        yml: 'YAML',
+        toml: 'TOML',
+        ini: 'INI',
+        xml: 'XML',
+
+        // Web
+        html: 'HTML',
+        htm: 'HTML',
+        css: 'CSS',
+        scss: 'CSS',
+        less: 'CSS',
+
+        // Backend languages
+        python: 'Python',
+        py: 'Python',
+        csharp: 'C#',
+        cs: 'C#',
+        'c#': 'C#',
+        java: 'Java',
+        go: 'Go',
+        golang: 'Go',
+        rust: 'Rust',
+        rs: 'Rust',
+        ruby: 'Ruby',
+        rb: 'Ruby',
+        php: 'PHP',
+        swift: 'Swift',
+        kotlin: 'Kotlin',
+        kt: 'Kotlin',
+        scala: 'Scala',
+
+        // C family
+        c: 'C',
+        cpp: 'C++',
+        'c++': 'C++',
+        h: 'C',
+        hpp: 'C++',
+        objc: 'Objective-C',
+
+        // Database
+        sql: 'SQL',
+        mysql: 'SQL',
+        pgsql: 'SQL',
+        postgresql: 'SQL',
+        graphql: 'GraphQL',
+        gql: 'GraphQL',
+
+        // Markup / Docs
+        markdown: 'Markdown',
+        md: 'Markdown',
+        mdx: 'Markdown',
+
+        // DevOps / Config
+        dockerfile: 'Docker',
+        docker: 'Docker',
+        nginx: 'Nginx',
+        apache: 'Apache',
+
+        // Data formats
+        csv: 'Plain Text',
+        diff: 'Diff',
+        patch: 'Diff',
+
+        // Other
+        regex: 'Plain Text',
+        http: 'HTTP',
+        makefile: 'Makefile',
+        make: 'Makefile',
+        proto: 'Protocol Buffers',
+        protobuf: 'Protocol Buffers',
+      },
     }),
     tablePlugin(),
     markdownShortcutPlugin(),
+    // Handle directives (:::note, :::warning, etc.)
+    directivesPlugin({
+      directiveDescriptors: [AdmonitionDirectiveDescriptor],
+    }),
     diffSourcePlugin({
       viewMode: 'rich-text',
     }),

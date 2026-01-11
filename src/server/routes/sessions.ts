@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { projectContext } from '../middleware/project-context.js';
-import { loadSession, saveSession, getSessionPath } from '../../core/spec-review/session-file.js';
+import { loadSession, saveSession, getSessionPath, getAllSessionStatuses } from '../../core/spec-review/session-file.js';
 import { access } from 'fs/promises';
 import type { SessionFile } from '../../types/index.js';
 
@@ -18,10 +18,14 @@ router.use(projectContext(true));
 router.get('/spec/:specPath', async (req, res) => {
   try {
     const specPath = decodeURIComponent(req.params.specPath);
-    const session = await loadSession(specPath);
+    const projectPath = req.projectPath;
+    console.log('[sessions/spec] Loading session:', { specPath, projectPath });
+    const session = await loadSession(specPath, projectPath);
+    console.log('[sessions/spec] Session result:', { found: !!session, sessionId: session?.sessionId, status: session?.status });
 
     res.json({ session });
   } catch (error) {
+    console.error('[sessions/spec] Error:', error);
     res.status(500).json({
       error: 'Failed to load session',
       details: error instanceof Error ? error.message : String(error),
@@ -39,6 +43,7 @@ router.get('/spec/:specPath', async (req, res) => {
 router.put('/spec/:specPath', async (req, res) => {
   try {
     const specPath = decodeURIComponent(req.params.specPath);
+    const projectPath = req.projectPath;
     const { session } = req.body;
 
     if (!session) {
@@ -52,7 +57,7 @@ router.put('/spec/:specPath', async (req, res) => {
       lastUpdatedAt: new Date().toISOString(),
     };
 
-    await saveSession(sessionToSave);
+    await saveSession(sessionToSave, projectPath);
 
     res.json({ success: true });
   } catch (error) {
@@ -73,13 +78,34 @@ router.put('/spec/:specPath', async (req, res) => {
 router.get('/spec/:specPath/exists', async (req, res) => {
   try {
     const specPath = decodeURIComponent(req.params.specPath);
-    const sessionPath = getSessionPath(specPath);
+    const projectPath = req.projectPath;
+    const sessionPath = getSessionPath(specPath, projectPath);
     const exists = await access(sessionPath).then(() => true, () => false);
 
     res.json({ exists });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to check session existence',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/sessions/statuses
+ * Get review statuses for all specs
+ *
+ * @returns { statuses: Record<specPath, status> }
+ */
+router.get('/statuses', async (req, res) => {
+  try {
+    const projectPath = req.projectPath!;
+    const statuses = await getAllSessionStatuses(projectPath);
+
+    res.json({ statuses });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get session statuses',
       details: error instanceof Error ? error.message : String(error),
     });
   }

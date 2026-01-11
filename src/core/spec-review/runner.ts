@@ -17,7 +17,7 @@ import {
   DEPENDENCY_VALIDATION_PROMPT,
   DUPLICATE_DETECTION_PROMPT,
 } from './prompts.js';
-import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SpecReviewVerdict, ReviewFeedback, CliType, TimeoutInfo } from '../../types/index.js';
+import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SuggestionType, SpecReviewVerdict, ReviewFeedback, CliType, TimeoutInfo } from '../../types/index.js';
 
 export interface SpecReviewOptions {
   /** Timeout in milliseconds (overrides default) */
@@ -70,14 +70,14 @@ async function loadGoldenStandard(cwd: string, customPath?: string): Promise<str
 
 function buildPrompt(
   template: string,
-  specContent: string,
+  specPath: string,
   codebaseContext: CodebaseContext,
   goldenStandard: string
 ): string {
   const contextString = JSON.stringify(codebaseContext, null, 2);
 
   let prompt = template
-    .replace('{specContent}', specContent)
+    .replace('{specPath}', specPath)
     .replace('{codebaseContext}', contextString);
 
   if (goldenStandard) {
@@ -247,6 +247,7 @@ function parseSuggestions(rawSuggestions: unknown[], category: string): Suggesti
         id: defaultId,
         category,
         severity: 'info' as const,
+        type: 'comment' as const,
         section: '',
         textSnippet: '',
         issue: s,
@@ -256,16 +257,23 @@ function parseSuggestions(rawSuggestions: unknown[], category: string): Suggesti
     }
 
     const raw = s as Record<string, unknown>;
+    // Determine type: use AI-provided value, fallback to heuristic
+    const textSnippet = (raw.textSnippet as string) ?? '';
+    const suggestedFix = (raw.suggestedFix as string) ?? '';
+    const hasConcreteChange = textSnippet.length > 0 && suggestedFix.length > 20 && !suggestedFix.includes('?');
+    const inferredType: SuggestionType = hasConcreteChange ? 'change' : 'comment';
+
     return {
       id: (raw.id as string) ?? defaultId,
       category: (raw.category as string) ?? category,
       severity: (raw.severity as 'critical' | 'warning' | 'info') ?? 'info',
+      type: (raw.type as SuggestionType) ?? inferredType,
       section: (raw.section as string) ?? '',
       lineStart: raw.lineStart as number | undefined,
       lineEnd: raw.lineEnd as number | undefined,
-      textSnippet: (raw.textSnippet as string) ?? '',
+      textSnippet,
       issue: (raw.issue as string) ?? '',
-      suggestedFix: (raw.suggestedFix as string) ?? '',
+      suggestedFix,
       status: 'pending' as const,
     };
   });
@@ -302,9 +310,10 @@ export async function runSpecReview(
 
   for (const promptDef of STANDALONE_PROMPTS) {
     onProgress(`Running ${promptDef.name}...`);
-    const fullPrompt = buildPrompt(promptDef.template, specContent, codebaseContext, goldenStandard);
+    const fullPrompt = buildPrompt(promptDef.template, specPath, codebaseContext, goldenStandard);
     prompts.push({ name: promptDef.name, fullPrompt });
-    const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, { cli: options.cli });
+    // Tools must be enabled so AI can read the spec file with line numbers
+    const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, { cli: options.cli, disableTools: false });
 
     if (isTimeoutResult(result)) {
       didTimeout = true;

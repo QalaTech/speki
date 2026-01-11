@@ -4,6 +4,7 @@ import './SuggestionCard.css';
 export interface SuggestionCardProps {
   suggestion: SuggestionCardType;
   onReviewDiff?: (suggestionId: string) => void;
+  onDiscuss?: (suggestionId: string) => void;
   onShowInEditor?: (suggestionId: string) => void;
   onDismiss?: (suggestionId: string) => void;
 }
@@ -23,10 +24,13 @@ const STATUS_LABELS: Record<string, string> = {
 export function SuggestionCard({
   suggestion,
   onReviewDiff,
+  onDiscuss,
   onShowInEditor,
   onDismiss,
 }: SuggestionCardProps) {
-  const { section, lineStart, lineEnd, severity, id, issue, suggestedFix, status } = suggestion;
+  const { section, lineStart, lineEnd, severity, id, issue, suggestedFix, status, type } = suggestion;
+  // Default to 'comment' if type is not set (backwards compatibility with old data)
+  const isChangeType = type === 'change';
   const { class: severityClass, label: severityLabel } = SEVERITY_CONFIG[severity] || {
     class: 'severity-unknown',
     label: 'Unknown'
@@ -69,20 +73,31 @@ export function SuggestionCard({
       </div>
 
       <div className="suggestion-preview" data-testid="suggestion-preview">
-        <div className="preview-label">Suggested fix:</div>
+        <div className="preview-label">{isChangeType ? 'Suggested fix:' : 'Comment:'}</div>
         <div className="preview-content">{suggestedFix}</div>
       </div>
 
       {isPending && (
         <div className="suggestion-actions" data-testid="suggestion-actions">
-          <button
-            type="button"
-            className="action-button review-diff-button"
-            onClick={() => onReviewDiff?.(id)}
-            data-testid="review-diff-button"
-          >
-            Review Diff
-          </button>
+          {isChangeType ? (
+            <button
+              type="button"
+              className="action-button review-diff-button"
+              onClick={() => onReviewDiff?.(id)}
+              data-testid="review-diff-button"
+            >
+              Review Diff
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="action-button discuss-button"
+              onClick={() => onDiscuss?.(id)}
+              data-testid="discuss-button"
+            >
+              Discuss
+            </button>
+          )}
           <button
             type="button"
             className="action-button show-in-editor-button"

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate, useLocation, useSearchParams, Navigate } from 'react-router-dom';
-import { Sidebar, Menu, MenuItem, sidebarClasses } from 'react-pro-sidebar';
 import type { PRDData, RalphStatus, DecomposeState, PeerFeedback } from './types';
 import { calculateStats } from './types';
 import { StatsBar } from './components/StatsBar';
@@ -11,7 +10,8 @@ import { ProgressView } from './components/ProgressView';
 import { DecomposeView } from './components/DecomposeView';
 import { SettingsView } from './components/SettingsView';
 import { KnowledgeView } from './components/KnowledgeView';
-import { SpecReviewPage } from './components/SpecReviewPage';
+import { SpecExplorer } from './components/specs';
+import { TopNav } from './components/TopNav';
 import './App.css';
 
 interface ProjectEntry {
@@ -194,15 +194,12 @@ function App() {
   const [peerFeedback, setPeerFeedback] = useState<PeerFeedback | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [navCollapsed, setNavCollapsed] = useState(false);
+  // Removed navCollapsed state - using top nav now
 
   // Get selected project from URL params
   const selectedProject = searchParams.get('project');
 
-  // Derive active section and tab from URL path
-  const isDecomposePage = location.pathname.startsWith('/decompose');
-  const isSpecReviewPage = location.pathname.startsWith('/spec-review');
-  const isSettingsPage = location.pathname.startsWith('/settings');
+  // Derive execution tab from URL path
   const executionTab = location.pathname.includes('/live') ? 'live'
     : location.pathname.includes('/list') ? 'list'
     : location.pathname.includes('/log') ? 'log'
@@ -389,7 +386,6 @@ function App() {
     );
   }
 
-  const isDecomposeActive = ['STARTING', 'INITIALIZING', 'DECOMPOSING', 'DECOMPOSED', 'REVIEWING'].includes(decomposeState.status);
   const currentProject = projects.find(p => p.path === selectedProject);
 
   // Memoized props for ExecutionView to prevent unnecessary re-renders
@@ -409,131 +405,18 @@ function App() {
   };
 
   return (
-    <div className="app-layout">
-      {/* Side Navigation */}
-      <Sidebar
-        collapsed={navCollapsed}
-        backgroundColor="#161b22"
-        width="240px"
-        collapsedWidth="64px"
-        rootStyles={{
-          [`.${sidebarClasses.container}`]: {
-            borderRight: '1px solid #21262d !important',
-            borderColor: '#21262d !important',
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100vh',
-          },
-        }}
-        style={{ borderRight: '1px solid #21262d' }}
-      >
-        <div className="sidebar-header">
-          <h1 className="sidebar-logo">{navCollapsed ? 'Q' : 'Qala'}</h1>
-          {!navCollapsed && projects.length > 0 && (
-            <select
-              className="project-selector"
-              value={selectedProject || ''}
-              onChange={(e) => setSelectedProject(e.target.value)}
-            >
-              {projects.map((p) => (
-                <option key={p.path} value={p.path}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        <div className="sidebar-content">
-          <Menu
-            menuItemStyles={{
-              button: ({ active }) => ({
-                backgroundColor: active ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
-                color: active ? '#58a6ff' : '#c9d1d9',
-                borderRadius: '6px',
-                margin: '2px 8px',
-                padding: '10px 12px',
-                '&:hover': {
-                  backgroundColor: '#21262d',
-                  color: '#ffffff',
-                },
-              }),
-              icon: {
-                color: 'inherit',
-                minWidth: '24px',
-              },
-              label: {
-                fontWeight: 500,
-              },
-            }}
-          >
-            <MenuItem
-              icon={<span style={{ fontSize: '14px' }}>⚙</span>}
-              active={isDecomposePage}
-              onClick={() => navigateTo('/decompose')}
-              suffix={isDecomposeActive && !navCollapsed ? <span className="menu-badge active">Active</span> : null}
-            >
-              Decompose
-            </MenuItem>
-            <MenuItem
-              icon={<span style={{ fontSize: '12px' }}>▶</span>}
-              active={!isDecomposePage && !isSpecReviewPage && !isSettingsPage}
-              onClick={() => navigateTo('/execution/live')}
-              suffix={ralphStatus.running && !navCollapsed ? <span className="menu-badge running">Running</span> : null}
-            >
-              Execution
-            </MenuItem>
-            <MenuItem
-              icon={<span style={{ fontSize: '14px' }}>📄</span>}
-              active={isSpecReviewPage}
-              onClick={() => navigateTo('/spec-review')}
-              data-testid="sidebar-spec-review"
-            >
-              Spec Review
-            </MenuItem>
-          </Menu>
-        </div>
-
-        <div className="sidebar-footer">
-          <Menu
-            menuItemStyles={{
-              button: ({ active }) => ({
-                backgroundColor: active ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
-                color: active ? '#58a6ff' : '#8b949e',
-                borderRadius: '6px',
-                margin: '2px 8px',
-                padding: '10px 12px',
-                '&:hover': {
-                  backgroundColor: '#21262d',
-                  color: '#c9d1d9',
-                },
-              }),
-              icon: {
-                color: 'inherit',
-                minWidth: '24px',
-              },
-            }}
-          >
-            <MenuItem
-              icon={<span style={{ fontSize: '14px' }}>⚙</span>}
-              active={isSettingsPage}
-              onClick={() => navigateTo('/settings')}
-            >
-              Settings
-            </MenuItem>
-          </Menu>
-          <button
-            className="sidebar-collapse-btn"
-            onClick={() => setNavCollapsed(!navCollapsed)}
-            title={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {navCollapsed ? '→' : '←'}
-          </button>
-        </div>
-      </Sidebar>
+    <div className="app-layout app-layout--top-nav">
+      {/* Top Navigation */}
+      <TopNav
+        projects={projects}
+        selectedProject={selectedProject}
+        onProjectChange={setSelectedProject}
+        onNavigate={navigateTo}
+        isRalphRunning={ralphStatus.running}
+      />
 
       {/* Main Content */}
-      <main className="main-content">
+      <main className="main-content main-content--full">
         {loading && (
           <div className="loading-overlay">
             <div className="loader">Loading...</div>
@@ -558,7 +441,7 @@ function App() {
             path="/spec-review"
             element={
               selectedProject ? (
-                <SpecReviewPage projectPath={selectedProject} />
+                <SpecExplorer projectPath={selectedProject} />
               ) : null
             }
           />

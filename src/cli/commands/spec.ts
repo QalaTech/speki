@@ -1,5 +1,5 @@
-import { existsSync } from 'fs';
-import { readdir, stat } from 'fs/promises';
+import { existsSync, mkdirSync } from 'fs';
+import { readdir, stat, writeFile } from 'fs/promises';
 import { join, relative, resolve } from 'path';
 
 import { editor, select } from '@inquirer/prompts';
@@ -447,6 +447,98 @@ specCommand
       process.exit(getExitCodeForVerdict(result.verdict));
     } catch (error) {
       console.error(chalk.red('Error reviewing spec:'), error);
+      process.exit(2);
+    }
+  });
+
+/**
+ * Generate a datetime prefix for spec filenames.
+ * Format: YYYYMMDD-HHMMSS
+ */
+function generateDateTimePrefix(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  return `${year}${month}${day}-${hours}${minutes}${seconds}`;
+}
+
+/**
+ * Sanitize a name for use in a filename.
+ * Replaces spaces with hyphens and removes invalid characters.
+ */
+function sanitizeFileName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export interface NewSpecResult {
+  success: boolean;
+  filePath?: string;
+  error?: string;
+}
+
+export async function createNewSpec(name: string, projectPath: string): Promise<NewSpecResult> {
+  const specsDir = join(projectPath, 'specs');
+
+  // Ensure specs directory exists
+  if (!existsSync(specsDir)) {
+    mkdirSync(specsDir, { recursive: true });
+  }
+
+  const datePrefix = generateDateTimePrefix();
+  const sanitizedName = sanitizeFileName(name);
+  const fileName = `${datePrefix}-${sanitizedName}.md`;
+  const filePath = join(specsDir, fileName);
+
+  // Check if file already exists (unlikely with timestamp but check anyway)
+  if (existsSync(filePath)) {
+    return { success: false, error: `File already exists: ${filePath}` };
+  }
+
+  const defaultContent = `# ${name}
+
+Let your imagination go wild.
+`;
+
+  try {
+    await writeFile(filePath, defaultContent, 'utf-8');
+    return { success: true, filePath };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, error: `Failed to create spec: ${message}` };
+  }
+}
+
+specCommand
+  .command('new <name>')
+  .description('Create a new spec file with a datetime prefix')
+  .option('-p, --project <path>', 'Project path (defaults to current directory)')
+  .action(async (name: string, options) => {
+    try {
+      const projectPath = options.project || (await findProjectRoot()) || process.cwd();
+
+      console.log(chalk.blue(`Creating new spec: ${name}`));
+
+      const result = await createNewSpec(name, projectPath);
+
+      if (!result.success) {
+        console.error(chalk.red(`Error: ${result.error}`));
+        process.exit(1);
+      }
+
+      const relativePath = relative(projectPath, result.filePath!);
+      console.log(chalk.green(`✓ Created: ${relativePath}`));
+      process.exit(0);
+    } catch (error) {
+      console.error(chalk.red('Error creating spec:'), error);
       process.exit(2);
     }
   });

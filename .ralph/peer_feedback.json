@@ -4,6 +4,11 @@
       "issue": "Pre-existing test failures in cli-detect.test.ts (5 failing) and peer-review.test.ts (16 failing) due to incomplete mocking of fs.existsSync. These should be fixed before implementing features that depend on CLI detection or peer review functionality.",
       "addedBy": "US-002",
       "addedAt": "2026-01-10T22:00:00Z"
+    },
+    {
+      "issue": "App.test.tsx fails to load due to @stitches/core CSS injection from sandpack-react in jsdom environment. Error: SyntaxError: Failed to execute 'insertRule' on 'CSSStyleSheet'. Need to mock sandpack-react or add CSS rule polyfill for jsdom.",
+      "addedBy": "US-053",
+      "addedAt": "2026-01-11T13:10:00Z"
     }
   ],
   "suggestions": [],

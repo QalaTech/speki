@@ -8,6 +8,7 @@ import { GodSpecWarning } from './GodSpecWarning';
 import { SplitPreviewModal, type SplitPreviewFile } from './SplitPreviewModal';
 import { ReviewChat } from './ReviewChat';
 import { SplitNavigation } from './SplitNavigation';
+import { MonacoDiffReview, type HunkAction } from './MonacoDiffReview';
 import { useSpecEditor } from '../hooks/useSpecEditor';
 import { useDiffApproval } from '../hooks/useDiffApproval';
 import { useAgentFeedback } from '../hooks/useAgentFeedback';
@@ -31,12 +32,19 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
   const [leftPanelWidth, setLeftPanelWidth] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingSession, setLoadingSession] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<'in_progress' | 'completed' | 'needs_attention' | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestionCardType[]>([]);
   const [reviewResult, setReviewResult] = useState<SpecReviewResult | null>(null);
   const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [isStartingReview, setIsStartingReview] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastLoadedFileRef = useRef<string | null>(null);
+  const isLoadingContentRef = useRef<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Editor and diff approval hooks
   const specEditor = useSpecEditor(specContent);
@@ -52,6 +60,13 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  // Discussing context (when user clicks "Discuss" on a suggestion)
+  const [discussingContext, setDiscussingContext] = useState<{
+    suggestionId: string;
+    issue: string;
+    suggestedFix: string;
+  } | null>(null);
 
   // Split navigation state
   const [splitSpecs, setSplitSpecs] = useState<SplitSpecRef[]>([]);
@@ -91,28 +106,50 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
   useEffect(() => {
     if (!selectedFile) return;
 
-    const loadContent = async (): Promise<void> => {
+    // Guard against re-loading the same file
+    if (lastLoadedFileRef.current === selectedFile) return;
+
+    // Guard against concurrent loads
+    if (isLoadingContentRef.current) return;
+
+    // Cancel any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    isLoadingContentRef.current = true;
+    lastLoadedFileRef.current = selectedFile;
+    setLoadingSession(true);
+
+    const loadData = async (): Promise<void> => {
       try {
         const encodedPath = encodeURIComponent(selectedFile);
-        const response = await fetch(apiUrl(`/api/spec-review/content/${encodedPath}`));
-        if (response.ok) {
-          const data = await response.json();
+
+        // Load content
+        const contentResponse = await fetch(
+          apiUrl(`/api/spec-review/content/${encodedPath}`),
+          { signal: controller.signal }
+        );
+        if (contentResponse.ok) {
+          const data = await contentResponse.json();
           setSpecContent(data.content || '');
           specEditor.setContent(data.content || '');
         }
-      } catch (error) {
-        console.error('Failed to load spec content:', error);
-      }
-    };
 
-    const loadSession = async (): Promise<void> => {
-      try {
-        const encodedPath = encodeURIComponent(selectedFile);
-        const response = await fetch(apiUrl(`/api/sessions/spec/${encodedPath}`));
-        if (response.ok) {
-          const data = await response.json();
+        // Load session
+        const sessionResponse = await fetch(
+          apiUrl(`/api/sessions/spec/${encodedPath}`),
+          { signal: controller.signal }
+        );
+        console.log('[SpecReview] Session response status:', sessionResponse.status);
+        if (sessionResponse.ok) {
+          const data = await sessionResponse.json();
+          console.log('[SpecReview] Session data:', { hasSession: !!data.session, status: data.session?.status, sessionId: data.session?.sessionId });
           if (data.session) {
             setSessionId(data.session.sessionId);
+            setSessionStatus(data.session.status || null);
             setSuggestions(data.session.suggestions || []);
             setReviewResult(data.session.reviewResult || null);
             setChatMessages(data.session.chatMessages || []);
@@ -133,19 +170,77 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
               setShowGodSpecWarning(false);
             }
           } else {
-            // Reset split navigation state when no session
+            // Reset state when no session
+            setSessionId(null);
+            setSessionStatus(null);
+            setSuggestions([]);
+            setReviewResult(null);
+            setChatMessages([]);
             setSplitSpecs([]);
             setParentSpecPath(undefined);
+            setGodSpecIndicators(null);
+            setSplitProposal(null);
+            setShowGodSpecWarning(false);
           }
         }
       } catch (error) {
-        console.error('Failed to load session:', error);
+        if (error instanceof Error && error.name === 'AbortError') {
+          return; // Request was cancelled, ignore
+        }
+        console.error('Failed to load spec data:', error);
+      } finally {
+        isLoadingContentRef.current = false;
+        setLoadingSession(false);
       }
     };
 
-    loadContent();
-    loadSession();
-  }, [selectedFile, apiUrl, specEditor]);
+    loadData();
+
+    return () => {
+      controller.abort();
+    };
+    // Note: specEditor.setContent is stable (useCallback with []), so we don't need specEditor in deps
+    // Including specEditor would cause infinite re-runs since it's a new object each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFile, apiUrl]);
+
+  // Poll for session updates when status is in_progress
+  useEffect(() => {
+    if (sessionStatus !== 'in_progress' || !selectedFile) {
+      return;
+    }
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const encodedPath = encodeURIComponent(selectedFile);
+        const response = await fetch(apiUrl(`/api/sessions/spec/${encodedPath}`));
+        if (response.ok) {
+          const data = await response.json();
+          if (data.session && data.session.status !== 'in_progress') {
+            // Review completed or errored
+            setSessionStatus(data.session.status);
+            setSuggestions(data.session.suggestions || []);
+            setReviewResult(data.session.reviewResult || null);
+            setChatMessages(data.session.chatMessages || []);
+
+            // Check for god spec indicators
+            const result = data.session.reviewResult;
+            if (result?.verdict === 'SPLIT_RECOMMENDED') {
+              setGodSpecIndicators(result.godSpecIndicators || null);
+              setSplitProposal(result.splitProposal || null);
+              setShowGodSpecWarning(true);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to poll session status:', error);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [sessionStatus, selectedFile, apiUrl]);
 
   // Resize handlers
   const handleMouseDown = useCallback((e: React.MouseEvent): void => {
@@ -184,7 +279,12 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
   }, [isResizing, handleMouseMove, handleMouseUp]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
-    setSelectedFile(e.target.value);
+    const newFile = e.target.value;
+    // Reset the ref so the new file will be loaded
+    if (newFile !== selectedFile) {
+      lastLoadedFileRef.current = null;
+    }
+    setSelectedFile(newFile);
     diffApproval.reset();
   };
 
@@ -196,21 +296,47 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
     diffApproval.enterDiffMode(suggestion, specEditor, specEditor.content);
   }, [suggestions, diffApproval, specEditor]);
 
-  // Handle Show in Editor button click
+  // Handle Show in Editor button click - uses DOM-based scrolling
   const handleShowInEditor = useCallback((suggestionId: string): void => {
     const suggestion = suggestions.find((s) => s.id === suggestionId);
     if (!suggestion) return;
 
-    if (suggestion.lineStart) {
-      specEditor.scrollToLineNumber(suggestion.lineStart);
-    } else if (suggestion.section) {
-      specEditor.scrollToHeading(suggestion.section);
-    }
+    // Find the editor content area
+    const editorContent = document.querySelector('.spec-editor-content');
+    if (!editorContent) return;
 
-    if (suggestion.textSnippet) {
-      specEditor.highlight(suggestion.textSnippet, 2000);
+    // Try to find text to highlight and scroll to
+    const textToFind = suggestion.textSnippet || suggestion.section;
+    if (!textToFind) return;
+
+    // Search for the text in the editor
+    const walker = document.createTreeWalker(
+      editorContent,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
+
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      if (node.textContent?.includes(textToFind)) {
+        const parentElement = node.parentElement;
+        if (parentElement) {
+          // Scroll to the element
+          parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+          // Add temporary highlight
+          const originalBg = parentElement.style.backgroundColor;
+          parentElement.style.backgroundColor = '#ffeb3b80';
+          parentElement.style.transition = 'background-color 0.3s';
+
+          setTimeout(() => {
+            parentElement.style.backgroundColor = originalBg;
+          }, 2000);
+        }
+        break;
+      }
     }
-  }, [suggestions, specEditor]);
+  }, [suggestions]);
 
   // Handle Dismiss button click
   const handleDismiss = useCallback((suggestionId: string): void => {
@@ -220,6 +346,23 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
       )
     );
   }, []);
+
+  // Handle Discuss button click - scroll to chat with suggestion context
+  const handleDiscussSuggestion = useCallback((suggestionId: string): void => {
+    const suggestion = suggestions.find((s) => s.id === suggestionId);
+    if (!suggestion) return;
+
+    // Set context for chat
+    setDiscussingContext({
+      suggestionId,
+      issue: suggestion.issue,
+      suggestedFix: suggestion.suggestedFix,
+    });
+
+    // Scroll to chat section
+    const chatSection = document.querySelector('[data-testid="review-chat-section"]');
+    chatSection?.scrollIntoView({ behavior: 'smooth' });
+  }, [suggestions]);
 
   // Save file to disk
   const handleSaveFile = useCallback(async (content: string): Promise<void> => {
@@ -297,13 +440,65 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
     diffApproval.cancel(specEditor);
   }, [diffApproval, specEditor]);
 
+  // Monaco diff hunk handlers
+  const handleAcceptHunk = useCallback((action: HunkAction): void => {
+    console.log('[MonacoDiff] Accept hunk:', action.hunkId);
+  }, []);
+
+  const handleRejectHunk = useCallback((action: HunkAction): void => {
+    console.log('[MonacoDiff] Reject hunk:', action.hunkId);
+  }, []);
+
+  const handleCommentHunk = useCallback((action: HunkAction): void => {
+    console.log('[MonacoDiff] Comment on hunk:', action.hunkId);
+    // TODO: Open comment dialog or add to chat
+  }, []);
+
+  const handleDiffOriginalChange = useCallback(async (content: string): Promise<void> => {
+    // When user accepts a hunk, update diff state and save to disk
+    try {
+      // Update diff state to keep Monaco models in sync
+      specEditor.updateDiffContent(content, specEditor.diffState.proposedContent);
+      // Save to disk
+      await handleSaveFile(content);
+    } catch (error) {
+      console.error('Failed to save after accepting hunk:', error);
+    }
+  }, [handleSaveFile, specEditor]);
+
+  const handleDiffModifiedChange = useCallback((content: string): void => {
+    // When user rejects a hunk, update diff state to keep Monaco models in sync
+    specEditor.updateDiffContent(specEditor.diffState.originalContent, content);
+  }, [specEditor]);
+
+  const handleAllHunksResolved = useCallback((): void => {
+    // All hunks have been accepted/rejected, exit diff mode
+    console.log('[MonacoDiff] All hunks resolved');
+
+    // Mark the current suggestion as handled
+    if (diffApproval.currentSuggestion) {
+      setSuggestions((prev) =>
+        prev.map((s) =>
+          s.id === diffApproval.currentSuggestion?.id
+            ? { ...s, status: 'approved' as const }
+            : s
+        )
+      );
+    }
+
+    // Exit diff mode
+    diffApproval.cancel(specEditor);
+  }, [diffApproval, specEditor]);
+
   // Handle editor content changes
   const handleEditorChange = useCallback((content: string): void => {
     specEditor.setContent(content);
   }, [specEditor]);
 
-  // Filter pending suggestions
-  const pendingSuggestions = suggestions.filter((s) => s.status === 'pending');
+  // Filter pending suggestions - only show critical and warning severity
+  const pendingSuggestions = suggestions.filter(
+    (s) => s.status === 'pending' && (s.severity === 'critical' || s.severity === 'warning')
+  );
 
   // Batch navigation: navigate to a suggestion and enter diff mode
   const handleBatchNavigate = useCallback((index: number): void => {
@@ -409,7 +604,7 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
   }, [specEditor]);
 
   // Chat message handler
-  const handleSendMessage = useCallback(async (message: string, selectionContext?: string): Promise<void> => {
+  const handleSendMessage = useCallback(async (message: string, selectionContext?: string, suggestionId?: string): Promise<void> => {
     if (!sessionId) return;
 
     setIsSendingMessage(true);
@@ -421,17 +616,27 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
           sessionId,
           message,
           selectedText: selectionContext,
+          suggestionId,
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const data = await response.json();
         throw new Error(data.error || 'Failed to send message');
       }
 
-      const data = await response.json();
-      if (data.message) {
-        setChatMessages((prev) => [...prev, data.message]);
+      // Add both user and assistant messages to the chat
+      const newMessages: ChatMessage[] = [];
+      if (data.userMessage) {
+        newMessages.push(data.userMessage);
+      }
+      if (data.assistantMessage) {
+        newMessages.push(data.assistantMessage);
+      }
+
+      if (newMessages.length > 0) {
+        setChatMessages((prev) => [...prev, ...newMessages]);
       }
 
       // Clear selection after sending
@@ -475,9 +680,67 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
       ? `${selectedFile.substring(0, selectedFile.lastIndexOf('/'))}/${specPath}`
       : specPath;
 
+    // Reset the ref so the new file will be loaded
+    lastLoadedFileRef.current = null;
     setSelectedFile(resolvedPath);
     diffApproval.reset();
   }, [selectedFile, diffApproval]);
+
+  // Start a new review
+  const handleStartReview = useCallback(async (): Promise<void> => {
+    console.log('[SpecReview] handleStartReview called', { selectedFile, isStartingReview });
+    if (!selectedFile || isStartingReview) {
+      console.log('[SpecReview] Early return - no file or already reviewing');
+      return;
+    }
+
+    setIsStartingReview(true);
+    setReviewError(null);
+
+    try {
+      console.log('[SpecReview] Starting review for:', selectedFile);
+      const url = apiUrl('/api/spec-review/start');
+      console.log('[SpecReview] Fetching:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ specFile: selectedFile }),
+      });
+
+      console.log('[SpecReview] Response status:', response.status);
+      const data = await response.json();
+      console.log('[SpecReview] Response data:', data);
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start review');
+      }
+
+      // Set session ID from response
+      setSessionId(data.sessionId);
+
+      // Load the full session to get suggestions and review result
+      const sessionResponse = await fetch(apiUrl(`/api/spec-review/status/${data.sessionId}`));
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json();
+        setSessionStatus(sessionData.status || 'completed');
+        setSuggestions(sessionData.suggestions || []);
+        setReviewResult(sessionData.reviewResult || null);
+
+        // Check for god spec indicators
+        if (sessionData.reviewResult?.verdict === 'SPLIT_RECOMMENDED') {
+          setGodSpecIndicators(sessionData.reviewResult.godSpecIndicators || null);
+          setSplitProposal(sessionData.reviewResult.splitProposal || null);
+          setShowGodSpecWarning(true);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to start review:', error);
+      setReviewError(error instanceof Error ? error.message : 'Failed to start review');
+    } finally {
+      setIsStartingReview(false);
+    }
+  }, [selectedFile, isStartingReview, apiUrl]);
 
   if (loading) {
     return (
@@ -488,7 +751,7 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
   }
 
   // Determine view mode based on diff state
-  const viewMode = diffApproval.isActive ? 'diff' : 'rich-text';
+  // Monaco diff is now used instead of MDXEditor diff mode
 
   return (
     <div className="spec-review-page" data-testid="spec-review-page">
@@ -555,24 +818,49 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
         >
           <div className="panel-header">
             <span className="panel-title">
-              Spec Editor
-              {diffApproval.isActive && (
-                <span className="diff-mode-indicator"> (Diff View)</span>
+              {diffApproval.isActive ? 'Review Changes' : 'Spec Editor'}
+              {diffApproval.isActive && diffApproval.currentSuggestion && (
+                <span className="diff-mode-indicator">
+                  {' - '}{diffApproval.currentSuggestion.section || 'Change'}
+                </span>
               )}
             </span>
+            {diffApproval.isActive && (
+              <button
+                className="exit-diff-button"
+                onClick={handleCancel}
+                data-testid="exit-diff-button"
+              >
+                Exit Diff View
+              </button>
+            )}
           </div>
           <div
             className="panel-content"
-            onMouseUp={handleEditorMouseUp}
-            onBlur={handleEditorBlur}
+            onMouseUp={diffApproval.isActive ? undefined : handleEditorMouseUp}
+            onBlur={diffApproval.isActive ? undefined : handleEditorBlur}
           >
-            <SpecEditor
-              ref={specEditor.editorRef}
-              content={specEditor.content}
-              onChange={handleEditorChange}
-              viewMode={viewMode}
-              placeholder="Select a spec file to begin editing..."
-            />
+            {diffApproval.isActive ? (
+              <MonacoDiffReview
+                originalText={specEditor.diffState.originalContent}
+                modifiedText={specEditor.diffState.proposedContent}
+                language="markdown"
+                onAcceptHunk={handleAcceptHunk}
+                onRejectHunk={handleRejectHunk}
+                onCommentHunk={handleCommentHunk}
+                onOriginalChange={handleDiffOriginalChange}
+                onModifiedChange={handleDiffModifiedChange}
+                onAllResolved={handleAllHunksResolved}
+              />
+            ) : (
+              <SpecEditor
+                ref={specEditor.editorRef}
+                content={specEditor.content}
+                onChange={handleEditorChange}
+                viewMode="rich-text"
+                placeholder="Select a spec file to begin editing..."
+              />
+            )}
           </div>
         </div>
 
@@ -628,6 +916,7 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
                       key={suggestion.id}
                       suggestion={suggestion}
                       onReviewDiff={handleReviewDiff}
+                      onDiscuss={handleDiscussSuggestion}
                       onShowInEditor={handleShowInEditor}
                       onDismiss={handleDismiss}
                     />
@@ -635,10 +924,38 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
                 </div>
               </>
             ) : (
-              <div className="no-suggestions">
-                {suggestions.length === 0
-                  ? 'No review results yet. Start a review to see suggestions.'
-                  : 'All suggestions have been reviewed.'}
+              <div className="no-suggestions" data-testid="no-suggestions">
+                {loadingSession ? (
+                  <div className="loading-session" data-testid="loading-session">
+                    <div className="review-spinner"></div>
+                    <p className="review-status">Loading review data...</p>
+                  </div>
+                ) : isStartingReview || sessionStatus === 'in_progress' ? (
+                  <div className="review-in-progress" data-testid="review-in-progress">
+                    <div className="review-spinner"></div>
+                    <p className="review-status">Running AI Review...</p>
+                    <p className="review-hint">This may take 2-5 minutes as multiple prompts are analyzed.</p>
+                  </div>
+                ) : !reviewResult ? (
+                  <>
+                    <p>No review results yet.</p>
+                    {reviewError && (
+                      <p className="review-error" data-testid="review-error">
+                        {reviewError}
+                      </p>
+                    )}
+                    <button
+                      className="start-review-button"
+                      onClick={handleStartReview}
+                      disabled={!selectedFile}
+                      data-testid="start-review-button"
+                    >
+                      Start Review
+                    </button>
+                  </>
+                ) : (
+                  'All critical/warning suggestions have been reviewed.'
+                )}
               </div>
             )}
 
@@ -650,7 +967,9 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
                   messages={chatMessages}
                   sessionId={sessionId}
                   selectedText={specEditor.selectedText || undefined}
+                  discussingContext={discussingContext}
                   onSendMessage={handleSendMessage}
+                  onClearDiscussingContext={() => setDiscussingContext(null)}
                   isSending={isSendingMessage}
                 />
               </div>

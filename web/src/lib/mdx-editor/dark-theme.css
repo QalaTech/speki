@@ -1,0 +1,609 @@
+/**
+ * MDXEditor Dark Theme Overrides
+ * Matches the application's dark color scheme
+ */
+
+/* ===== Error Banner ===== */
+.spec-editor-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(210, 153, 34, 0.15);
+  border: 1px solid #d29922;
+  border-radius: 8px 8px 0 0;
+  color: #d29922;
+  font-size: 13px;
+  margin-bottom: -1px;
+}
+
+.spec-editor-error-banner button {
+  padding: 4px 12px;
+  background: transparent;
+  border: 1px solid #d29922;
+  border-radius: 4px;
+  color: #d29922;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.spec-editor-error-banner button:hover {
+  background: rgba(210, 153, 34, 0.2);
+}
+
+/* ===== Main Editor Container ===== */
+.mdxeditor {
+  --accentBase: #58a6ff;
+  --accentBgSubtle: rgba(88, 166, 255, 0.1);
+  --accentBg: rgba(88, 166, 255, 0.15);
+  --accentBgHover: rgba(88, 166, 255, 0.25);
+  --accentText: #58a6ff;
+  --accentTextContrast: #ffffff;
+  --accentSolid: #58a6ff;
+  --accentSolidHover: #79b8ff;
+
+  --baseBase: #30363d;
+  --baseBgSubtle: #161b22;
+  --baseBg: #0d1117;
+  --baseBgHover: #21262d;
+  --baseBorder: #30363d;
+  --baseBorderHover: #484f58;
+  --baseBorderFocus: #58a6ff;
+  --baseText: #c9d1d9;
+  --baseTextContrast: #ffffff;
+  --baseTextHighContrast: #f0f6fc;
+  --baseTextMuted: #8b949e;
+
+  background: var(--color-bg) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+/* ===== Content Editable Area ===== */
+.mdxeditor [class*="_contentEditable_"],
+.mdxeditor [contenteditable="true"],
+.mdxeditor .ProseMirror {
+  background: var(--color-bg) !important;
+  color: var(--color-text) !important;
+  caret-color: var(--color-text);
+  padding: 16px 24px;
+  min-height: 300px;
+}
+
+.mdxeditor .ProseMirror:focus {
+  outline: none;
+}
+
+/* Placeholder text */
+.mdxeditor .ProseMirror p.is-editor-empty:first-child::before,
+.mdxeditor [class*="_placeholder_"] {
+  color: var(--color-text-muted) !important;
+}
+
+/* ===== Toolbar ===== */
+.mdxeditor [class*="_toolbar_"],
+.mdxeditor [class*="_toolbarRoot_"] {
+  background: var(--color-surface) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  padding: 8px 12px;
+}
+
+/* Toolbar buttons */
+.mdxeditor [class*="_toolbarButton_"],
+.mdxeditor [class*="_iconButton_"],
+.mdxeditor button[class*="_toolbar"] {
+  background: transparent !important;
+  color: var(--color-text-muted) !important;
+  border: none !important;
+  border-radius: 4px;
+  padding: 6px 8px;
+  transition: all 0.15s ease;
+}
+
+.mdxeditor [class*="_toolbarButton_"]:hover,
+.mdxeditor [class*="_iconButton_"]:hover,
+.mdxeditor button[class*="_toolbar"]:hover {
+  background: var(--color-surface-hover) !important;
+  color: var(--color-text) !important;
+}
+
+.mdxeditor [class*="_toolbarButton_"][data-state="on"],
+.mdxeditor [class*="_toolbarButton_"].active,
+.mdxeditor [class*="_iconButton_"][data-state="on"] {
+  background: var(--color-accent) !important;
+  color: white !important;
+}
+
+/* Toolbar separator */
+.mdxeditor [class*="_toolbarSeparator_"],
+.mdxeditor [class*="_separator_"] {
+  background: var(--color-border) !important;
+}
+
+/* Toolbar group titles */
+.mdxeditor [class*="_toolbarGroupLabel_"] {
+  color: var(--color-text-muted) !important;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+/* ===== Dropdowns & Select Menus ===== */
+.mdxeditor [class*="_selectTrigger_"],
+.mdxeditor [class*="_select_"],
+.mdxeditor select {
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 6px;
+  padding: 6px 12px;
+}
+
+.mdxeditor [class*="_selectTrigger_"]:hover,
+.mdxeditor [class*="_select_"]:hover {
+  border-color: var(--color-border) !important;
+  background: var(--color-surface-hover) !important;
+}
+
+/* Dropdown content */
+.mdxeditor [class*="_selectContent_"],
+.mdxeditor [class*="_popoverContent_"],
+.mdxeditor [class*="_dropdownContent_"],
+.mdxeditor [role="listbox"],
+.mdxeditor [role="menu"] {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+/* Dropdown items */
+.mdxeditor [class*="_selectItem_"],
+.mdxeditor [class*="_menuItem_"],
+.mdxeditor [role="option"],
+.mdxeditor [role="menuitem"] {
+  background: transparent !important;
+  color: var(--color-text) !important;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.mdxeditor [class*="_selectItem_"]:hover,
+.mdxeditor [class*="_menuItem_"]:hover,
+.mdxeditor [role="option"]:hover,
+.mdxeditor [role="menuitem"]:hover,
+.mdxeditor [class*="_selectItem_"][data-highlighted],
+.mdxeditor [class*="_menuItem_"][data-highlighted] {
+  background: var(--color-surface-hover) !important;
+}
+
+.mdxeditor [class*="_selectItem_"][data-state="checked"],
+.mdxeditor [role="option"][aria-selected="true"] {
+  background: rgba(88, 166, 255, 0.15) !important;
+  color: var(--color-accent) !important;
+}
+
+/* ===== Dialogs & Modals ===== */
+.mdxeditor [class*="_dialogContent_"],
+.mdxeditor [class*="_modalContent_"],
+.mdxeditor [role="dialog"] {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  color: var(--color-text) !important;
+}
+
+.mdxeditor [class*="_dialogTitle_"],
+.mdxeditor [class*="_modalTitle_"] {
+  color: var(--color-text) !important;
+  font-weight: 600;
+}
+
+.mdxeditor [class*="_dialogOverlay_"],
+.mdxeditor [class*="_modalOverlay_"] {
+  background: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* ===== Input Fields ===== */
+.mdxeditor input[type="text"],
+.mdxeditor input[type="url"],
+.mdxeditor [class*="_textInput_"],
+.mdxeditor [class*="_input_"] {
+  background: var(--color-bg) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.mdxeditor input[type="text"]:focus,
+.mdxeditor input[type="url"]:focus,
+.mdxeditor [class*="_textInput_"]:focus,
+.mdxeditor [class*="_input_"]:focus {
+  border-color: var(--color-accent) !important;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+}
+
+.mdxeditor input::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+/* ===== Action Buttons in Dialogs ===== */
+.mdxeditor [class*="_primaryButton_"],
+.mdxeditor [class*="_actionButton_"],
+.mdxeditor button[type="submit"] {
+  background: var(--color-accent) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.mdxeditor [class*="_primaryButton_"]:hover,
+.mdxeditor [class*="_actionButton_"]:hover,
+.mdxeditor button[type="submit"]:hover {
+  background: #79b8ff !important;
+}
+
+.mdxeditor [class*="_secondaryButton_"],
+.mdxeditor [class*="_cancelButton_"] {
+  background: var(--color-surface-hover) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 6px;
+  padding: 8px 16px;
+}
+
+.mdxeditor [class*="_secondaryButton_"]:hover,
+.mdxeditor [class*="_cancelButton_"]:hover {
+  background: var(--color-border) !important;
+}
+
+/* ===== Headings ===== */
+.mdxeditor h1,
+.mdxeditor h2,
+.mdxeditor h3,
+.mdxeditor h4,
+.mdxeditor h5,
+.mdxeditor h6 {
+  color: var(--color-text) !important;
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.mdxeditor h1 { font-size: 2em; border-bottom: 1px solid var(--color-border); padding-bottom: 0.3em; }
+.mdxeditor h2 { font-size: 1.5em; border-bottom: 1px solid var(--color-border); padding-bottom: 0.3em; }
+.mdxeditor h3 { font-size: 1.25em; }
+.mdxeditor h4 { font-size: 1em; }
+.mdxeditor h5 { font-size: 0.875em; }
+.mdxeditor h6 { font-size: 0.85em; color: var(--color-text-muted) !important; }
+
+/* ===== Paragraphs & Text ===== */
+.mdxeditor p {
+  color: var(--color-text) !important;
+  margin: 0 0 16px 0;
+  line-height: 1.6;
+}
+
+/* ===== Links ===== */
+.mdxeditor a {
+  color: var(--color-accent) !important;
+  text-decoration: none;
+}
+
+.mdxeditor a:hover {
+  text-decoration: underline;
+}
+
+/* ===== Lists ===== */
+.mdxeditor ul,
+.mdxeditor ol {
+  color: var(--color-text) !important;
+  padding-left: 2em;
+  margin: 0 0 16px 0;
+}
+
+.mdxeditor li {
+  color: var(--color-text) !important;
+  margin-bottom: 4px;
+}
+
+.mdxeditor li::marker {
+  color: var(--color-text-muted);
+}
+
+/* Nested lists */
+.mdxeditor [class*="_nestedListItem_"] {
+  color: var(--color-text) !important;
+}
+
+/* ===== Blockquotes ===== */
+.mdxeditor blockquote {
+  color: var(--color-text-muted) !important;
+  border-left: 4px solid var(--color-border);
+  padding-left: 16px;
+  margin: 0 0 16px 0;
+}
+
+/* ===== Horizontal Rule ===== */
+.mdxeditor hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 24px 0;
+}
+
+/* ===== Inline Code ===== */
+.mdxeditor code:not(pre code) {
+  background: rgba(110, 118, 129, 0.2) !important;
+  color: #e6edf3 !important;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+/* ===== Code Blocks ===== */
+.mdxeditor pre,
+.mdxeditor [class*="_codeBlock_"] {
+  background: #161b22 !important;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin: 16px 0;
+  overflow: hidden;
+}
+
+.mdxeditor pre code {
+  background: transparent !important;
+  color: #e6edf3 !important;
+  display: block;
+  padding: 16px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Code block header (language selector) */
+.mdxeditor [class*="_codeBlockHeader_"],
+.mdxeditor [class*="_codeBlockToolbar_"] {
+  background: #21262d !important;
+  border-bottom: 1px solid var(--color-border);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mdxeditor [class*="_codeBlockHeader_"] select,
+.mdxeditor [class*="_codeBlockLanguage_"] {
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+/* ===== CodeMirror (Syntax Highlighting) ===== */
+.mdxeditor .cm-editor {
+  background: transparent !important;
+  /* Auto-fit to content */
+  height: auto !important;
+  min-height: unset !important;
+  max-height: unset !important;
+}
+
+.mdxeditor .cm-scroller {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace !important;
+  /* Auto-fit: remove fixed height */
+  overflow: visible !important;
+  min-height: unset !important;
+}
+
+/* Code block container - auto-fit to content */
+.mdxeditor [class*="_codeBlock_"] {
+  height: auto !important;
+  min-height: unset !important;
+}
+
+.mdxeditor .cm-content {
+  min-height: unset !important;
+  padding: 12px 16px !important;
+}
+
+.mdxeditor .cm-gutters {
+  min-height: unset !important;
+}
+
+.mdxeditor .cm-content {
+  color: #e6edf3 !important;
+  caret-color: #e6edf3 !important;
+}
+
+.mdxeditor .cm-cursor {
+  border-left-color: #e6edf3 !important;
+}
+
+.mdxeditor .cm-gutters {
+  background: #161b22 !important;
+  border-right: 1px solid var(--color-border) !important;
+  color: var(--color-text-muted) !important;
+}
+
+.mdxeditor .cm-activeLineGutter {
+  background: #21262d !important;
+}
+
+.mdxeditor .cm-activeLine {
+  background: rgba(110, 118, 129, 0.1) !important;
+}
+
+.mdxeditor .cm-selectionBackground,
+.mdxeditor .cm-selection {
+  background: rgba(88, 166, 255, 0.2) !important;
+}
+
+/* CodeMirror syntax colors */
+.mdxeditor .cm-keyword { color: #ff7b72 !important; }
+.mdxeditor .cm-string { color: #a5d6ff !important; }
+.mdxeditor .cm-string2 { color: #a5d6ff !important; }
+.mdxeditor .cm-number { color: #79c0ff !important; }
+.mdxeditor .cm-comment { color: #8b949e !important; font-style: italic; }
+.mdxeditor .cm-variableName { color: #ffa657 !important; }
+.mdxeditor .cm-propertyName { color: #79c0ff !important; }
+.mdxeditor .cm-operator { color: #ff7b72 !important; }
+.mdxeditor .cm-punctuation { color: #c9d1d9 !important; }
+.mdxeditor .cm-bracket { color: #c9d1d9 !important; }
+.mdxeditor .cm-tagName { color: #7ee787 !important; }
+.mdxeditor .cm-attributeName { color: #79c0ff !important; }
+.mdxeditor .cm-attributeValue { color: #a5d6ff !important; }
+.mdxeditor .cm-definition { color: #d2a8ff !important; }
+.mdxeditor .cm-typeName { color: #ffa657 !important; }
+.mdxeditor .cm-atom { color: #79c0ff !important; }
+.mdxeditor .cm-bool { color: #79c0ff !important; }
+
+/* ===== Tables ===== */
+.mdxeditor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+}
+
+.mdxeditor th,
+.mdxeditor td {
+  border: 1px solid var(--color-border);
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--color-text) !important;
+}
+
+.mdxeditor th {
+  background: var(--color-surface) !important;
+  font-weight: 600;
+}
+
+.mdxeditor tr:nth-child(even) td {
+  background: rgba(110, 118, 129, 0.05);
+}
+
+.mdxeditor tr:hover td {
+  background: rgba(110, 118, 129, 0.1);
+}
+
+/* Table toolbar */
+.mdxeditor [class*="_tableToolbar_"],
+.mdxeditor [class*="_tableEditor_"] {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+/* ===== Tooltips ===== */
+.mdxeditor [class*="_tooltip_"],
+.mdxeditor [role="tooltip"] {
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* ===== Diff View ===== */
+.mdxeditor [class*="_diffViewer_"],
+.mdxeditor [class*="_sourceEditor_"] {
+  background: var(--color-bg) !important;
+  color: var(--color-text) !important;
+}
+
+/* Diff additions */
+.mdxeditor [class*="_diffAdded_"],
+.mdxeditor .diff-added {
+  background: rgba(35, 134, 54, 0.15) !important;
+  color: #7ee787 !important;
+}
+
+/* Diff deletions */
+.mdxeditor [class*="_diffRemoved_"],
+.mdxeditor .diff-removed {
+  background: rgba(218, 54, 51, 0.15) !important;
+  color: #f85149 !important;
+}
+
+/* ===== View Mode Toggle ===== */
+.mdxeditor [class*="_viewModeToggle_"],
+.mdxeditor [class*="_viewMode_"] {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mdxeditor [class*="_viewModeButton_"] {
+  background: transparent !important;
+  color: var(--color-text-muted) !important;
+  border: none;
+  padding: 6px 12px;
+}
+
+.mdxeditor [class*="_viewModeButton_"]:hover {
+  background: var(--color-surface-hover) !important;
+}
+
+.mdxeditor [class*="_viewModeButton_"][data-active="true"],
+.mdxeditor [class*="_viewModeButton_"].active {
+  background: var(--color-accent) !important;
+  color: white !important;
+}
+
+/* ===== Selection highlighting ===== */
+.mdxeditor ::selection {
+  background: rgba(88, 166, 255, 0.3);
+}
+
+/* ===== Read-only state ===== */
+.mdxeditor.spec-editor--readonly [class*="_contentEditable_"],
+.mdxeditor.spec-editor--readonly .ProseMirror {
+  cursor: default;
+}
+
+/* Hide toolbar in read-only mode */
+.spec-editor--readonly .mdxeditor [class*="_toolbar_"],
+.spec-editor--readonly .mdxeditor [class*="_toolbarRoot_"] {
+  display: none;
+}
+
+/* ===== Focus States ===== */
+.mdxeditor:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.1);
+}
+
+/* ===== Scrollbar Styling ===== */
+.mdxeditor ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.mdxeditor ::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+
+.mdxeditor ::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+.mdxeditor ::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}

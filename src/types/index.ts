@@ -339,6 +339,9 @@ export type SuggestionSeverity = 'critical' | 'warning' | 'info';
  */
 export type SuggestionStatus = 'pending' | 'approved' | 'rejected' | 'edited';
 
+/** Type of suggestion - 'change' has concrete fix, 'comment' is general feedback */
+export type SuggestionType = 'change' | 'comment';
+
 /**
  * Status of a spec review session.
  */
@@ -448,6 +451,8 @@ export interface SuggestionCard {
   category: string;
   /** Severity level */
   severity: SuggestionSeverity;
+  /** Type of suggestion - 'change' has concrete fix, 'comment' is general feedback. Defaults to 'comment' if not set. */
+  type?: SuggestionType;
   /** Section of the spec this applies to */
   section: string;
   /** Starting line number in the spec */

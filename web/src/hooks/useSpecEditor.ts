@@ -9,9 +9,6 @@ import {
   type HighlightOptions,
 } from '../lib/mdx-editor/lexical-utils.js';
 import {
-  showDiff,
-  exitDiffView,
-  getProposedContent,
   createInitialDiffState,
   type DiffViewState,
   type DiffLocation,
@@ -57,6 +54,8 @@ export interface SpecEditorActions {
   ) => (() => void) | null;
   /** Enters diff mode showing comparison between original and proposed content */
   enterDiffMode: (original: string, proposed: string, location?: DiffLocation) => void;
+  /** Updates the diff state content (used by Monaco diff when hunks are accepted/rejected) */
+  updateDiffContent: (original: string, proposed: string) => void;
   /** Exits diff mode, optionally applying changes */
   exitDiffMode: (applyChanges: boolean) => string;
   /** Gets the current proposed content in diff mode */
@@ -152,23 +151,47 @@ export function useSpecEditor(initialContent: string = ''): UseSpecEditorReturn 
   );
 
   const enterDiffMode = useCallback(
-    (original: string, proposed: string, location?: DiffLocation): void => {
-      const newDiffState = showDiff(editorRef, original, proposed, location);
+    (original: string, proposed: string, _location?: DiffLocation): void => {
+      // Just update state - the SpecEditor component will handle the view mode change
+      // via its key prop, which forces a clean remount with the correct content
       setState((prev) => ({
         ...prev,
-        diffState: newDiffState,
+        content: proposed,
+        diffState: {
+          isActive: true,
+          originalContent: original,
+          proposedContent: proposed,
+          location: _location,
+        },
       }));
+    },
+    []
+  );
+
+  const updateDiffContent = useCallback(
+    (original: string, proposed: string): void => {
+      setState((prev) => {
+        if (!prev.diffState.isActive) return prev;
+        return {
+          ...prev,
+          content: original, // Main content reflects the current original (as modified by accepted hunks)
+          diffState: {
+            ...prev.diffState,
+            originalContent: original,
+            proposedContent: proposed,
+          },
+        };
+      });
     },
     []
   );
 
   const exitDiffModeAction = useCallback(
     (applyChanges: boolean): string => {
-      const finalContent = exitDiffView(
-        editorRef,
-        applyChanges,
-        state.diffState
-      );
+      // Determine final content based on whether changes are applied
+      const finalContent = applyChanges
+        ? state.diffState.proposedContent
+        : state.diffState.originalContent;
 
       setState((prev) => ({
         ...prev,
@@ -186,8 +209,9 @@ export function useSpecEditor(initialContent: string = ''): UseSpecEditorReturn 
     if (!state.diffState.isActive) {
       return null;
     }
-    return getProposedContent(editorRef);
-  }, [state.diffState.isActive]);
+    // Return current content (which is the proposed content, possibly edited by user)
+    return state.content;
+  }, [state.diffState.isActive, state.content]);
 
   return {
     ...state,
@@ -201,6 +225,7 @@ export function useSpecEditor(initialContent: string = ''): UseSpecEditorReturn 
     scrollToLineNumber,
     highlight,
     enterDiffMode,
+    updateDiffContent,
     exitDiffMode: exitDiffModeAction,
     getDiffProposedContent,
   };

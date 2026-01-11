@@ -426,17 +426,20 @@ router.post('/start', async (req, res) => {
       return res.status(400).json({ error: 'PRD file path required' });
     }
 
+    // Resolve path - if relative, join with projectPath
+    const resolvedPrdFile = prdFile.startsWith('/') ? prdFile : join(req.projectPath!, prdFile);
+
     // Update state to indicate start
     await req.project!.saveDecomposeState({
       status: 'INITIALIZING',
       message: 'Starting decomposition...',
-      prdFile,
+      prdFile: resolvedPrdFile,
     });
 
     // Run decomposition (this is blocking, runs in request context)
     // For long-running PRDs, consider making this async with WebSocket updates
     const result = await runDecompose(req.project!, {
-      prdFile,
+      prdFile: resolvedPrdFile,
       branchName,
       language,
       outputName,

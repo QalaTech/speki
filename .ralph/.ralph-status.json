@@ -1,8 +1,5 @@
 {
-  "status": "running",
-  "currentIteration": 1,
-  "maxIterations": 6,
-  "currentStory": "US-052: Implement split spec navigation in dashboard",
-  "startedAt": "2026-01-11T12:53:32.682Z",
-  "pid": 86670
+  "status": "completed",
+  "currentIteration": 2,
+  "maxIterations": 6
 }
