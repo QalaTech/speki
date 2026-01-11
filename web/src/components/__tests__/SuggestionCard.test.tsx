@@ -3,17 +3,19 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { SuggestionCard } from '../SuggestionCard';
 import type { SuggestionCard as SuggestionCardType } from '../../../../src/types/index.js';
 
-const mockSuggestion = (overrides: Partial<SuggestionCardType> = {}): SuggestionCardType => ({
-  id: 'sug-1',
-  category: 'clarity',
-  severity: 'warning',
-  section: 'Requirements',
-  textSnippet: 'The system shall...',
-  issue: 'Requirement is ambiguous',
-  suggestedFix: 'Add specific metrics to clarify the requirement',
-  status: 'pending',
-  ...overrides,
-});
+function mockSuggestion(overrides: Partial<SuggestionCardType> = {}): SuggestionCardType {
+  return {
+    id: 'sug-1',
+    category: 'clarity',
+    severity: 'warning',
+    section: 'Requirements',
+    textSnippet: 'The system shall...',
+    issue: 'Requirement is ambiguous',
+    suggestedFix: 'Add specific metrics to clarify the requirement',
+    status: 'pending',
+    ...overrides,
+  };
+}
 
 describe('SuggestionCard', () => {
   describe('SuggestionCard_DisplaysIssue', () => {
@@ -115,6 +117,51 @@ describe('SuggestionCard', () => {
     it('should not throw when onDismiss is not provided', () => {
       render(<SuggestionCard suggestion={mockSuggestion()} />);
       expect(() => fireEvent.click(screen.getByTestId('dismiss-button'))).not.toThrow();
+    });
+  });
+
+  describe('liveUpdate_UpdatesCardStatus', () => {
+    it('should display approved badge when status is approved', () => {
+      render(<SuggestionCard suggestion={mockSuggestion({ status: 'approved' })} />);
+      const badge = screen.getByTestId('status-badge');
+      expect(badge).toHaveTextContent('✓ Approved');
+      expect(badge).toHaveClass('status-approved');
+    });
+
+    it('should display rejected badge when status is rejected', () => {
+      render(<SuggestionCard suggestion={mockSuggestion({ status: 'rejected' })} />);
+      const badge = screen.getByTestId('status-badge');
+      expect(badge).toHaveTextContent('✗ Rejected');
+      expect(badge).toHaveClass('status-rejected');
+    });
+
+    it('should display edited badge when status is edited', () => {
+      render(<SuggestionCard suggestion={mockSuggestion({ status: 'edited' })} />);
+      const badge = screen.getByTestId('status-badge');
+      expect(badge).toHaveTextContent('✎ Edited');
+      expect(badge).toHaveClass('status-edited');
+    });
+
+    it('should not display status badge when status is pending', () => {
+      render(<SuggestionCard suggestion={mockSuggestion({ status: 'pending' })} />);
+      expect(screen.queryByTestId('status-badge')).not.toBeInTheDocument();
+    });
+
+    it('should hide action buttons when status is not pending', () => {
+      render(<SuggestionCard suggestion={mockSuggestion({ status: 'approved' })} />);
+      expect(screen.queryByTestId('suggestion-actions')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('review-diff-button')).not.toBeInTheDocument();
+    });
+
+    it('should show action buttons when status is pending', () => {
+      render(<SuggestionCard suggestion={mockSuggestion({ status: 'pending' })} />);
+      expect(screen.getByTestId('suggestion-actions')).toBeInTheDocument();
+      expect(screen.getByTestId('review-diff-button')).toBeInTheDocument();
+    });
+
+    it('should apply status class to card when not pending', () => {
+      render(<SuggestionCard suggestion={mockSuggestion({ status: 'approved' })} />);
+      expect(screen.getByTestId('suggestion-card')).toHaveClass('status-approved');
     });
   });
 });

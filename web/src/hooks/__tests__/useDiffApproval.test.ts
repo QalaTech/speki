@@ -16,7 +16,7 @@ vi.mock('../useAgentFeedback', () => ({
   }),
 }));
 
-function createMockSuggestion(overrides?: Partial<SuggestionCard>): SuggestionCard {
+function createMockSuggestion(overrides: Partial<SuggestionCard> = {}): SuggestionCard {
   return {
     id: 'suggestion-1',
     category: 'clarity',
@@ -310,6 +310,143 @@ describe('useDiffApproval', () => {
 
       expect(editorActions.exitDiffMode).toHaveBeenCalledWith(false);
       expect(result.current.isActive).toBe(false);
+    });
+  });
+
+  describe('liveUpdate_UpdatesContent', () => {
+    it('should update editor content immediately after approval', async () => {
+      const { result } = renderHook(() => useDiffApproval());
+      const suggestion = createMockSuggestion();
+      const editorActions = createMockEditorActions();
+      const onSaveFile = vi.fn().mockResolvedValue(undefined);
+
+      act(() => {
+        result.current.enterDiffMode(suggestion, editorActions, 'original content');
+      });
+
+      await act(async () => {
+        await result.current.approve('session-1', editorActions, onSaveFile);
+      });
+
+      // Verify exitDiffMode was called with apply=true to get the updated content
+      expect(editorActions.exitDiffMode).toHaveBeenCalledWith(true);
+      // Verify the content was saved to disk
+      expect(onSaveFile).toHaveBeenCalledWith('updated content');
+    });
+
+    it('should apply the suggested fix to the content', async () => {
+      const { result } = renderHook(() => useDiffApproval());
+      const suggestion = createMockSuggestion({
+        suggestedFix: 'The user should be able to login with email and password',
+      });
+      const editorActions = createMockEditorActions();
+      const onSaveFile = vi.fn().mockResolvedValue(undefined);
+
+      act(() => {
+        result.current.enterDiffMode(suggestion, editorActions, 'original');
+      });
+
+      // Verify enterDiffMode was called on the editor
+      expect(editorActions.enterDiffMode).toHaveBeenCalled();
+      const [original, proposed] = editorActions.enterDiffMode.mock.calls[0];
+      expect(original).toBe('original');
+      expect(proposed).toContain('email and password');
+    });
+  });
+
+  describe('liveUpdate_ScrollsToChange', () => {
+    it('should scroll to change location when highlighting', async () => {
+      const { result } = renderHook(() => useDiffApproval());
+      const suggestion = createMockSuggestion({
+        lineStart: 10,
+        section: 'Requirements',
+        suggestedFix: 'Updated requirement text',
+      });
+      const editorActions = createMockEditorActions();
+      const onSaveFile = vi.fn().mockResolvedValue(undefined);
+
+      act(() => {
+        result.current.enterDiffMode(suggestion, editorActions, 'original');
+      });
+
+      await act(async () => {
+        await result.current.approve('session-1', editorActions, onSaveFile);
+      });
+
+      // Verify highlight was called (which internally calls scrollIntoView)
+      expect(editorActions.highlight).toHaveBeenCalled();
+    });
+
+    it('should pass location info when entering diff mode', () => {
+      const { result } = renderHook(() => useDiffApproval());
+      const suggestion = createMockSuggestion({
+        lineStart: 42,
+        section: 'API Design',
+      });
+      const editorActions = createMockEditorActions();
+
+      act(() => {
+        result.current.enterDiffMode(suggestion, editorActions, 'original');
+      });
+
+      expect(editorActions.enterDiffMode).toHaveBeenCalledWith(
+        'original',
+        expect.any(String),
+        expect.objectContaining({
+          lineNumber: 42,
+          sectionHeading: 'API Design',
+        })
+      );
+    });
+  });
+
+  describe('liveUpdate_HighlightsFades', () => {
+    it('should highlight the changed section for 2 seconds', async () => {
+      const { result } = renderHook(() => useDiffApproval());
+      const suggestion = createMockSuggestion({
+        suggestedFix: 'New requirement text',
+      });
+      const editorActions = createMockEditorActions();
+      const onSaveFile = vi.fn().mockResolvedValue(undefined);
+
+      act(() => {
+        result.current.enterDiffMode(suggestion, editorActions, 'original');
+      });
+
+      await act(async () => {
+        await result.current.approve('session-1', editorActions, onSaveFile);
+      });
+
+      // Verify highlight was called with 2000ms duration
+      expect(editorActions.highlight).toHaveBeenCalledWith(
+        suggestion.suggestedFix,
+        2000
+      );
+    });
+
+    it('should highlight user-edited content after edit approval', async () => {
+      const { result } = renderHook(() => useDiffApproval());
+      const suggestion = createMockSuggestion();
+      const editorActions = createMockEditorActions();
+      const onSaveFile = vi.fn().mockResolvedValue(undefined);
+
+      act(() => {
+        result.current.enterDiffMode(suggestion, editorActions, 'original');
+      });
+
+      act(() => {
+        result.current.startEdit();
+      });
+
+      await act(async () => {
+        await result.current.applyEdit('session-1', editorActions, onSaveFile);
+      });
+
+      // Verify highlight was called after edit
+      expect(editorActions.highlight).toHaveBeenCalledWith(
+        expect.any(String),
+        2000
+      );
     });
   });
 });

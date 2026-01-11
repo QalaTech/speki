@@ -148,3 +148,44 @@
 .dismiss-button:hover {
   background-color: #f8d7da;
 }
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.status-badge.status-approved {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-badge.status-rejected {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.status-badge.status-edited {
+  background-color: #cce5ff;
+  color: #004085;
+}
+
+/* Completed suggestion card states */
+.suggestion-card.status-approved {
+  opacity: 0.8;
+  background-color: #f8fff9;
+}
+
+.suggestion-card.status-rejected {
+  opacity: 0.6;
+  background-color: #fff8f8;
+}
+
+.suggestion-card.status-edited {
+  opacity: 0.8;
+  background-color: #f8f9ff;
+}

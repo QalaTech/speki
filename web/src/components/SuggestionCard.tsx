@@ -14,27 +14,39 @@ const SEVERITY_CONFIG: Record<SuggestionSeverity, { class: string; label: string
   info: { class: 'severity-info', label: 'Info' },
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  approved: '✓ Approved',
+  rejected: '✗ Rejected',
+  edited: '✎ Edited',
+};
+
 export function SuggestionCard({
   suggestion,
   onReviewDiff,
   onShowInEditor,
   onDismiss,
 }: SuggestionCardProps) {
-  const { section, lineStart, lineEnd, severity, id, issue, suggestedFix } = suggestion;
+  const { section, lineStart, lineEnd, severity, id, issue, suggestedFix, status } = suggestion;
   const { class: severityClass, label: severityLabel } = SEVERITY_CONFIG[severity] || {
     class: 'severity-unknown',
     label: 'Unknown'
   };
 
-  const location = lineStart !== undefined && lineEnd !== undefined
-    ? `${section} (lines ${lineStart}-${lineEnd})`
-    : lineStart !== undefined
-    ? `${section} (line ${lineStart})`
-    : section;
+  let location: string;
+  if (lineStart !== undefined && lineEnd !== undefined) {
+    location = `${section} (lines ${lineStart}-${lineEnd})`;
+  } else if (lineStart !== undefined) {
+    location = `${section} (line ${lineStart})`;
+  } else {
+    location = section;
+  }
+
+  const isPending = status === 'pending';
+  const statusLabel = STATUS_LABELS[status] || '';
 
   return (
     <div
-      className={`suggestion-card ${severityClass}`}
+      className={`suggestion-card ${severityClass} ${!isPending ? `status-${status}` : ''}`}
       data-testid="suggestion-card"
       data-suggestion-id={id}
     >
@@ -45,6 +57,11 @@ export function SuggestionCard({
         <span className="suggestion-location" data-testid="suggestion-location">
           {location}
         </span>
+        {!isPending && (
+          <span className={`status-badge status-${status}`} data-testid="status-badge">
+            {statusLabel}
+          </span>
+        )}
       </div>
 
       <div className="suggestion-issue" data-testid="suggestion-issue">
@@ -56,32 +73,34 @@ export function SuggestionCard({
         <div className="preview-content">{suggestedFix}</div>
       </div>
 
-      <div className="suggestion-actions" data-testid="suggestion-actions">
-        <button
-          type="button"
-          className="action-button review-diff-button"
-          onClick={() => onReviewDiff?.(id)}
-          data-testid="review-diff-button"
-        >
-          Review Diff
-        </button>
-        <button
-          type="button"
-          className="action-button show-in-editor-button"
-          onClick={() => onShowInEditor?.(id)}
-          data-testid="show-in-editor-button"
-        >
-          Show in Editor
-        </button>
-        <button
-          type="button"
-          className="action-button dismiss-button"
-          onClick={() => onDismiss?.(id)}
-          data-testid="dismiss-button"
-        >
-          Dismiss
-        </button>
-      </div>
+      {isPending && (
+        <div className="suggestion-actions" data-testid="suggestion-actions">
+          <button
+            type="button"
+            className="action-button review-diff-button"
+            onClick={() => onReviewDiff?.(id)}
+            data-testid="review-diff-button"
+          >
+            Review Diff
+          </button>
+          <button
+            type="button"
+            className="action-button show-in-editor-button"
+            onClick={() => onShowInEditor?.(id)}
+            data-testid="show-in-editor-button"
+          >
+            Show in Editor
+          </button>
+          <button
+            type="button"
+            className="action-button dismiss-button"
+            onClick={() => onDismiss?.(id)}
+            data-testid="dismiss-button"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
     </div>
   );
 }
