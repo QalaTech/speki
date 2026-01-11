@@ -993,8 +993,8 @@
         "getSelectedText_ReturnsSelection"
       ],
       "priority": 36,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented lexical-utils.ts with scrollToSection, scrollToLine, highlightText, findNodeByText, getSelectedText, and selectText functions. All 19 tests pass.",
       "dependencies": [
         "US-035"
       ],
@@ -1021,8 +1021,8 @@
         "createUnifiedDiff_GeneratesDiff"
       ],
       "priority": 37,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented diff-utils.ts with showDiff, exitDiffView, getProposedContent, createUnifiedDiff functions. Added diff library for unified diff generation. Also added hasDifferences and countDiffChanges helper utilities. All 22 tests pass.",
       "dependencies": [
         "US-035"
       ],
@@ -1048,8 +1048,8 @@
         "ReviewPanel_ContainsChatArea"
       ],
       "priority": 38,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Created ReviewPanel.tsx with verdict display, suggestions area, god spec warning section, and chat interface. All 21 tests pass.",
       "dependencies": [
         "US-033"
       ],
@@ -1077,7 +1077,7 @@
         "SuggestionCard_DismissRejects"
       ],
       "priority": 39,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "dependencies": [
         "US-038"
@@ -1105,8 +1105,8 @@
         "GodSpecWarning_SkipDismissesWithWarning"
       ],
       "priority": 40,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Component implemented with warning display, issue listing, split proposal display, and Accept/Modify/Skip buttons. 23 tests pass.",
       "dependencies": [
         "US-038"
       ],
@@ -1132,8 +1132,8 @@
         "ReviewChat_IncludesSelectionContext"
       ],
       "priority": 41,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented ReviewChat.tsx with chat history display, input field, message sending, assistant responses, and selection context support. All 20 tests pass.",
       "dependencies": [
         "US-038"
       ],
@@ -1158,8 +1158,8 @@
         "ChangeHistory_RevertAllRestoresOriginal"
       ],
       "priority": 42,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented ChangeHistory.tsx component with change list display, timestamp formatting, section extraction, Revert and Revert All buttons. 19 tests pass.",
       "dependencies": [
         "US-038"
       ],
@@ -1186,8 +1186,8 @@
         "useSpecReview_TracksVerdict"
       ],
       "priority": 43,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented useSpecReview hook with state management, startReview(), suggestion tracking, verdict tracking, and loading/error states. All 19 tests pass.",
       "dependencies": [
         "US-028"
       ],
@@ -1214,8 +1214,8 @@
         "useSpecEditor_ProvideDiffFunctions"
       ],
       "priority": 44,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented useSpecEditor hook that wraps MDXEditor with editor ref, content tracking, selection accessor, scroll/highlight functions (using lexical-utils), and diff mode functions (using diff-utils). All 23 tests pass.",
       "dependencies": [
         "US-035",
         "US-036",
@@ -1244,8 +1244,8 @@
         "useSession_AutoSaves"
       ],
       "priority": 45,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented useSession hook with session loading, content hash detection, auto-save, and Continue/Start Fresh dialog. All 15 tests pass.",
       "dependencies": [
         "US-029"
       ],
@@ -1271,8 +1271,8 @@
         "useAgentFeedback_TracksState"
       ],
       "priority": 46,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented useAgentFeedback hook with sendApprovalFeedback, sendRejectionFeedback, sendEditFeedback functions and state tracking (idle, pending, sent, error). All 15 tests pass.",
       "dependencies": [
         "US-030"
       ],
@@ -1303,8 +1303,8 @@
         "diffApproval_SendsFeedback"
       ],
       "priority": 47,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented with DiffApprovalBar component and useDiffApproval hook. All 36 tests pass.",
       "dependencies": [
         "US-039",
         "US-044",
@@ -1333,8 +1333,8 @@
         "batchNav_RejectAllRejectsAll"
       ],
       "priority": 48,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented BatchNavigation component with Previous/Next buttons, counter, and Approve All/Reject All actions. Integrated into SpecReviewPage. All 16 tests pass.",
       "dependencies": [
         "US-047"
       ],
@@ -1363,14 +1363,15 @@
         "splitPreview_UpdatesParentSession"
       ],
       "priority": 49,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented SplitPreviewModal and useSplitPreview hook with full test coverage. Added API endpoints for preview content generation and file execution with session updates.",
       "dependencies": [
         "US-040",
         "US-045"
       ],
       "complexity": "high",
-      "context": {}
+      "context": {},
+      "executedAt": "2026-01-11T12:31:00.925Z"
     },
     {
       "id": "US-050",
@@ -1390,14 +1391,15 @@
         "selectionChat_AgentReceivesContext"
       ],
       "priority": 50,
-      "passes": false,
+      "passes": true,
       "notes": "",
       "dependencies": [
         "US-041",
         "US-044"
       ],
       "complexity": "medium",
-      "context": {}
+      "context": {},
+      "executedAt": "2026-01-11T12:40:48.348Z"
     },
     {
       "id": "US-051",
@@ -1418,13 +1420,14 @@
         "liveUpdate_UpdatesCardStatus"
       ],
       "priority": 51,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented status badge display in SuggestionCard component with ✓ Approved, ✗ Rejected, ✎ Edited labels. Added CSS styling for status badges and completed suggestion cards. Hides action buttons when suggestion is not pending. All 4 test cases implemented in useDiffApproval.test.ts and SuggestionCard.test.tsx.",
       "dependencies": [
         "US-047"
       ],
       "complexity": "medium",
-      "context": {}
+      "context": {},
+      "executedAt": "2026-01-11T12:49:50.544Z"
     },
     {
       "id": "US-052",
@@ -1445,14 +1448,15 @@
         "splitNav_SessionMaintained"
       ],
       "priority": 52,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Implemented split spec navigation with parent/child banners and session-maintaining navigation",
       "dependencies": [
         "US-045",
         "US-049"
       ],
       "complexity": "medium",
-      "context": {}
+      "context": {},
+      "executedAt": "2026-01-11T13:04:04.979Z"
     },
     {
       "id": "US-053",

@@ -1,8 +1,0 @@
-{
-  "status": "COMPLETED",
-  "message": "Decomposition complete",
-  "prdFile": "/Users/davidturner/dev/qala-ralph/specs/spec-review-feature.md",
-  "startedAt": "2026-01-10T21:52:32.378Z",
-  "draftFile": "/Users/davidturner/dev/qala-ralph/.ralph/tasks/spec-review-feature.json",
-  "verdict": "PASS"
-}

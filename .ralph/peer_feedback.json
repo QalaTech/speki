@@ -247,6 +247,90 @@
       "category": "testing",
       "addedBy": "US-035",
       "addedAt": "2026-01-11T08:55:00Z"
+    },
+    {
+      "lesson": "For keyboard event handling in chat inputs, use Enter to submit and Shift+Enter for multiline - this is the standard UX pattern users expect. Check e.shiftKey in the keyDown handler to differentiate.",
+      "category": "patterns",
+      "addedBy": "US-038",
+      "addedAt": "2026-01-11T09:20:00Z"
+    },
+    {
+      "lesson": "Use config lookup object pattern (e.g., SEVERITY_CONFIG) instead of multiple switch statements when mapping enum values to display properties. Provides cleaner code with centralized configuration.",
+      "category": "patterns",
+      "addedBy": "US-039",
+      "addedAt": "2026-01-11T09:25:00Z"
+    },
+    {
+      "lesson": "For optional callbacks on button clicks, use optional chaining directly in onClick handler: onClick={() => onCallback?.(id)}. This is more concise than wrapping in a separate handler function.",
+      "category": "patterns",
+      "addedBy": "US-039",
+      "addedAt": "2026-01-11T09:25:00Z"
+    },
+    {
+      "lesson": "Use vitest's it.each for parameterized tests when testing similar functionality across multiple values (e.g., severity levels). Reduces test code duplication significantly.",
+      "category": "testing",
+      "addedBy": "US-039",
+      "addedAt": "2026-01-11T09:25:00Z"
+    },
+    {
+      "lesson": "In jsdom tests, scrollIntoView may not exist on DOM elements. Use optional chaining on the method itself: element?.scrollIntoView?.({ behavior: 'smooth' }) to avoid 'is not a function' errors.",
+      "category": "testing",
+      "addedBy": "US-041",
+      "addedAt": "2026-01-11T09:38:00Z"
+    },
+    {
+      "lesson": "For TypeScript type narrowing in React JSX, optional chaining like (prop?.nested.length ?? 0) > 0 doesn't narrow the type. Use explicit checks in the JSX: prop !== undefined && prop.nested.length > 0 to ensure TypeScript knows prop is defined within the conditional block.",
+      "category": "gotchas",
+      "addedBy": "US-041",
+      "addedAt": "2026-01-11T09:38:00Z"
+    },
+    {
+      "lesson": "For browser-side SHA-256 hashing, use crypto.subtle.digest('SHA-256', data) instead of Node.js crypto module. Mock it in vitest with vi.spyOn(crypto.subtle, 'digest') - don't try to reassign global.crypto as it's read-only.",
+      "category": "patterns",
+      "addedBy": "US-045",
+      "addedAt": "2026-01-11T10:05:00Z"
+    },
+    {
+      "lesson": "For auto-save functionality in React hooks, use debouncing with useRef for timer tracking and a separate useRef for pending changes flag. Clear timer in useEffect cleanup to prevent memory leaks.",
+      "category": "patterns",
+      "addedBy": "US-045",
+      "addedAt": "2026-01-11T10:05:00Z"
+    },
+    {
+      "lesson": "When creating React hooks that send similar API requests with minor variations (like different action types), extract a private helper function (sendFeedback) that takes a payload object. This reduces code duplication and makes the hook easier to test and maintain.",
+      "category": "patterns",
+      "addedBy": "US-046",
+      "addedAt": "2026-01-11T10:10:00Z"
+    },
+    {
+      "lesson": "When testing React components that use MDXEditor (or similar CSS-injecting libraries), mock the entire module to avoid 'Failed to execute insertRule on CSSStyleSheet' errors. Provide mock implementations for all plugins the component uses.",
+      "category": "testing",
+      "addedBy": "US-047",
+      "addedAt": "2026-01-11T10:20:00Z"
+    },
+    {
+      "lesson": "For orchestrating complex multi-step UI flows (like diff approval), create a dedicated hook that manages state and coordinates multiple other hooks. Keep state minimal and derive computed values (like isActive) from core state.",
+      "category": "patterns",
+      "addedBy": "US-047",
+      "addedAt": "2026-01-11T10:20:00Z"
+    },
+    {
+      "lesson": "For modal workflows that involve API calls (like split preview), use a dedicated hook that manages both UI state (isOpen, isLoading) and data (previewFiles). This keeps the parent component clean and makes the workflow easily reusable.",
+      "category": "patterns",
+      "addedBy": "US-049",
+      "addedAt": "2026-01-11T12:30:00Z"
+    },
+    {
+      "lesson": "When API endpoints need to both create files and update session state, do both in a single endpoint rather than requiring two API calls. This ensures atomicity and simplifies error handling for the frontend.",
+      "category": "api",
+      "addedBy": "US-049",
+      "addedAt": "2026-01-11T12:30:00Z"
+    },
+    {
+      "lesson": "For React components that conditionally show UI elements based on status, use a config lookup object (e.g., STATUS_LABELS) for mapping status values to display strings. Combine with simple isPending boolean for conditional rendering of action buttons.",
+      "category": "patterns",
+      "addedBy": "US-051",
+      "addedAt": "2026-01-11T12:48:00Z"
     }
   ]
 }

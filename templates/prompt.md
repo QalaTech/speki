@@ -140,16 +140,14 @@ Use these CLI commands for task operations (instead of editing prd.json directly
 
 8. **Code Simplification (MANDATORY):**
 
-   After tests pass, invoke the code-simplifier agent to review and refine your implementation:
+   After tests pass, spawn a sub-agent to simplify your implementation:
 
    ```
-   /code-simplifier:code-simplifier
+   Task tool:
+     subagent_type: "general-purpose"
+     description: "Simplify modified code"
+     prompt: "Read your instructions from .ralph/skills/code-simplifier.md and apply them to these files:\n- <list files you modified this iteration>"
    ```
-
-   **Purpose:**
-   - Simplifies and refines code for clarity, consistency, and maintainability
-   - Focuses on recently modified code
-   - Preserves all functionality while improving readability
 
    **After simplification:**
    - Review any changes made by the simplifier

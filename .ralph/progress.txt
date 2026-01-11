@@ -912,3 +912,429 @@
   - Tests: PASS (15/15 SpecEditor tests)
   - Commit: SUCCESS (dc1e688)
 ---
+
+## 2026-01-11 - US-037: Implement diff view utilities
+- What was implemented: Created diff-utils.ts module with utilities for entering/exiting diff mode, getting proposed content, and generating unified diffs
+- Files changed:
+  - web/src/lib/mdx-editor/diff-utils.ts (new, 195 lines)
+  - web/src/lib/mdx-editor/__tests__/diff-utils.test.ts (new, 211 lines)
+  - web/package.json (modified - added diff library)
+  - web/package-lock.json (updated)
+- Tests implemented:
+  - showDiff_EntersDiffMode (3 tests) - PASS
+  - exitDiffView_ExitsDiffMode (2 tests) - PASS
+  - exitDiffView_AppliesChangesWhenTrue (2 tests) - PASS
+  - getProposedContent_ReturnsEditedContent (3 tests) - PASS
+  - createUnifiedDiff_GeneratesDiff (5 tests) - PASS
+  - createInitialDiffState (1 test) - PASS
+  - hasDifferences (3 tests) - PASS
+  - countDiffChanges (3 tests) - PASS
+- **Learnings:**
+  - MDXEditor diff mode is controlled via diffSourcePlugin with viewMode and diffMarkdown configuration
+  - Used 'diff' library for unified diff generation (createTwoFilesPatch function)
+  - DiffViewState pattern: store diff state separately since MDXEditor's view mode needs to be set via plugin configuration at render time
+  - getProposedContent uses optional chaining for concise null handling: editorRef.current?.getMarkdown() ?? null
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (22/22 diff-utils tests)
+  - Commit: SUCCESS (2df28af)
+---
+
+## 2026-01-11 - US-036: Implement Lexical utilities for scroll and highlight
+- What was implemented: Created lexical-utils.ts module with utilities for scrolling to sections, highlighting text, and finding/selecting content within the MDXEditor
+- Files changed:
+  - web/src/lib/mdx-editor/lexical-utils.ts (new, 281 lines)
+  - web/src/lib/mdx-editor/__tests__/lexical-utils.test.ts (new, 495 lines)
+- Tests implemented:
+  - scrollToSection_ScrollsToHeading (3 tests) - PASS
+  - scrollToLine (3 tests) - PASS
+  - highlightText_AppliesHighlight (3 tests) - PASS
+  - highlightText_FadesAfterDuration (2 tests) - PASS
+  - findNodeByText_FindsNode (3 tests) - PASS
+  - getSelectedText_ReturnsSelection (3 tests) - PASS
+  - selectText (2 tests) - PASS
+- **Learnings:**
+  - Lexical editor API uses context functions ($getRoot, $getSelection, $isTextNode, $isElementNode) that must be called within editor.read() or editor.update() callbacks
+  - MDXEditor wraps Lexical - utilities work with the underlying LexicalEditor instance
+  - For mocking Lexical in tests, set up global context variables that the mock $getRoot and $getSelection return
+  - TypeScript type narrowing across closures with mutable variables requires storing in a const after the null check
+  - highlightText uses findNodeByText internally, avoiding code duplication from calling it outside the editor.read() context
+  - getAllTextNodes uses flatMap with recursive call for cleaner code vs imperative approach
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (19/19 lexical-utils tests)
+  - Commit: SUCCESS (52c9a0d)
+---
+
+## 2026-01-11 - US-038: Create ReviewPanel component
+- What was implemented: Created ReviewPanel.tsx component for the spec review dashboard right panel
+- Files changed:
+  - web/src/components/ReviewPanel.tsx (new, 150 lines)
+  - web/src/components/ReviewPanel.css (new, 163 lines)
+  - web/src/components/__tests__/ReviewPanel.test.tsx (new, 225 lines)
+- Tests implemented:
+  - ReviewPanel_RendersContainer (3 tests) - PASS
+  - ReviewPanel_DisplaysVerdict (5 tests) - PASS
+  - ReviewPanel_ContainsSuggestionArea (6 tests) - PASS
+  - ReviewPanel_ContainsChatArea (7 tests) - PASS
+- **Learnings:**
+  - For verdict display, use switch statements with explicit return types for clarity - cleaner than Record lookup when mapping to CSS classes
+  - Downstream components (SuggestionCard, ReviewChat, GodSpecWarning) will plug into the placeholder areas
+  - Chat input uses Enter to submit, Shift+Enter for multiline - a common UX pattern
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (21/21 ReviewPanel tests)
+  - Commit: SUCCESS (0b5de2f)
+---
+
+## 2026-01-11 - US-039: Create SuggestionCard component
+- What was implemented: Created SuggestionCard.tsx component for displaying individual spec review suggestions with severity indicators and action buttons
+- Files changed:
+  - web/src/components/SuggestionCard.tsx (new, 87 lines)
+  - web/src/components/SuggestionCard.css (new, 156 lines)
+  - web/src/components/__tests__/SuggestionCard.test.tsx (new, 120 lines)
+- Tests implemented:
+  - SuggestionCard_DisplaysIssue (5 tests) - PASS
+  - SuggestionCard_ShowsSeverity (4 tests via it.each) - PASS
+  - SuggestionCard_ReviewDiffTriggersDiff (3 tests) - PASS
+  - SuggestionCard_ShowInEditorScrolls (3 tests) - PASS
+  - SuggestionCard_DismissRejects (3 tests) - PASS
+- **Learnings:**
+  - Use SEVERITY_CONFIG lookup object pattern instead of multiple switch statements for severity-to-class/label mapping - cleaner and more maintainable
+  - For optional callbacks on button clicks, use optional chaining directly in onClick: `onClick={() => onReviewDiff?.(id)}`
+  - Use it.each for parameterized tests when testing similar functionality across multiple values (e.g., severity levels)
+  - Code simplifier reduced component from 134 to 87 lines by using destructuring and config object patterns
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (18/18 SuggestionCard tests)
+  - Commit: SUCCESS (9ee4dce)
+---
+
+## 2026-01-11 - US-040: Create GodSpecWarning component
+- What was implemented: Created GodSpecWarning.tsx component that displays when a god spec is detected
+- Files changed:
+  - web/src/components/GodSpecWarning.tsx (new, 109 lines)
+  - web/src/components/GodSpecWarning.css (new, 186 lines)
+  - web/src/components/__tests__/GodSpecWarning.test.tsx (new, 197 lines)
+- Tests implemented:
+  - GodSpecWarning_DisplaysWarning (5 tests) - PASS
+  - GodSpecWarning_ShowsProposedSplit (6 tests) - PASS
+  - GodSpecWarning_AcceptCreatesSplits (4 tests) - PASS
+  - GodSpecWarning_SkipDismissesWithWarning (4 tests) - PASS
+  - GodSpecWarning_ModifyButton (4 bonus tests) - PASS
+- **Learnings:**
+  - Component files existed as untracked files - verified implementation against acceptance criteria
+  - Code simplifier improved hasProposal check using optional chaining: `(splitProposal?.proposedSpecs.length ?? 0) > 0`
+  - Use optional parameters in mock functions instead of default empty objects: `(overrides?: Partial<Type>)` vs `(overrides: Partial<Type> = {})`
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (23/23 GodSpecWarning tests)
+  - Commit: SUCCESS (34b8b5f)
+---
+
+## 2026-01-11 - US-041: Create ReviewChat component
+- What was implemented: Created ReviewChat.tsx component for the chat interface with full message history, input field, message sending, and selection context support
+- Files changed:
+  - web/src/components/ReviewChat.tsx (new, 124 lines)
+  - web/src/components/ReviewChat.css (new, 149 lines)
+  - web/src/components/__tests__/ReviewChat.test.tsx (new, 213 lines)
+  - web/src/components/GodSpecWarning.tsx (fix - TypeScript type narrowing for splitProposal)
+- Tests implemented:
+  - ReviewChat_DisplaysHistory (5 tests) - PASS
+  - ReviewChat_SendsMessages (7 tests) - PASS
+  - ReviewChat_DisplaysResponses (3 tests) - PASS
+  - ReviewChat_IncludesSelectionContext (5 tests) - PASS
+- **Learnings:**
+  - When using optional chaining with method calls in jsdom tests, use `?.scrollIntoView?.()` pattern since scrollIntoView may not exist in test environment
+  - For conditional rendering based on optional props with nested properties, TypeScript type narrowing requires explicit !== undefined checks in the JSX expression itself (not just a const)
+  - Fixed pre-existing TypeScript error in GodSpecWarning.tsx - changed `(splitProposal?.proposedSpecs.length ?? 0) > 0` to inline `splitProposal !== undefined && splitProposal.proposedSpecs.length > 0` for proper type narrowing
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (20/20 ReviewChat tests)
+  - Commit: SUCCESS (e4b7195)
+---
+
+## 2026-01-11 - US-042: Create ChangeHistory component
+- What was implemented: Created ChangeHistory.tsx component that displays all applied changes with Revert and Revert All buttons
+- Files changed:
+  - web/src/components/ChangeHistory.tsx (new, 104 lines)
+  - web/src/components/ChangeHistory.css (new, 124 lines)
+  - web/src/components/__tests__/ChangeHistory.test.tsx (new, 124 lines)
+- Tests implemented:
+  - ChangeHistory_DisplaysChanges (8 tests) - PASS
+  - ChangeHistory_RevertRestoresContent (5 tests) - PASS
+  - ChangeHistory_RevertAllRestoresOriginal (6 tests) - PASS
+- **Learnings:**
+  - For timestamp formatting, use Date.toLocaleString() with month/day/hour/minute options for readable short format
+  - Use .split('/').pop() ?? fallback pattern for concise last-element extraction from paths
+  - Filter unrevertedChanges early to simplify conditional rendering of Revert All button
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (19/19 ChangeHistory tests)
+  - Commit: SUCCESS (0e37f67)
+---
+
+## 2026-01-11 - US-043: Create useSpecReview hook for state management
+- What was implemented: Created useSpecReview.ts hook that manages spec review session state including suggestions, verdict, and review progress
+- Files changed:
+  - web/src/hooks/useSpecReview.ts (new, 232 lines)
+  - web/src/hooks/__tests__/useSpecReview.test.ts (new, 245 lines)
+- Tests implemented:
+  - useSpecReview_InitializesState (6 tests) - PASS
+  - useSpecReview_StartReviewLoads (5 tests) - PASS
+  - useSpecReview_TracksSuggestions (4 tests) - PASS
+  - useSpecReview_TracksVerdict (4 tests) - PASS
+- **Learnings:**
+  - For React hooks with API polling, use useCallback with empty deps array to prevent unnecessary re-renders
+  - Poll interval can be managed with a simple for loop and await Promise to avoid recursive setTimeout patterns
+  - Use optional chaining with nullish coalescing for extracting data from multiple possible response structures
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (19/19 useSpecReview tests)
+  - Commit: SUCCESS (656500f)
+---
+
+## 2026-01-11 - US-044: Create useSpecEditor hook for editor state
+- What was implemented: Created useSpecEditor.ts hook that manages MDXEditor state including content, selection, and editor ref for programmatic control
+- Files changed:
+  - web/src/hooks/useSpecEditor.ts (new, 200 lines)
+  - web/src/hooks/__tests__/useSpecEditor.test.ts (new, 221 lines)
+- Tests implemented:
+  - useSpecEditor_ProvidesRef (3 tests) - PASS
+  - useSpecEditor_TracksContent (6 tests) - PASS
+  - useSpecEditor_ProvidesSelection (3 tests) - PASS
+  - useSpecEditor_ProvideDiffFunctions (11 tests) - PASS
+- **Learnings:**
+  - For React refs with null initial value and strict typing, use type assertion `as React.RefObject<T>` to satisfy functions expecting non-null RefObjects
+  - Use ternary operators for simple null-guard-then-call patterns to reduce boilerplate
+  - MDXEditor's internal Lexical editor can be accessed via getEditorMethods() for advanced operations like selection tracking
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (via build)
+  - Tests: PASS (23/23 useSpecEditor tests)
+  - Commit: SUCCESS (30e94c8)
+---
+
+## 2026-01-11 - US-045: Create useSession hook for session state
+- What was implemented: Created useSession.ts hook that manages loading/saving session files, detecting external spec changes via content hash, and providing session state to components
+- Files changed:
+  - web/src/hooks/useSession.ts (new, 323 lines)
+  - web/src/hooks/__tests__/useSession.test.ts (new, 420 lines)
+- Tests implemented:
+  - useSession_LoadsExistingSession (4 tests) - PASS
+  - useSession_CreatesNewSession (3 tests) - PASS
+  - useSession_DetectsExternalChanges (4 tests) - PASS
+  - useSession_AutoSaves (4 tests) - PASS
+- **Learnings:**
+  - Use crypto.subtle.digest for browser-native SHA-256 hashing (not Node.js crypto module)
+  - For mocking crypto.subtle in vitest, use vi.spyOn(crypto.subtle, 'digest') - don't try to reassign global.crypto
+  - Consolidate duplicate code paths (like creating new session on !sessionResponse.ok vs !data.session) with ternary
+  - Auto-save debouncing with useRef for timer and pendingChanges tracking
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (via build)
+  - Tests: PASS (15/15 useSession tests)
+  - Commit: SUCCESS (94b13f0)
+---
+
+## 2026-01-11 - US-046: Create useAgentFeedback hook for agent feedback
+- What was implemented: Created useAgentFeedback.ts hook that handles sending approval, rejection, and edit feedback to the agent via the feedback API
+- Files changed:
+  - web/src/hooks/useAgentFeedback.ts (new, 169 lines)
+  - web/src/hooks/__tests__/useAgentFeedback.test.ts (new, 266 lines)
+- Tests implemented:
+  - useAgentFeedback_SendsApproval (3 tests) - PASS
+  - useAgentFeedback_SendsRejection (3 tests) - PASS
+  - useAgentFeedback_SendsEdit (3 tests) - PASS
+  - useAgentFeedback_TracksState (6 tests) - PASS
+- **Learnings:**
+  - Extract shared API call logic into a private sendFeedback helper to reduce code duplication across public methods
+  - FeedbackPayload interface captures the common shape needed by all feedback types (sessionId, suggestionId, action, optional userVersion)
+  - buildApiUrl pattern reused from useSession hook for consistent project path handling
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (via build)
+  - Tests: PASS (15/15 useAgentFeedback tests)
+  - Commit: SUCCESS (589ced2)
+---
+
+## 2026-01-11 - US-047: Implement diff view approval flow in dashboard
+- What was implemented: Created DiffApprovalBar component and useDiffApproval hook to orchestrate the full diff approval flow in SpecReviewPage
+- Files changed:
+  - web/src/components/DiffApprovalBar.tsx (new, 94 lines)
+  - web/src/components/DiffApprovalBar.css (new, 142 lines)
+  - web/src/hooks/useDiffApproval.ts (new, 315 lines)
+  - web/src/components/SpecReviewPage.tsx (modified, +244 lines)
+  - web/src/components/SpecReviewPage.css (modified, +69 lines)
+  - web/src/components/__tests__/DiffApprovalBar.test.tsx (new, 175 lines)
+  - web/src/hooks/__tests__/useDiffApproval.test.ts (new, 315 lines)
+  - web/src/components/__tests__/SpecReviewPage.test.tsx (modified)
+- Tests implemented:
+  - diffApproval_ShowsSideBySide (3 tests) - PASS
+  - diffApproval_ApproveAppliesChange (3 tests) - PASS
+  - diffApproval_RejectDiscards (2 tests) - PASS
+  - diffApproval_EditAllowsModification (3 tests) - PASS
+  - diffApproval_SendsFeedback (2 tests) - PASS
+  - Plus 11 tests for DiffApprovalBar component, 11 tests for SpecReviewPage
+- **Learnings:**
+  - useDiffApproval hook coordinates between SpecEditor, useAgentFeedback, and file saving
+  - HIGHLIGHT_DURATION_MS constant (2000ms) for change highlighting after approval
+  - applyFix function uses line-based replacement when lineStart is available, fallback to text snippet replacement
+  - Mock MDXEditor in tests to avoid CSS parsing issues from @stitches/core
+  - Pass editorActions as parameter to hook methods instead of storing ref internally for better testability
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (via build)
+  - Tests: PASS (36/36 in affected test files)
+  - Commit: SUCCESS (28ddd4d)
+---
+
+## 2026-01-11 - US-048: Implement batch suggestion navigation
+- What was implemented: BatchNavigation component for navigating through multiple suggestions with Previous/Next buttons, counter, and Approve All/Reject All actions
+- Files changed:
+  - web/src/components/BatchNavigation.tsx (new, 97 lines)
+  - web/src/components/BatchNavigation.css (new, 82 lines)
+  - web/src/components/__tests__/BatchNavigation.test.tsx (new, 166 lines)
+  - web/src/components/SpecReviewPage.tsx (modified, +109 lines - added batch navigation integration)
+- Tests implemented:
+  - batchNav_NavigatesPreviousNext (5 tests) - PASS
+  - batchNav_ShowsCounter (3 tests) - PASS
+  - batchNav_ApproveAllAppliesAll (3 tests) - PASS
+  - batchNav_RejectAllRejectsAll (3 tests) - PASS
+  - Edge cases (2 tests) - PASS
+- **Learnings:**
+  - BatchNavigation uses pendingSuggestions array and currentIndex state for navigation
+  - Approve All/Reject All send feedback for each suggestion sequentially using useAgentFeedback hook
+  - Navigation handler (handleBatchNavigate) enters diff mode for the selected suggestion automatically
+  - Use isBatchProcessing state to disable controls during batch operations
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (via build)
+  - Tests: PASS (16/16 BatchNavigation tests, 11/11 SpecReviewPage tests)
+  - Commit: SUCCESS (19b0627)
+---
+
+## 2026-01-11 - US-049: Implement split preview and save flow in dashboard
+- What was implemented: SplitPreviewModal component with file preview/editing, useSplitPreview hook for state management, and API endpoints for preview content generation and file execution
+- Files changed:
+  - web/src/components/SplitPreviewModal.tsx (new, 150 lines)
+  - web/src/components/SplitPreviewModal.css (new, 156 lines)
+  - web/src/components/__tests__/SplitPreviewModal.test.tsx (new, 195 lines)
+  - web/src/hooks/useSplitPreview.ts (new, 164 lines)
+  - web/src/hooks/__tests__/useSplitPreview.test.ts (new, 223 lines)
+  - web/src/components/SpecReviewPage.tsx (modified, +55 lines - integrated GodSpecWarning and SplitPreviewModal)
+  - src/server/routes/spec-review.ts (modified, +115 lines - added preview-content and execute endpoints)
+  - src/server/__tests__/spec-review.routes.test.ts (modified, +145 lines - added tests for new endpoints)
+  - src/core/spec-review/splitter.ts (modified - exported buildSplitContent and related functions)
+  - src/types/index.ts (modified - added godSpecIndicators to SpecReviewResult)
+- Tests implemented:
+  - splitPreview_ShowsAllFiles (5 tests) - PASS
+  - splitPreview_AllowsEditing (4 tests) - PASS
+  - splitPreview_SaveAllWritesFiles (3 tests) - PASS
+  - splitPreview_CancelDoesNotSave (3 tests) - PASS
+  - splitPreview_UpdatesParentSession (3 tests) - PASS
+  - useSplitPreview hook tests (10 tests) - PASS
+  - API route tests (3 tests) - PASS
+- **Learnings:**
+  - Split preview requires generating content using buildSplitContent before showing to user
+  - The execute endpoint writes files and updates session.splitSpecs in a single API call
+  - Modal maintains local state for edits; changes are only saved when Save All is clicked
+  - GodSpecWarning integrates with splitPreview hook via onAcceptSplit callback
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (via build)
+  - Tests: PASS (28/28 new tests, 24/24 routes tests)
+  - Commit: SUCCESS (4ed429e)
+---
+
+## 2026-01-11 - US-050: Implement selection-based chat in dashboard
+- What was implemented: Selection tracking in useSpecEditor hook with integration into ReviewChat component for context-aware agent feedback
+- Files changed:
+  - web/src/hooks/useSpecEditor.ts (modified, +16 lines - added selectedText state, updateSelection, clearSelection)
+  - web/src/hooks/__tests__/useSpecEditor.test.ts (modified, +38 lines - added 4 selection tests)
+  - web/src/components/SpecReviewPage.tsx (modified, +71 lines - integrated ReviewChat, added selection handlers and chat state)
+  - web/src/components/SpecReviewPage.css (modified, +16 lines - added review-chat-section styles)
+  - src/server/routes/spec-review.ts (modified, +9 lines - added selectedText handling to chat endpoint)
+  - src/server/__tests__/spec-review.routes.test.ts (modified, +80 lines - added 3 selection context tests)
+- Tests implemented:
+  - selectionChat_CapturesSelection: useSpecEditor updateSelection captures text from Lexical - PASS
+  - selectionChat_IncludesInMessage: ReviewChat passes selectedText to onSendMessage callback - PASS (existing test)
+  - selectionChat_AgentReceivesContext: Chat API formats selection as "[Selection: ...]" prefix - PASS
+  - Additional tests for clearSelection, empty selection, whitespace-only selection - PASS
+- **Learnings:**
+  - Selection tracking requires reactive state (selectedText) vs on-demand getter (getSelection) for UI updates
+  - Use mouseUp event on editor container to capture selection changes after selection completes
+  - Delayed blur handler (100ms) allows clicking on chat input without clearing selection
+  - Chat API formats selection context as prefix: `[Selection: "..."]` followed by the user's question
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (via build)
+  - Tests: PASS (27/27 useSpecEditor tests, 20/20 ReviewChat tests, 27/27 spec-review routes tests)
+  - Commit: SUCCESS (235822a)
+---
+
+## 2026-01-11 - US-051: Implement live spec updates after approval
+- What was implemented: Enhanced SuggestionCard to display status badge when suggestion is approved/rejected/edited, hiding action buttons for completed suggestions
+- Files changed:
+  - web/src/components/SuggestionCard.tsx (modified - added status display, STATUS_LABELS const, conditional rendering)
+  - web/src/components/SuggestionCard.css (modified - added status badge and completed card styling)
+  - web/src/components/__tests__/SuggestionCard.test.tsx (modified - added liveUpdate_UpdatesCardStatus tests)
+  - web/src/hooks/__tests__/useDiffApproval.test.ts (modified - added liveUpdate_UpdatesContent, liveUpdate_ScrollsToChange, liveUpdate_HighlightsFades tests)
+- Tests implemented:
+  - liveUpdate_UpdatesContent - should update editor content immediately after approval - PASS
+  - liveUpdate_UpdatesContent - should apply the suggested fix to the content - PASS
+  - liveUpdate_ScrollsToChange - should scroll to change location when highlighting - PASS
+  - liveUpdate_ScrollsToChange - should pass location info when entering diff mode - PASS
+  - liveUpdate_HighlightsFades - should highlight the changed section for 2 seconds - PASS
+  - liveUpdate_HighlightsFades - should highlight user-edited content after edit approval - PASS
+  - liveUpdate_UpdatesCardStatus - should display approved badge when status is approved - PASS
+  - liveUpdate_UpdatesCardStatus - should display rejected badge when status is rejected - PASS
+  - liveUpdate_UpdatesCardStatus - should display edited badge when status is edited - PASS
+  - liveUpdate_UpdatesCardStatus - should not display status badge when status is pending - PASS
+  - liveUpdate_UpdatesCardStatus - should hide action buttons when status is not pending - PASS
+  - liveUpdate_UpdatesCardStatus - should show action buttons when status is pending - PASS
+  - liveUpdate_UpdatesCardStatus - should apply status class to card when not pending - PASS
+- **Learnings:**
+  - The live update functionality was already implemented in useDiffApproval.approve() - it calls editorActions.exitDiffMode(true), saves the file, and calls editorActions.highlight() with HIGHLIGHT_DURATION_MS (2000ms)
+  - highlightText in lexical-utils.ts already calls scrollIntoView for scroll behavior
+  - Code simplifier correctly identified nested ternary in location string construction and replaced with if/else chain
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (via build)
+  - Tests: PASS (45/45 SuggestionCard + useDiffApproval tests)
+  - Commit: SUCCESS (7745e4a)
+---
+
+## 2026-01-11 - US-052: Implement split spec navigation in dashboard
+- What was implemented: Navigation banners for parent/child specs from splits - parent shows "Split into X specs" with links, child shows "Split from: {parent}" link
+- Files changed:
+  - src/types/index.ts (modified - added parentSpecPath field to SessionFile)
+  - src/server/routes/spec-review.ts (modified - create child sessions with parentSpecPath on split execute)
+  - web/src/components/SplitNavigation.tsx (new, 81 lines)
+  - web/src/components/SplitNavigation.css (new, 74 lines)
+  - web/src/components/__tests__/SplitNavigation.test.tsx (new, 143 lines)
+  - web/src/components/SpecReviewPage.tsx (modified - integrated SplitNavigation)
+- Tests implemented:
+  - splitNav_ParentShowsChildren - PASS (4 tests)
+  - splitNav_ChildShowsParent - PASS (3 tests)
+  - splitNav_LinksNavigate - PASS (3 tests)
+  - splitNav_SessionMaintained - PASS (3 tests)
+- **Learnings:**
+  - When child specs are created from a split, child sessions need to store parentSpecPath to enable navigation back
+  - Navigation handler resolves relative filenames (from child links) to full paths using parent directory
+  - SplitNavigation component returns null when neither parent nor children exist (conditional rendering)
+  - Code simplifier improved getFilenameFromPath from split().pop() to lastIndexOf+slice for efficiency
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (via build)
+  - Tests: PASS (13/13 SplitNavigation tests, 11/11 SpecReviewPage tests, 27/27 spec-review routes tests)
+  - Commit: SUCCESS (18f8c5c)
+---

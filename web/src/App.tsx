@@ -345,10 +345,11 @@ function App() {
 
   const handleStartRalph = async () => {
     try {
+      // Don't pass maxIterations - let server calculate based on remaining tasks + 20% buffer
       const res = await fetch(apiUrl('/api/ralph/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ maxIterations: 25 }),
+        body: JSON.stringify({}),
       });
       if (res.ok) {
         fetchData();

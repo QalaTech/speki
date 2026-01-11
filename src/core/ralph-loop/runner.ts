@@ -224,9 +224,8 @@ export async function runRalphLoop(
         };
       }
 
-      // Generate focused current task context (story is guaranteed to exist here after blocked/complete checks)
-      console.log(chalk.blue('Generating task context...'));
-      await project.generateCurrentTaskContext(nextInfo.story!);
+      // Note: Claude uses `qala tasks next` CLI to get task context (per prompt instructions)
+      // No need to generate currentTask.json file
 
       console.log(chalk.yellow('Starting Claude...'));
       console.log('');

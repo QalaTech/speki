@@ -12,6 +12,7 @@ import { activateCommand } from '../src/cli/commands/activate.js';
 import { unregisterCommand } from '../src/cli/commands/unregister.js';
 import { tasksCommand } from '../src/cli/commands/tasks.js';
 import { specCommand } from '../src/cli/commands/spec.js';
+import { updateCommand } from '../src/cli/commands/update.js';
 
 program
   .name('qala')
@@ -29,5 +30,6 @@ program.addCommand(activateCommand);
 program.addCommand(unregisterCommand);
 program.addCommand(tasksCommand);
 program.addCommand(specCommand);
+program.addCommand(updateCommand);
 
 program.parse();

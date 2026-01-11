@@ -9,6 +9,8 @@ import { projectContext } from '../middleware/project-context.js';
 import { Registry } from '../../core/registry.js';
 import { runRalphLoop } from '../../core/ralph-loop/runner.js';
 import { calculateLoopLimit } from '../../core/ralph-loop/loop-limit.js';
+import { loadGlobalSettings } from '../../core/settings.js';
+import { preventSleep, allowSleep } from '../../core/keep-awake.js';
 import type { RalphStatus } from '../../types/index.js';
 
 const router = Router();
@@ -118,6 +120,19 @@ router.post('/start', async (req, res) => {
       return res.status(400).json({ error: 'No PRD loaded. Run decompose first.' });
     }
 
+    // Check if keepAwake is enabled in global settings
+    const globalSettings = await loadGlobalSettings();
+    const keepAwakeEnabled = globalSettings.execution?.keepAwake ?? true;
+
+    if (keepAwakeEnabled) {
+      const awakeResult = preventSleep();
+      if (awakeResult.success) {
+        console.log(`[Ralph] Sleep prevention active (${awakeResult.method})`);
+      } else {
+        console.warn(`[Ralph] Sleep prevention unavailable: ${awakeResult.error}`);
+      }
+    }
+
     // Calculate loop limit based on incomplete task count + 20% buffer
     const incompleteTasks = prd.userStories.filter(s => !s.passes).length;
     const calculatedLimit = calculateLoopLimit(incompleteTasks);
@@ -183,6 +198,11 @@ router.post('/start', async (req, res) => {
       } finally {
         runningLoops.delete(projectPath);
         await Registry.updateStatus(projectPath, 'idle');
+        // Stop preventing sleep when loop ends
+        if (keepAwakeEnabled) {
+          allowSleep();
+          console.log('[Ralph] Sleep prevention stopped');
+        }
       }
     })();
 

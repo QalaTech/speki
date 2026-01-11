@@ -10,19 +10,39 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 - **API contracts for product-facing APIs are requirements** - if the product exposes a REST API, those contracts define the product surface and must be implemented exactly
 - **You own the implementation** - apply your judgment, follow best practices, and build maintainable code
 
+## Task Management Commands
+
+Use these CLI commands for task operations (instead of editing prd.json directly):
+
+| Command | Description |
+|---------|-------------|
+| `qala tasks next` | Get the next pending task with full context (project, dependencies, blocks) |
+| `qala tasks next --task-only` | Get just the task without context |
+| `qala tasks get <id>` | Get a specific task by ID |
+| `qala tasks complete <id>` | Mark a task as complete |
+| `qala tasks complete <id> --notes "..."` | Mark complete with notes |
+| `qala tasks deps <id>` | Show dependencies and their status |
+| `qala tasks list` | List all tasks |
+| `qala tasks list --pending` | List only pending tasks |
+
+---
+
 ## Your Task (Every Iteration)
 
-1. **Read current task context:**
+1. **Get current task:**
 
-   Read `.ralph/current-task.json` which contains:
+   Run `qala tasks next` to get the next task with full context:
+   ```bash
+   qala tasks next
+   ```
+
+   This returns JSON with:
    - `project` - project name and branch
    - `currentTask` - the task you must complete this iteration (full details)
    - `completedDependencies` - tasks this one depends on (already done)
    - `blocks` - downstream tasks waiting on this one
-   - `availableStandards` - standards files available in `.ralph/standards/`
-   - `progressFile` - path to progress file
-   - `prdFile` - path to PRD file (for marking task complete)
-   - `peerFeedbackFile` - path to peer feedback (if exists)
+
+   If all tasks are complete, it returns `{ "complete": true }`.
 
 2. **Read progress file:**
 
@@ -30,7 +50,7 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 
 3. **Check branch:**
 
-   - Verify you're on the correct branch (see `project.branch` in current-task.json)
+   - Verify you're on the correct branch (see `project.branch` from step 1)
    - Create/switch if needed
 
 4. **Read and apply peer feedback:**
@@ -55,29 +75,13 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
    - Check `suggestions` for items where `forTask` matches your current task ID
    - Read `lessonsLearned` for relevant knowledge (filter by `category` if helpful)
 
-5. **Load language standards:**
-
-   Check `availableStandards` in current-task.json for available standards files.
-
-   **Determine the correct standards file based on the codebase:**
-
-   | Project Type | Indicator Files                     | Standards File               |
-   | ------------ | ----------------------------------- | ---------------------------- |
-   | .NET / C#    | `.csproj`, `.sln`, `.cs`            | `.ralph/standards/dotnet.md` |
-   | Python       | `pyproject.toml`, `setup.py`, `.py` | `.ralph/standards/python.md` |
-   | Node.js      | `package.json`, `.ts`, `.js`        | `.ralph/standards/nodejs.md` |
-   | Go           | `go.mod`, `.go`                     | `.ralph/standards/go.md`     |
-
-   **Read the appropriate standards file and follow ALL rules within it.**
-
-6. **Implement the current task:**
+5. **Implement the current task:**
 
    **Use Serena MCP tools** for code editing and navigation. Serena provides powerful semantic tools for finding symbols, editing code, and understanding the codebase structure. Prefer Serena tools over basic file operations when working with code.
 
-   The task to implement is in `currentTask` from current-task.json.
+   The task to implement is in `currentTask` from step 1.
 
    - Focus only on the acceptance criteria in `currentTask.acceptanceCriteria`
-   - Follow the language standards from step 5
    - **Implement all tests in `currentTask.testCases`** - these are mandatory
    - **Check `completedDependencies`** - these tasks are already done, you can build on their work
    - **Check `blocks`** - these tasks are waiting on you, consider their needs
@@ -103,7 +107,7 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
 
    - No shortcuts, no compromises
 
-7. **Implement Tests (MANDATORY):**
+6. **Implement Tests (MANDATORY):**
 
    Each story includes a `testCases` array specifying exact tests to write.
 
@@ -121,13 +125,12 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
    - Test one thing per test method
    - Include meaningful assertion messages where helpful
 
-8. **Verify (MANDATORY):**
+7. **Verify (MANDATORY):**
 
    **Run tests scoped to the project you modified:**
 
    - Only run tests relevant to the files changed
    - Do NOT run unrelated tests (e.g., don't run .NET tests for Python changes)
-   - Check the standards file for the correct test command
 
    **Rules:**
 
@@ -135,30 +138,28 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
    - **DO NOT PROCEED IF BUILD OR TESTS FAIL**
    - If no tests exist for the project, note this but continue
 
-9. **Code Simplification (MANDATORY):**
+8. **Code Simplification (MANDATORY):**
 
-   After tests pass, invoke the code-simplifier agent to review and refine your implementation:
+   After tests pass, spawn a sub-agent to simplify your implementation:
 
    ```
-   /code-simplifier:code-simplifier
+   Task tool:
+     subagent_type: "general-purpose"
+     description: "Simplify modified code"
+     prompt: "Read your instructions from .ralph/skills/code-simplifier.md and apply them to these files:\n- <list files you modified this iteration>"
    ```
-
-   **Purpose:**
-   - Simplifies and refines code for clarity, consistency, and maintainability
-   - Focuses on recently modified code
-   - Preserves all functionality while improving readability
 
    **After simplification:**
    - Review any changes made by the simplifier
    - Re-run tests to verify the simplifier's changes didn't break functionality
    - If tests fail after simplification, fix the issues before proceeding
 
-10. **Update AGENTS.md (if applicable):**
+9. **Update AGENTS.md (if applicable):**
 
 - If you discovered reusable patterns, update relevant AGENTS.md files
 - Only add things worth preserving (gotchas, conventions, dependencies)
 
-11. **Commit (MUST SUCCEED BEFORE MARKING COMPLETE):**
+10. **Commit (MUST SUCCEED BEFORE MARKING COMPLETE):**
 
     Create a git commit with all implementation changes:
     - Format: `feat: [ID] - [Title]`
@@ -167,23 +168,30 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
     - If commit fails (pre-commit hooks, etc.), fix the issue and retry
     - **DO NOT mark the task complete if the commit failed**
 
-12. **Update prd.json (ONLY AFTER SUCCESSFUL COMMIT):**
+11. **Mark task complete (ONLY AFTER SUCCESSFUL COMMIT):**
 
     **CRITICAL:** Only perform this step if step 11 succeeded.
 
-    Update the PRD file (path in `prdFile` from current-task.json):
-    - Find the story matching `currentTask.id`
-    - Set `passes: true` for the completed story
-    - Add any notes if relevant
+    Run this command to mark the task complete:
+    ```bash
+    qala tasks complete <currentTask.id>
+    ```
 
-    **If the commit in step 11 failed, do NOT update prd.json. Fix the commit first.**
+    Optionally add notes:
+    ```bash
+    qala tasks complete <currentTask.id> --notes "Implementation notes here"
+    ```
 
-13. **Update progress.txt:**
+    **Do NOT edit prd.json directly.** Use the `qala tasks` commands.
+
+    **If the commit in step 11 failed, do NOT mark the task complete. Fix the commit first.**
+
+12. **Update progress.txt:**
 
     - APPEND your learnings at the bottom
     - Add any new patterns to the TOP (Codebase Patterns section)
 
-14. **Update peer feedback:**
+13. **Update peer feedback:**
 
     Update `.ralph/peer_feedback.json` to maintain the knowledge base:
 
@@ -215,32 +223,6 @@ You are the technical decision-maker. The PRD defines **WHAT** the product needs
     - Only add to `lessonsLearned` for genuinely reusable insights
     - Keep lessons concise but specific
     - Always include `addedBy` (your task ID) and `addedAt` (ISO timestamp)
-
-15. **Improve standards (if applicable):**
-
-    After completing a story, review the standards file you used (`.ralph/standards/{language}.md`).
-
-    **Update the standards file if you discovered:**
-
-    - A better pattern than what's documented
-    - A missing rule that would have helped
-    - A gotcha or pitfall worth warning about
-    - A useful code example
-    - A correction to existing guidance
-
-    **Rules for updating standards:**
-
-    - Only add patterns you actually used and verified work
-    - Keep it concise - standards should be scannable
-    - Include code examples where helpful
-    - Add to the appropriate section (or create a new one)
-    - Note: Standards are meant to evolve - don't hesitate to improve them
-
-    **Do NOT update standards for:**
-
-    - Project-specific quirks (those go in progress.txt or AGENTS.md)
-    - Temporary workarounds
-    - Unverified ideas
 
 ---
 
@@ -315,9 +297,8 @@ After completing the current task, check if ALL stories in prd.json have `passes
 
 ## Critical Reminders
 
-- Complete the **current task** from `currentTask` in current-task.json
+- Complete the **current task** from `qala tasks next`
 - **READ peer_feedback.json** at start - check for blocking issues and relevant suggestions
-- **READ the appropriate standards file** from `availableStandards` before implementing
 - **IMPLEMENT ALL tests in `currentTask.testCases`** - this is mandatory
 - **CLEANUP stub/temp code** from dependency stories when implementing the real solution
 - **ALWAYS** run tests (scoped to project) before committing
@@ -327,5 +308,4 @@ After completing the current task, check if ALL stories in prd.json have `passes
 - Check progress.txt patterns BEFORE starting implementation
 - **COMMIT MUST SUCCEED** before marking task complete in prd.json - never mark complete if commit failed
 - **UPDATE peer_feedback.json** - cleanup resolved items, add new insights to lessonsLearned
-- **UPDATE standards** if you discover better patterns (standards should evolve!)
 - If stuck, document the blocker in progress.txt AND add to peer_feedback.json blocking

@@ -209,6 +209,101 @@ export class Project {
     }
   }
 
+  /**
+   * Update template files from the package templates.
+   * Only updates: prompt.md, decompose-prompt.md, standards/*.md
+   * Does NOT touch: config.json, prd.json, progress.txt, peer_feedback.json, logs/, tasks/
+   *
+   * @returns List of files that were updated
+   */
+  async updateTemplates(): Promise<string[]> {
+    const updated: string[] = [];
+
+    // Get the templates directory
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+
+    const possiblePaths = [
+      join(__dirname, '..', '..', '..', 'templates'),  // from dist/src/core
+      join(__dirname, '..', '..', 'templates'),        // from src/core (dev)
+    ];
+
+    let templatesDir: string | null = null;
+    for (const p of possiblePaths) {
+      try {
+        await access(p);
+        templatesDir = p;
+        break;
+      } catch {
+        // Try next path
+      }
+    }
+
+    if (!templatesDir) {
+      throw new Error('Templates directory not found');
+    }
+
+    // Update prompt.md
+    try {
+      const promptSrc = join(templatesDir, 'prompt.md');
+      await access(promptSrc);
+      await copyFile(promptSrc, this.promptPath);
+      updated.push('prompt.md');
+    } catch {
+      // Template doesn't exist
+    }
+
+    // Update decompose-prompt.md
+    try {
+      const decomposePromptSrc = join(templatesDir, 'decompose-prompt.md');
+      await access(decomposePromptSrc);
+      await copyFile(decomposePromptSrc, this.decomposePromptPath);
+      updated.push('decompose-prompt.md');
+    } catch {
+      // Template doesn't exist
+    }
+
+    // Update standards files
+    try {
+      const standardsSrcDir = join(templatesDir, 'standards');
+      await access(standardsSrcDir);
+      const files = await readdir(standardsSrcDir);
+      for (const file of files) {
+        if (file.endsWith('.md')) {
+          await copyFile(
+            join(standardsSrcDir, file),
+            join(this.standardsDir, file)
+          );
+          updated.push(`standards/${file}`);
+        }
+      }
+    } catch {
+      // Standards directory doesn't exist
+    }
+
+    // Update skills files if they exist
+    try {
+      const skillsSrcDir = join(templatesDir, 'skills');
+      await access(skillsSrcDir);
+      const skillsDestDir = join(this.ralphDir, 'skills');
+      await mkdir(skillsDestDir, { recursive: true });
+      const files = await readdir(skillsSrcDir);
+      for (const file of files) {
+        if (file.endsWith('.md')) {
+          await copyFile(
+            join(skillsSrcDir, file),
+            join(skillsDestDir, file)
+          );
+          updated.push(`skills/${file}`);
+        }
+      }
+    } catch {
+      // Skills directory doesn't exist
+    }
+
+    return updated;
+  }
+
   // Config operations
   async loadConfig(): Promise<ProjectConfig> {
     const content = await readFile(this.configPath, 'utf-8');
