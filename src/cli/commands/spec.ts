@@ -10,7 +10,15 @@ import { checkCliAvailable } from '../../core/cli-path.js';
 import { findProjectRoot } from '../../core/project.js';
 import { runSpecReview } from '../../core/spec-review/runner.js';
 import { executeSplit } from '../../core/spec-review/splitter.js';
-import type { CliType, SplitProposal, SpecReviewResult, TimeoutInfo } from '../../types/index.js';
+import type { CliType, SpecReviewVerdict, SplitProposal, SpecReviewResult, TimeoutInfo } from '../../types/index.js';
+
+/**
+ * Returns the appropriate exit code for a spec review verdict.
+ * Exit codes: 0 = PASS, 1 = FAIL/NEEDS_IMPROVEMENT/SPLIT_RECOMMENDED
+ */
+export function getExitCodeForVerdict(verdict: SpecReviewVerdict): number {
+  return verdict === 'PASS' ? 0 : 1;
+}
 
 export interface SpecFileValidationResult {
   valid: boolean;
@@ -372,7 +380,7 @@ specCommand
         const specFiles = await findSpecFiles(projectPath);
         if (specFiles.length === 0) {
           console.error(chalk.red('No markdown files found in specs/, docs/, .ralph/specs/, or current directory'));
-          process.exit(1);
+          process.exit(2);
         }
 
         resolvedSpecFile = await showFilePicker(specFiles, projectPath);
@@ -382,7 +390,7 @@ specCommand
         const validation = validateSpecFile(resolvedSpecFile);
         if (!validation.valid) {
           console.error(chalk.red(`Error: ${validation.error}`));
-          process.exit(1);
+          process.exit(2);
         }
       }
 
@@ -392,7 +400,7 @@ specCommand
       if (!cliCheck.available) {
         console.error(chalk.red(`Error: ${cliCheck.error}`));
         console.error(chalk.yellow(`\n${cliCheck.installInstructions}`));
-        process.exit(1);
+        process.exit(2);
       }
 
       if (!options.json) {
@@ -410,7 +418,7 @@ specCommand
         onProgress,
       });
 
-      // Handle timeout case
+      // Handle timeout case - exit 2 for errors
       if (result.timeoutInfo) {
         if (options.json) {
           console.log(formatJsonOutput(result));
@@ -423,7 +431,7 @@ specCommand
             formatHumanOutput(result, resolvedSpecFile);
           }
         }
-        process.exit(1);
+        process.exit(2);
       }
 
       if (options.json) {
@@ -434,11 +442,11 @@ specCommand
         formatHumanOutput(result, resolvedSpecFile);
       }
 
-      if (result.verdict === 'FAIL') {
-        process.exit(1);
-      }
+      // Exit codes based on verdict:
+      // 0 = PASS, 1 = FAIL/NEEDS_IMPROVEMENT/SPLIT_RECOMMENDED
+      process.exit(getExitCodeForVerdict(result.verdict));
     } catch (error) {
       console.error(chalk.red('Error reviewing spec:'), error);
-      process.exit(1);
+      process.exit(2);
     }
   });

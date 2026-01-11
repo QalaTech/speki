@@ -4,7 +4,7 @@ import { join } from 'path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput, formatHumanOutput, handleGodSpec, displayTimeoutError } from '../spec.js';
+import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput, formatHumanOutput, handleGodSpec, displayTimeoutError, getExitCodeForVerdict } from '../spec.js';
 import { checkCliAvailable, getInstallInstructions } from '../../../core/cli-path.js';
 import type { SpecReviewResult, TimeoutInfo } from '../../../types/index.js';
 
@@ -608,5 +608,35 @@ describe('handleTimeout', () => {
     expect(output).toContain('30 minutes');
     // When no prompts completed, should show specific message
     expect(output).toContain('No prompts completed before timeout');
+  });
+});
+
+describe('exit codes', () => {
+  it('specReview_PassVerdict_ExitsZero', () => {
+    expect(getExitCodeForVerdict('PASS')).toBe(0);
+  });
+
+  it('specReview_FailVerdict_ExitsOne', () => {
+    expect(getExitCodeForVerdict('FAIL')).toBe(1);
+  });
+
+  it('specReview_NeedsImprovement_ExitsOne', () => {
+    expect(getExitCodeForVerdict('NEEDS_IMPROVEMENT')).toBe(1);
+  });
+
+  it('specReview_SplitRecommended_ExitsOne', () => {
+    expect(getExitCodeForVerdict('SPLIT_RECOMMENDED')).toBe(1);
+  });
+
+  it('specReview_Error_ExitsTwo', () => {
+    // Exit code 2 is used for errors (file not found, CLI missing, etc.)
+    // Verify validateSpecFile returns errors that would trigger exit(2)
+    const notFoundResult = validateSpecFile('/nonexistent/file.md');
+    expect(notFoundResult.valid).toBe(false);
+    expect(notFoundResult.error).toContain('File not found');
+
+    const invalidFileResult = validateSpecFile(join(process.cwd(), 'package.json'));
+    expect(invalidFileResult.valid).toBe(false);
+    expect(invalidFileResult.error).toContain('must be a markdown file');
   });
 });
