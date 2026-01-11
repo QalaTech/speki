@@ -6,6 +6,7 @@ import { editor, select } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
+import { checkCliAvailable } from '../../core/cli-path.js';
 import { findProjectRoot } from '../../core/project.js';
 import { runSpecReview } from '../../core/spec-review/runner.js';
 import { executeSplit } from '../../core/spec-review/splitter.js';
@@ -352,6 +353,15 @@ specCommand
         }
       }
 
+      // Check CLI availability before running review
+      const cli: CliType = options.cli ?? 'claude';
+      const cliCheck = checkCliAvailable(cli);
+      if (!cliCheck.available) {
+        console.error(chalk.red(`Error: ${cliCheck.error}`));
+        console.error(chalk.yellow(`\n${cliCheck.installInstructions}`));
+        process.exit(1);
+      }
+
       if (!options.json) {
         console.log(chalk.blue(`Reviewing spec: ${resolvedSpecFile}`));
       }
@@ -363,7 +373,7 @@ specCommand
       const result = await runSpecReview(resolvedSpecFile, {
         cwd: projectPath,
         timeoutMs: options.timeout,
-        cli: options.cli,
+        cli,
         onProgress,
       });
 

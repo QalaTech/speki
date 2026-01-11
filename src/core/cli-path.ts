@@ -122,8 +122,54 @@ export function clearCliPathCache(): void {
 export function isCliAvailable(cli: CliType): boolean {
   const path = resolveCliPath(cli);
   // If path equals cli name, it wasn't resolved (not found)
-  if (path === cli) {
-    return false;
+  // Resolution methods already verified the path exists
+  return path !== cli;
+}
+
+/**
+ * Installation instructions for CLI tools.
+ */
+const INSTALL_INSTRUCTIONS: Record<CliType, string> = {
+  claude: `To install Claude CLI:
+  npm install -g @anthropic-ai/claude-cli
+
+  For more information: https://docs.anthropic.com/claude-code/cli`,
+  codex: `To install Codex CLI:
+  npm install -g @openai/codex
+
+  For more information: https://github.com/openai/codex`,
+};
+
+/**
+ * Get installation instructions for a CLI tool.
+ * @param cli - The CLI type
+ * @returns Installation instructions string
+ */
+export function getInstallInstructions(cli: CliType): string {
+  return INSTALL_INSTRUCTIONS[cli];
+}
+
+export interface CliAvailabilityResult {
+  available: boolean;
+  cli: CliType;
+  error?: string;
+  installInstructions?: string;
+}
+
+/**
+ * Check if a CLI is available and provide error details if not.
+ * @param cli - The CLI to check
+ * @returns Result object with availability status and error details
+ */
+export function checkCliAvailable(cli: CliType): CliAvailabilityResult {
+  if (isCliAvailable(cli)) {
+    return { available: true, cli };
   }
-  return existsSync(path);
+
+  return {
+    available: false,
+    cli,
+    error: `${cli} CLI is not installed or not in PATH`,
+    installInstructions: getInstallInstructions(cli),
+  };
 }

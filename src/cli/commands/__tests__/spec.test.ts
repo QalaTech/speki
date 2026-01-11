@@ -5,6 +5,7 @@ import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput, formatHumanOutput, handleGodSpec } from '../spec.js';
+import { checkCliAvailable, getInstallInstructions } from '../../../core/cli-path.js';
 import type { SpecReviewResult } from '../../../types/index.js';
 
 vi.mock('@inquirer/prompts', () => ({
@@ -15,6 +16,14 @@ vi.mock('@inquirer/prompts', () => ({
 vi.mock('../../../core/spec-review/splitter.js', () => ({
   executeSplit: vi.fn(),
 }));
+
+vi.mock('../../../core/cli-path.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../core/cli-path.js')>();
+  return {
+    ...original,
+    checkCliAvailable: vi.fn(),
+  };
+});
 
 describe('spec review command', () => {
   let tempDir: string;
@@ -476,5 +485,53 @@ describe('handleGodSpec', () => {
     const output = consoleLogs.join('\n');
     expect(output).toContain('Continuing review without splitting');
     expect(output).toContain('may be too large');
+  });
+});
+
+describe('CLI availability check', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('runReview_WithMissingClaude_DisplaysInstallInstructions', () => {
+    // Test that checkCliAvailable returns proper error structure for claude
+    vi.mocked(checkCliAvailable).mockReturnValue({
+      available: false,
+      cli: 'claude',
+      error: 'claude CLI is not installed or not in PATH',
+      installInstructions: getInstallInstructions('claude'),
+    });
+
+    const result = checkCliAvailable('claude');
+
+    expect(result.available).toBe(false);
+    expect(result.error).toContain('claude');
+    expect(result.error).toContain('not installed');
+    expect(result.installInstructions).toContain('npm install');
+    expect(result.installInstructions).toContain('@anthropic-ai/claude-cli');
+    expect(result.installInstructions).toContain('anthropic.com');
+  });
+
+  it('runReview_WithMissingCodex_DisplaysInstallInstructions', () => {
+    // Test that checkCliAvailable returns proper error structure for codex
+    vi.mocked(checkCliAvailable).mockReturnValue({
+      available: false,
+      cli: 'codex',
+      error: 'codex CLI is not installed or not in PATH',
+      installInstructions: getInstallInstructions('codex'),
+    });
+
+    const result = checkCliAvailable('codex');
+
+    expect(result.available).toBe(false);
+    expect(result.error).toContain('codex');
+    expect(result.error).toContain('not installed');
+    expect(result.installInstructions).toContain('npm install');
+    expect(result.installInstructions).toContain('@openai/codex');
+    expect(result.installInstructions).toContain('github.com/openai');
   });
 });
