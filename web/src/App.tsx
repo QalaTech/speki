@@ -11,6 +11,7 @@ import { ProgressView } from './components/ProgressView';
 import { DecomposeView } from './components/DecomposeView';
 import { SettingsView } from './components/SettingsView';
 import { KnowledgeView } from './components/KnowledgeView';
+import { SpecReviewPage } from './components/SpecReviewPage';
 import './App.css';
 
 interface ProjectEntry {
@@ -542,6 +543,14 @@ function App() {
             }
           />
           <Route path="/settings" element={<SettingsView />} />
+          <Route
+            path="/spec-review"
+            element={
+              selectedProject ? (
+                <SpecReviewPage projectPath={selectedProject} />
+              ) : null
+            }
+          />
           <Route path="/execution" element={<Navigate to="/execution/live" replace />} />
           <Route path="/execution/live" element={<ExecutionView {...executionViewProps} />} />
           <Route path="/execution/kanban" element={<ExecutionView {...executionViewProps} />} />
