@@ -1,0 +1,150 @@
+.suggestion-card {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: #fff;
+  gap: 10px;
+}
+
+.suggestion-card.severity-critical {
+  border-left: 4px solid #dc3545;
+}
+
+.suggestion-card.severity-warning {
+  border-left: 4px solid #ffc107;
+}
+
+.suggestion-card.severity-info {
+  border-left: 4px solid #17a2b8;
+}
+
+.suggestion-card.severity-unknown {
+  border-left: 4px solid #6c757d;
+}
+
+.suggestion-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.severity-indicator {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.severity-indicator.severity-critical {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.severity-indicator.severity-warning {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.severity-indicator.severity-info {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+
+.severity-indicator.severity-unknown {
+  background-color: #e0e0e0;
+  color: #666;
+}
+
+.suggestion-location {
+  font-size: 12px;
+  color: #666;
+}
+
+.suggestion-issue {
+  font-size: 14px;
+  color: #333;
+  line-height: 1.5;
+}
+
+.suggestion-preview {
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.preview-label {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 4px;
+}
+
+.preview-content {
+  color: #212529;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.suggestion-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.action-button {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.action-button:hover {
+  background-color: #f5f5f5;
+  border-color: #ccc;
+}
+
+.action-button:focus {
+  outline: none;
+  border-color: #007acc;
+  box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+.review-diff-button {
+  background-color: #007acc;
+  border-color: #007acc;
+  color: #fff;
+}
+
+.review-diff-button:hover {
+  background-color: #006bb3;
+}
+
+.show-in-editor-button {
+  background-color: #f8f9fa;
+  color: #333;
+}
+
+.show-in-editor-button:hover {
+  background-color: #e9ecef;
+}
+
+.dismiss-button {
+  border-color: #dc3545;
+  color: #dc3545;
+}
+
+.dismiss-button:hover {
+  background-color: #f8d7da;
+}
