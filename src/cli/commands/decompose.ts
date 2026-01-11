@@ -14,7 +14,8 @@ export const decomposeCommand = new Command('decompose')
   .option('-o, --output <name>', 'Output filename (defaults to PRD filename + .json)')
   .option('-f, --fresh', 'Start from US-001 (ignore existing numbering)')
   .option('-r, --redecompose', 'Force re-decomposition even if draft exists')
-  .option('--review', 'Enable peer review (experimental)')
+  .option('--review', 'Enable peer review after decomposition')
+  .option('--timeout <ms>', 'Review timeout in milliseconds', parseInt)
   .action(async (prdFile, options) => {
     try {
       const projectPath = options.project || (await findProjectRoot()) || process.cwd();
@@ -44,6 +45,7 @@ export const decomposeCommand = new Command('decompose')
           freshStart: options.fresh,
           forceRedecompose: options.redecompose,
           enablePeerReview: options.review,
+          reviewTimeoutMs: options.timeout,
         });
 
         if (!result.success) {

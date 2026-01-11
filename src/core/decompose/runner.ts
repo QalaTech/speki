@@ -10,12 +10,14 @@ import { promises as fs } from 'fs';
 import { join, basename } from 'path';
 import chalk from 'chalk';
 import { Project } from '../project.js';
-import { parseStream, createConsoleCallbacks } from '../claude/stream-parser.js';
+import { parseStream } from '../claude/stream-parser.js';
 import { PassThrough } from 'stream';
-import { runPeerReview, ReviewFeedback } from './peer-review.js';
+import { runPeerReview } from './peer-review.js';
 import { loadGlobalSettings } from '../settings.js';
 import { resolveCliPath } from '../cli-path.js';
-import type { PRDData, DecomposeState } from '../../types/index.js';
+import { runDecomposeReview } from '../spec-review/runner.js';
+import { getReviewTimeout } from '../spec-review/timeout.js';
+import type { PRDData, DecomposeState, ReviewFeedback } from '../../types/index.js';
 
 export interface DecomposeOptions {
   /** Path to the PRD markdown file */
@@ -34,6 +36,8 @@ export interface DecomposeOptions {
   enablePeerReview?: boolean;
   /** Max peer review attempts */
   maxReviewAttempts?: number;
+  /** Review timeout in milliseconds (overrides default) */
+  reviewTimeoutMs?: number;
   /** Callback for progress updates */
   onProgress?: (state: DecomposeState) => void;
 }
@@ -129,20 +133,14 @@ async function getNextUSNumber(project: Project, freshStart: boolean): Promise<n
   }
 
   const prd = await project.loadPRD();
-  if (!prd || !prd.userStories || prd.userStories.length === 0) {
+  if (!prd?.userStories?.length) {
     return 1;
   }
 
-  let maxNum = 0;
-  for (const story of prd.userStories) {
+  const maxNum = prd.userStories.reduce((max, story) => {
     const match = story.id.match(/US-(\d+)/);
-    if (match) {
-      const num = parseInt(match[1], 10);
-      if (num > maxNum) {
-        maxNum = num;
-      }
-    }
-  }
+    return match ? Math.max(max, parseInt(match[1], 10)) : max;
+  }, 0);
 
   return maxNum + 1;
 }
@@ -191,13 +189,29 @@ function extractJson(output: string): PRDData | null {
 /**
  * Run Claude for decomposition (no tools, just JSON output)
  */
-async function runClaudeDecompose(
-  prompt: string,
-  cwd: string,
-  logPath: string
-): Promise<{ output: string; success: boolean }> {
+
+interface ClaudeStreamOptions {
+  prompt: string;
+  cwd: string;
+  logPath: string;
+  /** Echo output to stdout (default: false) */
+  echoOutput?: boolean;
+  /** Show tool calls (default: false) */
+  showToolCalls?: boolean;
+}
+
+interface ClaudeStreamResult {
+  output: string;
+  success: boolean;
+}
+
+/**
+ * Execute Claude CLI with a prompt and stream output
+ */
+async function runClaudeWithPrompt(options: ClaudeStreamOptions): Promise<ClaudeStreamResult> {
+  const { prompt, cwd, logPath, echoOutput = false, showToolCalls = false } = options;
+
   return new Promise((resolve) => {
-    // Resolve the Claude CLI path - handles cases where claude is an alias not in PATH
     const claudePath = resolveCliPath('claude');
 
     const claude = spawn(claudePath, [
@@ -205,7 +219,7 @@ async function runClaudeDecompose(
       '-p',
       '--verbose',
       '--output-format', 'stream-json',
-      '--tools', '',  // Disable all tools
+      '--tools', '',
     ], {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -222,32 +236,30 @@ async function runClaudeDecompose(
       parserStream.end();
     });
 
-    // Parse the stream to extract text
     parseStream(parserStream, {
       onText: (text) => {
         fullOutput += text;
-        process.stdout.write(text);
+        if (echoOutput) {
+          process.stdout.write(text);
+        }
       },
-      onToolCall: (name, detail) => {
-        console.log(`  🔧 ${name}: ${detail}`);
-      },
+      onToolCall: showToolCalls
+        ? (name, detail) => console.log(`  ${name}: ${detail}`)
+        : undefined,
     }).then(() => {
-      // Write output to log
       fs.writeFile(logPath, fullOutput).catch(() => {});
     });
 
-    // Send prompt
     claude.stdin.write(prompt);
     claude.stdin.end();
 
-    // Capture stderr
     let stderr = '';
     claude.stderr.on('data', (chunk: Buffer) => {
       stderr += chunk.toString();
     });
 
     claude.on('close', (code) => {
-      if (code !== 0 && code !== 141) {
+      if (echoOutput && code !== 0 && code !== 141) {
         console.error(chalk.red(`Claude exited with code ${code}`));
         if (stderr) console.error(stderr);
       }
@@ -257,12 +269,26 @@ async function runClaudeDecompose(
       });
     });
 
-    claude.on('error', (err) => {
+    claude.on('error', () => {
       resolve({
         output: '',
         success: false,
       });
     });
+  });
+}
+
+async function runClaudeDecompose(
+  prompt: string,
+  cwd: string,
+  logPath: string
+): Promise<ClaudeStreamResult> {
+  return runClaudeWithPrompt({
+    prompt,
+    cwd,
+    logPath,
+    echoOutput: true,
+    showToolCalls: true,
   });
 }
 
@@ -332,54 +358,15 @@ NO MARKDOWN, NO EXPLANATIONS.`;
 
   console.log(`  ${chalk.cyan('Revision log:')} ${logPath}`);
 
-  return new Promise((resolve) => {
-    // Resolve the Claude CLI path - handles cases where claude is an alias not in PATH
-    const claudePath = resolveCliPath('claude');
-
-    const claude = spawn(claudePath, [
-      '--dangerously-skip-permissions',
-      '-p',
-      '--verbose',
-      '--output-format', 'stream-json',
-      '--tools', '',
-    ], {
-      cwd: project.projectPath,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    const parserStream = new PassThrough();
-    let fullOutput = '';
-
-    claude.stdout.on('data', (chunk: Buffer) => {
-      parserStream.write(chunk);
-    });
-
-    claude.stdout.on('end', () => {
-      parserStream.end();
-    });
-
-    parseStream(parserStream, {
-      onText: (text) => {
-        fullOutput += text;
-        // Don't echo revision output - keep it clean
-      },
-    }).then(() => {
-      fs.writeFile(logPath, fullOutput).catch(() => {});
-    });
-
-    claude.stdin.write(revisionPrompt);
-    claude.stdin.end();
-
-    claude.on('close', () => {
-      // Extract JSON from revision output
-      const extracted = extractJson(fullOutput);
-      resolve(extracted);
-    });
-
-    claude.on('error', () => {
-      resolve(null);
-    });
+  const result = await runClaudeWithPrompt({
+    prompt: revisionPrompt,
+    cwd: project.projectPath,
+    logPath,
+    echoOutput: false,
+    showToolCalls: false,
   });
+
+  return extractJson(result.output);
 }
 
 /**
@@ -415,6 +402,7 @@ export async function runDecompose(
     forceRedecompose = false,
     enablePeerReview = true,  // Enabled by default - uses CLI from settings
     maxReviewAttempts = parseInt(process.env.RALPH_MAX_REVIEW_ATTEMPTS || '3', 10),
+    reviewTimeoutMs,
     onProgress,
   } = options;
 
@@ -598,54 +586,52 @@ export async function runDecompose(
   let reviewAttempt = 1;
 
   if (enablePeerReview) {
-    // Load settings to get selected reviewer CLI name
-    const settings = await loadGlobalSettings();
-    const reviewerCliName = settings.reviewer.cli.charAt(0).toUpperCase() + settings.reviewer.cli.slice(1);
+    // Get timeout using spec-review timeout logic (CLI flag > env var > default)
+    const timeoutMs = getReviewTimeout(reviewTimeoutMs);
 
     console.log('');
     console.log(chalk.cyan('============================================'));
-    console.log(chalk.cyan(`  Running ${reviewerCliName} Peer Review`));
+    console.log(chalk.cyan('  Running Decompose Review'));
     console.log(chalk.cyan('============================================'));
+    console.log(`  ${chalk.cyan('Timeout:')}    ${timeoutMs}ms`);
 
     while (reviewAttempt <= maxReviewAttempts) {
       await updateState(project, {
         status: 'REVIEWING',
-        message: `Running ${reviewerCliName} peer review (attempt ${reviewAttempt}/${maxReviewAttempts})...`,
+        message: `Running decompose review (attempt ${reviewAttempt}/${maxReviewAttempts})...`,
         draftFile: outputPath,
       }, onProgress);
 
-      const reviewResult = await runPeerReview({
-        prdFile,
-        tasks: prd,
-        project,
-        attempt: reviewAttempt,
+      const tasksJson = JSON.stringify(prd, null, 2);
+      const feedback = await runDecomposeReview(prdContent, tasksJson, {
+        timeoutMs,
+        cwd: project.projectPath,
+        logDir: project.logsDir,
       });
 
-      verdict = reviewResult.feedback.verdict;
+      verdict = feedback.verdict;
 
       console.log('');
       console.log(`  ${chalk.cyan('Review attempt:')} ${reviewAttempt}/${maxReviewAttempts}`);
-      console.log(`  ${chalk.cyan('Verdict:')} ${verdict === 'PASS' ? chalk.green(verdict) : verdict === 'FAIL' ? chalk.red(verdict) : chalk.yellow(verdict)}`);
-      console.log(`  ${chalk.cyan('Log:')} ${reviewResult.logPath}`);
+      console.log(`  ${chalk.cyan('Verdict:')} ${verdict === 'PASS' ? chalk.green(verdict) : chalk.red(verdict)}`);
 
       if (verdict === 'PASS') {
-        console.log(chalk.green('  ✓ Peer review passed!'));
+        console.log(chalk.green('  ✓ Decompose review passed!'));
         break;
       } else if (verdict === 'FAIL' && reviewAttempt < maxReviewAttempts) {
         // Show issues from feedback
         console.log(chalk.yellow('  Issues found:'));
-        const fb = reviewResult.feedback;
-        if (fb.missingRequirements?.length) {
-          console.log(chalk.yellow(`    - ${fb.missingRequirements.length} missing requirements`));
+        if (feedback.missingRequirements?.length) {
+          console.log(chalk.yellow(`    - ${feedback.missingRequirements.length} missing requirements`));
         }
-        if (fb.contradictions?.length) {
-          console.log(chalk.yellow(`    - ${fb.contradictions.length} contradictions`));
+        if (feedback.contradictions?.length) {
+          console.log(chalk.yellow(`    - ${feedback.contradictions.length} contradictions`));
         }
-        if (fb.dependencyErrors?.length) {
-          console.log(chalk.yellow(`    - ${fb.dependencyErrors.length} dependency errors`));
+        if (feedback.dependencyErrors?.length) {
+          console.log(chalk.yellow(`    - ${feedback.dependencyErrors.length} dependency errors`));
         }
-        if (fb.duplicates?.length) {
-          console.log(chalk.yellow(`    - ${fb.duplicates.length} duplicates`));
+        if (feedback.duplicates?.length) {
+          console.log(chalk.yellow(`    - ${feedback.duplicates.length} duplicates`));
         }
 
         // Send feedback to Claude for revision
@@ -661,7 +647,7 @@ export async function runDecompose(
         const revisedPrd = await reviseTasksWithFeedback(
           prdContent,
           prd,
-          reviewResult.feedback,
+          feedback,
           project,
           reviewAttempt
         );
@@ -685,7 +671,7 @@ export async function runDecompose(
 
     await updateState(project, {
       status: 'COMPLETED',
-      message: `Peer review complete: ${verdict}`,
+      message: `Decompose review complete: ${verdict}`,
       verdict,
       draftFile: outputPath,
     }, onProgress);
