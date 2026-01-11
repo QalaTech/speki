@@ -1,0 +1,2 @@
+web:build:cd /Users/davidturner/dev/qala-ralph/web && npm run build
+web:tsc:cd /Users/davidturner/dev/qala-ralph/web && npx tsc --project tsconfig.app.json --noEmit

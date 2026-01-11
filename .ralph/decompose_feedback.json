@@ -6,187 +6,99 @@
   "duplicates": [],
   "suggestions": [
     {
-      "action": "[US-009, US-010] Consider combining these two prompt definition tasks since they both define prompt constants in the same file (src/core/spec-review/prompts.ts)"
+      "action": "[US-054, US-055, US-056] Consider adding explicit test cases for RALPH_MAX_REVIEW_ATTEMPTS retry behavior mentioned in FR-12"
+    },
+    {
+      "action": "[US-022] Could include test for checking both CLIs missing scenario"
     }
   ],
   "taskGroupings": [
     {
       "taskIds": [
-        "US-006"
+        "US-001",
+        "US-002"
       ],
-      "reason": "Type definitions only - single cohesive task for all spec review types",
+      "reason": "Both are pure TypeScript type definitions with no implementation logic, same domain (spec review types)",
       "complexity": "low"
     },
     {
       "taskIds": [
+        "US-004",
+        "US-005"
+      ],
+      "reason": "Both are configuration-related changes - default CLI setting and timeout configuration",
+      "complexity": "low"
+    },
+    {
+      "taskIds": [
+        "US-006",
         "US-007"
       ],
-      "reason": "Simple config change with test updates",
+      "reason": "Both are prompt template definitions with no implementation logic, related purpose (review prompts)",
       "complexity": "low"
     },
     {
       "taskIds": [
-        "US-008"
-      ],
-      "reason": "Single utility function for timeout handling",
-      "complexity": "low"
-    },
-    {
-      "taskIds": [
-        "US-009",
-        "US-010"
-      ],
-      "reason": "Both define prompt string constants in the same file with no implementation logic",
-      "complexity": "low"
-    },
-    {
-      "taskIds": [
-        "US-017"
-      ],
-      "reason": "Simple logging utility with file I/O",
-      "complexity": "low"
-    },
-    {
-      "taskIds": [
+        "US-015",
         "US-025"
       ],
-      "reason": "Simple calculation function with no dependencies",
+      "reason": "Both are simple CLI wiring - parent command registration and exit code handling",
       "complexity": "low"
     },
     {
       "taskIds": [
-        "US-035"
+        "US-026",
+        "US-053"
       ],
-      "reason": "Simple UI component for displaying change history",
-      "complexity": "low"
-    },
-    {
-      "taskIds": [
-        "US-041",
-        "US-042",
-        "US-043"
-      ],
-      "reason": "Simple registration/wiring tasks - adding menu item, mounting routes, registering CLI command",
+      "reason": "Both are isolated, simple additions - loop limit calculation and sidebar navigation item",
       "complexity": "low"
     }
   ],
   "standaloneTasks": [
     {
-      "taskId": "US-011",
-      "reason": "Medium complexity aggregation logic with verdict priority calculations"
-    },
-    {
-      "taskId": "US-012",
-      "reason": "Medium complexity JSON parsing with multiple fallback strategies"
+      "taskId": "US-009",
+      "reason": "Complex analysis logic for god spec detection with multiple indicator checks and estimation algorithms"
     },
     {
       "taskId": "US-013",
-      "reason": "Medium complexity codebase exploration with multiple detection patterns"
+      "reason": "Core orchestration logic that integrates multiple modules (prompts, codebase context, aggregator) with CLI spawning"
     },
     {
       "taskId": "US-014",
-      "reason": "Medium complexity heuristic detection with split proposal generation"
-    },
-    {
-      "taskId": "US-015",
-      "reason": "Medium complexity file operations with error handling"
-    },
-    {
-      "taskId": "US-016",
-      "reason": "High complexity - core orchestration logic with agent spawning, timeout handling, and multi-prompt sequencing"
-    },
-    {
-      "taskId": "US-018",
-      "reason": "Medium complexity CLI implementation with multiple options and interactive file picker"
-    },
-    {
-      "taskId": "US-019",
-      "reason": "Medium complexity interactive CLI flow with preview and confirmation"
-    },
-    {
-      "taskId": "US-020",
-      "reason": "High complexity refactor of existing peer-review.ts with backward compatibility requirements"
-    },
-    {
-      "taskId": "US-021",
-      "reason": "Medium complexity session file management with hash comparison"
-    },
-    {
-      "taskId": "US-022",
-      "reason": "Medium complexity change tracking with revert capability"
-    },
-    {
-      "taskId": "US-023",
-      "reason": "High complexity - multiple API routes with session management integration"
-    },
-    {
-      "taskId": "US-024",
-      "reason": "Medium complexity feedback handler with agent communication"
-    },
-    {
-      "taskId": "US-026",
-      "reason": "Medium complexity integration into ralph loop runner"
-    },
-    {
-      "taskId": "US-027",
-      "reason": "Medium complexity React page with split view layout and API integration"
-    },
-    {
-      "taskId": "US-028",
-      "reason": "Medium complexity MDXEditor integration with multiple plugins"
-    },
-    {
-      "taskId": "US-029",
-      "reason": "High complexity Lexical editor internals manipulation"
-    },
-    {
-      "taskId": "US-030",
-      "reason": "Medium complexity diff view state management"
-    },
-    {
-      "taskId": "US-031",
-      "reason": "Medium complexity interactive component with multiple action handlers"
+      "reason": "Separate review runner mode with different tool access requirements - risk of confusion with US-013"
     },
     {
       "taskId": "US-032",
-      "reason": "Medium complexity component with split proposal display and actions"
-    },
-    {
-      "taskId": "US-033",
-      "reason": "Medium complexity panel with grouping, navigation, and batch actions"
-    },
-    {
-      "taskId": "US-034",
-      "reason": "Medium complexity chat component with selection context"
+      "reason": "Complex feedback handling with agent context updates and preference learning - high integration risk"
     },
     {
       "taskId": "US-036",
-      "reason": "High complexity React hook with session state, API interactions, and auto-save"
+      "reason": "Complex Lexical editor integration requiring deep understanding of AST manipulation and DOM operations"
     },
     {
       "taskId": "US-037",
-      "reason": "Medium complexity hook for agent feedback communication"
+      "reason": "Complex diff view utilities requiring MDXEditor plugin integration and state management"
     },
     {
-      "taskId": "US-038",
-      "reason": "High complexity integration wiring multiple components for diff approval flow"
+      "taskId": "US-047",
+      "reason": "Full diff approval flow wiring multiple components together - high integration complexity"
     },
     {
-      "taskId": "US-039",
-      "reason": "Medium complexity wiring of selection-based chat"
+      "taskId": "US-049",
+      "reason": "Split preview and save flow with multiple file operations and session updates - high risk if combined"
     },
     {
-      "taskId": "US-040",
-      "reason": "High complexity split preview flow with session updates"
+      "taskId": "US-054",
+      "reason": "End-to-end integration test requiring full CLI flow verification"
     },
     {
-      "taskId": "US-044",
-      "reason": "Medium complexity integration test requiring mock setup"
+      "taskId": "US-055",
+      "reason": "End-to-end integration test for god spec detection requiring complex test setup"
     },
     {
-      "taskId": "US-045",
-      "reason": "Medium complexity API integration test with session persistence"
+      "taskId": "US-056",
+      "reason": "End-to-end integration test for dashboard requiring browser/component testing infrastructure"
     }
   ],
-  "reviewLog": "/Users/davidturner/dev/qala-ralph/.ralph/logs/peer_review_attempt_1_2026-01-10T16-25-55-762Z.log"
+  "reviewLog": "/Users/davidturner/dev/qala-ralph/.ralph/logs/peer_review_attempt_1_2026-01-10T21-56-17-237Z.log"
 }

@@ -16,7 +16,7 @@ Use these CLI commands for task operations (instead of editing prd.json directly
 
 | Command | Description |
 |---------|-------------|
-| `qala tasks next` | Get the next pending task with full context (project, dependencies, blocks, standards) |
+| `qala tasks next` | Get the next pending task with full context (project, dependencies, blocks) |
 | `qala tasks next --task-only` | Get just the task without context |
 | `qala tasks get <id>` | Get a specific task by ID |
 | `qala tasks complete <id>` | Mark a task as complete |
@@ -41,7 +41,6 @@ Use these CLI commands for task operations (instead of editing prd.json directly
    - `currentTask` - the task you must complete this iteration (full details)
    - `completedDependencies` - tasks this one depends on (already done)
    - `blocks` - downstream tasks waiting on this one
-   - `availableStandards` - standards files available in `.ralph/standards/`
 
    If all tasks are complete, it returns `{ "complete": true }`.
 
@@ -76,29 +75,13 @@ Use these CLI commands for task operations (instead of editing prd.json directly
    - Check `suggestions` for items where `forTask` matches your current task ID
    - Read `lessonsLearned` for relevant knowledge (filter by `category` if helpful)
 
-5. **Load language standards:**
-
-   Check `availableStandards` from step 1 for available standards files.
-
-   **Determine the correct standards file based on the codebase:**
-
-   | Project Type | Indicator Files                     | Standards File               |
-   | ------------ | ----------------------------------- | ---------------------------- |
-   | .NET / C#    | `.csproj`, `.sln`, `.cs`            | `.ralph/standards/dotnet.md` |
-   | Python       | `pyproject.toml`, `setup.py`, `.py` | `.ralph/standards/python.md` |
-   | Node.js      | `package.json`, `.ts`, `.js`        | `.ralph/standards/nodejs.md` |
-   | Go           | `go.mod`, `.go`                     | `.ralph/standards/go.md`     |
-
-   **Read the appropriate standards file and follow ALL rules within it.**
-
-6. **Implement the current task:**
+5. **Implement the current task:**
 
    **Use Serena MCP tools** for code editing and navigation. Serena provides powerful semantic tools for finding symbols, editing code, and understanding the codebase structure. Prefer Serena tools over basic file operations when working with code.
 
    The task to implement is in `currentTask` from step 1.
 
    - Focus only on the acceptance criteria in `currentTask.acceptanceCriteria`
-   - Follow the language standards from step 5
    - **Implement all tests in `currentTask.testCases`** - these are mandatory
    - **Check `completedDependencies`** - these tasks are already done, you can build on their work
    - **Check `blocks`** - these tasks are waiting on you, consider their needs
@@ -124,7 +107,7 @@ Use these CLI commands for task operations (instead of editing prd.json directly
 
    - No shortcuts, no compromises
 
-7. **Implement Tests (MANDATORY):**
+6. **Implement Tests (MANDATORY):**
 
    Each story includes a `testCases` array specifying exact tests to write.
 
@@ -142,13 +125,12 @@ Use these CLI commands for task operations (instead of editing prd.json directly
    - Test one thing per test method
    - Include meaningful assertion messages where helpful
 
-8. **Verify (MANDATORY):**
+7. **Verify (MANDATORY):**
 
    **Run tests scoped to the project you modified:**
 
    - Only run tests relevant to the files changed
    - Do NOT run unrelated tests (e.g., don't run .NET tests for Python changes)
-   - Check the standards file for the correct test command
 
    **Rules:**
 
@@ -156,7 +138,7 @@ Use these CLI commands for task operations (instead of editing prd.json directly
    - **DO NOT PROCEED IF BUILD OR TESTS FAIL**
    - If no tests exist for the project, note this but continue
 
-9. **Code Simplification (MANDATORY):**
+8. **Code Simplification (MANDATORY):**
 
    After tests pass, invoke the code-simplifier agent to review and refine your implementation:
 
@@ -174,12 +156,12 @@ Use these CLI commands for task operations (instead of editing prd.json directly
    - Re-run tests to verify the simplifier's changes didn't break functionality
    - If tests fail after simplification, fix the issues before proceeding
 
-10. **Update AGENTS.md (if applicable):**
+9. **Update AGENTS.md (if applicable):**
 
 - If you discovered reusable patterns, update relevant AGENTS.md files
 - Only add things worth preserving (gotchas, conventions, dependencies)
 
-11. **Commit (MUST SUCCEED BEFORE MARKING COMPLETE):**
+10. **Commit (MUST SUCCEED BEFORE MARKING COMPLETE):**
 
     Create a git commit with all implementation changes:
     - Format: `feat: [ID] - [Title]`
@@ -188,7 +170,7 @@ Use these CLI commands for task operations (instead of editing prd.json directly
     - If commit fails (pre-commit hooks, etc.), fix the issue and retry
     - **DO NOT mark the task complete if the commit failed**
 
-12. **Mark task complete (ONLY AFTER SUCCESSFUL COMMIT):**
+11. **Mark task complete (ONLY AFTER SUCCESSFUL COMMIT):**
 
     **CRITICAL:** Only perform this step if step 11 succeeded.
 
@@ -206,12 +188,12 @@ Use these CLI commands for task operations (instead of editing prd.json directly
 
     **If the commit in step 11 failed, do NOT mark the task complete. Fix the commit first.**
 
-13. **Update progress.txt:**
+12. **Update progress.txt:**
 
     - APPEND your learnings at the bottom
     - Add any new patterns to the TOP (Codebase Patterns section)
 
-14. **Update peer feedback:**
+13. **Update peer feedback:**
 
     Update `.ralph/peer_feedback.json` to maintain the knowledge base:
 
@@ -243,32 +225,6 @@ Use these CLI commands for task operations (instead of editing prd.json directly
     - Only add to `lessonsLearned` for genuinely reusable insights
     - Keep lessons concise but specific
     - Always include `addedBy` (your task ID) and `addedAt` (ISO timestamp)
-
-15. **Improve standards (if applicable):**
-
-    After completing a story, review the standards file you used (`.ralph/standards/{language}.md`).
-
-    **Update the standards file if you discovered:**
-
-    - A better pattern than what's documented
-    - A missing rule that would have helped
-    - A gotcha or pitfall worth warning about
-    - A useful code example
-    - A correction to existing guidance
-
-    **Rules for updating standards:**
-
-    - Only add patterns you actually used and verified work
-    - Keep it concise - standards should be scannable
-    - Include code examples where helpful
-    - Add to the appropriate section (or create a new one)
-    - Note: Standards are meant to evolve - don't hesitate to improve them
-
-    **Do NOT update standards for:**
-
-    - Project-specific quirks (those go in progress.txt or AGENTS.md)
-    - Temporary workarounds
-    - Unverified ideas
 
 ---
 
@@ -345,7 +301,6 @@ After completing the current task, check if ALL stories in prd.json have `passes
 
 - Complete the **current task** from `qala tasks next`
 - **READ peer_feedback.json** at start - check for blocking issues and relevant suggestions
-- **READ the appropriate standards file** from `availableStandards` before implementing
 - **IMPLEMENT ALL tests in `currentTask.testCases`** - this is mandatory
 - **CLEANUP stub/temp code** from dependency stories when implementing the real solution
 - **ALWAYS** run tests (scoped to project) before committing
@@ -355,5 +310,4 @@ After completing the current task, check if ALL stories in prd.json have `passes
 - Check progress.txt patterns BEFORE starting implementation
 - **COMMIT MUST SUCCEED** before marking task complete in prd.json - never mark complete if commit failed
 - **UPDATE peer_feedback.json** - cleanup resolved items, add new insights to lessonsLearned
-- **UPDATE standards** if you discover better patterns (standards should evolve!)
 - If stuck, document the blocker in progress.txt AND add to peer_feedback.json blocking

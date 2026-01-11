@@ -136,6 +136,7 @@ function ExecutionView({
                 currentStory={ralphStatus.currentStory}
                 iterationLog={iterationLog}
                 currentIteration={currentIteration}
+                maxIterations={ralphStatus.maxIterations}
                 isRunning={ralphStatus.running}
               />
             )}

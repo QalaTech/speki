@@ -1,8 +1,8 @@
 {
-  "projectName": "Qala Spec Review Feature",
+  "projectName": "Spec Review Feature",
   "branchName": "ralph/feature",
   "language": "nodejs",
   "standardsFile": ".ralph/standards/nodejs.md",
-  "description": "Spec review feature to help users create perfect PRDs that can be deterministically decomposed into executable tasks. Includes standalone CLI command, integration with decompose --review, god spec detection, interactive dashboard UI with MDXEditor, and file-based session management.",
+  "description": "A comprehensive spec review feature that validates PRDs against quality standards, detects 'god specs' that should be split, and provides interactive review through CLI and dashboard interfaces",
   "userStories": []
 }

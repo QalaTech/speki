@@ -121,9 +121,6 @@ tasksCommand
         .filter(s => !s.passes && s.dependencies.includes(nextTask.id))
         .map(s => ({ id: s.id, title: s.title }));
 
-      // Available standards
-      const availableStandards = await project.listAvailableStandards();
-
       const context = {
         project: {
           name: prd.projectName,
@@ -132,7 +129,6 @@ tasksCommand
         currentTask: nextTask,
         completedDependencies,
         blocks,
-        availableStandards,
       };
 
       console.log(JSON.stringify(context, null, 2));

@@ -94,3 +94,821 @@
   - Tests: PASS (8/8 tests pass)
   - Commit: SUCCESS (62846cd)
 ---
+
+## 2026-01-10 - US-001: Define core spec review types
+- What was implemented: Verified all core spec review types already exist in src/types/index.ts
+- Types verified:
+  - SpecReviewVerdict (discriminated union: PASS | FAIL | NEEDS_IMPROVEMENT | SPLIT_RECOMMENDED)
+  - SpecReviewCategory
+  - FocusedPromptResult
+  - GodSpecIndicators
+  - SplitProposal (with ProposedSpec)
+  - CodebaseContext
+  - SuggestionCard (with SuggestionSeverity, SuggestionStatus)
+  - ChangeHistoryEntry
+  - ChatMessage
+  - SessionFile (with SessionStatus, SplitSpecRef)
+  - SpecReviewResult
+- Files changed: None (types already existed from US-013 implementation)
+- Tests implemented: None required (type definitions only)
+- **Learnings:**
+  - Types were likely added as part of US-013 (codebase context) since CodebaseContext type was needed
+  - All types properly use discriminated unions as suggested (e.g., SpecReviewVerdict)
+  - Types are well-structured with proper optional fields and status enums
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: N/A (no tests for type definitions)
+  - Commit: N/A (no new code changes - types already existed)
+---
+
+## 2026-01-10 - US-002: Define session file types
+- What was implemented: Verified all session file types already exist in src/types/index.ts
+- Types verified:
+  - SessionFile (lines 510-535) - complete with sessionId, specFilePath, status, timestamps, reviewResult, suggestions, changeHistory, chatMessages, splitSpecs, logPath
+  - SplitSpecRef (lines 396-401) - filename and description
+  - ChangeHistoryEntry (lines 474-489) - id, timestamp, description, filePath, beforeContent, afterContent, reverted
+  - ChatMessage (lines 494-505) - id, role, content, timestamp, suggestionId
+  - SuggestionCard (lines 444-469) - includes status field with SuggestionStatus enum
+  - SuggestionStatus (line 340) - 'pending' | 'approved' | 'rejected' | 'edited'
+  - SessionStatus (line 345) - 'in_progress' | 'completed' | 'needs_attention'
+- Files changed: None (types already existed from US-001/US-013 implementation)
+- Tests implemented: None required (type definitions only)
+- **Learnings:**
+  - Consistent pattern emerging: session types were added during earlier spec review work alongside core types
+  - Pre-existing test failures in cli-detect.test.ts and peer-review.test.ts are due to incomplete mocking (fs.existsSync not mocked) - unrelated to this task
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: N/A (no tests for type definitions; pre-existing failures in unrelated modules)
+  - Commit: N/A (no new code changes - types already existed)
+---
+
+## 2026-01-10 - US-003: Implement session file read/write operations
+- What was implemented: Created session-file.ts module with 4 functions for managing spec review session persistence
+- Files changed:
+  - src/core/spec-review/session-file.ts (new, 57 lines)
+  - src/core/spec-review/__tests__/session-file.test.ts (new, 158 lines)
+- Tests implemented:
+  - getSessionPath_WithNestedSpecFile_ReturnsCorrectSessionPath - PASS
+  - loadSession_WithExistingSession_ReturnsSessionFile - PASS
+  - loadSession_WithNoSession_ReturnsNull - PASS
+  - saveSession_WithValidSession_WritesJsonFile - PASS
+  - saveSession_WithMissingDirectory_CreatesDirectory - PASS
+  - computeContentHash_WithContent_ReturnsSha256Hash - PASS
+  - computeContentHash_WithSameContent_ReturnsSameHash - PASS
+- **Learnings:**
+  - Used crypto.createHash('sha256') for content hashing as suggested in task context
+  - Test pattern: mock process.cwd() using vi.spyOn to control session path calculation
+  - Code simplifier added createMockSession helper to reduce test boilerplate
+  - mkdir with { recursive: true } handles both existing and missing parent directories
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (7/7 tests pass)
+  - Commit: SUCCESS (ef44631)
+---
+
+## 2026-01-10 - US-004: Update settings to change default CLI to Claude
+- What was implemented: Verified implementation already exists from commit a90c27b
+- Files verified:
+  - src/core/settings.ts - DEFAULT_SETTINGS.reviewer.cli is 'claude' (line 29)
+  - src/core/__tests__/settings.test.ts - All required test cases present
+- Tests verified (test names slightly different but cover same functionality):
+  - loadGlobalSettings_WithNoConfig_ShouldReturnClaudeAsDefaultCli - PASS
+  - loadGlobalSettings_WithExplicitCodexConfig_ShouldReturnCodex - PASS
+  - loadGlobalSettings_WithExplicitClaudeConfig_ShouldReturnClaude - PASS
+- **Learnings:**
+  - Task was already implemented in prior work (commit a90c27b: "feat: US-007 - Change default reviewer CLI from Codex to Claude")
+  - Always check git history to understand existing implementation state
+- **Verification:**
+  - Build: PASS (npm run build)
+  - Tests: PASS (8/8 settings tests pass)
+  - Commit: N/A (no new code changes - implementation already existed)
+---
+
+## 2026-01-10 - US-005: Implement configurable timeout for review operations
+- What was implemented: Added comprehensive test suite for existing timeout.ts module
+- Files changed:
+  - src/core/spec-review/__tests__/timeout.test.ts (new, 76 lines)
+- Implementation details:
+  - timeout.ts already existed with getReviewTimeout() and validateTimeout() functions
+  - Priority order: CLI flag > RALPH_REVIEW_TIMEOUT_MS env var > default (600000ms)
+  - Bounds: 30s minimum, 30min maximum with console.warn on clamping
+- Tests implemented:
+  - getReviewTimeout_WithCliFlag_ReturnsCliValue - PASS
+  - getReviewTimeout_WithEnvVar_ReturnsEnvValue - PASS
+  - getReviewTimeout_WithNoConfig_ReturnsDefault - PASS
+  - getReviewTimeout_WithCliFlagAndEnvVar_PrefersCliFlag - PASS
+  - validateTimeout_BelowMinimum_ReturnsMinimum - PASS
+  - validateTimeout_AboveMaximum_ReturnsMaximum - PASS
+  - validateTimeout_WithinBounds_ReturnsValue - PASS
+- **Learnings:**
+  - Use numeric separators (e.g., 120_000) for improved readability in timeout values
+  - Mock console.warn with vi.spyOn to verify warning messages on bounds clamping
+  - Reset process.env in beforeEach to ensure clean environment state between tests
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (7/7 timeout tests, 22/22 spec-review tests total)
+  - Commit: SUCCESS (c83e177)
+---
+
+## 2026-01-10 - US-006: Create focused prompt definitions for standalone spec review
+- What was implemented: Verified all 5 focused prompts already exist in src/core/spec-review/prompts.ts
+- Prompts verified:
+  - GOD_SPEC_DETECTION_PROMPT - With size/scope/cohesion indicators and split proposal format
+  - REQUIREMENTS_COMPLETENESS_PROMPT - Functional and technical requirements checklist
+  - CLARITY_SPECIFICITY_PROMPT - Ambiguity and specificity checks
+  - TESTABILITY_PROMPT - Observable outcomes and untestable pattern detection
+  - SCOPE_VALIDATION_PROMPT - Architectural alignment and scope appropriateness
+- Each prompt includes:
+  - buildContextHeader() with {specContent} and {codebaseContext} placeholders
+  - Structured JSON output format with verdict field
+  - Severity classification (critical/warning/info)
+  - Verdict guidelines (PASS/FAIL/NEEDS_IMPROVEMENT, SPLIT_RECOMMENDED for god spec)
+- Files changed: None (prompts already existed)
+- Tests implemented: None required (prompt templates only - tested via integration)
+- **Learnings:**
+  - Prompts use helper functions (buildContextHeader, buildSeveritySection, buildStandardOutputFormat, buildVerdictGuidelines) to ensure consistency
+  - CLOSING_INSTRUCTION constant appended to all prompts: "Analyze the spec and return ONLY the JSON response, no additional commentary."
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: N/A (no tests for prompt templates)
+  - Commit: N/A (no new code changes - prompts already existed)
+---
+
+## 2026-01-10 - US-007: Create focused prompt definitions for decompose review
+- What was implemented: Verified all 4 decompose review prompts already exist in src/core/spec-review/prompts.ts
+- Prompts verified:
+  - MISSING_REQUIREMENTS_PROMPT (lines 414-446) - Compares spec requirements against tasks to find gaps
+  - CONTRADICTIONS_PROMPT (lines 453-487) - Detects contradictions between spec and tasks or between tasks
+  - DEPENDENCY_VALIDATION_PROMPT (lines 494-532) - Validates task dependencies form valid DAG
+  - DUPLICATE_DETECTION_PROMPT (lines 539-583) - Identifies duplicate or overlapping tasks
+- Each prompt includes:
+  - buildDecomposeContextHeader() with {specContent} and {tasksJson} placeholders
+  - buildDecomposeOutputFormat() with verdict field (PASS/FAIL only for decompose)
+  - buildDecomposeSeveritySection() for severity classification
+  - buildDecomposeVerdictGuidelines() for PASS/FAIL criteria
+- Files changed: None (prompts already existed)
+- Tests implemented: None required (prompt templates only - tested via integration)
+- **Learnings:**
+  - Decompose review prompts use separate helper functions from standalone review prompts
+  - Decompose prompts use {tasksJson} instead of {codebaseContext}
+  - Verdict options are simpler (PASS/FAIL only) vs standalone (PASS/FAIL/NEEDS_IMPROVEMENT/SPLIT_RECOMMENDED)
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: N/A (no tests for prompt templates)
+  - Commit: N/A (no new code changes - prompts already existed)
+---
+
+## 2026-01-10 - US-008: Implement codebase context gathering
+- What was implemented: Added tsconfig.json detection for TypeScript projects and aligned tests with required naming convention
+- Files changed:
+  - src/core/spec-review/codebase-context.ts (modified - added tsconfig.json detection, extracted EXCLUDED_DIRECTORIES constant)
+  - src/core/spec-review/__tests__/codebase-context.test.ts (modified - renamed tests, added tsconfig and serializable tests)
+- Tests implemented:
+  - gatherCodebaseContext_WithPackageJson_IdentifiesNodeProject - PASS
+  - gatherCodebaseContext_WithTsConfig_IdentifiesTypeScript - PASS (new)
+  - gatherCodebaseContext_WithSrcDirectory_ListsPatterns - PASS (renamed)
+  - gatherCodebaseContext_ReturnsSerializableObject - PASS (new)
+  - gatherCodebaseContext_WithCsproj_ShouldDetectDotnet - PASS (bonus)
+  - gatherCodebaseContext_WithMissingConfigs_ShouldReturnUnknownType - PASS (bonus)
+  - gatherCodebaseContext_ShouldListSourceDirectories - PASS (bonus)
+  - gatherCodebaseContext_WithRequirementsTxt_ShouldDetectPython - PASS (bonus)
+  - gatherCodebaseContext_WithGoMod_ShouldDetectGo - PASS (bonus)
+  - gatherCodebaseContext_WithNonExistentDirectory_ShouldReturnEmptyResults - PASS (bonus)
+- **Learnings:**
+  - The codebase-context.ts module was already largely implemented from prior work (US-013)
+  - tsconfig.json detection needed to be added as a separate project type indicator
+  - Code simplifier extracted EXCLUDED_DIRECTORIES constant for better maintainability
+- **Verification:**
+  - Build: PASS (npm run build)
+  - Tests: PASS (10/10 tests pass)
+  - Commit: SUCCESS (e5ec84d)
+---
+
+## 2026-01-10 - US-009: Implement god spec detection logic
+- What was implemented: Created god-spec-detector.ts module with detectGodSpec function that analyzes specs for god spec indicators
+- Files changed:
+  - src/core/spec-review/god-spec-detector.ts (new, 290 lines)
+  - src/core/spec-review/__tests__/god-spec-detector.test.ts (new, 170 lines)
+- Tests implemented:
+  - detectGodSpec_WithSmallSpec_ReturnsNotGodSpec - PASS
+  - detectGodSpec_WithManyFeatureSections_ReturnsGodSpec - PASS
+  - detectGodSpec_WithHighEstimatedStories_ReturnsGodSpec - PASS
+  - detectGodSpec_WithMultipleUserJourneys_ReturnsGodSpec - PASS
+  - detectGodSpec_WithOneIndicator_ReturnsNotGodSpec - PASS
+  - detectGodSpec_WithTwoIndicators_ReturnsGodSpec - PASS
+  - estimateStoryCount_WithTypicalSpec_ReturnsReasonableEstimate - PASS
+- **Learnings:**
+  - Use regex patterns with Set<string> for efficient deduplication when counting multiple persona/boundary matches
+  - Split indicator detection by category (size, scope, cohesion) for cleaner logic and easier threshold adjustment
+  - Export estimateStoryCount separately as it may be useful for other modules
+  - Code simplifier removed obvious inline comments, improving readability while keeping JSDoc on function signatures
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (7/7 god-spec-detector tests, 31/31 spec-review tests total)
+  - Commit: SUCCESS (c3956bc)
+---
+
+## 2026-01-10 - US-010: Implement split proposal generation
+- What was implemented: Extended god-spec-detector.ts with generateSplitProposal and generateFilename functions
+- Files changed:
+  - src/core/spec-review/god-spec-detector.ts (modified, +150 lines)
+  - src/core/spec-review/__tests__/god-spec-detector.test.ts (modified, +160 lines)
+- Tests implemented:
+  - generateSplitProposal_WithUserManagementSpec_ReturnsValidProposal - PASS
+  - generateSplitProposal_GeneratesKebabCaseFilenames - PASS
+  - generateSplitProposal_EachProposalHasEstimatedStories - PASS
+  - generateSplitProposal_EachProposalReferencesSections - PASS
+  - generateFilename_WithBasenameAndFeature_ReturnsCorrectPattern - PASS
+- **Learnings:**
+  - groupRelatedDomains uses pattern matching to cluster related domains (auth, user, admin, api, notifications)
+  - toKebabCase filters stop words (the, a, an, of, etc.) and limits to 3 words for cleaner filenames
+  - Code simplifier extracted countStoryIndicators helper to share logic between estimateStoryCount and estimateSectionStories
+  - Code simplifier extracted findPersonaMatches helper for reuse between countUserJourneys and checkCohesionIndicators
+- **Verification:**
+  - Build: PASS (npm run build)
+  - Tests: PASS (12/12 god-spec-detector tests, 36/36 spec-review tests total)
+  - Commit: SUCCESS (dc2263d)
+---
+
+## 2026-01-10 - US-011: Implement spec splitter execution
+- What was implemented: Created splitter.ts module with executeSplit function that creates new spec files from split proposals
+- Files changed:
+  - src/core/spec-review/splitter.ts (new, 68 lines)
+  - src/core/spec-review/__tests__/splitter.test.ts (new, 133 lines)
+- Tests implemented:
+  - executeSplit_WithValidProposal_CreatesAllFiles - PASS
+  - executeSplit_PreservesOriginalSpec - PASS
+  - executeSplit_AddsSplitFromHeader - PASS
+  - executeSplit_PlacesFilesInSameDirectory - PASS
+  - executeSplit_ReturnsCreatedFilePaths - PASS
+- **Learnings:**
+  - Used map + filter pattern for extracting sections (cleaner than imperative loop)
+  - buildSplitContent combines header, title, and extracted sections into new spec
+  - extractSection uses same regex pattern as god-spec-detector for consistency
+  - Code simplifier improved buildSplitContent by replacing for-loop with map().filter(Boolean)
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (5/5 splitter tests, 41/41 spec-review tests total)
+  - Commit: SUCCESS (3a25589)
+---
+
+## 2026-01-10 - US-012: Implement result aggregator for spec review
+- What was implemented: Verified aggregator.ts already existed; moved and renamed tests to match requirements
+- Files changed:
+  - src/core/spec-review/__tests__/aggregator.test.ts (moved from src/core/__tests__/, renamed tests)
+  - src/core/spec-review/aggregator.ts (simplified by code-simplifier)
+- Tests implemented:
+  - aggregateResults_AllPass_ReturnsPass - PASS
+  - aggregateResults_OneNeedsImprovement_ReturnsNeedsImprovement - PASS
+  - aggregateResults_OneFail_ReturnsFail - PASS
+  - aggregateResults_SplitRecommended_ReturnsSplitRecommended - PASS
+  - aggregateResults_FailAndSplitRecommended_ReturnsSplitRecommended - PASS
+  - aggregateResults_CombinesIssuesFromAllPrompts - PASS (new test)
+  - aggregateResults_SortsSuggestionsBySeverity - PASS
+- **Learnings:**
+  - Aggregator implementation follows verdict priority pattern: SPLIT_RECOMMENDED(4) > FAIL(3) > NEEDS_IMPROVEMENT(2) > PASS(1)
+  - Code simplifier consolidated extractSplitProposal using nullish coalescing chain
+  - Test files should be co-located with code (in src/core/spec-review/__tests__/ not src/core/__tests__/)
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (7/7 aggregator tests, 48/48 spec-review tests total)
+  - Commit: SUCCESS (85f23a7)
+---
+
+## 2026-01-10 - US-013: Implement spec review runner for standalone review
+- What was implemented: Created runner.ts module that orchestrates spec review with 5 sequential prompts
+- Files changed:
+  - src/core/spec-review/runner.ts (new, 265 lines)
+  - src/core/spec-review/__tests__/runner.test.ts (new, 210 lines)
+- Implementation details:
+  - runSpecReview(specPath, options) orchestrates full review process
+  - Loads golden standard from .ralph/standards/golden_standard_prd_deterministic_decomposable.md
+  - Spawns Claude CLI WITHOUT --tools '' flag (tools enabled by default)
+  - Runs 5 prompts sequentially: god_spec_detection, requirements_completeness, clarity_specificity, testability, scope_validation
+  - Per-prompt timeout calculated as total timeout / 5
+  - Aggregates results using aggregator module
+  - Saves detailed log file with all prompt results
+- Tests implemented:
+  - runSpecReview_WithValidSpec_ReturnsResult - PASS
+  - runSpecReview_LoadsGoldenStandard - PASS
+  - runSpecReview_SpawnsAgentWithTools - PASS
+  - runSpecReview_RunsGodSpecFirst - PASS
+  - runSpecReview_RespectsTimeout - PASS
+  - runSpecReview_AggregatesPromptResults - PASS
+- **Learnings:**
+  - Use vi.useFakeTimers() and vi.advanceTimersByTimeAsync() for testing sequential async operations
+  - Code simplifier extracted createErrorResult and createParseFailureResult helpers for cleaner error handling
+  - Spawn mock processes need to be tracked in array for sequential simulation
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (6/6 runner tests, 54/54 spec-review tests total)
+  - Commit: SUCCESS (2e1143e)
+---
+
+## 2026-01-10 - US-014: Implement spec review runner for decompose review
+- What was implemented: Extended runner.ts with runDecomposeReview function for task validation
+- Files changed:
+  - src/core/spec-review/runner.ts (modified, +88 lines)
+  - src/core/spec-review/__tests__/runner.test.ts (modified, +237 lines)
+- Implementation details:
+  - Added DECOMPOSE_PROMPTS array with 4 focused prompts (missing_requirements, contradictions, dependency_validation, duplicate_detection)
+  - Added buildDecomposePrompt function to substitute {specContent} and {tasksJson} placeholders
+  - Extended runPrompt with RunPromptOptions interface supporting disableTools flag
+  - Created aggregateDecomposeResults function to categorize issues into missingRequirements, contradictions, dependencyErrors, duplicates
+  - runDecomposeReview returns ReviewFeedback with PASS/FAIL verdict
+- Tests implemented:
+  - runDecomposeReview_WithValidTasks_ReturnsResult - PASS
+  - runDecomposeReview_SpawnsAgentWithoutTools - PASS
+  - runDecomposeReview_ChecksMissingRequirements - PASS
+  - runDecomposeReview_ChecksContradictions - PASS
+  - runDecomposeReview_ChecksDependencies - PASS
+  - runDecomposeReview_ChecksDuplicates - PASS
+- **Learnings:**
+  - Reused existing runPrompt function by adding options parameter instead of duplicating code
+  - The --tools '' flag disables all tools in Claude CLI, enabling pure document comparison
+  - Decompose review uses simpler verdict (PASS/FAIL) vs standalone review (PASS/FAIL/NEEDS_IMPROVEMENT/SPLIT_RECOMMENDED)
+  - Test pattern for sequential prompts with different responses works well with index-based conditionals
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (12/12 runner tests, 60/60 spec-review tests total)
+  - Commit: SUCCESS (dcc8d6a)
+---
+
+## 2026-01-10 - US-015: Create spec parent CLI command
+- What was implemented: Created spec.ts parent command with review subcommand, registered in main CLI
+- Files changed:
+  - src/cli/commands/spec.ts (new, 62 lines)
+  - bin/qala.ts (modified - added import and registration)
+- Tests implemented: None required (CLI wiring only - tested via integration)
+- **Learnings:**
+  - Commander.js parent commands use `.command('subname')` pattern to chain subcommands
+  - Code simplifier extracted nested ternaries into `getVerdictColor` and `getSeverityColor` helper functions
+  - SuggestionCard type uses `issue` and `suggestedFix` fields (not `title`/`description`)
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - qala spec --help: Shows available subcommands correctly
+  - qala --help: Shows spec command in main help
+  - Commit: SUCCESS (2bcd55a)
+---
+
+## 2026-01-10 - US-016: Implement spec review CLI command with file argument
+- What was implemented: Added file validation to qala spec review command
+- Files changed:
+  - src/cli/commands/spec.ts (modified - added validateSpecFile function, SpecFileValidationResult interface)
+  - src/cli/commands/__tests__/spec.test.ts (new, 49 lines)
+- Tests implemented:
+  - specReview_WithValidFile_DelegatesToRunner - PASS
+  - specReview_WithMissingFile_DisplaysError - PASS
+  - specReview_WithNonMarkdownFile_DisplaysError - PASS
+- **Learnings:**
+  - Exported validateSpecFile function for testability - allows direct testing of validation logic
+  - Validation runs BEFORE calling runSpecReview to fail fast on invalid input
+  - Code simplifier changed test names but task required specific naming convention (MethodName_Scenario_ExpectedResult)
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (3/3 spec CLI tests, 60/60 spec-review tests)
+  - Commit: SUCCESS (8a80d0a)
+---
+
+## 2026-01-10 - US-017: Implement interactive file picker for spec review
+- What was implemented: Extended spec review CLI to show interactive file picker when no file argument is provided
+- Files changed:
+  - src/cli/commands/spec.ts (modified - added findSpecFiles, showFilePicker, made spec-file arg optional)
+  - src/cli/commands/__tests__/spec.test.ts (modified - added 3 new tests)
+  - package.json (modified - added @inquirer/prompts dependency)
+  - package-lock.json (updated)
+- Tests implemented:
+  - specReview_WithNoArgs_ShowsFilePicker - PASS
+  - findSpecFiles_SearchesAllDirectories - PASS
+  - findSpecFiles_ReturnsOnlyMarkdownFiles - PASS
+- **Learnings:**
+  - @inquirer/prompts provides modern ES module-compatible select() for interactive CLI menus
+  - Code simplifier combined existsSync and stat checks using optional chaining pattern: `existsSync(path) ? await stat(path) : null` with `dirStat?.isDirectory()`
+  - SPEC_SEARCH_DIRECTORIES constant defines search order: specs/, docs/, .ralph/specs/, current directory (.)
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (6/6 spec CLI tests)
+  - Commit: SUCCESS (7382d11)
+---
+
+## 2026-01-10 - US-018: Implement CLI options for timeout and cli selection
+- What was implemented: Added --timeout, --cli, --verbose, --json options to spec review CLI command
+- Files changed:
+  - src/core/spec-review/runner.ts (modified - added cli, onProgress options to SpecReviewOptions)
+  - src/cli/commands/spec.ts (modified - added CLI options, validateCliOption, formatJsonOutput, formatHumanOutput)
+  - src/cli/commands/__tests__/spec.test.ts (modified - added 4 new tests)
+- Tests implemented:
+  - specReview_WithTimeoutFlag_UsesProvidedTimeout - PASS
+  - specReview_WithCliFlag_UsesProvidedCli - PASS
+  - specReview_WithVerboseFlag_ShowsDetailedOutput - PASS
+  - specReview_WithJsonFlag_OutputsJson - PASS
+- **Learnings:**
+  - Use onProgress callback pattern instead of verbose boolean for runner options - caller decides what to do with progress messages
+  - Code-simplifier correctly identified unused verbose property in SpecReviewOptions
+  - Renamed claude variable to cliProcess and claudePath to cliPath for clarity when supporting multiple CLI types
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (10/10 spec CLI tests, 70/70 spec-review tests total)
+  - Commit: SUCCESS (a252bd2)
+---
+
+## 2026-01-10 - US-019: Implement human-readable CLI output formatting
+- What was implemented: Enhanced formatHumanOutput function to display comprehensive spec review results
+- Files changed:
+  - src/cli/commands/spec.ts (modified - enhanced formatHumanOutput, added specFile parameter)
+  - src/cli/commands/__tests__/spec.test.ts (modified - added 4 new tests)
+- Tests implemented:
+  - formatOutput_WithPassVerdict_DisplaysPass - PASS
+  - formatOutput_WithNeedsImprovement_ShowsIssues - PASS
+  - formatOutput_WithSplitRecommended_ShowsProposal - PASS
+  - formatOutput_ShowsSuggestionsInPriorityOrder - PASS
+- **Learnings:**
+  - Use console.log mock with beforeEach/afterEach pattern to capture output for testing CLI display functions
+  - Severity ordering can be implemented with a Record<string, number> mapping for simple priority sorting
+  - Code simplifier confirmed no changes needed - function structure was already appropriate for the task
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (14/14 spec CLI tests)
+  - Commit: SUCCESS (3661163)
+---
+
+## 2026-01-10 - US-020: Implement god spec CLI user interaction
+- What was implemented: Interactive handling when god spec is detected - displays warning with issues, shows split proposal, prompts user with Accept/Modify/Skip options
+- Files changed:
+  - src/cli/commands/spec.ts (modified - added handleGodSpec, displayGodSpecWarning, promptGodSpecAction, editProposal, formatProposalForEditing, parseEditedProposal functions)
+  - src/cli/commands/__tests__/spec.test.ts (modified - added 3 new tests for handleGodSpec)
+- Tests implemented:
+  - handleGodSpec_DisplaysWarningAndProposal - PASS
+  - handleGodSpec_AcceptCreatesFiles - PASS
+  - handleGodSpec_SkipContinuesWithWarning - PASS
+- **Learnings:**
+  - Use @inquirer/prompts editor() function for allowing users to edit text in their default editor
+  - Code simplifier converted string concatenation to template literals with map().join() for cleaner formatProposalForEditing
+  - Use spread operator with matchAll for inline array construction: [...block.matchAll(/-\s*"([^"]+)"/g)].map((match) => match[1])
+  - Use early continue pattern in loops for better readability instead of nested if statements
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (17/17 spec CLI tests, 60/60 spec-review tests)
+  - Commit: SUCCESS (0fb25be)
+---
+
+## 2026-01-10 - US-021: Implement review logging
+- What was implemented: Created review-logger.ts module that saves comprehensive review results to .ralph/logs/
+- Files changed:
+  - src/core/spec-review/review-logger.ts (new, 230 lines)
+  - src/core/spec-review/__tests__/review-logger.test.ts (new, 202 lines)
+  - src/core/spec-review/runner.ts (modified - integrated saveReviewLog)
+  - src/core/spec-review/__tests__/runner.test.ts (modified - added mock for review-logger)
+- Tests implemented:
+  - saveReviewLog_CreatesLogFile - PASS
+  - saveReviewLog_CreatesPromptsDirectory - PASS
+  - saveReviewLog_CreatesJsonSummary - PASS
+  - saveReviewLog_LogsOnFailure - PASS
+- **Learnings:**
+  - saveReviewLog creates three outputs: human-readable .log file, .prompts/ directory with individual prompt I/O, and .json summary
+  - Code simplifier optimized formatSuggestion by removing intermediate array
+  - Code simplifier eliminated redundant aggregateResults call by using spread operator to add logPath
+  - Mock modules in runner.test.ts to prevent actual file I/O during unit tests
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (4/4 review-logger tests, 64/64 spec-review tests total)
+  - Commit: SUCCESS (f4838ad)
+---
+
+## 2026-01-11 - US-022: Implement error handling for CLI not available
+- What was implemented: Added CLI availability checking with installation instructions when CLI (claude or codex) is not installed
+- Files changed:
+  - src/core/cli-path.ts (modified, +52 lines - added checkCliAvailable, getInstallInstructions, CliAvailabilityResult)
+  - src/cli/commands/spec.ts (modified, +8 lines - added CLI check before running review)
+  - src/core/__tests__/cli-path.test.ts (new, 97 lines)
+  - src/cli/commands/__tests__/spec.test.ts (modified, +47 lines - added CLI availability tests)
+- Tests implemented:
+  - checkCliAvailable_ReturnsTrue_WhenInstalled - PASS
+  - checkCliAvailable_ReturnsFalse_WhenMissing - PASS
+  - runReview_WithMissingClaude_DisplaysInstallInstructions - PASS
+  - runReview_WithMissingCodex_DisplaysInstallInstructions - PASS
+- **Learnings:**
+  - isCliAvailable already existed in cli-path.ts - wrapped it with checkCliAvailable for structured error reporting
+  - Code simplifier removed redundant existsSync check from isCliAvailable since resolveFromWhich and resolveFromCommonPaths already verify paths exist
+  - Used getInstallInstructions as a separate function for easier testing and maintenance
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (5/5 cli-path tests, 19/19 spec CLI tests)
+  - Commit: SUCCESS (e8d11e4)
+---
+
+## 2026-01-11 - US-023: Implement error handling for timeout
+- What was implemented: Timeout error handling with SIGTERM/SIGKILL cascade, partial results tracking, and user guidance
+- Files changed:
+  - src/core/spec-review/runner.ts (modified, +47 lines - added SIGKILL_DELAY_MS, isTimeoutResult, SIGKILL timer, TimeoutInfo tracking)
+  - src/cli/commands/spec.ts (modified, +51 lines - added displayTimeoutError, formatTimeoutMs, timeout handling in action)
+  - src/types/index.ts (modified, +14 lines - added TimeoutInfo interface)
+  - src/cli/commands/__tests__/spec.test.ts (modified, +79 lines - added handleTimeout test suite)
+- Tests implemented:
+  - handleTimeout_TerminatesProcess - PASS
+  - handleTimeout_DisplaysPartialResults - PASS
+  - handleTimeout_SuggestsIncreasingTimeout - PASS
+- **Learnings:**
+  - Use clearTimeout for both timeoutId and sigkillTimeoutId in close handler to prevent memory leaks
+  - Track completedPromptNames array during iteration, only add prompt name after successful completion (not timeout)
+  - Break loop on first timeout - remaining prompts would likely timeout too
+  - formatTimeoutMs handles both seconds and minutes formatting with proper pluralization
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (86/86 spec-review and spec CLI tests)
+  - Commit: SUCCESS (7c2c57a)
+---
+
+## 2026-01-11 - US-024: Integrate --review flag with decompose command
+- What was implemented: Modified decompose command to use runDecomposeReview (focused prompts, no tools) when --review flag is set
+- Files changed:
+  - src/core/decompose/runner.ts (modified - integrated runDecomposeReview, added reviewTimeoutMs option, code simplified with runClaudeWithPrompt helper)
+  - src/cli/commands/decompose.ts (modified - added --timeout flag, passes reviewTimeoutMs to runner)
+  - src/core/decompose/__tests__/runner.test.ts (new, 273 lines - tests for review integration)
+- Tests implemented:
+  - decompose_WithReviewFlag_TriggersReview - PASS
+  - decompose_WithReviewFail_RetriesRevision - PASS
+  - decompose_WithReviewFlag_UsesConfiguredTimeout - PASS
+- **Learnings:**
+  - When testing functions that use parseStream, mock the entire stream-parser module and capture the onText callback to simulate Claude output
+  - The runDecomposeReview from spec-review returns ReviewFeedback directly (not wrapped), making integration straightforward
+  - Code simplifier extracted runClaudeWithPrompt helper to consolidate duplicate spawn logic between runClaudeDecompose and reviseTasksWithFeedback
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (67/67 decompose and spec-review tests)
+  - Commit: SUCCESS (09bbbe5)
+---
+
+## 2026-01-11 - US-025: Implement exit codes for spec review CLI
+- What was implemented: Exit code handling for spec review CLI - exit 0 for PASS, exit 1 for FAIL/NEEDS_IMPROVEMENT/SPLIT_RECOMMENDED, exit 2 for errors
+- Files changed:
+  - src/cli/commands/spec.ts (modified - added getExitCodeForVerdict function, changed error exits from 1 to 2)
+  - src/cli/commands/__tests__/spec.test.ts (modified - added exit codes test suite with 5 tests)
+- Tests implemented:
+  - specReview_PassVerdict_ExitsZero - PASS
+  - specReview_FailVerdict_ExitsOne - PASS
+  - specReview_NeedsImprovement_ExitsOne - PASS
+  - specReview_SplitRecommended_ExitsOne - PASS
+  - specReview_Error_ExitsTwo - PASS
+- **Learnings:**
+  - Extracted getExitCodeForVerdict() utility function for testability - makes exit code logic easily testable without mocking process.exit
+  - Simple ternary (verdict === 'PASS' ? 0 : 1) is readable for binary exit code mapping
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (27/27 spec CLI tests)
+  - Commit: SUCCESS (2b4916a)
+---
+
+## 2026-01-11 - US-026: Implement dynamic loop limit calculation
+- What was implemented: Fixed calculateLoopLimit function to return 0 for zero tasks (was incorrectly returning 5), added comprehensive test suite
+- Files changed:
+  - src/core/ralph-loop/loop-limit.ts (modified - removed incorrect zero-case handling)
+  - src/core/ralph-loop/__tests__/loop-limit.test.ts (new, 21 lines)
+- Tests implemented:
+  - calculateLoopLimit_With10ExistingTasks_Returns12 - PASS
+  - calculateLoopLimit_With20Existing5New_Returns30 - PASS
+  - calculateLoopLimit_With0Tasks_Returns0 - PASS
+  - calculateLoopLimit_WithFractionalResult_RoundsUp - PASS
+- **Learnings:**
+  - Module already existed with incorrect zero-case behavior (returned 5 instead of applying formula)
+  - Code simplifier cleaned up tests: removed verbose AAA comments, used default params where applicable
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (4/4 loop-limit tests)
+  - Commit: SUCCESS (981e8bc)
+---
+
+## 2026-01-11 - US-027: Integrate dynamic loop limit with task executor
+- What was implemented: Modified start.ts CLI to use getter function instead of static value, added onTasksChanged callback to LoopOptions, implemented recalculation when PRD is reloaded with more tasks
+- Files changed:
+  - src/cli/commands/start.ts (modified - uses getMaxIterations getter, passes onTasksChanged callback)
+  - src/core/ralph-loop/runner.ts (modified - added onTasksChanged to LoopOptions, calls it when task count increases)
+  - src/core/ralph-loop/__tests__/runner.test.ts (new, 227 lines)
+- Tests implemented:
+  - taskExecutor_UsesDynamicLimit - PASS
+  - taskExecutor_RecalculatesOnTaskAddition - PASS
+  - taskExecutor_AllTasksFitInWindow - PASS
+- **Learnings:**
+  - Runner already supported dynamic maxIterations via getter function - just needed to wire it up in CLI
+  - Used optional callback pattern (onTasksChanged?.) for recalculation notification
+  - Server routes already had similar implementation via runningLoop.updateMaxIterations - CLI was missing this
+  - Test mocking for runClaude requires full RunResult with parsed: { fullText, toolCalls, isComplete }
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (7/7 ralph-loop tests)
+  - Commit: SUCCESS (ee1ccdb)
+---
+
+## 2026-01-11 - US-028: Create spec review API routes
+- What was implemented: Created spec-review.ts routes file with 5 endpoints for spec review functionality
+- Files changed:
+  - src/server/routes/spec-review.ts (new, 294 lines)
+  - src/server/__tests__/spec-review.routes.test.ts (new, 341 lines)
+  - src/server/index.ts (modified - added spec-review router registration)
+- Endpoints implemented:
+  - GET /api/spec-review/files - lists available markdown spec files
+  - POST /api/spec-review/start - initiates review session with runSpecReview
+  - GET /api/spec-review/status/:sessionId - returns review status/results from session file
+  - POST /api/spec-review/split - executes spec split using executeSplit
+  - POST /api/spec-review/split/preview - previews split using detectGodSpec and generateSplitProposal
+- Tests implemented:
+  - GET_files_ReturnsMarkdownFiles - PASS
+  - POST_start_InitiatesReview - PASS
+  - GET_status_ReturnsResults - PASS
+  - POST_split_CreatesFiles - PASS
+  - POST_splitPreview_ReturnsPreview - PASS
+- **Learnings:**
+  - Use dynamic mockProjectPath variable for tests that need different project paths - declare at module level and reset in beforeEach
+  - detectGodSpec requires CodebaseContext as second argument - pass empty context for preview functionality
+  - Route files follow pattern: router.use(projectContext(true)) to require project context middleware
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (12/12 spec-review routes tests)
+  - Commit: SUCCESS (0ff8db3)
+---
+
+## 2026-01-11 - US-029: Create session API routes
+- What was implemented: Created sessions.ts routes file with 3 endpoints for session management
+- Files changed:
+  - src/server/routes/sessions.ts (new, 87 lines)
+  - src/server/__tests__/sessions.routes.test.ts (new, 162 lines)
+  - src/server/index.ts (modified - added sessions router registration)
+- Endpoints implemented:
+  - GET /api/sessions/spec/:specPath - loads session using loadSession from session-file.ts
+  - PUT /api/sessions/spec/:specPath - saves session state using saveSession
+  - GET /api/sessions/spec/:specPath/exists - checks existence using getSessionPath and access()
+- Tests implemented:
+  - should return session when it exists - PASS
+  - should return null when session does not exist - PASS
+  - should save session state - PASS
+  - should return 400 when session body is missing - PASS
+  - should return true when session file exists - PASS
+  - should return false when session file does not exist - PASS
+- **Learnings:**
+  - URL parameters with paths require URL encoding/decoding - use encodeURIComponent/decodeURIComponent
+  - Promise.then() with success/failure handlers is cleaner for boolean conversion: `access(path).then(() => true, () => false)`
+  - Session routes reuse the existing session-file.ts module functions for consistency
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (6/6 sessions routes tests, 29/29 server tests total)
+  - Commit: SUCCESS (b58cafe)
+---
+
+## 2026-01-11 - US-030: Create feedback and chat API routes
+- What was implemented: Added 4 new API endpoints to spec-review routes for interactive dashboard experience
+- Files changed:
+  - src/server/routes/spec-review.ts (modified, +223 lines - 4 endpoints + helper function)
+  - src/server/__tests__/spec-review.routes.test.ts (modified, +293 lines - 6 new tests)
+- Endpoints implemented:
+  - POST /api/spec-review/feedback - handles approve/reject/edit of suggestions
+  - POST /api/spec-review/chat - sends chat messages for review session
+  - POST /api/spec-review/revert - reverts a change from change history
+  - GET /api/spec-review/suggestions/:sessionId - gets pending suggestions
+- Tests implemented:
+  - POST_feedback_Approved_UpdatesSession - PASS
+  - POST_feedback_Rejected_UpdatesSession - PASS
+  - POST_feedback_Edited_UpdatesSession - PASS
+  - POST_chat_SendsToAgent - PASS
+  - POST_revert_RestoresPreviousContent - PASS
+  - GET_suggestions_ReturnsPendingSuggestions - PASS (bonus)
+- **Learnings:**
+  - Extracted findSessionById helper function for code reuse across endpoints
+  - Code-simplifier also refactored existing /status/:sessionId endpoint to use the helper
+  - For feedback endpoint, action parameter uses 'approved'/'rejected'/'edited' values (matching SuggestionStatus type)
+  - Revert endpoint writes file content using fs.writeFile and marks change as reverted in session
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (18/18 spec-review routes tests, 35/35 server tests total)
+  - Commit: SUCCESS (d6ea4ad)
+---
+
+## 2026-01-11 - US-031: Implement change tracker for revert functionality
+- What was implemented: Created change-tracker.ts module with trackChange, revertChange, and revertAll functions for managing spec review change history
+- Files changed:
+  - src/core/spec-review/change-tracker.ts (new, 139 lines)
+  - src/core/spec-review/__tests__/change-tracker.test.ts (new, 169 lines)
+- Tests implemented:
+  - trackChange_AddsToHistory - PASS
+  - revertChange_RestoresContent - PASS
+  - revertAll_RestoresOriginal - PASS
+  - trackChange_PersistsToSession - PASS
+- **Learnings:**
+  - The change-tracker module complements the existing revert endpoint in spec-review.ts routes (US-030), providing reusable core logic
+  - revertAll reverts changes in reverse order (most recent first) to properly restore original content through the chain of changes
+  - Used optional chaining with nullish coalescing for getOriginalContent: `session.changeHistory[0]?.beforeContent ?? null`
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (4/4 change-tracker tests, 68/68 spec-review tests total)
+  - Commit: SUCCESS (2e3adaa)
+---
+
+## 2026-01-11 - US-032: Implement feedback handler for agent context
+- What was implemented: Created feedback-handler.ts module with AgentContext tracking and three handler functions (handleApproval, handleRejection, handleEdit) for preference learning
+- Files changed:
+  - src/core/spec-review/feedback-handler.ts (new, 202 lines)
+  - src/core/spec-review/__tests__/feedback-handler.test.ts (new, 189 lines)
+- Tests implemented:
+  - handleApproval should update agent context with approved category - PASS
+  - handleApproval should not duplicate categories when approving multiple of the same - PASS (bonus)
+  - handleRejection should update agent context with rejection pattern - PASS
+  - handleRejection should trigger alternative after multiple rejections in same category - PASS
+  - handleRejection should not trigger alternative for single rejection - PASS (bonus)
+  - handleRejection should respect explicit triggerAlternative option - PASS (bonus)
+  - handleEdit should store user version in agent context - PASS
+  - handleEdit should throw error when userVersion is missing - PASS (bonus)
+- **Learnings:**
+  - AgentContext uses Map<string, string> for userEdits to track user modifications keyed by suggestion ID
+  - shouldTriggerAlternative uses early return pattern during loop for efficiency (no need for two-pass approach)
+  - Code simplifier identified unused import (randomUUID) - always remove unused imports
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (8/8 feedback-handler tests, 76/76 spec-review tests total)
+  - Commit: SUCCESS (9059c37)
+---
+
+## 2026-01-11 - US-033: Create SpecReviewPage dashboard component
+- What was implemented: Created SpecReviewPage.tsx component with split view layout, resizable panels, and file selector dropdown
+- Files changed:
+  - web/src/components/SpecReviewPage.tsx (new, 177 lines)
+  - web/src/components/SpecReviewPage.css (new, 108 lines)
+  - web/src/components/__tests__/SpecReviewPage.test.tsx (new, 165 lines)
+  - web/src/App.tsx (modified - added import and route for /spec-review)
+- Tests implemented:
+  - SpecReviewPage_RendersSplitLayout (3 sub-tests) - PASS
+  - SpecReviewPage_PanelsAreResizable (3 sub-tests) - PASS
+  - SpecReviewPage_ShowsFileSelector (5 sub-tests) - PASS
+- **Learnings:**
+  - For resizable split panels without a library, use mousedown on a divider + document-level mousemove/mouseup listeners with useEffect cleanup
+  - Clamp panel width between min/max (20%-80%) to prevent panels from collapsing completely
+  - Use aria-orientation="vertical" and role="separator" for accessible resize handles
+  - When useEffect fetches data and sets initial selection, avoid including the selection in the dependency array to prevent re-fetches
+- **Verification:**
+  - Build: PASS (npm run build)
+  - Tests: PASS (11/11 SpecReviewPage tests)
+  - Commit: SUCCESS (134d01b)
+---
+
+## 2026-01-11 - US-034: Create MDXEditor configuration
+- What was implemented: Created MDXEditor plugin configuration file with all required plugins for spec review editing
+- Files changed:
+  - web/src/lib/mdx-editor/config.ts (new, 50 lines)
+  - web/package.json (modified - added @mdxeditor/editor dependency)
+  - web/package-lock.json (updated)
+- Tests implemented: None required (configuration only - tested via integration)
+- **Learnings:**
+  - MDXEditor uses a plugin architecture where each capability (headings, lists, etc.) is a separate plugin function
+  - diffSourcePlugin provides rich-text/source/diff view modes via viewMode option
+  - codeBlockPlugin supports defaultCodeBlockLanguage option for syntax highlighting defaults
+  - Plugin functions are called (not referenced) to create RealmPlugin instances
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: N/A (configuration only)
+  - Commit: SUCCESS (f4e0ec4)
+---
+
+## 2026-01-11 - US-035: Create SpecEditor component with MDXEditor
+- What was implemented: Created SpecEditor.tsx component that wraps MDXEditor with ref exposure, onChange handling, and view mode support
+- Files changed:
+  - web/src/components/SpecEditor.tsx (new, 133 lines)
+  - web/src/components/__tests__/SpecEditor.test.tsx (new, 221 lines)
+- Tests implemented:
+  - SpecEditor_RendersMDXEditor (3 sub-tests) - PASS
+  - SpecEditor_DisplaysContent (2 sub-tests) - PASS
+  - SpecEditor_ExposesRef (5 sub-tests) - PASS
+  - SpecEditor_SyncsOnChange (3 sub-tests) - PASS
+  - SpecEditor_ViewModes (2 bonus tests) - PASS
+- **Learnings:**
+  - MDXEditor uses forwardRef pattern with MDXEditorMethods interface for ref access
+  - useImperativeHandle allows exposing a custom ref interface that wraps the underlying MDXEditor methods
+  - diffSourcePlugin must be configured with viewMode at plugin creation time - replace the plugin from createEditorPlugins with a new instance configured for the desired mode
+  - When testing components with complex third-party libraries like MDXEditor, mock the entire library and provide a simple textarea-based implementation that exposes the same props interface
+- **Verification:**
+  - Build: PASS (npm run build)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: PASS (15/15 SpecEditor tests)
+  - Commit: SUCCESS (dc1e688)
+---

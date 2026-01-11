@@ -10,6 +10,7 @@ interface LiveExecutionViewProps {
   currentStory: string | null;
   iterationLog: string;
   currentIteration: number | null;
+  maxIterations: number;
   isRunning: boolean;
 }
 
@@ -20,6 +21,7 @@ export function LiveExecutionView({
   currentStory,
   iterationLog,
   currentIteration,
+  maxIterations,
   isRunning,
 }: LiveExecutionViewProps) {
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
@@ -159,7 +161,7 @@ export function LiveExecutionView({
               </div>
               {isRunning && runningStoryId === selectedStory.id && (
                 <div className="iteration-badge">
-                  Iteration {currentIteration || 1}
+                  Iteration {currentIteration || 1}/{maxIterations}
                 </div>
               )}
             </div>
