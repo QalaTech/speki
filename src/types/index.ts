@@ -534,6 +534,18 @@ export interface SessionFile {
   logPath?: string;
 }
 
+/** Information about a timeout that occurred during review */
+export interface TimeoutInfo {
+  /** The timeout value in milliseconds that was used */
+  timeoutMs: number;
+  /** Number of prompts that completed before timeout */
+  completedPrompts: number;
+  /** Total number of prompts that were planned to run */
+  totalPrompts: number;
+  /** Names of prompts that completed */
+  completedPromptNames: string[];
+}
+
 /**
  * Complete result from a spec review operation.
  */
@@ -552,4 +564,6 @@ export interface SpecReviewResult {
   logPath: string;
   /** Total duration in milliseconds */
   durationMs: number;
+  /** Timeout information if review timed out (contains partial results) */
+  timeoutInfo?: TimeoutInfo;
 }

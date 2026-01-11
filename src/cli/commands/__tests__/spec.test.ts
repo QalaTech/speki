@@ -4,9 +4,9 @@ import { join } from 'path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput, formatHumanOutput, handleGodSpec } from '../spec.js';
+import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput, formatHumanOutput, handleGodSpec, displayTimeoutError } from '../spec.js';
 import { checkCliAvailable, getInstallInstructions } from '../../../core/cli-path.js';
-import type { SpecReviewResult } from '../../../types/index.js';
+import type { SpecReviewResult, TimeoutInfo } from '../../../types/index.js';
 
 vi.mock('@inquirer/prompts', () => ({
   select: vi.fn(),
@@ -533,5 +533,80 @@ describe('CLI availability check', () => {
     expect(result.installInstructions).toContain('npm install');
     expect(result.installInstructions).toContain('@openai/codex');
     expect(result.installInstructions).toContain('github.com/openai');
+  });
+});
+
+describe('handleTimeout', () => {
+  let consoleLogs: string[];
+  const originalConsoleLog = console.log;
+
+  beforeEach(() => {
+    consoleLogs = [];
+    console.log = (...args: unknown[]) => {
+      consoleLogs.push(args.map(String).join(' '));
+    };
+  });
+
+  afterEach(() => {
+    console.log = originalConsoleLog;
+  });
+
+  it('handleTimeout_TerminatesProcess', () => {
+    // Test that displayTimeoutError shows the timeout message
+    const timeoutInfo: TimeoutInfo = {
+      timeoutMs: 600000,
+      completedPrompts: 2,
+      totalPrompts: 5,
+      completedPromptNames: ['god_spec_detection', 'requirements_completeness'],
+    };
+
+    displayTimeoutError(timeoutInfo, '/specs/test-spec.md');
+
+    const output = consoleLogs.join('\n');
+    expect(output).toContain('Review Timed Out');
+    expect(output).toContain('test-spec.md');
+    expect(output).toContain('10 minutes'); // 600000ms = 10 minutes
+  });
+
+  it('handleTimeout_DisplaysPartialResults', () => {
+    // Test that partial results are displayed when some prompts completed
+    const timeoutInfo: TimeoutInfo = {
+      timeoutMs: 300000,
+      completedPrompts: 3,
+      totalPrompts: 5,
+      completedPromptNames: ['god_spec_detection', 'requirements_completeness', 'clarity_specificity'],
+    };
+
+    displayTimeoutError(timeoutInfo, '/specs/partial-spec.md');
+
+    const output = consoleLogs.join('\n');
+    expect(output).toContain('Partial Results Available');
+    expect(output).toContain('Completed 3 of 5 review prompts');
+    expect(output).toContain('god_spec_detection');
+    expect(output).toContain('requirements_completeness');
+    expect(output).toContain('clarity_specificity');
+  });
+
+  it('handleTimeout_SuggestsIncreasingTimeout', () => {
+    // Test that timeout guidance is displayed
+    const timeoutInfo: TimeoutInfo = {
+      timeoutMs: 60000,
+      completedPrompts: 0,
+      totalPrompts: 5,
+      completedPromptNames: [],
+    };
+
+    displayTimeoutError(timeoutInfo, '/specs/slow-spec.md');
+
+    const output = consoleLogs.join('\n');
+    expect(output).toContain('To increase the timeout');
+    expect(output).toContain('--timeout <ms>');
+    expect(output).toContain('RALPH_REVIEW_TIMEOUT_MS');
+    expect(output).toContain('60000ms');
+    expect(output).toContain('1 minute');
+    expect(output).toContain('Maximum allowed: 1800000ms');
+    expect(output).toContain('30 minutes');
+    // When no prompts completed, should show specific message
+    expect(output).toContain('No prompts completed before timeout');
   });
 });

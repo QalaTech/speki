@@ -10,7 +10,7 @@ import { checkCliAvailable } from '../../core/cli-path.js';
 import { findProjectRoot } from '../../core/project.js';
 import { runSpecReview } from '../../core/spec-review/runner.js';
 import { executeSplit } from '../../core/spec-review/splitter.js';
-import type { CliType, SplitProposal, SpecReviewResult } from '../../types/index.js';
+import type { CliType, SplitProposal, SpecReviewResult, TimeoutInfo } from '../../types/index.js';
 
 export interface SpecFileValidationResult {
   valid: boolean;
@@ -322,6 +322,39 @@ export function formatHumanOutput(result: SpecReviewResult, specFile: string): v
   }
 }
 
+function formatTimeoutMs(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  if (minutes > 0) {
+    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+  return `${seconds} second${seconds === 1 ? '' : 's'}`;
+}
+
+export function displayTimeoutError(timeoutInfo: TimeoutInfo, specFile: string): void {
+  const filename = specFile.split('/').pop() ?? specFile;
+  const timeoutFormatted = formatTimeoutMs(timeoutInfo.timeoutMs);
+
+  console.log(chalk.bold.red(`\n⏱  Review Timed Out: ${filename}`));
+  console.log(chalk.red(`\nThe review exceeded the timeout of ${timeoutFormatted}.`));
+
+  if (timeoutInfo.completedPrompts > 0) {
+    console.log(chalk.bold('\nPartial Results Available:'));
+    console.log(chalk.gray(`  Completed ${timeoutInfo.completedPrompts} of ${timeoutInfo.totalPrompts} review prompts:`));
+    for (const promptName of timeoutInfo.completedPromptNames) {
+      console.log(chalk.green(`    ✓ ${promptName}`));
+    }
+  } else {
+    console.log(chalk.yellow('\nNo prompts completed before timeout.'));
+  }
+
+  console.log(chalk.bold('\nTo increase the timeout, use one of these options:'));
+  console.log(chalk.cyan(`  --timeout <ms>                         CLI flag (e.g., --timeout 900000 for 15 minutes)`));
+  console.log(chalk.cyan(`  RALPH_REVIEW_TIMEOUT_MS=<ms>           Environment variable`));
+  console.log(chalk.gray(`\nCurrent timeout: ${timeoutInfo.timeoutMs}ms (${timeoutFormatted})`));
+  console.log(chalk.gray(`Maximum allowed: 1800000ms (30 minutes)`));
+}
+
 specCommand
   .command('review [spec-file]')
   .description('Review a specification file for quality and completeness')
@@ -376,6 +409,22 @@ specCommand
         cli,
         onProgress,
       });
+
+      // Handle timeout case
+      if (result.timeoutInfo) {
+        if (options.json) {
+          console.log(formatJsonOutput(result));
+        } else {
+          displayTimeoutError(result.timeoutInfo, resolvedSpecFile);
+
+          // Show partial results if any prompts completed
+          if (result.timeoutInfo.completedPrompts > 0) {
+            console.log(chalk.bold.yellow('\n═══ Partial Review Results ═══'));
+            formatHumanOutput(result, resolvedSpecFile);
+          }
+        }
+        process.exit(1);
+      }
 
       if (options.json) {
         console.log(formatJsonOutput(result));

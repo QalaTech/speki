@@ -17,7 +17,7 @@ import {
   DEPENDENCY_VALIDATION_PROMPT,
   DUPLICATE_DETECTION_PROMPT,
 } from './prompts.js';
-import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SpecReviewVerdict, ReviewFeedback, CliType } from '../../types/index.js';
+import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SpecReviewVerdict, ReviewFeedback, CliType, TimeoutInfo } from '../../types/index.js';
 
 export interface SpecReviewOptions {
   /** Timeout in milliseconds (overrides default) */
@@ -33,6 +33,9 @@ export interface SpecReviewOptions {
   /** Callback for progress updates */
   onProgress?: (message: string) => void;
 }
+
+// Re-export TimeoutInfo for convenience
+export type { TimeoutInfo } from '../../types/index.js';
 
 interface PromptDefinition {
   name: string;
@@ -112,6 +115,8 @@ interface RunPromptOptions {
   cli?: CliType;
 }
 
+const SIGKILL_DELAY_MS = 5000;
+
 async function runPrompt(
   promptDef: PromptDefinition,
   fullPrompt: string,
@@ -131,6 +136,7 @@ async function runPrompt(
   return new Promise((resolve) => {
     let stdout = '';
     let timedOut = false;
+    let sigkillTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const cliProcess = spawn(cliPath, args, {
       cwd,
@@ -145,6 +151,11 @@ async function runPrompt(
     const timeoutId = setTimeout(() => {
       timedOut = true;
       cliProcess.kill('SIGTERM');
+
+      // If process doesn't exit within 5 seconds, send SIGKILL
+      sigkillTimeoutId = setTimeout(() => {
+        cliProcess.kill('SIGKILL');
+      }, SIGKILL_DELAY_MS);
     }, timeoutMs);
 
     cliProcess.stdout.on('data', (chunk: Buffer) => {
@@ -156,6 +167,9 @@ async function runPrompt(
 
     cliProcess.on('close', () => {
       clearTimeout(timeoutId);
+      if (sigkillTimeoutId) {
+        clearTimeout(sigkillTimeoutId);
+      }
       const durationMs = Date.now() - startTime;
 
       if (timedOut) {
@@ -168,6 +182,9 @@ async function runPrompt(
 
     cliProcess.on('error', () => {
       clearTimeout(timeoutId);
+      if (sigkillTimeoutId) {
+        clearTimeout(sigkillTimeoutId);
+      }
       const durationMs = Date.now() - startTime;
       resolve(createErrorResult(promptDef, `Failed to spawn ${cliType} CLI`, '', durationMs));
     });
@@ -254,6 +271,10 @@ function parseSuggestions(rawSuggestions: unknown[], category: string): Suggesti
   });
 }
 
+function isTimeoutResult(result: FocusedPromptResult): boolean {
+  return result.issues.some(issue => issue === 'Review timed out');
+}
+
 export async function runSpecReview(
   specPath: string,
   options: SpecReviewOptions = {}
@@ -276,13 +297,24 @@ export async function runSpecReview(
   const promptTimeoutMs = Math.floor(timeoutMs / STANDALONE_PROMPTS.length);
   const results: FocusedPromptResult[] = [];
   const prompts: Array<{ name: string; fullPrompt: string }> = [];
+  const completedPromptNames: string[] = [];
+  let didTimeout = false;
 
   for (const promptDef of STANDALONE_PROMPTS) {
     onProgress(`Running ${promptDef.name}...`);
     const fullPrompt = buildPrompt(promptDef.template, specContent, codebaseContext, goldenStandard);
     prompts.push({ name: promptDef.name, fullPrompt });
     const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, { cli: options.cli });
+
+    if (isTimeoutResult(result)) {
+      didTimeout = true;
+      onProgress(`${promptDef.name}: TIMEOUT (${result.durationMs}ms)`);
+      results.push(result);
+      break; // Stop processing - remaining prompts would also likely timeout
+    }
+
     onProgress(`${promptDef.name}: ${result.verdict} (${result.durationMs}ms)`);
+    completedPromptNames.push(promptDef.name);
     results.push(result);
   }
 
@@ -295,7 +327,18 @@ export async function runSpecReview(
     prompts,
   });
 
-  return { ...aggregatedResult, logPath: logPaths.jsonFile };
+  const finalResult: SpecReviewResult = { ...aggregatedResult, logPath: logPaths.jsonFile };
+
+  if (didTimeout) {
+    finalResult.timeoutInfo = {
+      timeoutMs,
+      completedPrompts: completedPromptNames.length,
+      totalPrompts: STANDALONE_PROMPTS.length,
+      completedPromptNames,
+    };
+  }
+
+  return finalResult;
 }
 
 export interface DecomposeReviewOptions {
