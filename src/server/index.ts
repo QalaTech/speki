@@ -16,6 +16,7 @@ import tasksRouter from './routes/tasks.js';
 import ralphRouter from './routes/ralph.js';
 import decomposeRouter from './routes/decompose.js';
 import settingsRouter from './routes/settings.js';
+import specReviewRouter from './routes/spec-review.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -53,6 +54,7 @@ export async function createServer(options: ServerOptions = {}) {
   app.use('/api/ralph', ralphRouter);
   app.use('/api/decompose', decomposeRouter);
   app.use('/api/settings', settingsRouter);
+  app.use('/api/spec-review', specReviewRouter);
 
   // Health check
   app.get('/api/health', (req, res) => {
