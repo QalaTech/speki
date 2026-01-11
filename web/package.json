@@ -16,7 +16,9 @@
   },
   "dependencies": {
     "@mdxeditor/editor": "^3.52.3",
+    "@types/diff": "^7.0.2",
     "cors": "^2.8.5",
+    "diff": "^8.0.2",
     "express": "^5.2.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
