@@ -559,6 +559,23 @@ router.post('/split/execute', async (req, res) => {
       }
     }
 
+    // Create child sessions for each split file with parentSpecPath
+    const now = new Date().toISOString();
+    for (const filePath of createdFiles) {
+      const childSession: SessionFile = {
+        sessionId: randomUUID(),
+        specFilePath: filePath,
+        status: 'in_progress',
+        startedAt: now,
+        lastUpdatedAt: now,
+        suggestions: [],
+        changeHistory: [],
+        chatMessages: [],
+        parentSpecPath: specFile,
+      };
+      await saveSession(childSession);
+    }
+
     res.json({
       success: true,
       createdFiles,

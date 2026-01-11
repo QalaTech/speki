@@ -530,6 +530,8 @@ export interface SessionFile {
   chatMessages: ChatMessage[];
   /** Split spec references (if spec was split) */
   splitSpecs?: SplitSpecRef[];
+  /** Path to parent spec if this spec was created from a split */
+  parentSpecPath?: string;
   /** Path to the review log file */
   logPath?: string;
 }

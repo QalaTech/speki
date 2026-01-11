@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { SuggestionCard as SuggestionCardType, SpecReviewResult, GodSpecIndicators, SplitProposal, ChatMessage } from '../../../src/types/index.js';
+import type { SuggestionCard as SuggestionCardType, SpecReviewResult, GodSpecIndicators, SplitProposal, ChatMessage, SplitSpecRef } from '../../../src/types/index.js';
 import { SpecEditor } from './SpecEditor';
 import { SuggestionCard } from './SuggestionCard';
 import { DiffApprovalBar } from './DiffApprovalBar';
@@ -7,6 +7,7 @@ import { BatchNavigation } from './BatchNavigation';
 import { GodSpecWarning } from './GodSpecWarning';
 import { SplitPreviewModal, type SplitPreviewFile } from './SplitPreviewModal';
 import { ReviewChat } from './ReviewChat';
+import { SplitNavigation } from './SplitNavigation';
 import { useSpecEditor } from '../hooks/useSpecEditor';
 import { useDiffApproval } from '../hooks/useDiffApproval';
 import { useAgentFeedback } from '../hooks/useAgentFeedback';
@@ -51,6 +52,10 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  // Split navigation state
+  const [splitSpecs, setSplitSpecs] = useState<SplitSpecRef[]>([]);
+  const [parentSpecPath, setParentSpecPath] = useState<string | undefined>(undefined);
 
   const apiUrl = useCallback((endpoint: string): string => {
     if (!projectPath) return endpoint;
@@ -112,6 +117,10 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
             setReviewResult(data.session.reviewResult || null);
             setChatMessages(data.session.chatMessages || []);
 
+            // Set split navigation state
+            setSplitSpecs(data.session.splitSpecs || []);
+            setParentSpecPath(data.session.parentSpecPath);
+
             // Check for god spec indicators in review result
             const result = data.session.reviewResult;
             if (result?.verdict === 'SPLIT_RECOMMENDED') {
@@ -123,6 +132,10 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
               setSplitProposal(null);
               setShowGodSpecWarning(false);
             }
+          } else {
+            // Reset split navigation state when no session
+            setSplitSpecs([]);
+            setParentSpecPath(undefined);
           }
         }
       } catch (error) {
@@ -455,6 +468,17 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
     splitPreview.cancel();
   }, [splitPreview]);
 
+  // Handle navigation to related spec (parent or child from split)
+  const handleSpecNavigate = useCallback((specPath: string): void => {
+    const isRelativeFilename = !specPath.includes('/');
+    const resolvedPath = isRelativeFilename && selectedFile
+      ? `${selectedFile.substring(0, selectedFile.lastIndexOf('/'))}/${specPath}`
+      : specPath;
+
+    setSelectedFile(resolvedPath);
+    diffApproval.reset();
+  }, [selectedFile, diffApproval]);
+
   if (loading) {
     return (
       <div className="spec-review-page" data-testid="spec-review-page">
@@ -494,6 +518,13 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
           </select>
         </div>
       </header>
+
+      {/* Split navigation banners */}
+      <SplitNavigation
+        splitSpecs={splitSpecs}
+        parentSpecPath={parentSpecPath}
+        onNavigate={handleSpecNavigate}
+      />
 
       {/* Diff approval bar - shown when in diff mode */}
       <DiffApprovalBar
