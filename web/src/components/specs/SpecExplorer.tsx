@@ -404,9 +404,9 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
               chatMessages: [...prev.chatMessages, data.userMessage, data.assistantMessage],
             };
           }
-          // Create local session state if backend created one
+          // Create local session state using backend's session ID
           return {
-            sessionId: data.userMessage.id.split('-')[0], // Temporary ID, will refresh on next poll
+            sessionId: data.sessionId,
             status: 'completed',
             suggestions: [],
             reviewResult: null,

@@ -613,7 +613,7 @@ User's question: ${message}`;
 
     // Run the chat message through Claude
     const chatResponse = await runChatMessage(
-      sessionId,
+      session.sessionId, // Use session's ID (may be newly created)
       messageContent,
       isFirstMessage,
       {
@@ -642,6 +642,7 @@ User's question: ${message}`;
 
     res.json({
       success: !chatResponse.error,
+      sessionId: session.sessionId, // Return session ID so frontend can track it
       userMessage,
       assistantMessage,
       durationMs: chatResponse.durationMs,
