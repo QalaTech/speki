@@ -54,7 +54,6 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
   // UI state
   const [activeTab, setActiveTab] = useState<SpecTab>('preview');
-  const [isEditMode, setIsEditMode] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const editorRef = useRef<SpecEditorRef>(null);
 
@@ -246,16 +245,27 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     setActiveTab(tab);
   };
 
-  // Handle edit toggle
-  const handleToggleEditMode = useCallback(() => {
-    setIsEditMode(prev => !prev);
-  }, []);
-
   // Handle content change in editor
   const handleContentChange = useCallback((newContent: string) => {
     setContent(newContent);
     setHasUnsavedChanges(true);
   }, []);
+
+  // Refetch spec content (used when agent updates the file)
+  const refetchContent = useCallback(async () => {
+    if (!selectedPath) return;
+    try {
+      const res = await fetch(apiUrl(`/api/spec-review/content/${encodeURIComponent(selectedPath)}`));
+      const data = await res.json();
+      const fileContent = data.content || '';
+      setContent(fileContent);
+      setOriginalContent(fileContent);
+      setHasUnsavedChanges(false);
+      console.log('[SpecExplorer] Refetched spec content after agent update');
+    } catch (err) {
+      console.error('Failed to refetch spec content:', err);
+    }
+  }, [selectedPath, apiUrl]);
 
   // Handle save
   const handleSave = useCallback(async (newContent?: string) => {
@@ -396,6 +406,12 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
       const data = await res.json();
 
       if (data.success && data.userMessage && data.assistantMessage) {
+        // Check if agent updated the spec file
+        if (data.assistantMessage.content?.includes('[SPEC_UPDATED]')) {
+          console.log('[SpecExplorer] Detected [SPEC_UPDATED] marker, refetching content');
+          refetchContent();
+        }
+
         // Update session with new messages (or create local session if none existed)
         setSession(prev => {
           if (prev) {
@@ -419,7 +435,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     } finally {
       setIsSendingChat(false);
     }
-  }, [selectedPath, session?.sessionId, apiUrl]);
+  }, [selectedPath, session?.sessionId, apiUrl, refetchContent]);
 
   // Handle discuss suggestion (from review tab)
   // Creates a "fresh chat" experience by:
@@ -546,33 +562,19 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
               ref={editorRef}
               content={content}
               onChange={handleContentChange}
-              readOnly={!isEditMode}
+              readOnly={false}
               className="spec-editor-inline"
             />
-            <div className="spec-editor-toolbar">
-              <div className="spec-editor-mode-toggle">
-                <button
-                  className={`mode-toggle-btn ${!isEditMode ? 'mode-toggle-btn--active' : ''}`}
-                  onClick={() => setIsEditMode(false)}
-                >
-                  Preview
-                </button>
-                <button
-                  className={`mode-toggle-btn ${isEditMode ? 'mode-toggle-btn--active' : ''}`}
-                  onClick={() => setIsEditMode(true)}
-                >
-                  Edit
-                </button>
-              </div>
-              {isEditMode && hasUnsavedChanges && (
+            {hasUnsavedChanges && (
+              <div className="spec-editor-toolbar">
                 <button
                   className="spec-editor-save-btn"
                   onClick={() => handleSave()}
                 >
                   Save
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         );
 
@@ -685,10 +687,9 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
             filePath={selectedPath}
             activeTab={activeTab}
             onTabChange={handleTabChange}
-            onEdit={handleToggleEditMode}
+            onEdit={() => {}} // Unused - always in edit mode
             reviewStatus={getReviewStatus()}
             hasUnsavedChanges={hasUnsavedChanges}
-            isEditMode={isEditMode}
           />
         )}
 
