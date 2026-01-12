@@ -29,6 +29,7 @@ qala-ralph/
 - `qala status` - Show current project status
 - `qala unregister` - Unregister a project from the registry
 - `qala update` - Update template files from the latest qala version
+- `qala update --all` - Update all registered projects globally
 
 ### Spec Review
 - `qala spec review <file>` - AI-powered spec review with suggestions

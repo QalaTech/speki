@@ -1,13 +1,101 @@
 import chalk from 'chalk';
 import { Command } from 'commander';
 import { Project, findProjectRoot } from '../../core/project.js';
+import { Registry } from '../../core/registry.js';
+
+/**
+ * Update a single project's templates
+ */
+async function updateSingleProject(projectPath: string, dryRun: boolean): Promise<{ path: string; updated: string[]; error?: string }> {
+  const project = new Project(projectPath);
+
+  if (!(await project.exists())) {
+    return { path: projectPath, updated: [], error: 'No Qala project found (.ralph/ missing)' };
+  }
+
+  if (dryRun) {
+    return {
+      path: projectPath,
+      updated: ['prompt.md', 'decompose-prompt.md', 'standards/*.md', 'skills/*.md'],
+    };
+  }
+
+  try {
+    const updated = await project.updateTemplates();
+    return { path: projectPath, updated };
+  } catch (error) {
+    return {
+      path: projectPath,
+      updated: [],
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
 
 export const updateCommand = new Command('update')
   .description('Update template files from the latest qala version (prompt.md, standards, etc.)')
   .option('-p, --project <path>', 'Project path (defaults to current directory)')
+  .option('-a, --all', 'Update all registered projects')
   .option('--dry-run', 'Show what would be updated without making changes')
   .action(async (options) => {
     try {
+      // Global update - all registered projects
+      if (options.all) {
+        const projects = await Registry.list();
+
+        if (projects.length === 0) {
+          console.log(chalk.yellow('No registered projects found.'));
+          console.log(chalk.gray('Register projects with: qala init'));
+          return;
+        }
+
+        console.log(chalk.blue(`Updating ${projects.length} registered project(s)...`));
+        console.log('');
+
+        if (options.dryRun) {
+          console.log(chalk.yellow('Dry run - no changes will be made'));
+          console.log('');
+        }
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const entry of projects) {
+          console.log(chalk.cyan(`→ ${entry.name}`));
+          console.log(chalk.gray(`  ${entry.path}`));
+
+          const result = await updateSingleProject(entry.path, options.dryRun);
+
+          if (result.error) {
+            console.log(chalk.red(`  ✗ ${result.error}`));
+            errorCount++;
+          } else if (result.updated.length === 0) {
+            console.log(chalk.yellow('  No template files found to update.'));
+          } else {
+            for (const file of result.updated) {
+              console.log(chalk.green(`  ✓ .ralph/${file}`));
+            }
+            successCount++;
+          }
+          console.log('');
+        }
+
+        // Summary
+        console.log(chalk.blue('─'.repeat(40)));
+        console.log(chalk.green(`✓ ${successCount} project(s) updated`));
+        if (errorCount > 0) {
+          console.log(chalk.red(`✗ ${errorCount} project(s) failed`));
+        }
+
+        if (options.dryRun) {
+          console.log('');
+          console.log(chalk.gray('Run without --dry-run to apply changes.'));
+        }
+
+        return;
+      }
+
+      // Single project update (original behavior)
       const projectPath = options.project || (await findProjectRoot()) || process.cwd();
       const project = new Project(projectPath);
 
