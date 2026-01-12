@@ -165,9 +165,10 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
 
   // Generate a key to force MDXEditor remount when switching modes
   // This is necessary because MDXEditor plugins are configured at initialization
+  // NOTE: readOnly is NOT included - MDXEditor handles readOnly prop changes without remount
   const editorKey = useMemo(
-    () => `editor-${viewMode}-${diffMarkdown ? 'with-diff' : 'no-diff'}-${readOnly ? 'readonly' : 'editable'}`,
-    [viewMode, diffMarkdown, readOnly]
+    () => `editor-${viewMode}-${diffMarkdown ? 'with-diff' : 'no-diff'}`,
+    [viewMode, diffMarkdown]
   );
 
   // Use source mode if there's a parse error
