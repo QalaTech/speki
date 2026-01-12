@@ -12,8 +12,8 @@ export interface DiscussingContext {
 export interface ReviewChatProps {
   /** Chat message history */
   messages: ChatMessage[];
-  /** Session ID for the review session */
-  sessionId: string;
+  /** Session ID for the review session (optional - may not exist until first message) */
+  sessionId?: string;
   /** Currently selected text from the editor (optional) */
   selectedText?: string;
   /** Context for discussing a specific suggestion (optional) */
