@@ -377,7 +377,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     selectionContext?: string,
     suggestionId?: string
   ): Promise<void> => {
-    if (!session?.sessionId) return;
+    if (!selectedPath) return;
 
     setIsSendingChat(true);
     try {
@@ -385,7 +385,8 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: session.sessionId,
+          sessionId: session?.sessionId,
+          specPath: selectedPath, // Always pass specPath so backend can create session if needed
           message,
           suggestionId,
           selectedText: selectionContext,
@@ -395,18 +396,30 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
       const data = await res.json();
 
       if (data.success && data.userMessage && data.assistantMessage) {
-        // Update session with new messages
-        setSession(prev => prev ? {
-          ...prev,
-          chatMessages: [...prev.chatMessages, data.userMessage, data.assistantMessage],
-        } : prev);
+        // Update session with new messages (or create local session if none existed)
+        setSession(prev => {
+          if (prev) {
+            return {
+              ...prev,
+              chatMessages: [...prev.chatMessages, data.userMessage, data.assistantMessage],
+            };
+          }
+          // Create local session state if backend created one
+          return {
+            sessionId: data.userMessage.id.split('-')[0], // Temporary ID, will refresh on next poll
+            status: 'completed',
+            suggestions: [],
+            reviewResult: null,
+            chatMessages: [data.userMessage, data.assistantMessage],
+          };
+        });
       }
     } catch (error) {
       console.error('Failed to send chat message:', error);
     } finally {
       setIsSendingChat(false);
     }
-  }, [session?.sessionId, apiUrl]);
+  }, [selectedPath, session?.sessionId, apiUrl]);
 
   // Handle discuss suggestion (from review tab)
   // Creates a "fresh chat" experience by:
@@ -696,17 +709,17 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
       )}
 
       {/* Chat Popup */}
-      {session && (
+      {selectedPath && (
         <>
           {/* Chat Toggle Button */}
           <button
-            className={`chat-toggle-btn ${isChatOpen ? 'chat-toggle-btn--open' : ''} ${session.chatMessages.length > 0 ? 'chat-toggle-btn--has-messages' : ''}`}
+            className={`chat-toggle-btn ${isChatOpen ? 'chat-toggle-btn--open' : ''} ${(session?.chatMessages?.length ?? 0) > 0 ? 'chat-toggle-btn--has-messages' : ''}`}
             onClick={() => setIsChatOpen(!isChatOpen)}
             title={isChatOpen ? 'Close chat' : 'Open chat'}
           >
             {isChatOpen ? '✕' : '💬'}
-            {!isChatOpen && session.chatMessages.length > 0 && (
-              <span className="chat-toggle-badge">{session.chatMessages.length}</span>
+            {!isChatOpen && (session?.chatMessages?.length ?? 0) > 0 && (
+              <span className="chat-toggle-badge">{session?.chatMessages?.length}</span>
             )}
           </button>
 
@@ -725,11 +738,11 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
               <ReviewChat
                 messages={
                   // Filter to only show messages from the discuss start time (fresh chat view)
-                  discussStartTimestamp
+                  discussStartTimestamp && session?.chatMessages
                     ? session.chatMessages.filter(m => m.timestamp >= discussStartTimestamp)
-                    : session.chatMessages
+                    : (session?.chatMessages ?? [])
                 }
-                sessionId={session.sessionId}
+                sessionId={session?.sessionId}
                 discussingContext={discussingContext}
                 onSendMessage={handleSendChatMessage}
                 onClearDiscussingContext={() => {

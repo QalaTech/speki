@@ -524,25 +524,50 @@ router.post('/feedback', async (req, res) => {
 
 /**
  * POST /api/spec-review/chat
- * Send a chat message for the review session and get AI response
+ * Send a chat message for the review session and get AI response.
+ * If no session exists and specPath is provided, creates a new chat-only session.
  */
 router.post('/chat', async (req, res) => {
   try {
-    const { sessionId, message, suggestionId, selectedText } = req.body;
-
-    if (!sessionId) {
-      return res.status(400).json({ error: 'sessionId is required' });
-    }
+    const { sessionId, message, suggestionId, selectedText, specPath } = req.body;
 
     if (!message) {
       return res.status(400).json({ error: 'message is required' });
     }
 
     const projectPath = req.projectPath!;
-    const session = await findSessionById(projectPath, sessionId);
+    let session: SessionFile | null = null;
 
+    // Try to find existing session by ID
+    if (sessionId) {
+      session = await findSessionById(projectPath, sessionId);
+    }
+
+    // If no session and specPath provided, try to load by specPath or create new
+    if (!session && specPath) {
+      session = await loadSession(specPath, projectPath);
+
+      // Create a new chat-only session if none exists
+      if (!session) {
+        const newSessionId = randomUUID();
+        session = {
+          sessionId: newSessionId,
+          specFilePath: specPath,
+          status: 'completed', // Chat-only sessions are "completed" (no review pending)
+          startedAt: new Date().toISOString(),
+          lastUpdatedAt: new Date().toISOString(),
+          suggestions: [],
+          chatMessages: [],
+          changeHistory: [],
+        };
+        await saveSession(session, projectPath);
+        console.log('[chat] Created new chat-only session:', { sessionId: newSessionId, specPath });
+      }
+    }
+
+    // TypeScript guard - session is guaranteed to exist at this point
     if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
+      return res.status(400).json({ error: 'Either sessionId or specPath is required' });
     }
 
     // Build message content with context
