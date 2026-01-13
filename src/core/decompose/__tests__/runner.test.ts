@@ -63,11 +63,38 @@ vi.mock('../../spec-review/timeout.js', () => ({
   getReviewTimeout: vi.fn(() => 600_000),
 }));
 
+// Mock spec-metadata utilities
+vi.mock('../../spec-review/spec-metadata.js', () => ({
+  extractSpecId: vi.fn((path: string) => path.replace(/.*\//, '').replace(/\.md$/, '')),
+  ensureSpecDir: vi.fn((projectPath: string, specId: string) =>
+    Promise.resolve(`${projectPath}/.ralph/specs/${specId}`)
+  ),
+  getSpecLogsDir: vi.fn((projectPath: string, specId: string) =>
+    `${projectPath}/.ralph/specs/${specId}/logs`
+  ),
+  readSpecMetadata: vi.fn().mockResolvedValue(null),
+  initSpecMetadata: vi.fn().mockResolvedValue({
+    created: '2026-01-13T12:00:00.000Z',
+    lastModified: '2026-01-13T12:00:00.000Z',
+    status: 'draft',
+    specPath: '/test/prd.md',
+  }),
+  updateSpecStatus: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Import the function under test after mocks are set up
 import { runDecompose } from '../runner.js';
 import { spawn } from 'child_process';
 import { runDecomposeReview } from '../../spec-review/runner.js';
 import { getReviewTimeout } from '../../spec-review/timeout.js';
+import {
+  extractSpecId,
+  ensureSpecDir,
+  getSpecLogsDir,
+  readSpecMetadata,
+  initSpecMetadata,
+  updateSpecStatus,
+} from '../../spec-review/spec-metadata.js';
 
 function createMockChildProcess(): ChildProcess {
   const child = new EventEmitter() as ChildProcess;
@@ -130,25 +157,38 @@ const validPrdJson = JSON.stringify({
   ],
 });
 
+// Helper: Setup test environment with common mocks
+function setupTestEnvironment() {
+  vi.clearAllMocks();
+  vi.useFakeTimers();
+  capturedOnText = null;
+  vi.mocked(getReviewTimeout).mockReturnValue(600_000);
+
+  // Suppress console output during tests
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+}
+
+// Helper: Cleanup test environment
+function cleanupTestEnvironment() {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+}
+
+// Helper: Simulate Claude completing successfully
+async function simulateClaudeCompletion(mockChild: ChildProcess, jsonOutput = validPrdJson) {
+  await vi.advanceTimersByTimeAsync(10);
+  if (capturedOnText) {
+    capturedOnText(jsonOutput);
+  }
+  mockChild.emit('close', 0);
+  await vi.advanceTimersByTimeAsync(10);
+}
+
 describe('runDecompose with --review flag', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.useFakeTimers();
-    capturedOnText = null;
-
-    // Default timeout
-    vi.mocked(getReviewTimeout).mockReturnValue(600_000);
-
-    // Suppress console output during tests
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.useRealTimers();
-  });
+  beforeEach(setupTestEnvironment);
+  afterEach(cleanupTestEnvironment);
 
   it('decompose_WithReviewFlag_TriggersReview', async () => {
     // Arrange
@@ -158,23 +198,13 @@ describe('runDecompose with --review flag', () => {
     const mockChild = createMockChildProcess();
     vi.mocked(spawn).mockReturnValue(mockChild);
 
-    // Start the promise but don't await yet
+    // Act
     const resultPromise = runDecompose(project, {
       prdFile: '/test/prd.md',
       enablePeerReview: true,
     });
 
-    // Wait for parseStream to be called and capture the onText callback
-    await vi.advanceTimersByTimeAsync(10);
-
-    // Emit stdout data (parseStream is mocked, but onText callback was captured)
-    if (capturedOnText) {
-      capturedOnText(validPrdJson);
-    }
-    mockChild.emit('close', 0);
-    await vi.advanceTimersByTimeAsync(10);
-
-    // Act
+    await simulateClaudeCompletion(mockChild);
     const result = await resultPromise;
 
     // Assert
@@ -241,22 +271,14 @@ describe('runDecompose with --review flag', () => {
     const mockChild = createMockChildProcess();
     vi.mocked(spawn).mockReturnValue(mockChild);
 
-    // Start the promise
+    // Act
     const resultPromise = runDecompose(project, {
       prdFile: '/test/prd.md',
       enablePeerReview: true,
       reviewTimeoutMs: customTimeout,
     });
 
-    // Simulate Claude completing
-    await vi.advanceTimersByTimeAsync(10);
-    if (capturedOnText) {
-      capturedOnText(validPrdJson);
-    }
-    mockChild.emit('close', 0);
-    await vi.advanceTimersByTimeAsync(10);
-
-    // Act
+    await simulateClaudeCompletion(mockChild);
     await resultPromise;
 
     // Assert
@@ -268,5 +290,116 @@ describe('runDecompose with --review flag', () => {
         timeoutMs: customTimeout,
       })
     );
+  });
+});
+
+describe('runDecompose with spec-partitioned output', () => {
+  beforeEach(setupTestEnvironment);
+  afterEach(cleanupTestEnvironment);
+
+  it('decompose_WithNewSpec_CreatesSpecDir', async () => {
+    // Arrange
+    const project = createMockProject();
+    vi.mocked(runDecomposeReview).mockResolvedValue(createPassFeedback());
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    // Act
+    const resultPromise = runDecompose(project, {
+      prdFile: '/test/my-feature.md',
+      enablePeerReview: false,
+    });
+
+    await simulateClaudeCompletion(mockChild);
+    await resultPromise;
+
+    // Assert
+    expect(ensureSpecDir).toHaveBeenCalledWith('/test/project', 'my-feature');
+  });
+
+  it('decompose_WithNewSpec_WritesDecomposeStateToSpecDir', async () => {
+    // Arrange
+    const project = createMockProject();
+    vi.mocked(runDecomposeReview).mockResolvedValue(createPassFeedback());
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    // Act
+    const resultPromise = runDecompose(project, {
+      prdFile: '/test/my-feature.md',
+      enablePeerReview: false,
+    });
+
+    await simulateClaudeCompletion(mockChild);
+    const result = await resultPromise;
+
+    // Assert
+    expect(result.outputPath).toBe('/test/project/.ralph/specs/my-feature/decompose_state.json');
+  });
+
+  it('decompose_WithNewSpec_InitializesMetadata', async () => {
+    // Arrange
+    const project = createMockProject();
+    vi.mocked(readSpecMetadata).mockResolvedValue(null);
+    vi.mocked(runDecomposeReview).mockResolvedValue(createPassFeedback());
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    // Act
+    const resultPromise = runDecompose(project, {
+      prdFile: '/test/my-feature.md',
+      enablePeerReview: false,
+    });
+
+    await simulateClaudeCompletion(mockChild);
+    await resultPromise;
+
+    // Assert
+    expect(initSpecMetadata).toHaveBeenCalledWith('/test/project', '/test/my-feature.md');
+  });
+
+  it('decompose_OnSuccess_TransitionsStatusToDecomposed', async () => {
+    // Arrange
+    const project = createMockProject();
+    vi.mocked(runDecomposeReview).mockResolvedValue(createPassFeedback());
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    // Act
+    const resultPromise = runDecompose(project, {
+      prdFile: '/test/my-feature.md',
+      enablePeerReview: false,
+    });
+
+    await simulateClaudeCompletion(mockChild);
+    await resultPromise;
+
+    // Assert
+    expect(updateSpecStatus).toHaveBeenCalledWith('/test/project', 'my-feature', 'decomposed');
+  });
+
+  it('decompose_WritesLogToSpecLogsDir', async () => {
+    // Arrange
+    const project = createMockProject();
+    vi.mocked(runDecomposeReview).mockResolvedValue(createPassFeedback());
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    // Act
+    const resultPromise = runDecompose(project, {
+      prdFile: '/test/my-feature.md',
+      enablePeerReview: false,
+    });
+
+    await simulateClaudeCompletion(mockChild);
+    await resultPromise;
+
+    // Assert
+    expect(getSpecLogsDir).toHaveBeenCalledWith('/test/project', 'my-feature');
   });
 });

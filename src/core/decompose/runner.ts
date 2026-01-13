@@ -17,6 +17,14 @@ import { loadGlobalSettings } from '../settings.js';
 import { resolveCliPath } from '../cli-path.js';
 import { runDecomposeReview } from '../spec-review/runner.js';
 import { getReviewTimeout } from '../spec-review/timeout.js';
+import {
+  extractSpecId,
+  ensureSpecDir,
+  getSpecLogsDir,
+  readSpecMetadata,
+  initSpecMetadata,
+  updateSpecStatus,
+} from '../spec-review/spec-metadata.js';
 import type { PRDData, DecomposeState, ReviewFeedback } from '../../types/index.js';
 
 export interface DecomposeOptions {
@@ -370,7 +378,7 @@ NO MARKDOWN, NO EXPLANATIONS.`;
 }
 
 /**
- * Update decompose state
+ * Update decompose state and trigger progress callback
  */
 async function updateState(
   project: Project,
@@ -378,12 +386,48 @@ async function updateState(
   onProgress?: (state: DecomposeState) => void
 ): Promise<void> {
   const current = await project.loadDecomposeState();
-  const updated: DecomposeState = {
-    ...current,
-    ...state,
-  };
+  const updated: DecomposeState = { ...current, ...state };
   await project.saveDecomposeState(updated);
   onProgress?.(updated);
+}
+
+/**
+ * Log feedback issues in a standardized format
+ */
+function logFeedbackIssues(feedback: ReviewFeedback): void {
+  console.log(chalk.yellow('  Issues found:'));
+  const issues = [
+    { items: feedback.missingRequirements, label: 'missing requirements' },
+    { items: feedback.contradictions, label: 'contradictions' },
+    { items: feedback.dependencyErrors, label: 'dependency errors' },
+    { items: feedback.duplicates, label: 'duplicates' },
+  ];
+
+  issues.forEach(({ items, label }) => {
+    if (items?.length) {
+      console.log(chalk.yellow(`    - ${items.length} ${label}`));
+    }
+  });
+}
+
+/**
+ * Print a formatted section header
+ */
+function logSection(title: string, divider = true): void {
+  console.log('');
+  console.log(chalk.green('============================================'));
+  console.log(chalk.green(`  ${title}`));
+  console.log(chalk.green('============================================'));
+  if (divider) {
+    console.log('');
+  }
+}
+
+/**
+ * Print labeled info line
+ */
+function logInfo(label: string, value: string | number): void {
+  console.log(`  ${chalk.cyan(label + ':')} ${' '.repeat(Math.max(0, 15 - label.length))}${value}`);
 }
 
 /**
@@ -417,27 +461,30 @@ export async function runDecompose(
     };
   }
 
-  // Derive output name
-  const prdBasename = basename(prdFile);
-  const finalOutputName = outputName || prdBasename.replace(/\.[^.]+$/, '.json');
-  const outputPath = join(project.tasksDir, finalOutputName);
+  // Derive spec ID and output path (spec-partitioned)
+  const specId = extractSpecId(prdFile);
+  const specDir = await ensureSpecDir(project.projectPath, specId);
+  const finalOutputName = outputName || 'decompose_state.json';
+  const outputPath = join(specDir, finalOutputName);
+
+  // Initialize spec metadata if not exists
+  const existingMetadata = await readSpecMetadata(project.projectPath, specId);
+  if (!existingMetadata) {
+    await initSpecMetadata(project.projectPath, prdFile);
+  }
 
   // Read PRD content
   const prdContent = await fs.readFile(prdFile, 'utf-8');
   const prdSize = Buffer.byteLength(prdContent);
   const prdLines = prdContent.split('\n').length;
 
-  console.log('');
-  console.log(chalk.green('============================================'));
-  console.log(chalk.green('  Qala PRD Decomposer'));
-  console.log(chalk.green('============================================'));
-  console.log('');
-  console.log(`  ${chalk.cyan('PRD File:')}    ${prdFile}`);
-  console.log(`  ${chalk.cyan('PRD Size:')}    ${prdSize} bytes, ${prdLines} lines`);
-  console.log(`  ${chalk.cyan('Branch:')}      ${branchName}`);
-  console.log(`  ${chalk.cyan('Output:')}      ${outputPath}`);
+  logSection('Qala PRD Decomposer');
+  logInfo('PRD File', prdFile);
+  logInfo('PRD Size', `${prdSize} bytes, ${prdLines} lines`);
+  logInfo('Branch', branchName);
+  logInfo('Output', outputPath);
   if (language) {
-    console.log(`  ${chalk.cyan('Language:')}    ${language}`);
+    logInfo('Language', language);
   }
   console.log('');
 
@@ -512,9 +559,11 @@ export async function runDecompose(
 
     fullPrompt += `\n\n## PRD Content\n\n<prd>\n${prdContent}\n</prd>`;
 
-    // Create log file
+    // Create log file in spec logs directory
+    const specLogsDir = getSpecLogsDir(project.projectPath, specId);
+    await fs.mkdir(specLogsDir, { recursive: true });
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const logPath = join(project.logsDir, `decompose_${timestamp}.log`);
+    const logPath = join(specLogsDir, `decompose_${timestamp}.log`);
 
     console.log(chalk.yellow('Starting Claude CLI...'));
     console.log(chalk.blue('(This may take 1-3 minutes for large PRDs)'));
@@ -620,19 +669,7 @@ export async function runDecompose(
         break;
       } else if (verdict === 'FAIL' && reviewAttempt < maxReviewAttempts) {
         // Show issues from feedback
-        console.log(chalk.yellow('  Issues found:'));
-        if (feedback.missingRequirements?.length) {
-          console.log(chalk.yellow(`    - ${feedback.missingRequirements.length} missing requirements`));
-        }
-        if (feedback.contradictions?.length) {
-          console.log(chalk.yellow(`    - ${feedback.contradictions.length} contradictions`));
-        }
-        if (feedback.dependencyErrors?.length) {
-          console.log(chalk.yellow(`    - ${feedback.dependencyErrors.length} dependency errors`));
-        }
-        if (feedback.duplicates?.length) {
-          console.log(chalk.yellow(`    - ${feedback.duplicates.length} duplicates`));
-        }
+        logFeedbackIssues(feedback);
 
         // Send feedback to Claude for revision
         console.log('');
@@ -684,15 +721,20 @@ export async function runDecompose(
     draftFile: outputPath,
   }, onProgress);
 
+  // Transition spec status to 'decomposed' on success
+  try {
+    await updateSpecStatus(project.projectPath, specId, 'decomposed');
+  } catch (error) {
+    // Status transition may fail if already decomposed (e.g., using existing draft)
+    // This is not fatal - log and continue
+    console.log(chalk.yellow(`  Note: ${(error as Error).message}`));
+  }
+
   // Summary
-  console.log('');
-  console.log(chalk.green('============================================'));
-  console.log(chalk.green('  Decomposition Complete!'));
-  console.log(chalk.green('============================================'));
-  console.log('');
-  console.log(`  ${chalk.cyan('Project:')}         ${prd.projectName}`);
-  console.log(`  ${chalk.cyan('Stories created:')} ${prd.userStories.length}`);
-  console.log(`  ${chalk.cyan('Output file:')}     ${outputPath}`);
+  logSection('Decomposition Complete!');
+  logInfo('Project', prd.projectName);
+  logInfo('Stories created', prd.userStories.length.toString());
+  logInfo('Output file', outputPath);
   console.log('');
 
   // Show first few stories
