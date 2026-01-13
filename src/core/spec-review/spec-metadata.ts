@@ -1,5 +1,6 @@
 import path from 'path';
-import { mkdir } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
+import type { SpecMetadata } from '../../types/index.js';
 
 /**
  * Extracts the spec ID from a spec file path by removing the .md extension.
@@ -52,4 +53,75 @@ export async function ensureSpecDir(
  */
 export function getSpecLogsDir(projectRoot: string, specId: string): string {
   return path.join(getSpecDir(projectRoot, specId), 'logs');
+}
+
+/**
+ * Returns the path to the metadata.json file for a spec.
+ *
+ * @param projectRoot - The project root directory
+ * @param specId - The spec identifier
+ * @returns The full path to the metadata.json file
+ */
+function getMetadataPath(projectRoot: string, specId: string): string {
+  return path.join(getSpecDir(projectRoot, specId), 'metadata.json');
+}
+
+/**
+ * Reads the metadata for a spec.
+ *
+ * @param projectRoot - The project root directory
+ * @param specId - The spec identifier
+ * @returns The metadata or null if it doesn't exist
+ */
+export async function readSpecMetadata(
+  projectRoot: string,
+  specId: string
+): Promise<SpecMetadata | null> {
+  const metadataPath = getMetadataPath(projectRoot, specId);
+  try {
+    const content = await readFile(metadataPath, 'utf-8');
+    return JSON.parse(content) as SpecMetadata;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Writes metadata for a spec.
+ *
+ * @param projectRoot - The project root directory
+ * @param specId - The spec identifier
+ * @param metadata - The metadata to write
+ */
+export async function writeSpecMetadata(
+  projectRoot: string,
+  specId: string,
+  metadata: SpecMetadata
+): Promise<void> {
+  await ensureSpecDir(projectRoot, specId);
+  const metadataPath = getMetadataPath(projectRoot, specId);
+  await writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
+}
+
+/**
+ * Initializes metadata for a new spec with draft status.
+ *
+ * @param projectRoot - The project root directory
+ * @param specPath - Path to the spec file
+ * @returns The created metadata
+ */
+export async function initSpecMetadata(
+  projectRoot: string,
+  specPath: string
+): Promise<SpecMetadata> {
+  const specId = extractSpecId(specPath);
+  const now = new Date().toISOString();
+  const metadata: SpecMetadata = {
+    created: now,
+    lastModified: now,
+    status: 'draft',
+    specPath,
+  };
+  await writeSpecMetadata(projectRoot, specId, metadata);
+  return metadata;
 }

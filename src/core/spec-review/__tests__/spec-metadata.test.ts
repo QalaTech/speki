@@ -4,8 +4,12 @@ import {
   getSpecDir,
   ensureSpecDir,
   getSpecLogsDir,
+  readSpecMetadata,
+  writeSpecMetadata,
+  initSpecMetadata,
 } from '../spec-metadata.js';
-import { mkdtemp, rm, stat } from 'fs/promises';
+import { mkdtemp, rm, stat, readFile } from 'fs/promises';
+import type { SpecMetadata } from '../../../types/index.js';
 import { tmpdir } from 'os';
 import path from 'path';
 
@@ -82,5 +86,116 @@ describe('getSpecLogsDir', () => {
     expect(result).toBe(
       path.join('/project', '.ralph', 'specs', 'my-spec', 'logs')
     );
+  });
+});
+
+describe('readSpecMetadata', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = await mkdtemp(path.join(tmpdir(), 'spec-metadata-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(testDir, { recursive: true, force: true });
+  });
+
+  it('readSpecMetadata_WhenFileExists_ReturnsMetadata', async () => {
+    const specId = 'test-spec';
+    const metadata: SpecMetadata = {
+      created: '2026-01-13T12:00:00.000Z',
+      lastModified: '2026-01-13T12:00:00.000Z',
+      status: 'draft',
+      specPath: 'specs/test-spec.md',
+    };
+    await writeSpecMetadata(testDir, specId, metadata);
+
+    const result = await readSpecMetadata(testDir, specId);
+    expect(result).toEqual(metadata);
+  });
+
+  it('readSpecMetadata_WhenFileNotExists_ReturnsNull', async () => {
+    const result = await readSpecMetadata(testDir, 'nonexistent-spec');
+    expect(result).toBeNull();
+  });
+});
+
+describe('writeSpecMetadata', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = await mkdtemp(path.join(tmpdir(), 'spec-metadata-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(testDir, { recursive: true, force: true });
+  });
+
+  it('writeSpecMetadata_WithValidData_PersistsToFile', async () => {
+    const specId = 'test-spec';
+    const metadata: SpecMetadata = {
+      created: '2026-01-13T12:00:00.000Z',
+      lastModified: '2026-01-13T12:00:00.000Z',
+      status: 'reviewed',
+      specPath: 'specs/test-spec.md',
+    };
+
+    await writeSpecMetadata(testDir, specId, metadata);
+
+    const metadataPath = path.join(
+      testDir,
+      '.ralph',
+      'specs',
+      specId,
+      'metadata.json'
+    );
+    const content = await readFile(metadataPath, 'utf-8');
+    expect(JSON.parse(content)).toEqual(metadata);
+  });
+
+  it('writeSpecMetadata_WhenDirNotExists_CreatesDir', async () => {
+    const specId = 'new-spec';
+    const metadata: SpecMetadata = {
+      created: '2026-01-13T12:00:00.000Z',
+      lastModified: '2026-01-13T12:00:00.000Z',
+      status: 'draft',
+      specPath: 'specs/new-spec.md',
+    };
+
+    await writeSpecMetadata(testDir, specId, metadata);
+
+    const specDir = path.join(testDir, '.ralph', 'specs', specId);
+    const dirStat = await stat(specDir);
+    expect(dirStat.isDirectory()).toBe(true);
+  });
+});
+
+describe('initSpecMetadata', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = await mkdtemp(path.join(tmpdir(), 'spec-metadata-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(testDir, { recursive: true, force: true });
+  });
+
+  it('initSpecMetadata_CreatesMetadataWithDraftStatus', async () => {
+    const specPath = 'specs/my-new-spec.md';
+    const result = await initSpecMetadata(testDir, specPath);
+
+    expect(result.status).toBe('draft');
+    expect(result.specPath).toBe(specPath);
+  });
+
+  it('initSpecMetadata_SetsCreatedAndLastModifiedToNow', async () => {
+    const before = new Date().toISOString();
+    const result = await initSpecMetadata(testDir, 'specs/timed-spec.md');
+    const after = new Date().toISOString();
+
+    expect(result.created).toBe(result.lastModified);
+    expect(result.created >= before).toBe(true);
+    expect(result.created <= after).toBe(true);
   });
 });
