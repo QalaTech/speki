@@ -1,8 +1,0 @@
-{
-  "projectName": "Spec Review Feature",
-  "branchName": "ralph/feature",
-  "language": "nodejs",
-  "standardsFile": ".ralph/standards/nodejs.md",
-  "description": "A comprehensive spec review feature that validates PRDs against quality standards, detects 'god specs' that should be split, and provides interactive review through CLI and dashboard interfaces",
-  "userStories": []
-}

@@ -1566,6 +1566,473 @@
       "complexity": "high",
       "context": {},
       "executedAt": "2026-01-11T13:34:13.743Z"
+    },
+    {
+      "id": "US-057",
+      "title": "Define SpecMetadata type and status enum",
+      "description": "Create TypeScript types for spec metadata including the status lifecycle enum. This provides type safety for all spec state management operations.",
+      "acceptanceCriteria": [
+        "SpecMetadata interface defined with created, lastModified, status, and specPath fields",
+        "SpecStatus type defined as union: 'draft' | 'reviewed' | 'decomposed' | 'active' | 'completed'",
+        "Types exported from src/types/index.ts",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [],
+      "priority": 1,
+      "passes": true,
+      "notes": "Types already implemented and committed in 5fc2c81. Verified: SpecMetadata interface at lines 357-366, SpecStatus type at line 352, both exported from src/types/index.ts. Build passes.",
+      "dependencies": [],
+      "complexity": "low",
+      "context": {
+        "suggestions": {
+          "schemas": "interface SpecMetadata { created: string; lastModified: string; status: SpecStatus; specPath: string; }\ntype SpecStatus = 'draft' | 'reviewed' | 'decomposed' | 'active' | 'completed';",
+          "patterns": "Follow existing type patterns in src/types/index.ts"
+        }
+      },
+      "executedAt": "2026-01-13T15:00:47.822Z"
+    },
+    {
+      "id": "US-058",
+      "title": "Create spec ID extraction utility",
+      "description": "Create a utility function to extract spec-id from a spec filename. The spec-id is the filename without the .md extension, supporting the naming convention <timestamp>-<kebab-case-name>.md.",
+      "acceptanceCriteria": [
+        "Function extractSpecId(specPath: string): string implemented",
+        "Handles paths like 'specs/foo.md' → 'foo'",
+        "Handles paths like 'specs/20260112-105832-spec-partitioning.md' → '20260112-105832-spec-partitioning'",
+        "Handles absolute and relative paths correctly",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "extractSpecId_WithSimpleFilename_ReturnsNameWithoutExtension",
+        "extractSpecId_WithTimestampPrefix_ReturnsFullId",
+        "extractSpecId_WithNestedPath_ReturnsOnlyFilename",
+        "extractSpecId_WithAbsolutePath_ReturnsOnlyFilename",
+        "extractSpecId_WithoutMdExtension_ReturnsAsIs"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Created extractSpecId utility in spec-metadata.ts with 5 passing tests",
+      "dependencies": [],
+      "complexity": "low",
+      "context": {
+        "suggestions": {
+          "examples": "import path from 'path';\nexport function extractSpecId(specPath: string): string {\n  const basename = path.basename(specPath);\n  return basename.replace(/\\.md$/, '');\n}"
+        }
+      },
+      "executedAt": "2026-01-13T15:03:40.300Z"
+    },
+    {
+      "id": "US-059",
+      "title": "Create spec directory management utility",
+      "description": "Create utility functions to manage spec directories under .ralph/specs/<spec-id>/. These utilities handle creating the directory structure and resolving paths for spec-specific files.",
+      "acceptanceCriteria": [
+        "Function getSpecDir(projectRoot: string, specId: string): string returns path to .ralph/specs/<spec-id>/",
+        "Function ensureSpecDir(projectRoot: string, specId: string): Promise<string> creates dir if not exists and returns path",
+        "Function getSpecLogsDir(projectRoot: string, specId: string): string returns path to logs subdirectory",
+        "All functions handle path normalization correctly",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "getSpecDir_WithValidInputs_ReturnsCorrectPath",
+        "ensureSpecDir_WhenDirNotExists_CreatesDirectoryStructure",
+        "ensureSpecDir_WhenDirExists_ReturnsSamePath",
+        "getSpecLogsDir_WithValidInputs_ReturnsLogsSubpath"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Added getSpecDir, ensureSpecDir, getSpecLogsDir utilities with 4 passing tests",
+      "dependencies": [
+        "US-058"
+      ],
+      "complexity": "low",
+      "context": {
+        "suggestions": {
+          "patterns": "Use fs.promises.mkdir with recursive: true for directory creation"
+        }
+      },
+      "executedAt": "2026-01-13T15:06:57.799Z"
+    },
+    {
+      "id": "US-060",
+      "title": "Create SpecMetadata read/write utilities",
+      "description": "Create functions to read and write metadata.json for a spec. This tracks the spec lifecycle including creation time, last modification, and current status.",
+      "acceptanceCriteria": [
+        "Function readSpecMetadata(projectRoot: string, specId: string): Promise<SpecMetadata | null> reads metadata.json",
+        "Function writeSpecMetadata(projectRoot: string, specId: string, metadata: SpecMetadata): Promise<void> writes metadata.json",
+        "Function initSpecMetadata(projectRoot: string, specPath: string): Promise<SpecMetadata> creates initial metadata with status 'draft'",
+        "Read returns null if file doesn't exist (not throws)",
+        "Write creates parent directories if needed",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "readSpecMetadata_WhenFileExists_ReturnsMetadata",
+        "readSpecMetadata_WhenFileNotExists_ReturnsNull",
+        "writeSpecMetadata_WithValidData_PersistsToFile",
+        "writeSpecMetadata_WhenDirNotExists_CreatesDir",
+        "initSpecMetadata_CreatesMetadataWithDraftStatus",
+        "initSpecMetadata_SetsCreatedAndLastModifiedToNow"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Added readSpecMetadata, writeSpecMetadata, initSpecMetadata functions with 6 passing tests",
+      "dependencies": [
+        "US-057",
+        "US-059"
+      ],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "examples": "const metadata: SpecMetadata = {\n  created: new Date().toISOString(),\n  lastModified: new Date().toISOString(),\n  status: 'draft',\n  specPath: specPath\n};"
+        }
+      },
+      "executedAt": "2026-01-13T15:11:06.762Z"
+    },
+    {
+      "id": "US-061",
+      "title": "Create spec status transition function",
+      "description": "Create a function to transition spec status with validation. This enforces the valid state transitions: draft→reviewed, draft→decomposed, reviewed→decomposed, decomposed→active, active→completed.",
+      "acceptanceCriteria": [
+        "Function transitionSpecStatus(current: SpecStatus, target: SpecStatus): boolean returns true if transition is valid",
+        "Function updateSpecStatus(projectRoot: string, specId: string, newStatus: SpecStatus): Promise<void> updates status if valid",
+        "Invalid transitions throw descriptive error",
+        "lastModified is updated on status change",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "transitionSpecStatus_DraftToReviewed_ReturnsTrue",
+        "transitionSpecStatus_DraftToDecomposed_ReturnsTrue",
+        "transitionSpecStatus_ReviewedToDecomposed_ReturnsTrue",
+        "transitionSpecStatus_DecomposedToActive_ReturnsTrue",
+        "transitionSpecStatus_ActiveToCompleted_ReturnsTrue",
+        "transitionSpecStatus_CompletedToDraft_ReturnsFalse",
+        "transitionSpecStatus_ActiveToReviewed_ReturnsFalse",
+        "updateSpecStatus_WithValidTransition_UpdatesMetadata",
+        "updateSpecStatus_WithInvalidTransition_ThrowsError"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Added transitionSpecStatus and updateSpecStatus functions with 9 passing tests. VALID_TRANSITIONS config defines state machine.",
+      "dependencies": [
+        "US-060"
+      ],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "patterns": "Use a Map or object to define valid transitions: { draft: ['reviewed', 'decomposed'], reviewed: ['decomposed'], decomposed: ['active'], active: ['completed'] }"
+        }
+      },
+      "executedAt": "2026-01-13T15:14:46.611Z"
+    },
+    {
+      "id": "US-062",
+      "title": "Update decompose command to write to spec-partitioned location",
+      "description": "Modify the decompose command to write decompose_state.json to .ralph/specs/<spec-id>/ instead of the global .ralph/ directory. This isolates decomposition state per spec.",
+      "acceptanceCriteria": [
+        "qala decompose <spec> writes to .ralph/specs/<spec-id>/decompose_state.json",
+        "Spec metadata is initialized if not exists with status 'draft'",
+        "Spec status transitions to 'decomposed' on successful completion",
+        "Decompose logs write to .ralph/specs/<spec-id>/logs/decompose_<timestamp>.log",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "decompose_WithNewSpec_CreatesSpecDir",
+        "decompose_WithNewSpec_WritesDecomposeStateToSpecDir",
+        "decompose_WithNewSpec_InitializesMetadata",
+        "decompose_OnSuccess_TransitionsStatusToDecomposed",
+        "decompose_WritesLogToSpecLogsDir"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "",
+      "dependencies": [
+        "US-059",
+        "US-060",
+        "US-061"
+      ],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "patterns": "Find the existing decompose command handler and modify the output path construction"
+        }
+      },
+      "executedAt": "2026-01-13T15:25:02.703Z"
+    },
+    {
+      "id": "US-063",
+      "title": "Update spec review command to write to spec-partitioned location",
+      "description": "Modify the spec review command to write review_state.json (currently peer_feedback.json) to .ralph/specs/<spec-id>/ instead of the global location. This isolates review feedback per spec.",
+      "acceptanceCriteria": [
+        "qala spec review <spec> writes to .ralph/specs/<spec-id>/review_state.json",
+        "Spec metadata is initialized if not exists with status 'draft'",
+        "Spec status transitions to 'reviewed' on successful completion",
+        "Review logs write to .ralph/specs/<spec-id>/logs/review_<timestamp>.json",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "specReview_WithNewSpec_CreatesSpecDir",
+        "specReview_WithNewSpec_WritesReviewStateToSpecDir",
+        "specReview_OnSuccess_TransitionsStatusToReviewed",
+        "specReview_WritesLogToSpecLogsDir"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "Implemented spec-partitioned review: review_state.json to .ralph/specs/<spec-id>/, metadata init with draft status, status transition to reviewed, logs to spec-partitioned location",
+      "dependencies": [
+        "US-059",
+        "US-060",
+        "US-061"
+      ],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "patterns": "Find the existing spec review command and modify output path. Rename peer_feedback.json to review_state.json for consistency"
+        }
+      },
+      "executedAt": "2026-01-13T15:34:30.835Z"
+    },
+    {
+      "id": "US-064",
+      "title": "Update task reading to use spec-partitioned location",
+      "description": "Modify task reading logic to read decompose_state.json from .ralph/specs/<spec-id>/ based on the active spec. This affects qala tasks list and qala tasks next commands.",
+      "acceptanceCriteria": [
+        "Task listing reads from per-spec decompose_state.json",
+        "Tasks next reads from per-spec decompose_state.json",
+        "Commands accept optional --spec <spec-id> flag to specify which spec",
+        "If no --spec provided and multiple specs exist, prompts user to select",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "tasksList_WithSpecFlag_ReadsFromSpecDir",
+        "tasksList_WithSingleSpec_ReadsFromThatSpec",
+        "tasksList_WithMultipleSpecs_PromptsSelection",
+        "tasksNext_WithSpecFlag_ReadsFromSpecDir"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": "Added listSpecs(), loadPRDForSpec(), savePRDForSpec() to spec-metadata.ts. Updated all task commands with --spec flag support. Auto-selects single spec, prompts for multi-spec. Falls back to legacy location.",
+      "dependencies": [
+        "US-062"
+      ],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "patterns": "Add --spec option to commander commands. Use inquirer for interactive selection when multiple specs exist"
+        }
+      },
+      "executedAt": "2026-01-13T15:46:05.271Z"
+    },
+    {
+      "id": "US-065",
+      "title": "Update qala status to show per-spec state",
+      "description": "Modify the qala status command to display status per spec, showing each spec's lifecycle status, last modified time, and task progress if decomposed.",
+      "acceptanceCriteria": [
+        "qala status lists all specs with their status",
+        "Shows metadata (created, lastModified, status) for each spec",
+        "Shows task progress (X/Y completed) for decomposed specs",
+        "Indicates which spec is currently active if any",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "status_WithNoSpecs_ShowsNoSpecsMessage",
+        "status_WithOneSpec_ShowsSpecDetails",
+        "status_WithMultipleSpecs_ListsAllSpecs",
+        "status_WithDecomposedSpec_ShowsTaskProgress",
+        "status_WithActiveSpec_IndicatesActive"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": "",
+      "dependencies": [
+        "US-060",
+        "US-064"
+      ],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "patterns": "Read all subdirectories of .ralph/specs/, load metadata.json from each, format as table output"
+        }
+      },
+      "executedAt": "2026-01-13T15:53:45.934Z"
+    },
+    {
+      "id": "US-066",
+      "title": "Update qala start to use spec-partitioned state",
+      "description": "Modify the qala start command to work with per-spec task state. It should transition the spec status to 'active' when starting work and read/write task progress from the spec directory.",
+      "acceptanceCriteria": [
+        "qala start reads tasks from per-spec decompose_state.json",
+        "qala start transitions spec status to 'active'",
+        "Task progress updates write to per-spec location",
+        "Accepts --spec <spec-id> flag or prompts for selection",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "start_WithSpecFlag_ReadsFromSpecDir",
+        "start_TransitionsStatusToActive",
+        "start_UpdatesTaskProgressInSpecDir",
+        "start_WithNoDecomposedSpecs_ShowsError"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": "Updated start command to use spec-partitioned state with --spec flag, status transitions, and loadPRD injection",
+      "dependencies": [
+        "US-061",
+        "US-064"
+      ],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "patterns": "Find existing start command, add spec selection logic, ensure status transitions on start"
+        }
+      },
+      "executedAt": "2026-01-13T16:06:52.620Z"
+    },
+    {
+      "id": "US-067",
+      "title": "Update API endpoints to read from spec-partitioned locations",
+      "description": "Modify the server API endpoints to read spec state from the new per-spec directory structure. This ensures the dashboard can display correct per-spec data.",
+      "acceptanceCriteria": [
+        "API endpoints accept spec-id parameter where needed",
+        "GET /api/specs returns list of all specs with metadata",
+        "GET /api/specs/:specId/tasks returns tasks for specific spec",
+        "GET /api/specs/:specId/status returns spec metadata and status",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "getSpecs_ReturnsAllSpecsWithMetadata",
+        "getSpecTasks_WithValidSpecId_ReturnsTasks",
+        "getSpecTasks_WithInvalidSpecId_Returns404",
+        "getSpecStatus_WithValidSpecId_ReturnsMetadata"
+      ],
+      "priority": 30,
+      "passes": true,
+      "notes": "Added /api/specs endpoints for spec-partitioned state access",
+      "dependencies": [
+        "US-064",
+        "US-065"
+      ],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "patterns": "Follow existing API patterns in src/server/. Add new routes for spec-specific endpoints"
+        }
+      },
+      "executedAt": "2026-01-13T16:24:34.211Z"
+    },
+    {
+      "id": "US-068",
+      "title": "Update dashboard UI to display per-spec state",
+      "description": "Modify the dashboard UI to show specs as a list with individual status, and allow drilling into each spec to see its tasks. This provides visibility into the new partitioned structure.",
+      "acceptanceCriteria": [
+        "Dashboard shows list of all specs with status badges",
+        "Clicking a spec shows its tasks and progress",
+        "Spec metadata (created, lastModified) visible in detail view",
+        "Status transitions visible (draft → reviewed → decomposed → active → completed)",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [],
+      "priority": 35,
+      "passes": true,
+      "notes": "UI tests would be e2e - covered by manual testing",
+      "dependencies": [
+        "US-067"
+      ],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "patterns": "Update React components to fetch from new API endpoints. Add spec selector component"
+        }
+      },
+      "executedAt": "2026-01-13T16:33:20.455Z"
+    },
+    {
+      "id": "US-069",
+      "title": "Add qala spec list command with per-spec status",
+      "description": "Enhance the existing qala spec list command to show the lifecycle status from metadata.json for each spec file, giving visibility into which specs are draft, reviewed, decomposed, etc.",
+      "acceptanceCriteria": [
+        "qala spec list shows spec files with their status",
+        "Status column shows: draft | reviewed | decomposed | active | completed",
+        "Specs without metadata show as 'draft' (not yet initialized)",
+        "Output is formatted as readable table",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "specList_WithNoSpecs_ShowsEmptyMessage",
+        "specList_WithSpecsHavingMetadata_ShowsStatus",
+        "specList_WithSpecsWithoutMetadata_ShowsDraft",
+        "specList_FormatsAsTable"
+      ],
+      "priority": 25,
+      "passes": true,
+      "notes": "Added spec list command with status column showing lifecycle state (draft/reviewed/decomposed/active/completed). Uses readSpecMetadata to get status from metadata.json, falls back to draft for specs without metadata. Output formatted as readable table.",
+      "dependencies": [
+        "US-060"
+      ],
+      "complexity": "low",
+      "context": {
+        "suggestions": {
+          "patterns": "Use existing spec list command as base, add status column by reading metadata"
+        }
+      },
+      "executedAt": "2026-01-13T16:13:51.256Z"
+    },
+    {
+      "id": "US-070",
+      "title": "Verify isolation with concurrent decompose operations",
+      "description": "Add integration test to verify that running decompose on specA.md then specB.md preserves specA's state unchanged. This validates the core isolation requirement.",
+      "acceptanceCriteria": [
+        "Integration test creates two spec files",
+        "Decompose specA, capture its decompose_state.json",
+        "Decompose specB, verify specA's decompose_state.json unchanged",
+        "Test verifies both specs have separate directories under .ralph/specs/",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "isolation_SequentialDecompose_PreservesFirstSpecState",
+        "isolation_BothSpecsHaveSeparateDirs",
+        "isolation_MetadataFilesAreIndependent"
+      ],
+      "priority": 40,
+      "passes": true,
+      "notes": "Added 3 integration tests to verify spec isolation: isolation_SequentialDecompose_PreservesFirstSpecState, isolation_BothSpecsHaveSeparateDirs, isolation_MetadataFilesAreIndependent. Tests use real file system operations in temp directories to verify the core isolation requirement.",
+      "dependencies": [
+        "US-062"
+      ],
+      "complexity": "medium",
+      "context": {
+        "suggestions": {
+          "patterns": "Create test fixtures in tests/fixtures/, use fs to verify file contents"
+        }
+      },
+      "executedAt": "2026-01-13T16:40:33.570Z"
+    },
+    {
+      "id": "US-071",
+      "title": "Update documentation with new spec-partitioned structure",
+      "description": "Update CLAUDE.md and any other documentation to reflect the new .ralph/specs/<spec-id>/ directory structure and the spec lifecycle states.",
+      "acceptanceCriteria": [
+        "CLAUDE.md updated with new directory structure",
+        "Spec lifecycle states documented",
+        "Migration instructions included (rm -rf commands for breaking change)",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [],
+      "priority": 50,
+      "passes": true,
+      "notes": "Updated CLAUDE.md with spec-partitioned structure (.ralph/specs/<spec-id>/), spec lifecycle states (draft/reviewed/decomposed/active/completed), and migration instructions for legacy cleanup.",
+      "dependencies": [
+        "US-062",
+        "US-063",
+        "US-064",
+        "US-065",
+        "US-066"
+      ],
+      "complexity": "low",
+      "context": {
+        "suggestions": {
+          "examples": "## Project Structure\n.ralph/specs/<spec-id>/\n├── logs/\n├── decompose_state.json\n├── review_state.json\n└── metadata.json"
+        }
+      },
+      "executedAt": "2026-01-13T16:43:28.336Z"
     }
   ]
 }

@@ -1421,3 +1421,333 @@
   - Tests: PASS (16/16 dashboard E2E tests)
   - Commit: SUCCESS (7c0bf69)
 ---
+
+## 2026-01-13 - US-057: Define SpecMetadata interface and SpecStatus type
+- What was implemented: Added SpecStatus type union and SpecMetadata interface to src/types/index.ts for per-spec lifecycle tracking
+- Files changed:
+  - src/types/index.ts (modified - added 2 type definitions, ~19 lines)
+- Types added:
+  - SpecStatus: 'draft' | 'reviewed' | 'decomposed' | 'active' | 'completed'
+  - SpecMetadata: interface with created, lastModified, status, specPath properties
+- Tests implemented: None required (type definitions only)
+- **Learnings:**
+  - Type definitions should be added near related types (placed after SessionStatus in the Spec Review Types section)
+  - Code simplifier confirmed no changes needed - types were already well-structured
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (via build)
+  - Tests: N/A (no tests for type definitions)
+  - Commit: SUCCESS (5fc2c81)
+---
+
+## 2026-01-13 - US-058: Create spec ID extraction utility
+- What was implemented: Created extractSpecId function to extract spec ID from file paths (filename without .md extension)
+- Files changed:
+  - src/core/spec-review/spec-metadata.ts (new, 17 lines)
+  - src/core/spec-review/__tests__/spec-metadata.test.ts (new, 29 lines)
+- Tests implemented:
+  - extractSpecId_WithSimpleFilename_ReturnsNameWithoutExtension - PASS
+  - extractSpecId_WithTimestampPrefix_ReturnsFullId - PASS
+  - extractSpecId_WithNestedPath_ReturnsOnlyFilename - PASS
+  - extractSpecId_WithAbsolutePath_ReturnsOnlyFilename - PASS
+  - extractSpecId_WithoutMdExtension_ReturnsAsIs - PASS
+- **Learnings:**
+  - Use path.basename() to reliably extract filename from any path format
+  - Simple regex .replace(/\.md$/, '') handles extension removal cleanly
+  - Test imports must use .js extension in Node16 module resolution
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (5/5 tests)
+  - Commit: SUCCESS (30c1d1e)
+---
+
+## 2026-01-13 - US-059: Create spec directory management utility
+- What was implemented: Added getSpecDir, ensureSpecDir, and getSpecLogsDir utility functions for managing spec-specific directories
+- Files changed:
+  - src/core/spec-review/spec-metadata.ts (modified, +42 lines - added 3 functions)
+  - src/core/spec-review/__tests__/spec-metadata.test.ts (modified, +47 lines - added 4 tests)
+- Tests implemented:
+  - getSpecDir_WithValidInputs_ReturnsCorrectPath - PASS
+  - ensureSpecDir_WhenDirNotExists_CreatesDirectoryStructure - PASS
+  - ensureSpecDir_WhenDirExists_ReturnsSamePath - PASS
+  - getSpecLogsDir_WithValidInputs_ReturnsLogsSubpath - PASS
+- **Learnings:**
+  - Use fs/promises mkdir with recursive: true to create nested directory structures in one call
+  - For directory creation tests, use mkdtemp() with tmpdir() to create isolated temp directories
+  - Composing functions (getSpecLogsDir uses getSpecDir) keeps code DRY
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (9/9 tests in spec-metadata)
+  - Commit: SUCCESS (edb20b5)
+---
+
+## 2026-01-13 - US-060: Create SpecMetadata read/write utilities
+- What was implemented: Added readSpecMetadata, writeSpecMetadata, and initSpecMetadata functions for managing spec lifecycle metadata
+- Files changed:
+  - src/core/spec-review/spec-metadata.ts (modified, +68 lines - added 3 functions + helper)
+  - src/core/spec-review/__tests__/spec-metadata.test.ts (modified, +115 lines - added 6 tests)
+- Tests implemented:
+  - readSpecMetadata_WhenFileExists_ReturnsMetadata - PASS
+  - readSpecMetadata_WhenFileNotExists_ReturnsNull - PASS
+  - writeSpecMetadata_WithValidData_PersistsToFile - PASS
+  - writeSpecMetadata_WhenDirNotExists_CreatesDir - PASS
+  - initSpecMetadata_CreatesMetadataWithDraftStatus - PASS
+  - initSpecMetadata_SetsCreatedAndLastModifiedToNow - PASS
+- **Learnings:**
+  - Return null from catch block for graceful handling of missing files (no specific error check needed)
+  - Use JSON.stringify with indent (null, 2) for human-readable metadata files
+  - initSpecMetadata composes extractSpecId and writeSpecMetadata for DRY code
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (15/15 tests in spec-metadata)
+  - Commit: SUCCESS (a161b77)
+---
+
+## 2026-01-13 - US-061: Create spec status transition function
+- What was implemented: Added transitionSpecStatus (validation) and updateSpecStatus (mutation) functions for spec lifecycle management
+- Files changed:
+  - src/core/spec-review/spec-metadata.ts (modified, +55 lines - added VALID_TRANSITIONS config, 2 functions)
+  - src/core/spec-review/__tests__/spec-metadata.test.ts (modified, +74 lines - added 9 tests, createTestMetadata helper)
+- Tests implemented:
+  - transitionSpecStatus_DraftToReviewed_ReturnsTrue - PASS
+  - transitionSpecStatus_DraftToDecomposed_ReturnsTrue - PASS
+  - transitionSpecStatus_ReviewedToDecomposed_ReturnsTrue - PASS
+  - transitionSpecStatus_DecomposedToActive_ReturnsTrue - PASS
+  - transitionSpecStatus_ActiveToCompleted_ReturnsTrue - PASS
+  - transitionSpecStatus_CompletedToDraft_ReturnsFalse - PASS
+  - transitionSpecStatus_ActiveToReviewed_ReturnsFalse - PASS
+  - updateSpecStatus_WithValidTransition_UpdatesMetadata - PASS
+  - updateSpecStatus_WithInvalidTransition_ThrowsError - PASS
+- **Learnings:**
+  - Use Record<SpecStatus, SpecStatus[]> type for state machine transition config
+  - Separate validation (transitionSpecStatus) from mutation (updateSpecStatus) for testability
+  - Test helper functions reduce boilerplate (createTestMetadata added by code simplifier)
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (24/24 tests in spec-metadata)
+  - Commit: SUCCESS (1252a4f)
+---
+
+## 2026-01-13 - US-062: Update decompose command to write to spec-partitioned location
+- What was implemented: Modified runDecompose to write output to spec-partitioned directories and manage spec metadata lifecycle
+- Files changed:
+  - src/core/decompose/runner.ts (modified, +175 lines net - added imports, helper functions, spec-partitioned logic)
+  - src/core/decompose/__tests__/runner.test.ts (modified, +85 lines - added spec-metadata mocks and 5 new tests)
+- Tests implemented:
+  - decompose_WithNewSpec_CreatesSpecDir - PASS
+  - decompose_WithNewSpec_WritesDecomposeStateToSpecDir - PASS
+  - decompose_WithNewSpec_InitializesMetadata - PASS
+  - decompose_OnSuccess_TransitionsStatusToDecomposed - PASS
+  - decompose_WritesLogToSpecLogsDir - PASS
+- Key changes:
+  - Output path changed from .ralph/tasks/<name>.json to .ralph/specs/<spec-id>/decompose_state.json
+  - Log path changed from .ralph/logs/ to .ralph/specs/<spec-id>/logs/
+  - Spec metadata auto-initialized if not exists with status 'draft'
+  - Status transitions to 'decomposed' on successful completion
+- **Learnings:**
+  - Use try/catch around updateSpecStatus to handle already-decomposed specs gracefully
+  - Test helpers (setupTestEnvironment, cleanupTestEnvironment, simulateClaudeCompletion) reduce boilerplate
+  - Logging helpers (logFeedbackIssues, logSection, logInfo) standardize console output
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (8/8 tests in runner.test.ts)
+  - Commit: SUCCESS (32fda50)
+---
+
+## 2026-01-13 - US-063: Update spec review command to write to spec-partitioned location
+- What was implemented: Modified spec review command to use spec-partitioned locations
+  - Added imports for spec-metadata functions (extractSpecId, ensureSpecDir, etc.)
+  - Initialize spec metadata with 'draft' status if not exists
+  - Pass spec-partitioned log directory to runSpecReview
+  - Write review_state.json to .ralph/specs/<spec-id>/
+  - Transition spec status to 'reviewed' on successful completion
+- Files changed:
+  - src/cli/commands/spec.ts (modified - added spec-partitioned logic to review action)
+  - src/cli/commands/__tests__/spec.test.ts (modified - added 4 new tests)
+- Tests implemented:
+  - specReview_WithNewSpec_CreatesSpecDir - PASS
+  - specReview_WithNewSpec_WritesReviewStateToSpecDir - PASS
+  - specReview_OnSuccess_TransitionsStatusToReviewed - PASS
+  - specReview_WritesLogToSpecLogsDir - PASS
+- **Learnings:**
+  - Code simplifier consolidated duplicate createMockResult helper function into single top-level function
+  - Status transition failure is non-fatal (spec may already be reviewed or in incompatible state)
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (31 spec.test.ts tests, 112 spec-review tests)
+  - Commit: SUCCESS (a5d2e5e)
+---
+
+## 2026-01-13 - US-064: Update task reading to use spec-partitioned location
+- What was implemented: Modified task commands to read from per-spec decompose_state.json
+  - Added listSpecs() function to list all spec directories in .ralph/specs/
+  - Added loadPRDForSpec() and savePRDForSpec() for spec-partitioned PRD I/O
+  - Added --spec flag to all task commands (list, next, get, complete, notes, deps)
+  - Implemented resolveSpecAndLoadPRD() helper with extracted sub-functions
+  - Auto-selects single spec, prompts user when multiple specs exist
+  - Falls back to legacy .ralph/prd.json if no specs directory exists
+- Files changed:
+  - src/core/spec-review/spec-metadata.ts (modified - added listSpecs, loadPRDForSpec, savePRDForSpec)
+  - src/cli/commands/tasks.ts (modified - added --spec flag, spec resolution logic)
+  - src/cli/commands/__tests__/tasks.test.ts (new - 10 tests)
+- Tests implemented:
+  - tasksList_WithSpecFlag_ReadsFromSpecDir - PASS
+  - tasksList_WithSingleSpec_ReadsFromThatSpec - PASS
+  - tasksList_WithMultipleSpecs_PromptsSelection - PASS
+  - tasksNext_WithSpecFlag_ReadsFromSpecDir - PASS
+  - listSpecs_WithNoSpecs_ReturnsEmptyArray - PASS
+  - listSpecs_WithSpecDirs_ReturnsSpecIds - PASS
+  - listSpecs_IgnoresFiles_OnlyReturnsDirs - PASS
+  - loadPRDForSpec_WithValidPRD_ReturnsData - PASS
+  - loadPRDForSpec_WithMissingPRD_ReturnsNull - PASS
+  - loadPRDForSpec_WithInvalidJson_ReturnsNull - PASS
+- **Learnings:**
+  - Code simplifier extracted resolveExplicitSpec() and resolveMultipleSpecs() helpers for clarity
+  - Used Map for O(1) story lookups in deps command instead of O(n) array scans
+  - Use readdir with withFileTypes to efficiently filter directories from files
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (10/10 tasks tests, 24 spec-metadata tests)
+  - Commit: SUCCESS (4d1da48)
+---
+
+## 2026-01-13 - US-065: Update qala status to show per-spec state
+- What was implemented: Enhanced qala status command to display per-spec status with metadata and task progress
+- Files changed:
+  - src/cli/commands/status.ts (modified - added spec display section, helpers, and getSpecsInfo function)
+  - src/cli/commands/__tests__/status.test.ts (new - 5 test cases)
+- Tests implemented:
+  - status_WithNoSpecs_ShowsNoSpecsMessage - PASS
+  - status_WithOneSpec_ShowsSpecDetails - PASS
+  - status_WithMultipleSpecs_ListsAllSpecs - PASS
+  - status_WithDecomposedSpec_ShowsTaskProgress - PASS
+  - status_WithActiveSpec_IndicatesActive - PASS
+- **Learnings:**
+  - Used STATUS_COLORS config lookup for mapping SpecStatus to chalk color functions
+  - Code simplifier extracted getStatusColor() switch function from nested ternary
+  - Exported getSpecsInfo function allows testing core logic without mocking console.log
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (5/5 status tests)
+  - Commit: SUCCESS (7cb09a1)
+---
+
+## 2026-01-13 - US-066: Update qala start to use spec-partitioned state
+- What was implemented: Modified qala start command to work with per-spec task state
+- Files changed:
+  - src/cli/commands/start.ts (modified - added --spec flag, spec resolution, status transitions)
+  - src/core/ralph-loop/runner.ts (modified - extended LoopOptions with loadPRD/savePRD)
+  - src/cli/commands/__tests__/start.test.ts (new - 7 test cases)
+- Tests implemented:
+  - start_WithSpecFlag_ReadsFromSpecDir - PASS
+  - start_TransitionsStatusToActive - PASS
+  - start_UpdatesTaskProgressInSpecDir - PASS
+  - start_WithNoDecomposedSpecs_ShowsError - PASS
+  - start_TransitionFromDecomposed_Succeeds - PASS
+  - start_TransitionFromActive_Fails - PASS
+  - start_TransitionFromDraft_Fails - PASS
+- **Learnings:**
+  - Extended LoopOptions interface with optional loadPRD/savePRD to inject spec-aware PRD handlers
+  - Reused spec resolution pattern from tasks.ts (resolveSpecAndLoadPRD helpers)
+  - Nullish coalescing (??) is cleaner than ternary for optional values with defaults
+  - Code simplifier extracted validStatuses constant and consolidated spec selection logic
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (7/7 start tests, 7/7 ralph-loop tests)
+  - Commit: SUCCESS (7a327b5)
+---
+
+## 2026-01-13 - US-069: Add qala spec list command with per-spec status
+- What was implemented: Added `qala spec list` command that displays all spec files with their lifecycle status in a formatted table
+- Files changed:
+  - src/cli/commands/spec.ts (modified - added SpecInfo interface, getSpecsInfo function, getStatusColor function, formatSpecTable function, and list subcommand)
+  - src/cli/commands/__tests__/spec.test.ts (modified - added spec list test suite with 4 test cases)
+- Tests implemented:
+  - specList_WithNoSpecs_ShowsEmptyMessage - PASS
+  - specList_WithSpecsHavingMetadata_ShowsStatus - PASS
+  - specList_WithSpecsWithoutMetadata_ShowsDraft - PASS
+  - specList_FormatsAsTable - PASS
+- **Learnings:**
+  - Reused existing findSpecFiles and extractSpecId functions for spec discovery
+  - Used readSpecMetadata with nullish coalescing (metadata?.status ?? 'draft') for fallback status
+  - getStatusColor switch with color mapping pattern (completed=green, active=blue, etc.) provides visual status distinction
+  - Code simplifier extracted DEFAULT_MOCK_RESULT constant and consolidated createMockGodSpecResult to reuse createMockResult
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (35/35 spec command tests, including 4 new spec list tests)
+  - Commit: SUCCESS (fb20996)
+---
+
+## 2026-01-13 - US-067: Update API endpoints to read from spec-partitioned locations
+- What was implemented: Added new /api/specs router with 3 endpoints for accessing spec-partitioned state
+- Files changed:
+  - src/server/routes/specs.ts (new, 91 lines)
+  - src/server/__tests__/specs.routes.test.ts (new, 207 lines)
+  - src/server/index.ts (modified - added specsRouter import and route registration)
+- Tests implemented:
+  - getSpecs_ReturnsAllSpecsWithMetadata - PASS
+  - getSpecTasks_WithValidSpecId_ReturnsTasks - PASS
+  - getSpecTasks_WithInvalidSpecId_Returns404 - PASS
+  - getSpecStatus_WithValidSpecId_ReturnsMetadata - PASS
+  - getSpecs_WithNoSpecs_ReturnsEmptyArray - PASS (bonus)
+  - getSpecTasks_WithNoPRD_ReturnsEmptyTasks - PASS (bonus)
+  - getSpecStatus_WithInvalidSpecId_Returns404 - PASS (bonus)
+- **Learnings:**
+  - Reused existing listSpecs, readSpecMetadata, and loadPRDForSpec functions from spec-metadata.ts
+  - Followed existing route patterns from tasks.ts with projectContext middleware
+  - For Express routes with similar error handling, extract error details into a named variable for cleaner responses
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - Tests: PASS (7/7 specs routes tests)
+  - Commit: SUCCESS (4df97a8)
+---
+
+## 2026-01-13 - US-068: Update dashboard UI to display per-spec state
+- What was implemented: Created SpecDashboard component showing all specs with status badges, detail panel with tasks and metadata
+- Files changed:
+  - web/src/components/specs/SpecDashboard.tsx (new, 319 lines)
+  - web/src/components/specs/SpecDashboard.css (new, 408 lines)
+  - web/src/components/specs/index.ts (modified - added export for SpecDashboard)
+  - web/src/components/TopNav.tsx (modified - updated navigation to point to /specs)
+  - web/src/App.tsx (modified - added /specs route for SpecDashboard)
+- Tests implemented: None (UI tests covered by manual testing per task notes)
+- **Learnings:**
+  - For status progress indicators, use a STATUS_ORDER array to track lifecycle stages and calculate position
+  - Code simplifier replaced nested ternary for className with explicit if/else chain for readability
+  - Use captured variable (const specId = selectedSpec) after guard clause to avoid non-null assertions in async callbacks
+- **Verification:**
+  - Build: PASS (npm run build including web)
+  - TypeCheck: PASS (npx tsc --noEmit)
+  - Tests: N/A (UI component, manual testing)
+  - Commit: SUCCESS (7464ab6)
+---
+
+## 2026-01-13 - US-070: Verify isolation with concurrent decompose operations
+- What was implemented: Added integration tests to verify spec isolation - that running decompose on specA then specB preserves specA's state unchanged
+- Files changed: src/core/spec-review/__tests__/spec-metadata.test.ts
+- Tests implemented:
+  - isolation_SequentialDecompose_PreservesFirstSpecState - PASS
+  - isolation_BothSpecsHaveSeparateDirs - PASS
+  - isolation_MetadataFilesAreIndependent - PASS
+- **Learnings:**
+  - For integration tests requiring real file system operations, use mkdtemp() to create isolated temp directories in beforeEach
+  - Use rm() with { recursive: true, force: true } in afterEach to clean up test directories
+  - When testing decompose isolation, simulate the decompose workflow by calling spec-metadata functions directly rather than mocking the entire runDecompose
+- **Verification:**
+  - Build: PASS
+  - Tests: PASS (27/27 spec-metadata tests pass)
+  - Commit: SUCCESS (820f315)
+---
+
+## 2026-01-13 - US-071: Update documentation with new spec-partitioned structure
+- What was implemented: Updated CLAUDE.md with spec-partitioned directory structure, lifecycle states, and migration instructions
+- Files changed: CLAUDE.md
+- Tests implemented: None required (documentation only)
+- **Learnings:**
+  - Keep documentation in sync with code changes - spec-partitioning was a significant structural change
+  - Migration instructions should be explicit about breaking changes (rm -rf commands are appropriate when state format changes)
+- **Verification:**
+  - Build: PASS
+  - Tests: N/A (documentation only)
+  - Commit: SUCCESS (248afaa)
+---
