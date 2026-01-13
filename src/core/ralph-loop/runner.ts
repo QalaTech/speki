@@ -24,6 +24,10 @@ export interface LoopOptions {
   onIterationEnd?: (iteration: number, storyCompleted: boolean, isAllComplete: boolean) => void;
   /** Callback when task count changes (for recalculating loop limit) */
   onTasksChanged?: (newTaskCount: number) => void;
+  /** Custom PRD loader for spec-partitioned state (overrides project.loadPRD) */
+  loadPRD?: () => Promise<PRDData | null>;
+  /** Custom PRD saver for spec-partitioned state (overrides project.savePRD) */
+  savePRD?: (prd: PRDData) => Promise<void>;
 }
 
 export interface LoopResult {
@@ -37,40 +41,38 @@ export interface LoopResult {
   finalPrd: PRDData;
 }
 
+type NextStoryResult =
+  | { story: null; status: 'complete' }
+  | { story: UserStory; status: 'ready' }
+  | { story: UserStory; status: 'blocked'; blockedBy: string[] };
+
 /**
  * Get the next story to work on (highest priority incomplete with satisfied dependencies)
  */
-function getNextStory(prd: PRDData): {
-  story: UserStory | null;
-  status: 'ready' | 'blocked' | 'complete';
-  blockedBy?: string[];
-} {
+function getNextStory(prd: PRDData): NextStoryResult {
   const completedIds = new Set(
     prd.userStories.filter((s) => s.passes).map((s) => s.id)
   );
-
   const incomplete = prd.userStories.filter((s) => !s.passes);
 
   if (incomplete.length === 0) {
     return { story: null, status: 'complete' };
   }
 
-  // Check which stories have all dependencies satisfied
-  const ready = incomplete.filter((s) =>
-    (s.dependencies || []).every((dep) => completedIds.has(dep))
-  );
+  const hasSatisfiedDependencies = (story: UserStory): boolean =>
+    (story.dependencies ?? []).every((dep) => completedIds.has(dep));
+
+  const ready = incomplete.filter(hasSatisfiedDependencies);
 
   if (ready.length === 0) {
-    // All remaining stories are blocked
     const blocked = incomplete[0];
-    const blockedBy = (blocked.dependencies || []).filter(
+    const blockedBy = (blocked.dependencies ?? []).filter(
       (dep) => !completedIds.has(dep)
     );
     return { story: blocked, status: 'blocked', blockedBy };
   }
 
-  // Sort by priority and return highest priority ready story
-  ready.sort((a, b) => (a.priority || 999) - (b.priority || 999));
+  ready.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
   return { story: ready[0], status: 'ready' };
 }
 
@@ -81,7 +83,7 @@ function printIterationHeader(
   iteration: number,
   maxIterations: number,
   prd: PRDData,
-  nextInfo: ReturnType<typeof getNextStory>
+  nextInfo: NextStoryResult
 ): void {
   const total = prd.userStories.length;
   const completed = prd.userStories.filter((s) => s.passes).length;
@@ -90,40 +92,24 @@ function printIterationHeader(
   );
   const incomplete = prd.userStories.filter((s) => !s.passes);
   const readyCount = incomplete.filter((s) =>
-    (s.dependencies || []).every((dep) => completedIds.has(dep))
+    (s.dependencies ?? []).every((dep) => completedIds.has(dep))
   ).length;
   const blockedCount = incomplete.length - readyCount;
 
+  const iterationText = `Iteration ${iteration} / ${maxIterations}`;
+  const progressText = `Progress: ${chalk.green(String(completed))}/${total} complete (${chalk.green(String(readyCount))} ready, ${chalk.yellow(String(blockedCount))} blocked)`;
+
   console.log('');
   console.log(chalk.bold('┌─────────────────────────────────────────────────────────────────┐'));
-  console.log(
-    chalk.bold('│') +
-      `  ${chalk.blue(`Iteration ${iteration} / ${maxIterations}`)}` +
-      ' '.repeat(Math.max(0, 47 - `Iteration ${iteration} / ${maxIterations}`.length)) +
-      chalk.bold('│')
-  );
-  console.log(
-    chalk.bold('│') +
-      `  Progress: ${chalk.green(String(completed))}/${total} complete (${chalk.green(String(readyCount))} ready, ${chalk.yellow(String(blockedCount))} blocked)` +
-      ' '.repeat(Math.max(0, 30)) +
-      chalk.bold('│')
-  );
+  console.log(chalk.bold('│') + `  ${chalk.blue(iterationText)}` + ' '.repeat(Math.max(0, 47 - iterationText.length)) + chalk.bold('│'));
+  console.log(chalk.bold('│') + `  ${progressText}` + ' '.repeat(30) + chalk.bold('│'));
   console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
 
-  if (nextInfo.status === 'blocked' && nextInfo.story) {
-    console.log(
-      chalk.bold('│') +
-        `  ${chalk.red('⏸ Blocked:')} ${nextInfo.story.id}: ${nextInfo.story.title}`
-    );
-    console.log(
-      chalk.bold('│') +
-        `  ${chalk.yellow(`Waiting on: ${nextInfo.blockedBy?.join(', ')}`)}`
-    );
+  if (nextInfo.status === 'blocked') {
+    console.log(chalk.bold('│') + `  ${chalk.red('⏸ Blocked:')} ${nextInfo.story.id}: ${nextInfo.story.title}`);
+    console.log(chalk.bold('│') + `  ${chalk.yellow(`Waiting on: ${nextInfo.blockedBy.join(', ')}`)}`);
   } else if (nextInfo.story) {
-    console.log(
-      chalk.bold('│') +
-        `  ${chalk.cyan('▶ Next:')} ${nextInfo.story.id}: ${nextInfo.story.title}`
-    );
+    console.log(chalk.bold('│') + `  ${chalk.cyan('▶ Next:')} ${nextInfo.story.id}: ${nextInfo.story.title}`);
   }
 
   console.log(chalk.bold('└─────────────────────────────────────────────────────────────────┘'));
@@ -144,13 +130,13 @@ export async function runRalphLoop(
     ? options.maxIterations
     : () => options.maxIterations as number;
 
-  // Check Claude is available
+  const loadPRD = options.loadPRD ?? (() => project.loadPRD());
+
   if (!(await isClaudeAvailable())) {
     throw new Error('Claude CLI is not available. Please install it first.');
   }
 
-  // Load initial PRD
-  let prd = await project.loadPRD();
+  let prd = await loadPRD();
   if (!prd) {
     throw new Error('No PRD loaded. Run `qala decompose <prd-file>` first.');
   }
@@ -158,7 +144,6 @@ export async function runRalphLoop(
   const initialCompleted = prd.userStories.filter((s) => s.passes).length;
   let storiesCompleted = 0;
 
-  // Print header
   console.log('');
   console.log(chalk.bold('╔═══════════════════════════════════════════════════════════════╗'));
   console.log(chalk.bold('║') + `  ${chalk.cyan('Ralph Loop')} - Structured Task Runner                        ` + chalk.bold('║'));
@@ -170,7 +155,6 @@ export async function runRalphLoop(
   console.log(chalk.bold('╚═══════════════════════════════════════════════════════════════╝'));
   console.log('');
 
-  // Update status
   await project.saveStatus({
     status: 'running',
     currentIteration: 0,
@@ -183,7 +167,6 @@ export async function runRalphLoop(
   try {
     let iteration = 1;
     while (iteration <= getMaxIterations()) {
-      // Check for next story
       const nextInfo = getNextStory(prd);
       const currentMax = getMaxIterations();
 
@@ -191,7 +174,6 @@ export async function runRalphLoop(
 
       onIterationStart?.(iteration, nextInfo.story);
 
-      // Update status
       await project.saveStatus({
         status: 'running',
         currentIteration: iteration,
@@ -224,16 +206,10 @@ export async function runRalphLoop(
         };
       }
 
-      // Note: Claude uses `qala tasks next` CLI to get task context (per prompt instructions)
-      // No need to generate currentTask.json file
-
       console.log(chalk.yellow('Starting Claude...'));
       console.log('');
 
-      // Use console callbacks - progress.txt is managed by Claude per prompt instructions
       const callbacks = createConsoleCallbacks();
-
-      // Run Claude
       const result = await runClaude({
         promptPath: project.promptPath,
         cwd: project.projectPath,
@@ -246,7 +222,6 @@ export async function runRalphLoop(
       console.log(`  ${chalk.cyan('JSONL saved:')} ${result.jsonlPath}`);
       console.log(`  ${chalk.cyan('Duration:')} ${Math.round(result.durationMs / 1000)}s`);
 
-      // Check for completion
       if (result.isComplete) {
         console.log('');
         console.log(chalk.green('╔═══════════════════════════════════════════════════════════════╗'));
@@ -255,7 +230,7 @@ export async function runRalphLoop(
         console.log(chalk.green('╚═══════════════════════════════════════════════════════════════╝'));
 
         // Reload PRD to get final state
-        prd = (await project.loadPRD()) || prd;
+        prd = (await loadPRD()) || prd;
         storiesCompleted = prd.userStories.filter((s) => s.passes).length - initialCompleted;
 
         onIterationEnd?.(iteration, true, true);
@@ -268,8 +243,7 @@ export async function runRalphLoop(
         };
       }
 
-      // Reload PRD to check progress
-      const newPrd = await project.loadPRD();
+      const newPrd = await loadPRD();
       if (newPrd) {
         const oldCompleted = prd.userStories.filter((s) => s.passes).length;
         const newCompleted = newPrd.userStories.filter((s) => s.passes).length;
@@ -295,7 +269,6 @@ export async function runRalphLoop(
       console.log('');
       console.log(chalk.blue('───────────────────────────────────────────────────────────────────'));
 
-      // Small delay between iterations
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       iteration++;
@@ -316,9 +289,7 @@ export async function runRalphLoop(
       finalPrd: prd,
     };
   } finally {
-    // Cleanup current task context
     await project.cleanupCurrentTaskContext();
-    // Reset status
     await project.saveStatus({ status: 'idle' });
     await Registry.updateStatus(project.projectPath, 'idle');
   }
