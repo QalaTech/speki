@@ -11,6 +11,13 @@ import { projectContext } from '../middleware/project-context.js';
 import { runDecompose } from '../../core/decompose/runner.js';
 import { calculateLoopLimit } from '../../core/ralph-loop/loop-limit.js';
 import { getRunningLoop } from './ralph.js';
+import {
+  extractSpecId,
+  loadDecomposeStateForSpec,
+  saveDecomposeStateForSpec,
+  getSpecLogsDir,
+  loadPRDForSpec,
+} from '../../core/spec-review/spec-metadata.js';
 import type { DecomposeState, PRDData } from '../../types/index.js';
 
 const router = Router();
@@ -92,11 +99,18 @@ router.get('/prd-files', async (req, res) => {
 
 /**
  * GET /api/decompose/state
- * Get current decomposition state
+ * Get current decomposition state for a specific spec.
+ * Query params: specPath (required) - path to the spec file
  */
 router.get('/state', async (req, res) => {
   try {
-    const state = await req.project!.loadDecomposeState();
+    const specPath = req.query.specPath as string;
+    if (!specPath) {
+      return res.status(400).json({ error: 'specPath query parameter is required' });
+    }
+
+    const specId = extractSpecId(specPath);
+    const state = await loadDecomposeStateForSpec(req.projectPath!, specId);
 
     // If state is "active" (decomposing, reviewing, etc.), validate it's not stale
     if (ACTIVE_DECOMPOSE_STATUSES.includes(state.status)) {
@@ -107,7 +121,7 @@ router.get('/state', async (req, res) => {
           status: 'IDLE',
           message: 'Process was interrupted (server restart detected)',
         };
-        await req.project!.saveDecomposeState(resetState);
+        await saveDecomposeStateForSpec(req.projectPath!, specId, resetState);
         return res.json(resetState);
       }
     }
@@ -123,23 +137,26 @@ router.get('/state', async (req, res) => {
 
 /**
  * GET /api/decompose/draft
- * Get the current draft PRD from decomposition
+ * Get the current draft PRD from decomposition for a specific spec.
+ * Query params: specPath (required) - path to the spec file
  */
 router.get('/draft', async (req, res) => {
   try {
-    const state = await req.project!.loadDecomposeState();
+    const specPath = req.query.specPath as string;
+    if (!specPath) {
+      return res.status(400).json({ error: 'specPath query parameter is required' });
+    }
 
-    if (!state.draftFile) {
+    const specId = extractSpecId(specPath);
+    const draft = await loadPRDForSpec(req.projectPath!, specId);
+
+    if (!draft) {
       return res.json({ draft: null, draftPath: null });
     }
 
-    try {
-      const content = await fs.readFile(state.draftFile, 'utf-8');
-      const draft = JSON.parse(content);
-      res.json({ draft, draftPath: state.draftFile });
-    } catch {
-      res.json({ draft: null, draftPath: state.draftFile, error: 'Could not read draft file' });
-    }
+    // Construct the path for reference
+    const draftPath = join(req.projectPath!, '.ralph', 'specs', specId, 'decompose_state.json');
+    res.json({ draft, draftPath });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to get draft',
@@ -164,12 +181,25 @@ router.get('/feedback', async (req, res) => {
 
 /**
  * GET /api/decompose/review-logs
- * Get review log files (only peer_review .log files, not .raw or decompose logs)
+ * Get review log files for a specific spec.
+ * Query params: specPath (required) - path to the spec file
  */
 router.get('/review-logs', async (req, res) => {
   try {
-    const logsDir = req.project!.logsDir;
-    const files = await fs.readdir(logsDir);
+    const specPath = req.query.specPath as string;
+    if (!specPath) {
+      return res.status(400).json({ error: 'specPath query parameter is required' });
+    }
+
+    const specId = extractSpecId(specPath);
+    const logsDir = getSpecLogsDir(req.projectPath!, specId);
+
+    let files: string[];
+    try {
+      files = await fs.readdir(logsDir);
+    } catch {
+      return res.json({ logs: [] });
+    }
 
     // Only match peer_review_attempt_N_*.log files (not .raw files or decompose logs)
     const reviewLogs = files.filter(f =>
@@ -202,12 +232,26 @@ router.get('/review-logs', async (req, res) => {
 
 /**
  * GET /api/decompose/review-log
- * Get the latest review log
+ * Get the latest review log for a specific spec.
+ * Query params: specPath (required) - path to the spec file
  */
 router.get('/review-log', async (req, res) => {
   try {
-    const logsDir = req.project!.logsDir;
-    const files = await fs.readdir(logsDir);
+    const specPath = req.query.specPath as string;
+    if (!specPath) {
+      return res.status(400).json({ error: 'specPath query parameter is required' });
+    }
+
+    const specId = extractSpecId(specPath);
+    const logsDir = getSpecLogsDir(req.projectPath!, specId);
+
+    let files: string[];
+    try {
+      files = await fs.readdir(logsDir);
+    } catch {
+      return res.json({ log: null });
+    }
+
     const reviewLogs = files.filter(f => f.includes('review') || f.includes('decompose')).sort().reverse();
 
     if (reviewLogs.length === 0) {

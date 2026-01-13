@@ -60,11 +60,17 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
   const [executeError, setExecuteError] = useState<string | null>(null);
   const [activateLoading, setActivateLoading] = useState(false);
 
-  // API helper
+  // API helper - adds project parameter
   const apiUrl = useCallback((endpoint: string) => {
     const separator = endpoint.includes('?') ? '&' : '?';
     return `${endpoint}${separator}project=${encodeURIComponent(projectPath)}`;
   }, [projectPath]);
+
+  // API helper for decompose endpoints - adds project and specPath parameters
+  const decomposeApiUrl = useCallback((endpoint: string) => {
+    const separator = endpoint.includes('?') ? '&' : '?';
+    return `${endpoint}${separator}project=${encodeURIComponent(projectPath)}&specPath=${encodeURIComponent(specPath)}`;
+  }, [projectPath, specPath]);
 
   // Track selected task ID separately to avoid infinite loop
   const selectedTaskId = selectedTask?.id;
@@ -73,8 +79,8 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
   const fetchState = useCallback(async () => {
     try {
       const [stateRes, draftRes] = await Promise.all([
-        fetch(apiUrl('/api/decompose/state')),
-        fetch(apiUrl('/api/decompose/draft')),
+        fetch(decomposeApiUrl('/api/decompose/state')),
+        fetch(decomposeApiUrl('/api/decompose/draft')),
       ]);
 
       const stateData = await stateRes.json();
@@ -110,7 +116,7 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
     } catch (err) {
       console.error('Failed to fetch decompose state:', err);
     }
-  }, [apiUrl, selectedTaskId]);
+  }, [decomposeApiUrl, selectedTaskId]);
 
   // Initial fetch and polling
   useEffect(() => {

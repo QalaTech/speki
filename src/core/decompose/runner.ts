@@ -24,6 +24,8 @@ import {
   readSpecMetadata,
   initSpecMetadata,
   updateSpecStatus,
+  loadDecomposeStateForSpec,
+  saveDecomposeStateForSpec,
 } from '../spec-review/spec-metadata.js';
 import type { PRDData, DecomposeState, ReviewFeedback } from '../../types/index.js';
 
@@ -378,16 +380,18 @@ NO MARKDOWN, NO EXPLANATIONS.`;
 }
 
 /**
- * Update decompose state and trigger progress callback
+ * Update decompose state and trigger progress callback.
+ * Writes to per-spec location: .ralph/specs/<specId>/decompose_progress.json
  */
 async function updateState(
-  project: Project,
+  projectRoot: string,
+  specId: string,
   state: Partial<DecomposeState>,
   onProgress?: (state: DecomposeState) => void
 ): Promise<void> {
-  const current = await project.loadDecomposeState();
+  const current = await loadDecomposeStateForSpec(projectRoot, specId);
   const updated: DecomposeState = { ...current, ...state };
-  await project.saveDecomposeState(updated);
+  await saveDecomposeStateForSpec(projectRoot, specId, updated);
   onProgress?.(updated);
 }
 
@@ -489,7 +493,7 @@ export async function runDecompose(
   console.log('');
 
   // Update state
-  await updateState(project, {
+  await updateState(project.projectPath, specId, {
     status: 'INITIALIZING',
     message: 'Reading PRD file',
     prdFile,
@@ -530,7 +534,7 @@ export async function runDecompose(
 
   if (skipDecomposition && existingPrd) {
     prd = existingPrd;
-    await updateState(project, {
+    await updateState(project.projectPath, specId, {
       status: 'DECOMPOSED',
       message: `Using existing draft with ${prd.userStories.length} tasks`,
       draftFile: outputPath,
@@ -572,7 +576,7 @@ export async function runDecompose(
     console.log(chalk.cyan('Claude Output:'));
     console.log(chalk.cyan('─────────────────────────────────────────────'));
 
-    await updateState(project, {
+    await updateState(project.projectPath, specId, {
       status: 'DECOMPOSING',
       message: 'Claude is generating tasks from PRD',
     }, onProgress);
@@ -586,7 +590,7 @@ export async function runDecompose(
     console.log(`  ${chalk.cyan('Time elapsed:')} ${elapsed} seconds`);
 
     if (!result.success) {
-      await updateState(project, {
+      await updateState(project.projectPath, specId, {
         status: 'ERROR',
         message: 'Claude failed to generate tasks',
         error: 'Claude CLI error',
@@ -601,7 +605,7 @@ export async function runDecompose(
     // Extract JSON from output
     const extracted = extractJson(result.output);
     if (!extracted) {
-      await updateState(project, {
+      await updateState(project.projectPath, specId, {
         status: 'ERROR',
         message: 'Could not extract JSON from Claude response',
         error: 'JSON extraction failed',
@@ -623,7 +627,7 @@ export async function runDecompose(
     // Save the draft
     await fs.writeFile(outputPath, JSON.stringify(prd, null, 2));
 
-    await updateState(project, {
+    await updateState(project.projectPath, specId, {
       status: 'DECOMPOSED',
       message: `Generated ${prd.userStories.length} tasks`,
       draftFile: outputPath,
@@ -645,17 +649,21 @@ export async function runDecompose(
     console.log(`  ${chalk.cyan('Timeout:')}    ${timeoutMs}ms`);
 
     while (reviewAttempt <= maxReviewAttempts) {
-      await updateState(project, {
+      await updateState(project.projectPath, specId, {
         status: 'REVIEWING',
         message: `Running decompose review (attempt ${reviewAttempt}/${maxReviewAttempts})...`,
         draftFile: outputPath,
       }, onProgress);
 
       const tasksJson = JSON.stringify(prd, null, 2);
+      // Use per-spec logs directory for review logs
+      const reviewLogsDir = getSpecLogsDir(project.projectPath, specId);
+      await fs.mkdir(reviewLogsDir, { recursive: true });
+
       const feedback = await runDecomposeReview(prdContent, tasksJson, {
         timeoutMs,
         cwd: project.projectPath,
-        logDir: project.logsDir,
+        logDir: reviewLogsDir,
       });
 
       verdict = feedback.verdict;
@@ -675,7 +683,7 @@ export async function runDecompose(
         console.log('');
         console.log(chalk.yellow('Sending feedback to Claude for revision...'));
 
-        await updateState(project, {
+        await updateState(project.projectPath, specId, {
           status: 'REVISING',
           message: `Claude is revising tasks based on review feedback (attempt ${reviewAttempt})`,
           draftFile: outputPath,
@@ -706,7 +714,7 @@ export async function runDecompose(
       reviewAttempt++;
     }
 
-    await updateState(project, {
+    await updateState(project.projectPath, specId, {
       status: 'COMPLETED',
       message: `Decompose review complete: ${verdict}`,
       verdict,
@@ -714,7 +722,7 @@ export async function runDecompose(
     }, onProgress);
   }
 
-  await updateState(project, {
+  await updateState(project.projectPath, specId, {
     status: 'COMPLETED',
     message: 'Decomposition complete',
     verdict,

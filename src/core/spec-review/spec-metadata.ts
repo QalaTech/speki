@@ -1,6 +1,6 @@
 import path from 'path';
 import { mkdir, readdir, readFile, writeFile } from 'fs/promises';
-import type { PRDData, SpecMetadata, SpecStatus } from '../../types/index.js';
+import type { DecomposeState, PRDData, SpecMetadata, SpecStatus } from '../../types/index.js';
 
 /**
  * Valid state transitions for spec lifecycle.
@@ -234,4 +234,52 @@ export async function savePRDForSpec(
   await ensureSpecDir(projectRoot, specId);
   const prdPath = path.join(getSpecDir(projectRoot, specId), 'decompose_state.json');
   await writeFile(prdPath, JSON.stringify(prd, null, 2), 'utf-8');
+}
+
+/**
+ * Returns the path to the decompose_progress.json file for a spec.
+ * This tracks the decompose operation status (IDLE, DECOMPOSING, COMPLETED, etc.)
+ *
+ * @param projectRoot - The project root directory
+ * @param specId - The spec identifier
+ */
+export function getDecomposeProgressPath(projectRoot: string, specId: string): string {
+  return path.join(getSpecDir(projectRoot, specId), 'decompose_progress.json');
+}
+
+/**
+ * Loads the decompose progress state for a spec.
+ *
+ * @param projectRoot - The project root directory
+ * @param specId - The spec identifier
+ * @returns The decompose state or default IDLE state if not found
+ */
+export async function loadDecomposeStateForSpec(
+  projectRoot: string,
+  specId: string
+): Promise<DecomposeState> {
+  const statePath = getDecomposeProgressPath(projectRoot, specId);
+  try {
+    const content = await readFile(statePath, 'utf-8');
+    return JSON.parse(content) as DecomposeState;
+  } catch {
+    return { status: 'IDLE', message: 'Not initialized' };
+  }
+}
+
+/**
+ * Saves the decompose progress state for a spec.
+ *
+ * @param projectRoot - The project root directory
+ * @param specId - The spec identifier
+ * @param state - The decompose state to save
+ */
+export async function saveDecomposeStateForSpec(
+  projectRoot: string,
+  specId: string,
+  state: DecomposeState
+): Promise<void> {
+  await ensureSpecDir(projectRoot, specId);
+  const statePath = getDecomposeProgressPath(projectRoot, specId);
+  await writeFile(statePath, JSON.stringify(state, null, 2), 'utf-8');
 }
