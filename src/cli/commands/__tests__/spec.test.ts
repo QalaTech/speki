@@ -4,7 +4,7 @@ import { join } from 'path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput, formatHumanOutput, handleGodSpec, displayTimeoutError, getExitCodeForVerdict } from '../spec.js';
+import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput, formatHumanOutput, handleGodSpec, displayTimeoutError, getExitCodeForVerdict, getSpecsInfo } from '../spec.js';
 import { checkCliAvailable, getInstallInstructions } from '../../../core/cli-path.js';
 import type { SpecReviewResult, TimeoutInfo } from '../../../types/index.js';
 
@@ -25,20 +25,21 @@ vi.mock('../../../core/cli-path.js', async (importOriginal) => {
   };
 });
 
+const DEFAULT_MOCK_RESULT: SpecReviewResult = {
+  verdict: 'PASS',
+  categories: {},
+  codebaseContext: {
+    projectType: 'typescript',
+    existingPatterns: [],
+    relevantFiles: [],
+  },
+  suggestions: [],
+  logPath: '/test/log.json',
+  durationMs: 1000,
+};
+
 function createMockResult(overrides: Partial<SpecReviewResult> = {}): SpecReviewResult {
-  return {
-    verdict: 'PASS',
-    categories: {},
-    codebaseContext: {
-      projectType: 'typescript',
-      existingPatterns: [],
-      relevantFiles: [],
-    },
-    suggestions: [],
-    logPath: '/test/log.json',
-    durationMs: 1000,
-    ...overrides,
-  };
+  return { ...DEFAULT_MOCK_RESULT, ...overrides };
 }
 
 describe('spec review command', () => {
@@ -355,41 +356,37 @@ describe('formatHumanOutput', () => {
 });
 
 describe('handleGodSpec', () => {
-  const createMockGodSpecResult = (): SpecReviewResult => ({
-    verdict: 'SPLIT_RECOMMENDED',
-    categories: {
-      god_spec_detection: {
-        verdict: 'SPLIT_RECOMMENDED',
-        issues: ['Spec has 8 feature domains', 'Estimated 25+ user stories', 'Multiple system boundaries'],
+  const GOD_SPEC_SPLIT_PROPOSAL = {
+    originalFile: '/specs/god-spec.md',
+    reason: 'Spec covers multiple unrelated domains',
+    proposedSpecs: [
+      {
+        filename: 'user-management.md',
+        description: 'User registration and authentication',
+        estimatedStories: 8,
+        sections: ['User Management', 'Authentication'],
       },
-    },
-    splitProposal: {
-      originalFile: '/specs/god-spec.md',
-      reason: 'Spec covers multiple unrelated domains',
-      proposedSpecs: [
-        {
-          filename: 'user-management.md',
-          description: 'User registration and authentication',
-          estimatedStories: 8,
-          sections: ['User Management', 'Authentication'],
+      {
+        filename: 'api-integration.md',
+        description: 'External API integrations',
+        estimatedStories: 5,
+        sections: ['API Integration'],
+      },
+    ],
+  };
+
+  function createMockGodSpecResult(): SpecReviewResult {
+    return createMockResult({
+      verdict: 'SPLIT_RECOMMENDED',
+      categories: {
+        god_spec_detection: {
+          verdict: 'SPLIT_RECOMMENDED',
+          issues: ['Spec has 8 feature domains', 'Estimated 25+ user stories', 'Multiple system boundaries'],
         },
-        {
-          filename: 'api-integration.md',
-          description: 'External API integrations',
-          estimatedStories: 5,
-          sections: ['API Integration'],
-        },
-      ],
-    },
-    codebaseContext: {
-      projectType: 'typescript',
-      existingPatterns: [],
-      relevantFiles: [],
-    },
-    suggestions: [],
-    logPath: '/test/log.json',
-    durationMs: 1000,
-  });
+      },
+      splitProposal: GOD_SPEC_SPLIT_PROPOSAL,
+    });
+  }
 
   let consoleLogs: string[];
   const originalConsoleLog = console.log;
@@ -676,5 +673,97 @@ describe('spec-partitioned review', () => {
     const logsDir = getSpecLogsDir('/project', specId);
 
     expect(logsDir).toBe('/project/.ralph/specs/my-feature/logs');
+  });
+});
+
+describe('spec list command', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'spec-list-test-'));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('specList_WithNoSpecs_ShowsEmptyMessage', async () => {
+    // With no spec directories or files, getSpecsInfo returns empty array
+    const specs = await getSpecsInfo(tempDir);
+
+    expect(specs).toHaveLength(0);
+  });
+
+  it('specList_WithSpecsHavingMetadata_ShowsStatus', async () => {
+    // Create spec file and metadata
+    mkdirSync(join(tempDir, 'specs'));
+    mkdirSync(join(tempDir, '.ralph', 'specs', 'my-feature'), { recursive: true });
+    writeFileSync(join(tempDir, 'specs', 'my-feature.md'), '# My Feature');
+    writeFileSync(
+      join(tempDir, '.ralph', 'specs', 'my-feature', 'metadata.json'),
+      JSON.stringify({
+        created: '2026-01-10T10:00:00Z',
+        lastModified: '2026-01-10T12:00:00Z',
+        status: 'reviewed',
+        specPath: 'specs/my-feature.md',
+      })
+    );
+
+    const specs = await getSpecsInfo(tempDir);
+
+    expect(specs).toHaveLength(1);
+    expect(specs[0].relativePath).toBe('specs/my-feature.md');
+    expect(specs[0].status).toBe('reviewed');
+  });
+
+  it('specList_WithSpecsWithoutMetadata_ShowsDraft', async () => {
+    // Create spec file without metadata
+    mkdirSync(join(tempDir, 'specs'));
+    writeFileSync(join(tempDir, 'specs', 'new-spec.md'), '# New Spec');
+
+    const specs = await getSpecsInfo(tempDir);
+
+    expect(specs).toHaveLength(1);
+    expect(specs[0].relativePath).toBe('specs/new-spec.md');
+    expect(specs[0].status).toBe('draft');
+  });
+
+  it('specList_FormatsAsTable', async () => {
+    // Test that output is formatted as a table
+    let consoleLogs: string[] = [];
+    const originalConsoleLog = console.log;
+    console.log = (...args: unknown[]) => {
+      consoleLogs.push(args.map(String).join(' '));
+    };
+
+    try {
+      // Create multiple specs with different statuses
+      mkdirSync(join(tempDir, 'specs'));
+      mkdirSync(join(tempDir, '.ralph', 'specs', 'spec-a'), { recursive: true });
+      mkdirSync(join(tempDir, '.ralph', 'specs', 'spec-b'), { recursive: true });
+      writeFileSync(join(tempDir, 'specs', 'spec-a.md'), '# Spec A');
+      writeFileSync(join(tempDir, 'specs', 'spec-b.md'), '# Spec B');
+      writeFileSync(join(tempDir, 'specs', 'spec-c.md'), '# Spec C'); // No metadata
+      writeFileSync(
+        join(tempDir, '.ralph', 'specs', 'spec-a', 'metadata.json'),
+        JSON.stringify({ status: 'reviewed', created: '', lastModified: '', specPath: '' })
+      );
+      writeFileSync(
+        join(tempDir, '.ralph', 'specs', 'spec-b', 'metadata.json'),
+        JSON.stringify({ status: 'decomposed', created: '', lastModified: '', specPath: '' })
+      );
+
+      const specs = await getSpecsInfo(tempDir);
+
+      expect(specs).toHaveLength(3);
+
+      // Verify all statuses are returned correctly
+      const statusMap = new Map(specs.map((s) => [s.relativePath, s.status]));
+      expect(statusMap.get('specs/spec-a.md')).toBe('reviewed');
+      expect(statusMap.get('specs/spec-b.md')).toBe('decomposed');
+      expect(statusMap.get('specs/spec-c.md')).toBe('draft');
+    } finally {
+      console.log = originalConsoleLog;
+    }
   });
 });

@@ -18,7 +18,7 @@ import {
   updateSpecStatus,
 } from '../../core/spec-review/spec-metadata.js';
 import { executeSplit } from '../../core/spec-review/splitter.js';
-import type { CliType, SpecReviewVerdict, SplitProposal, SpecReviewResult, TimeoutInfo } from '../../types/index.js';
+import type { CliType, SpecReviewVerdict, SplitProposal, SpecReviewResult, SpecStatus, TimeoutInfo } from '../../types/index.js';
 
 /**
  * Returns the appropriate exit code for a spec review verdict.
@@ -276,10 +276,11 @@ export const specCommand = new Command('spec')
   .description('Spec review and validation commands');
 
 export function validateCliOption(value: string): CliType {
-  if (value !== 'claude' && value !== 'codex') {
+  const validOptions: CliType[] = ['claude', 'codex'];
+  if (!validOptions.includes(value as CliType)) {
     throw new Error(`Invalid CLI option: ${value}. Must be 'claude' or 'codex'.`);
   }
-  return value;
+  return value as CliType;
 }
 
 export function formatJsonOutput(result: SpecReviewResult): string {
@@ -339,12 +340,16 @@ export function formatHumanOutput(result: SpecReviewResult, specFile: string): v
 }
 
 function formatTimeoutMs(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const unit = minutes > 0 ? 'minute' : 'second';
-  const value = minutes > 0 ? minutes : seconds;
-  const plural = value === 1 ? '' : 's';
-  return `${value} ${unit}${plural}`;
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+
+  if (minutes > 0) {
+    const plural = minutes === 1 ? '' : 's';
+    return `${minutes} minute${plural}`;
+  }
+
+  const plural = totalSeconds === 1 ? '' : 's';
+  return `${totalSeconds} second${plural}`;
 }
 
 export function displayTimeoutError(timeoutInfo: TimeoutInfo, specFile: string): void {
@@ -577,6 +582,100 @@ specCommand
       process.exit(0);
     } catch (error) {
       console.error(chalk.red('Error creating spec:'), error);
+      process.exit(2);
+    }
+  });
+
+
+/**
+ * Information about a spec file including its status.
+ */
+export interface SpecInfo {
+  /** Full path to the spec file */
+  path: string;
+  /** Relative path from project root */
+  relativePath: string;
+  /** Lifecycle status: draft | reviewed | decomposed | active | completed */
+  status: SpecStatus;
+}
+
+/**
+ * Get information about all spec files in the project, including their status.
+ * Specs without metadata are considered 'draft'.
+ */
+export async function getSpecsInfo(projectPath: string): Promise<SpecInfo[]> {
+  const specFiles = await findSpecFiles(projectPath);
+  const results: SpecInfo[] = [];
+
+  for (const specPath of specFiles) {
+    const specId = extractSpecId(specPath);
+    const metadata = await readSpecMetadata(projectPath, specId);
+    const status: SpecStatus = metadata?.status ?? 'draft';
+    results.push({
+      path: specPath,
+      relativePath: relative(projectPath, specPath),
+      status,
+    });
+  }
+
+  return results;
+}
+
+function formatSpecTable(specs: SpecInfo[]): void {
+  // Calculate column widths
+  const statusHeader = 'Status';
+  const pathHeader = 'File';
+  const maxStatusWidth = Math.max(statusHeader.length, ...specs.map((s) => s.status.length));
+  const maxPathWidth = Math.max(pathHeader.length, ...specs.map((s) => s.relativePath.length));
+
+  // Print header
+  const header = `${pathHeader.padEnd(maxPathWidth)}  ${statusHeader.padEnd(maxStatusWidth)}`;
+  console.log(chalk.bold(header));
+  console.log('─'.repeat(header.length));
+
+  // Print rows
+  for (const spec of specs) {
+    const statusColor = getStatusColor(spec.status);
+    const path = spec.relativePath.padEnd(maxPathWidth);
+    const status = statusColor(spec.status.padEnd(maxStatusWidth));
+    console.log(`${path}  ${status}`);
+  }
+}
+
+function getStatusColor(status: SpecStatus): typeof chalk.green {
+  switch (status) {
+    case 'completed':
+      return chalk.green;
+    case 'active':
+      return chalk.blue;
+    case 'decomposed':
+      return chalk.cyan;
+    case 'reviewed':
+      return chalk.yellow;
+    case 'draft':
+      return chalk.gray;
+  }
+}
+
+specCommand
+  .command('list')
+  .description('List all spec files with their lifecycle status')
+  .option('-p, --project <path>', 'Project path (defaults to current directory)')
+  .action(async (options) => {
+    try {
+      const projectPath = options.project || (await findProjectRoot()) || process.cwd();
+      const specs = await getSpecsInfo(projectPath);
+
+      if (specs.length === 0) {
+        console.log(chalk.yellow('No spec files found.'));
+        console.log(chalk.gray('Specs are searched in: specs/, docs/, .ralph/specs/, and the project root'));
+        process.exit(0);
+      }
+
+      formatSpecTable(specs);
+      process.exit(0);
+    } catch (error) {
+      console.error(chalk.red('Error listing specs:'), error);
       process.exit(2);
     }
   });
