@@ -18,6 +18,7 @@ import decomposeRouter from './routes/decompose.js';
 import settingsRouter from './routes/settings.js';
 import specReviewRouter from './routes/spec-review.js';
 import sessionsRouter from './routes/sessions.js';
+import specsRouter from './routes/specs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -37,14 +38,12 @@ export async function createServer(options: ServerOptions = {}) {
   app.use(express.json());
 
   // Request logging
-  app.use((req, res, next) => {
+  app.use(function (req, res, next) {
     const start = Date.now();
-    res.on('finish', () => {
+    res.on('finish', function () {
       const duration = Date.now() - start;
       const project = req.query.project || req.headers['x-project-path'] || '-';
-      console.log(
-        `${req.method} ${req.path} [${project}] ${res.statusCode} ${duration}ms`
-      );
+      console.log(`${req.method} ${req.path} [${project}] ${res.statusCode} ${duration}ms`);
     });
     next();
   });
@@ -57,9 +56,10 @@ export async function createServer(options: ServerOptions = {}) {
   app.use('/api/settings', settingsRouter);
   app.use('/api/spec-review', specReviewRouter);
   app.use('/api/sessions', sessionsRouter);
+  app.use('/api/specs', specsRouter);
 
   // Health check
-  app.get('/api/health', (req, res) => {
+  app.get('/api/health', function (_req, res) {
     res.json({ status: 'ok', version: '0.1.0' });
   });
 
@@ -86,7 +86,7 @@ export async function createServer(options: ServerOptions = {}) {
     app.use(express.static(webBuildPath));
 
     // SPA fallback - serve index.html for non-API routes
-    app.get('*', (req, res, next) => {
+    app.get('*', function (req, res, next) {
       if (req.path.startsWith('/api/')) {
         return next();
       }
@@ -94,7 +94,7 @@ export async function createServer(options: ServerOptions = {}) {
     });
   } else {
     // No web build found, provide a simple status page
-    app.get('/', (req, res) => {
+    app.get('/', function (_req, res) {
       res.send(`
         <!DOCTYPE html>
         <html>
@@ -129,12 +129,9 @@ export async function createServer(options: ServerOptions = {}) {
   }
 
   // Error handler
-  app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  app.use(function (err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) {
     console.error('Server error:', err);
-    res.status(500).json({
-      error: 'Internal server error',
-      details: err.message,
-    });
+    res.status(500).json({ error: 'Internal server error', details: err.message });
   });
 
   return { app, port, host };
@@ -143,8 +140,8 @@ export async function createServer(options: ServerOptions = {}) {
 export async function startServer(options: ServerOptions = {}): Promise<void> {
   const { app, port, host } = await createServer(options);
 
-  return new Promise((resolve) => {
-    app.listen(port, () => {
+  return new Promise(function (resolve) {
+    app.listen(port, function () {
       console.log(`
 ╔════════════════════════════════════════════════════════════╗
 ║                 Qala Dashboard Server                       ║
