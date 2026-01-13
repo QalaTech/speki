@@ -12,6 +12,7 @@ qala-ralph/
 │   │   ├── claude/       # Claude CLI integration
 │   │   ├── decompose/    # PRD decomposition
 │   │   ├── ralph-loop/   # Main Ralph loop
+│   │   ├── spec-review/  # Spec review and metadata management
 │   │   ├── project.ts    # Per-project .ralph/ management
 │   │   └── registry.ts   # Central ~/.qala/ registry
 │   ├── server/           # Multi-project dashboard server
@@ -20,6 +21,51 @@ qala-ralph/
 ├── archive/              # Old bash-based ralph (reference)
 └── dist/                 # Compiled output
 ```
+
+## Per-Spec State Directory
+
+Each spec file gets its own state directory under `.ralph/specs/<spec-id>/`:
+
+```
+.ralph/
+├── specs/
+│   ├── my-feature/
+│   │   ├── logs/                  # Decompose and review logs
+│   │   ├── decompose_state.json   # Task decomposition output
+│   │   ├── review_state.json      # Review session state
+│   │   └── metadata.json          # Spec status and timestamps
+│   └── another-spec/
+│       └── ...
+├── config.json
+├── progress.txt
+└── prompt.md
+```
+
+The `<spec-id>` is derived from the spec filename (e.g., `my-feature.md` → `my-feature`).
+
+## Spec Lifecycle
+
+Each spec progresses through the following states:
+
+```
+draft → reviewed → decomposed → active → completed
+         ↓
+         └─────→ decomposed
+```
+
+| Status | Description |
+|--------|-------------|
+| `draft` | Initial state after first decompose or review |
+| `reviewed` | Spec has passed AI review |
+| `decomposed` | Tasks have been generated from the spec |
+| `active` | Spec is currently being executed via `qala start` |
+| `completed` | All tasks have been completed |
+
+Valid transitions:
+- `draft` → `reviewed` or `decomposed`
+- `reviewed` → `decomposed`
+- `decomposed` → `active`
+- `active` → `completed`
 
 ## Commands
 
@@ -55,3 +101,17 @@ npm install
 npm run build
 npm link  # For global qala command
 ```
+
+## Migration from Legacy Structure
+
+If upgrading from a version without spec-partitioned state, you need to clean up the legacy files:
+
+```bash
+# Remove legacy state files (BREAKING CHANGE)
+rm -f .ralph/decompose_state.json
+rm -f .ralph/prd.json
+rm -rf .ralph/logs/
+rm -rf .ralph/sessions/
+```
+
+After cleanup, re-run `qala decompose` on your spec files to create the new per-spec state directories.
