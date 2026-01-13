@@ -1,6 +1,18 @@
 import path from 'path';
 import { mkdir, readFile, writeFile } from 'fs/promises';
-import type { SpecMetadata } from '../../types/index.js';
+import type { SpecMetadata, SpecStatus } from '../../types/index.js';
+
+/**
+ * Valid state transitions for spec lifecycle.
+ * Each status maps to an array of statuses it can transition to.
+ */
+const VALID_TRANSITIONS: Record<SpecStatus, SpecStatus[]> = {
+  draft: ['reviewed', 'decomposed'],
+  reviewed: ['decomposed'],
+  decomposed: ['active'],
+  active: ['completed'],
+  completed: [],
+};
 
 /**
  * Extracts the spec ID from a spec file path by removing the .md extension.
@@ -124,4 +136,47 @@ export async function initSpecMetadata(
   };
   await writeSpecMetadata(projectRoot, specId, metadata);
   return metadata;
+}
+
+/**
+ * Checks if a status transition is valid.
+ *
+ * @param current - The current status
+ * @param target - The target status
+ * @returns True if the transition is valid
+ */
+export function transitionSpecStatus(
+  current: SpecStatus,
+  target: SpecStatus
+): boolean {
+  return VALID_TRANSITIONS[current].includes(target);
+}
+
+/**
+ * Updates the status of a spec if the transition is valid.
+ *
+ * @param projectRoot - The project root directory
+ * @param specId - The spec identifier
+ * @param newStatus - The target status
+ * @throws Error if the transition is invalid or metadata doesn't exist
+ */
+export async function updateSpecStatus(
+  projectRoot: string,
+  specId: string,
+  newStatus: SpecStatus
+): Promise<void> {
+  const metadata = await readSpecMetadata(projectRoot, specId);
+  if (!metadata) {
+    throw new Error(`Spec metadata not found for '${specId}'`);
+  }
+
+  if (!transitionSpecStatus(metadata.status, newStatus)) {
+    throw new Error(
+      `Invalid status transition: ${metadata.status} → ${newStatus}`
+    );
+  }
+
+  metadata.status = newStatus;
+  metadata.lastModified = new Date().toISOString();
+  await writeSpecMetadata(projectRoot, specId, metadata);
 }

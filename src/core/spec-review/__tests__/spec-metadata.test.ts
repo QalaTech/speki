@@ -7,11 +7,22 @@ import {
   readSpecMetadata,
   writeSpecMetadata,
   initSpecMetadata,
+  transitionSpecStatus,
+  updateSpecStatus,
 } from '../spec-metadata.js';
 import { mkdtemp, rm, stat, readFile } from 'fs/promises';
 import type { SpecMetadata } from '../../../types/index.js';
 import { tmpdir } from 'os';
 import path from 'path';
+
+function createTestMetadata(specPath: string, status: 'draft' | 'reviewed' | 'decomposed' | 'active' | 'completed' = 'draft'): SpecMetadata {
+  return {
+    created: '2026-01-13T12:00:00.000Z',
+    lastModified: '2026-01-13T12:00:00.000Z',
+    status,
+    specPath,
+  };
+}
 
 describe('extractSpecId', () => {
   it('extractSpecId_WithSimpleFilename_ReturnsNameWithoutExtension', () => {
@@ -102,12 +113,7 @@ describe('readSpecMetadata', () => {
 
   it('readSpecMetadata_WhenFileExists_ReturnsMetadata', async () => {
     const specId = 'test-spec';
-    const metadata: SpecMetadata = {
-      created: '2026-01-13T12:00:00.000Z',
-      lastModified: '2026-01-13T12:00:00.000Z',
-      status: 'draft',
-      specPath: 'specs/test-spec.md',
-    };
+    const metadata = createTestMetadata('specs/test-spec.md');
     await writeSpecMetadata(testDir, specId, metadata);
 
     const result = await readSpecMetadata(testDir, specId);
@@ -133,12 +139,7 @@ describe('writeSpecMetadata', () => {
 
   it('writeSpecMetadata_WithValidData_PersistsToFile', async () => {
     const specId = 'test-spec';
-    const metadata: SpecMetadata = {
-      created: '2026-01-13T12:00:00.000Z',
-      lastModified: '2026-01-13T12:00:00.000Z',
-      status: 'reviewed',
-      specPath: 'specs/test-spec.md',
-    };
+    const metadata = createTestMetadata('specs/test-spec.md', 'reviewed');
 
     await writeSpecMetadata(testDir, specId, metadata);
 
@@ -155,12 +156,7 @@ describe('writeSpecMetadata', () => {
 
   it('writeSpecMetadata_WhenDirNotExists_CreatesDir', async () => {
     const specId = 'new-spec';
-    const metadata: SpecMetadata = {
-      created: '2026-01-13T12:00:00.000Z',
-      lastModified: '2026-01-13T12:00:00.000Z',
-      status: 'draft',
-      specPath: 'specs/new-spec.md',
-    };
+    const metadata = createTestMetadata('specs/new-spec.md');
 
     await writeSpecMetadata(testDir, specId, metadata);
 
@@ -197,5 +193,69 @@ describe('initSpecMetadata', () => {
     expect(result.created).toBe(result.lastModified);
     expect(result.created >= before).toBe(true);
     expect(result.created <= after).toBe(true);
+  });
+});
+
+describe('transitionSpecStatus', () => {
+  it('transitionSpecStatus_DraftToReviewed_ReturnsTrue', () => {
+    expect(transitionSpecStatus('draft', 'reviewed')).toBe(true);
+  });
+
+  it('transitionSpecStatus_DraftToDecomposed_ReturnsTrue', () => {
+    expect(transitionSpecStatus('draft', 'decomposed')).toBe(true);
+  });
+
+  it('transitionSpecStatus_ReviewedToDecomposed_ReturnsTrue', () => {
+    expect(transitionSpecStatus('reviewed', 'decomposed')).toBe(true);
+  });
+
+  it('transitionSpecStatus_DecomposedToActive_ReturnsTrue', () => {
+    expect(transitionSpecStatus('decomposed', 'active')).toBe(true);
+  });
+
+  it('transitionSpecStatus_ActiveToCompleted_ReturnsTrue', () => {
+    expect(transitionSpecStatus('active', 'completed')).toBe(true);
+  });
+
+  it('transitionSpecStatus_CompletedToDraft_ReturnsFalse', () => {
+    expect(transitionSpecStatus('completed', 'draft')).toBe(false);
+  });
+
+  it('transitionSpecStatus_ActiveToReviewed_ReturnsFalse', () => {
+    expect(transitionSpecStatus('active', 'reviewed')).toBe(false);
+  });
+});
+
+describe('updateSpecStatus', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = await mkdtemp(path.join(tmpdir(), 'spec-metadata-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(testDir, { recursive: true, force: true });
+  });
+
+  it('updateSpecStatus_WithValidTransition_UpdatesMetadata', async () => {
+    const specId = 'transition-test';
+    const initialMetadata = createTestMetadata('specs/transition-test.md');
+    await writeSpecMetadata(testDir, specId, initialMetadata);
+
+    await updateSpecStatus(testDir, specId, 'reviewed');
+
+    const updated = await readSpecMetadata(testDir, specId);
+    expect(updated?.status).toBe('reviewed');
+    expect(updated?.lastModified).not.toBe(initialMetadata.lastModified);
+  });
+
+  it('updateSpecStatus_WithInvalidTransition_ThrowsError', async () => {
+    const specId = 'invalid-transition';
+    const metadata = createTestMetadata('specs/invalid-transition.md', 'completed');
+    await writeSpecMetadata(testDir, specId, metadata);
+
+    await expect(
+      updateSpecStatus(testDir, specId, 'draft')
+    ).rejects.toThrow('Invalid status transition: completed → draft');
   });
 });
