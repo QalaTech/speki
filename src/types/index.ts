@@ -348,6 +348,25 @@ export type SuggestionType = 'change' | 'comment';
 export type SessionStatus = 'in_progress' | 'completed' | 'needs_attention';
 
 /**
+ * Status of a spec in the lifecycle.
+ */
+export type SpecStatus = 'draft' | 'reviewed' | 'decomposed' | 'active' | 'completed';
+
+/**
+ * Metadata for tracking spec lifecycle information.
+ */
+export interface SpecMetadata {
+  /** ISO timestamp when the spec was created */
+  created: string;
+  /** ISO timestamp of last modification */
+  lastModified: string;
+  /** Current status in the spec lifecycle */
+  status: SpecStatus;
+  /** Path to the spec file */
+  specPath: string;
+}
+
+/**
  * Individual category result from spec review analysis.
  */
 export interface SpecReviewCategory {
