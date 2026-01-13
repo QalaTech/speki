@@ -9,6 +9,14 @@ import { Command } from 'commander';
 import { checkCliAvailable } from '../../core/cli-path.js';
 import { findProjectRoot } from '../../core/project.js';
 import { runSpecReview } from '../../core/spec-review/runner.js';
+import {
+  ensureSpecDir,
+  extractSpecId,
+  getSpecLogsDir,
+  initSpecMetadata,
+  readSpecMetadata,
+  updateSpecStatus,
+} from '../../core/spec-review/spec-metadata.js';
 import { executeSplit } from '../../core/spec-review/splitter.js';
 import type { CliType, SpecReviewVerdict, SplitProposal, SpecReviewResult, TimeoutInfo } from '../../types/index.js';
 
@@ -333,10 +341,10 @@ export function formatHumanOutput(result: SpecReviewResult, specFile: string): v
 function formatTimeoutMs(ms: number): string {
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);
-  if (minutes > 0) {
-    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
-  }
-  return `${seconds} second${seconds === 1 ? '' : 's'}`;
+  const unit = minutes > 0 ? 'minute' : 'second';
+  const value = minutes > 0 ? minutes : seconds;
+  const plural = value === 1 ? '' : 's';
+  return `${value} ${unit}${plural}`;
 }
 
 export function displayTimeoutError(timeoutInfo: TimeoutInfo, specFile: string): void {
@@ -403,6 +411,19 @@ specCommand
         process.exit(2);
       }
 
+      // Initialize spec metadata if not exists
+      const specId = extractSpecId(resolvedSpecFile);
+      const existingMetadata = await readSpecMetadata(projectPath, specId);
+      if (!existingMetadata) {
+        await initSpecMetadata(projectPath, resolvedSpecFile);
+        if (!options.json) {
+          console.log(chalk.gray(`  Initialized spec metadata for: ${specId}`));
+        }
+      }
+
+      // Use spec-partitioned log directory
+      const specLogsDir = getSpecLogsDir(projectPath, specId);
+
       if (!options.json) {
         console.log(chalk.blue(`Reviewing spec: ${resolvedSpecFile}`));
       }
@@ -416,6 +437,7 @@ specCommand
         timeoutMs: options.timeout,
         cli,
         onProgress,
+        logDir: specLogsDir,
       });
 
       // Handle timeout case - exit 2 for errors
@@ -432,6 +454,25 @@ specCommand
           }
         }
         process.exit(2);
+      }
+
+      // Write review_state.json to spec-partitioned location
+      const specDir = await ensureSpecDir(projectPath, specId);
+      const reviewStatePath = join(specDir, 'review_state.json');
+      await writeFile(reviewStatePath, JSON.stringify(result, null, 2), 'utf-8');
+
+      // Transition spec status to 'reviewed' on successful completion
+      try {
+        await updateSpecStatus(projectPath, specId, 'reviewed');
+        if (!options.json) {
+          console.log(chalk.gray(`  Spec status transitioned to: reviewed`));
+        }
+      } catch {
+        // Status transition may fail if already reviewed or in incompatible state
+        // This is non-fatal, just log if verbose
+        if (options.verbose && !options.json) {
+          console.log(chalk.gray(`  Spec status unchanged (already reviewed or incompatible state)`));
+        }
       }
 
       if (options.json) {
@@ -457,13 +498,10 @@ specCommand
  */
 function generateDateTimePrefix(): string {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const seconds = String(now.getSeconds()).padStart(2, '0');
-  return `${year}${month}${day}-${hours}${minutes}${seconds}`;
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  return `${date}-${time}`;
 }
 
 /**

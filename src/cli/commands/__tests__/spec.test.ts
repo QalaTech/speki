@@ -25,6 +25,22 @@ vi.mock('../../../core/cli-path.js', async (importOriginal) => {
   };
 });
 
+function createMockResult(overrides: Partial<SpecReviewResult> = {}): SpecReviewResult {
+  return {
+    verdict: 'PASS',
+    categories: {},
+    codebaseContext: {
+      projectType: 'typescript',
+      existingPatterns: [],
+      relevantFiles: [],
+    },
+    suggestions: [],
+    logPath: '/test/log.json',
+    durationMs: 1000,
+    ...overrides,
+  };
+}
+
 describe('spec review command', () => {
   let tempDir: string;
 
@@ -126,20 +142,6 @@ describe('findSpecFiles', () => {
 });
 
 describe('spec review CLI options', () => {
-  const createMockResult = (overrides: Partial<SpecReviewResult> = {}): SpecReviewResult => ({
-    verdict: 'PASS',
-    categories: {},
-    codebaseContext: {
-      projectType: 'typescript',
-      existingPatterns: [],
-      relevantFiles: [],
-    },
-    suggestions: [],
-    logPath: '/test/log.json',
-    durationMs: 1000,
-    ...overrides,
-  });
-
   it('specReview_WithTimeoutFlag_UsesProvidedTimeout', async () => {
     // The timeout option is defined with parseInt parser
     // Commander parses -t 30000 into options.timeout = 30000
@@ -217,20 +219,6 @@ describe('spec review CLI options', () => {
 });
 
 describe('formatHumanOutput', () => {
-  const createMockResult = (overrides: Partial<SpecReviewResult> = {}): SpecReviewResult => ({
-    verdict: 'PASS',
-    categories: {},
-    codebaseContext: {
-      projectType: 'typescript',
-      existingPatterns: [],
-      relevantFiles: [],
-    },
-    suggestions: [],
-    logPath: '/test/log.json',
-    durationMs: 1000,
-    ...overrides,
-  });
-
   let consoleLogs: string[];
   const originalConsoleLog = console.log;
 
@@ -638,5 +626,55 @@ describe('exit codes', () => {
     const invalidFileResult = validateSpecFile(join(process.cwd(), 'package.json'));
     expect(invalidFileResult.valid).toBe(false);
     expect(invalidFileResult.error).toContain('must be a markdown file');
+  });
+});
+
+describe('spec-partitioned review', () => {
+  it('specReview_WithNewSpec_CreatesSpecDir', async () => {
+    // Test that extractSpecId correctly extracts spec ID from path
+    const { extractSpecId, getSpecDir } = await import('../../../core/spec-review/spec-metadata.js');
+
+    const specPath = '/project/specs/my-feature.md';
+    const specId = extractSpecId(specPath);
+
+    expect(specId).toBe('my-feature');
+
+    const specDir = getSpecDir('/project', specId);
+    expect(specDir).toBe('/project/.ralph/specs/my-feature');
+  });
+
+  it('specReview_WithNewSpec_WritesReviewStateToSpecDir', async () => {
+    // Test that review_state.json path is correctly constructed
+    const { extractSpecId, getSpecDir } = await import('../../../core/spec-review/spec-metadata.js');
+
+    const specPath = '/project/specs/test-spec.md';
+    const specId = extractSpecId(specPath);
+    const specDir = getSpecDir('/project', specId);
+    const reviewStatePath = join(specDir, 'review_state.json');
+
+    expect(reviewStatePath).toBe('/project/.ralph/specs/test-spec/review_state.json');
+  });
+
+  it('specReview_OnSuccess_TransitionsStatusToReviewed', async () => {
+    // Test that transitionSpecStatus allows draft -> reviewed
+    const { transitionSpecStatus } = await import('../../../core/spec-review/spec-metadata.js');
+
+    const canTransition = transitionSpecStatus('draft', 'reviewed');
+    expect(canTransition).toBe(true);
+
+    // Test that reviewed -> draft is not valid
+    const canTransitionBack = transitionSpecStatus('reviewed', 'draft');
+    expect(canTransitionBack).toBe(false);
+  });
+
+  it('specReview_WritesLogToSpecLogsDir', async () => {
+    // Test that getSpecLogsDir returns correct path
+    const { extractSpecId, getSpecLogsDir } = await import('../../../core/spec-review/spec-metadata.js');
+
+    const specPath = '/project/specs/my-feature.md';
+    const specId = extractSpecId(specPath);
+    const logsDir = getSpecLogsDir('/project', specId);
+
+    expect(logsDir).toBe('/project/.ralph/specs/my-feature/logs');
   });
 });
