@@ -10,7 +10,7 @@ import {
   transitionSpecStatus,
   updateSpecStatus,
 } from '../spec-metadata.js';
-import { mkdtemp, rm, stat, readFile } from 'fs/promises';
+import { mkdtemp, rm, stat, readFile, writeFile } from 'fs/promises';
 import type { SpecMetadata } from '../../../types/index.js';
 import { tmpdir } from 'os';
 import path from 'path';
@@ -257,5 +257,112 @@ describe('updateSpecStatus', () => {
     await expect(
       updateSpecStatus(testDir, specId, 'draft')
     ).rejects.toThrow('Invalid status transition: completed → draft');
+  });
+});
+
+
+describe('spec isolation', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = await mkdtemp(path.join(tmpdir(), 'spec-isolation-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(testDir, { recursive: true, force: true });
+  });
+
+  it('isolation_SequentialDecompose_PreservesFirstSpecState', async () => {
+    // Arrange - Simulate decompose for specA
+    const specIdA = 'specA';
+    const specIdB = 'specB';
+    
+    // Initialize specA with metadata and decompose state
+    await initSpecMetadata(testDir, 'specs/specA.md');
+    await updateSpecStatus(testDir, specIdA, 'decomposed');
+    
+    // Write decompose_state.json for specA
+    const specDirA = await ensureSpecDir(testDir, specIdA);
+    const decomposeStateA = {
+      projectName: 'Spec A Project',
+      branchName: 'feature-a',
+      userStories: [{ id: 'US-001', title: 'Story A1' }],
+    };
+    await writeFile(
+      path.join(specDirA, 'decompose_state.json'),
+      JSON.stringify(decomposeStateA, null, 2)
+    );
+    
+    // Capture specA's decompose_state.json content before decomposing specB
+    const specAStateBeforeB = await readFile(
+      path.join(specDirA, 'decompose_state.json'),
+      'utf-8'
+    );
+
+    // Act - Simulate decompose for specB
+    await initSpecMetadata(testDir, 'specs/specB.md');
+    await updateSpecStatus(testDir, specIdB, 'decomposed');
+    
+    const specDirB = await ensureSpecDir(testDir, specIdB);
+    const decomposeStateB = {
+      projectName: 'Spec B Project',
+      branchName: 'feature-b',
+      userStories: [{ id: 'US-001', title: 'Story B1' }, { id: 'US-002', title: 'Story B2' }],
+    };
+    await writeFile(
+      path.join(specDirB, 'decompose_state.json'),
+      JSON.stringify(decomposeStateB, null, 2)
+    );
+
+    // Assert - specA's decompose_state.json should be unchanged
+    const specAStateAfterB = await readFile(
+      path.join(specDirA, 'decompose_state.json'),
+      'utf-8'
+    );
+    expect(specAStateAfterB).toBe(specAStateBeforeB);
+    expect(JSON.parse(specAStateAfterB)).toEqual(decomposeStateA);
+  });
+
+  it('isolation_BothSpecsHaveSeparateDirs', async () => {
+    // Arrange
+    const specIdA = 'specA';
+    const specIdB = 'specB';
+
+    // Act - Create directories for both specs
+    const specDirA = await ensureSpecDir(testDir, specIdA);
+    const specDirB = await ensureSpecDir(testDir, specIdB);
+
+    // Assert - Directories should be different and both should exist
+    expect(specDirA).not.toBe(specDirB);
+    expect(specDirA).toBe(path.join(testDir, '.ralph', 'specs', specIdA));
+    expect(specDirB).toBe(path.join(testDir, '.ralph', 'specs', specIdB));
+
+    // Verify both directories exist
+    const statA = await stat(specDirA);
+    const statB = await stat(specDirB);
+    expect(statA.isDirectory()).toBe(true);
+    expect(statB.isDirectory()).toBe(true);
+  });
+
+  it('isolation_MetadataFilesAreIndependent', async () => {
+    // Arrange
+    const specIdA = 'specA';
+    const specIdB = 'specB';
+    
+    // Initialize both specs
+    await initSpecMetadata(testDir, 'specs/specA.md');
+    await initSpecMetadata(testDir, 'specs/specB.md');
+
+    // Act - Update specB's status to decomposed
+    await updateSpecStatus(testDir, specIdB, 'decomposed');
+
+    // Assert - specA's metadata should still be draft, specB should be decomposed
+    const readMetadataA = await readSpecMetadata(testDir, specIdA);
+    const readMetadataB = await readSpecMetadata(testDir, specIdB);
+
+    expect(readMetadataA?.status).toBe('draft');
+    expect(readMetadataB?.status).toBe('decomposed');
+    expect(readMetadataA?.specPath).toBe('specs/specA.md');
+    expect(readMetadataB?.specPath).toBe('specs/specB.md');
   });
 });
