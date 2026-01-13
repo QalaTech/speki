@@ -353,6 +353,14 @@ export type SessionStatus = 'in_progress' | 'completed' | 'needs_attention';
 export type SpecStatus = 'draft' | 'reviewed' | 'decomposed' | 'active' | 'completed';
 
 /**
+ * Type of spec document.
+ * - prd: Product Requirements Document (what/why)
+ * - tech-spec: Technical Specification (how)
+ * - bug: Bug report
+ */
+export type SpecType = 'prd' | 'tech-spec' | 'bug';
+
+/**
  * Metadata for tracking spec lifecycle information.
  */
 export interface SpecMetadata {
@@ -364,6 +372,10 @@ export interface SpecMetadata {
   status: SpecStatus;
   /** Path to the spec file */
   specPath: string;
+  /** Type of spec (prd, tech-spec, bug). Defaults to 'prd' for legacy specs. */
+  type?: SpecType;
+  /** Parent spec path (for tech specs linked to PRDs) */
+  parent?: string;
 }
 
 /**

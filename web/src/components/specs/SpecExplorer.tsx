@@ -79,6 +79,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   // New spec modal state
   const [isNewSpecModalOpen, setIsNewSpecModalOpen] = useState(false);
   const [newSpecName, setNewSpecName] = useState('');
+  const [newSpecType, setNewSpecType] = useState<'prd' | 'tech-spec' | 'bug'>('prd');
   const [isCreatingSpec, setIsCreatingSpec] = useState(false);
 
   // API helper
@@ -489,6 +490,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   // Handle create new spec
   const handleOpenNewSpecModal = useCallback(() => {
     setNewSpecName('');
+    setNewSpecType('prd');
     setIsNewSpecModalOpen(true);
   }, []);
 
@@ -500,7 +502,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
       const res = await fetch(apiUrl('/api/spec-review/new'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newSpecName.trim() }),
+        body: JSON.stringify({ name: newSpecName.trim(), type: newSpecType }),
       });
 
       const data = await res.json();
@@ -525,6 +527,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
         // Close modal
         setIsNewSpecModalOpen(false);
         setNewSpecName('');
+        setNewSpecType('prd');
       } else {
         console.error('Failed to create spec:', data.error);
       }
@@ -533,11 +536,12 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     } finally {
       setIsCreatingSpec(false);
     }
-  }, [newSpecName, apiUrl]);
+  }, [newSpecName, newSpecType, apiUrl]);
 
   const handleCancelNewSpec = useCallback(() => {
     setIsNewSpecModalOpen(false);
     setNewSpecName('');
+    setNewSpecType('prd');
   }, []);
 
   // Render content based on active tab
@@ -766,6 +770,38 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
               <h3>Create New Spec</h3>
             </div>
             <div className="new-spec-modal-body">
+              {/* Type Selector */}
+              <div className="new-spec-modal-label">Spec Type</div>
+              <div className="new-spec-type-selector">
+                <button
+                  type="button"
+                  className={`new-spec-type-btn ${newSpecType === 'prd' ? 'new-spec-type-btn--selected' : ''}`}
+                  onClick={() => setNewSpecType('prd')}
+                >
+                  <span className="new-spec-type-icon">📋</span>
+                  <span className="new-spec-type-name">PRD</span>
+                  <span className="new-spec-type-desc">What &amp; Why</span>
+                </button>
+                <button
+                  type="button"
+                  className={`new-spec-type-btn ${newSpecType === 'tech-spec' ? 'new-spec-type-btn--selected' : ''}`}
+                  onClick={() => setNewSpecType('tech-spec')}
+                >
+                  <span className="new-spec-type-icon">🔧</span>
+                  <span className="new-spec-type-name">Tech Spec</span>
+                  <span className="new-spec-type-desc">How</span>
+                </button>
+                <button
+                  type="button"
+                  className={`new-spec-type-btn ${newSpecType === 'bug' ? 'new-spec-type-btn--selected' : ''}`}
+                  onClick={() => setNewSpecType('bug')}
+                >
+                  <span className="new-spec-type-icon">🐛</span>
+                  <span className="new-spec-type-name">Bug</span>
+                  <span className="new-spec-type-desc">Issue</span>
+                </button>
+              </div>
+
               <label className="new-spec-modal-label">
                 Spec Name
                 <input
@@ -786,7 +822,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
                 />
               </label>
               <p className="new-spec-modal-hint">
-                File will be created as: specs/YYYYMMDD-HHMMSS-{newSpecName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'name'}.md
+                File will be created as: specs/YYYYMMDD-HHMMSS-{newSpecName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'name'}.{newSpecType === 'prd' ? 'prd' : newSpecType === 'tech-spec' ? 'tech' : 'bug'}.md
               </p>
             </div>
             <div className="new-spec-modal-footer">

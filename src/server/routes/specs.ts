@@ -13,8 +13,10 @@ import {
   listSpecs,
   readSpecMetadata,
   loadPRDForSpec,
+  detectSpecType,
 } from '../../core/spec-review/spec-metadata.js';
 import { relative } from 'path';
+import type { SpecType } from '../../types/index.js';
 
 const router = Router();
 
@@ -25,6 +27,7 @@ router.use(projectContext(true));
  * GET /api/specs
  * Returns list of all specs discovered from filesystem with their metadata.
  * Specs without metadata are returned with status 'draft'.
+ * Includes type detection from frontmatter or filename.
  */
 router.get('/', async function (req, res) {
   try {
@@ -39,10 +42,22 @@ router.get('/', async function (req, res) {
         const metadata = await readSpecMetadata(projectPath, specId);
         const relativePath = relative(projectPath, specPath);
 
+        // Detect type from metadata, frontmatter, or filename
+        let specType: SpecType = metadata?.type ?? 'prd';
+        let parent: string | undefined = metadata?.parent;
+
+        if (!metadata?.type) {
+          const detected = await detectSpecType(specPath);
+          specType = detected.type;
+          parent = detected.parent;
+        }
+
         return {
           specId,
           specPath: relativePath,
           status: metadata?.status ?? 'draft',
+          type: specType,
+          parent: parent ?? null,
           created: metadata?.created ?? null,
           lastModified: metadata?.lastModified ?? null,
         };

@@ -96,15 +96,68 @@ router.get('/files', async (req, res) => {
 });
 
 /**
+ * Type suffix mappings for spec filenames
+ */
+const TYPE_SUFFIXES: Record<string, string> = {
+  'prd': '.prd.md',
+  'tech-spec': '.tech.md',
+  'bug': '.bug.md',
+};
+
+/**
+ * Load template for a spec type
+ */
+async function loadSpecTemplate(type: string): Promise<string> {
+  const templateNames: Record<string, string> = {
+    'prd': 'prd.md',
+    'tech-spec': 'tech-spec.md',
+    'bug': 'bug.md',
+  };
+
+  const templateName = templateNames[type] || 'prd.md';
+
+  // Try loading from project templates first, then fall back to package templates
+  const templatePaths = [
+    join(process.cwd(), '.ralph', 'templates', templateName),
+    join(process.cwd(), 'templates', 'specs', templateName),
+  ];
+
+  for (const templatePath of templatePaths) {
+    try {
+      return await fs.readFile(templatePath, 'utf-8');
+    } catch {
+      // Try next path
+    }
+  }
+
+  // Return minimal default if no template found
+  return `---
+type: ${type}
+status: draft
+created: {{date}}
+---
+
+# {{title}}
+
+`;
+}
+
+/**
  * POST /api/spec-review/new
- * Create a new spec file with datetime prefix
+ * Create a new spec file with datetime prefix and type
  */
 router.post('/new', async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, type = 'prd', parent } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({ error: 'name is required' });
+    }
+
+    // Validate type
+    const validTypes = ['prd', 'tech-spec', 'bug'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ error: `Invalid type: ${type}. Must be one of: ${validTypes.join(', ')}` });
     }
 
     const projectPath = req.projectPath!;
@@ -142,7 +195,9 @@ router.post('/new', async (req, res) => {
       return res.status(400).json({ error: 'Name must contain at least one valid character' });
     }
 
-    const fileName = `${datePrefix}-${sanitizedName}.md`;
+    // Build filename with type suffix
+    const typeSuffix = TYPE_SUFFIXES[type] || '.md';
+    const fileName = `${datePrefix}-${sanitizedName}${typeSuffix}`;
     const relativePath = join(SPECS_DIRECTORY, fileName);
     const fullPath = join(projectPath, relativePath);
 
@@ -154,18 +209,20 @@ router.post('/new', async (req, res) => {
       // File doesn't exist, good to proceed
     }
 
-    // Create the file with default content
-    const defaultContent = `# ${name.trim()}
+    // Load template and fill in placeholders
+    let content = await loadSpecTemplate(type);
+    content = content
+      .replace(/\{\{date\}\}/g, now.toISOString())
+      .replace(/\{\{title\}\}/g, name.trim())
+      .replace(/\{\{parent\}\}/g, parent || '');
 
-Let your imagination go wild.
-`;
-
-    await fs.writeFile(fullPath, defaultContent, 'utf-8');
+    await fs.writeFile(fullPath, content, 'utf-8');
 
     res.json({
       success: true,
       filePath: relativePath,
       fileName,
+      type,
     });
   } catch (error) {
     res.status(500).json({

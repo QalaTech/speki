@@ -683,3 +683,56 @@
 .new-spec-modal-btn--create:hover:not(:disabled) {
   background: #4a9eff;
 }
+
+/* ===== Spec Type Selector ===== */
+
+.new-spec-type-selector {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.new-spec-type-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 12px;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.new-spec-type-btn:hover {
+  border-color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+}
+
+.new-spec-type-btn--selected {
+  border-color: var(--color-accent);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.new-spec-type-btn--selected:hover {
+  border-color: var(--color-accent);
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.new-spec-type-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.new-spec-type-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.new-spec-type-desc {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}

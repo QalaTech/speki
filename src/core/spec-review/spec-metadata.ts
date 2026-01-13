@@ -1,12 +1,84 @@
 import path from 'path';
 import { existsSync } from 'fs';
 import { mkdir, readdir, readFile, stat, writeFile } from 'fs/promises';
-import type { DecomposeState, PRDData, SpecMetadata, SpecStatus } from '../../types/index.js';
+import type { DecomposeState, PRDData, SpecMetadata, SpecStatus, SpecType } from '../../types/index.js';
 
 /**
  * The specs directory relative to project root.
  */
 const SPECS_DIRECTORY = 'specs';
+
+/**
+ * Parses YAML frontmatter from markdown content.
+ * Returns the frontmatter as an object, or null if not present.
+ */
+export function parseFrontmatter(content: string): Record<string, unknown> | null {
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return null;
+
+  const frontmatter: Record<string, unknown> = {};
+  const lines = match[1].split('\n');
+
+  for (const line of lines) {
+    const colonIndex = line.indexOf(':');
+    if (colonIndex > 0) {
+      const key = line.slice(0, colonIndex).trim();
+      const value = line.slice(colonIndex + 1).trim();
+      frontmatter[key] = value;
+    }
+  }
+
+  return frontmatter;
+}
+
+/**
+ * Detects spec type from filename pattern.
+ * - *.prd.md → prd
+ * - *.tech.md → tech-spec
+ * - *.bug.md → bug
+ * - default → prd (legacy files)
+ */
+export function detectTypeFromFilename(filename: string): SpecType {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.prd.md')) return 'prd';
+  if (lower.endsWith('.tech.md')) return 'tech-spec';
+  if (lower.endsWith('.bug.md')) return 'bug';
+  // Legacy files without type suffix default to PRD
+  return 'prd';
+}
+
+/**
+ * Detects spec type from file content (frontmatter) or filename.
+ * Priority: frontmatter > filename pattern > default (prd)
+ */
+export async function detectSpecType(
+  specPath: string,
+  content?: string
+): Promise<{ type: SpecType; parent?: string }> {
+  // Try to read content if not provided
+  if (!content) {
+    try {
+      content = await readFile(specPath, 'utf-8');
+    } catch {
+      // Fall back to filename detection
+      return { type: detectTypeFromFilename(path.basename(specPath)) };
+    }
+  }
+
+  // Parse frontmatter
+  const frontmatter = parseFrontmatter(content);
+  if (frontmatter) {
+    const type = frontmatter.type as string;
+    const parent = frontmatter.parent as string | undefined;
+
+    if (type === 'prd' || type === 'tech-spec' || type === 'bug') {
+      return { type, parent };
+    }
+  }
+
+  // Fall back to filename detection
+  return { type: detectTypeFromFilename(path.basename(specPath)) };
+}
 
 /**
  * Discovers spec files (.md) from the specs/ directory.
@@ -152,23 +224,48 @@ export async function writeSpecMetadata(
 }
 
 /**
+ * Options for initializing spec metadata.
+ */
+export interface InitSpecMetadataOptions {
+  /** Spec type (auto-detected if not provided) */
+  type?: SpecType;
+  /** Parent spec path (for tech specs linked to PRDs) */
+  parent?: string;
+}
+
+/**
  * Initializes metadata for a new spec with draft status.
  *
  * @param projectRoot - The project root directory
  * @param specPath - Path to the spec file
+ * @param options - Optional type and parent settings
  * @returns The created metadata
  */
 export async function initSpecMetadata(
   projectRoot: string,
-  specPath: string
+  specPath: string,
+  options?: InitSpecMetadataOptions
 ): Promise<SpecMetadata> {
   const specId = extractSpecId(specPath);
   const now = new Date().toISOString();
+
+  // Auto-detect type if not provided
+  let specType: SpecType = options?.type ?? 'prd';
+  let parent = options?.parent;
+
+  if (!options?.type) {
+    const detected = await detectSpecType(specPath);
+    specType = detected.type;
+    parent = parent ?? detected.parent;
+  }
+
   const metadata: SpecMetadata = {
     created: now,
     lastModified: now,
     status: 'draft',
     specPath,
+    type: specType,
+    ...(parent && { parent }),
   };
   await writeSpecMetadata(projectRoot, specId, metadata);
   return metadata;
