@@ -87,7 +87,7 @@ export function TopNav({
             icon="📄"
             label="Specs"
             active={isSpecsPage}
-            onClick={() => onNavigate('/specs')}
+            onClick={() => onNavigate('/spec-review')}
           />
           <NavItem
             icon="▶"
