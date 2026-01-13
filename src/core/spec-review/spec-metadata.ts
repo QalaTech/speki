@@ -1,6 +1,41 @@
 import path from 'path';
-import { mkdir, readdir, readFile, writeFile } from 'fs/promises';
+import { existsSync } from 'fs';
+import { mkdir, readdir, readFile, stat, writeFile } from 'fs/promises';
 import type { DecomposeState, PRDData, SpecMetadata, SpecStatus } from '../../types/index.js';
+
+/**
+ * Directories to search for spec files, relative to project root.
+ */
+const SPEC_SEARCH_DIRECTORIES = ['specs', 'docs', '.ralph/specs', '.'];
+
+/**
+ * Discovers spec files (.md) from standard directories in the project.
+ * Searches in: specs/, docs/, .ralph/specs/, and project root.
+ *
+ * @param projectRoot - The project root directory
+ * @returns Array of absolute paths to spec files
+ */
+export async function findSpecFiles(projectRoot: string): Promise<string[]> {
+  const results: string[] = [];
+
+  for (const dir of SPEC_SEARCH_DIRECTORIES) {
+    const fullPath = path.join(projectRoot, dir);
+    const dirStat = existsSync(fullPath) ? await stat(fullPath) : null;
+
+    if (!dirStat?.isDirectory()) {
+      continue;
+    }
+
+    const entries = await readdir(fullPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.md')) {
+        results.push(path.join(fullPath, entry.name));
+      }
+    }
+  }
+
+  return results;
+}
 
 /**
  * Valid state transitions for spec lifecycle.

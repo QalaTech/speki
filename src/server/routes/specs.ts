@@ -8,10 +8,13 @@
 import { Router } from 'express';
 import { projectContext } from '../middleware/project-context.js';
 import {
+  extractSpecId,
+  findSpecFiles,
   listSpecs,
   readSpecMetadata,
   loadPRDForSpec,
 } from '../../core/spec-review/spec-metadata.js';
+import { relative } from 'path';
 
 const router = Router();
 
@@ -20,17 +23,29 @@ router.use(projectContext(true));
 
 /**
  * GET /api/specs
- * Returns list of all specs with their metadata
+ * Returns list of all specs discovered from filesystem with their metadata.
+ * Specs without metadata are returned with status 'draft'.
  */
 router.get('/', async function (req, res) {
   try {
     const projectPath = req.projectPath!;
-    const specIds = await listSpecs(projectPath);
+
+    // Discover spec files from filesystem
+    const specFiles = await findSpecFiles(projectPath);
 
     const specs = await Promise.all(
-      specIds.map(async function (specId) {
+      specFiles.map(async function (specPath) {
+        const specId = extractSpecId(specPath);
         const metadata = await readSpecMetadata(projectPath, specId);
-        return { specId, ...metadata };
+        const relativePath = relative(projectPath, specPath);
+
+        return {
+          specId,
+          specPath: relativePath,
+          status: metadata?.status ?? 'draft',
+          created: metadata?.created ?? null,
+          lastModified: metadata?.lastModified ?? null,
+        };
       })
     );
 

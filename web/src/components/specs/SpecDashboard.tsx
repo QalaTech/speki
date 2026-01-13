@@ -9,8 +9,8 @@ type SpecStatus = 'draft' | 'reviewed' | 'decomposed' | 'active' | 'completed';
 /** Spec metadata from the API */
 interface SpecInfo {
   specId: string;
-  created: string;
-  lastModified: string;
+  created: string | null;
+  lastModified: string | null;
   status: SpecStatus;
   specPath: string;
 }
@@ -39,7 +39,8 @@ const STATUS_CONFIG: Record<SpecStatus, { label: string; className: string }> = 
 /** All status values in lifecycle order for the progress indicator */
 const STATUS_ORDER: SpecStatus[] = ['draft', 'reviewed', 'decomposed', 'active', 'completed'];
 
-function formatDate(isoString: string): string {
+function formatDate(isoString: string | null): string {
+  if (!isoString) return '—';
   const date = new Date(isoString);
   return date.toLocaleDateString(undefined, {
     year: 'numeric',
@@ -48,7 +49,8 @@ function formatDate(isoString: string): string {
   });
 }
 
-function formatDateTime(isoString: string): string {
+function formatDateTime(isoString: string | null): string {
+  if (!isoString) return '—';
   const date = new Date(isoString);
   return date.toLocaleString(undefined, {
     year: 'numeric',
