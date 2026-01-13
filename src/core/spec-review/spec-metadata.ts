@@ -1,6 +1,6 @@
 import path from 'path';
-import { mkdir, readFile, writeFile } from 'fs/promises';
-import type { SpecMetadata, SpecStatus } from '../../types/index.js';
+import { mkdir, readdir, readFile, writeFile } from 'fs/promises';
+import type { PRDData, SpecMetadata, SpecStatus } from '../../types/index.js';
 
 /**
  * Valid state transitions for spec lifecycle.
@@ -179,4 +179,59 @@ export async function updateSpecStatus(
   metadata.status = newStatus;
   metadata.lastModified = new Date().toISOString();
   await writeSpecMetadata(projectRoot, specId, metadata);
+}
+
+/**
+ * Lists all spec directories in .ralph/specs/.
+ *
+ * @param projectRoot - The project root directory
+ * @returns Array of spec IDs (directory names)
+ */
+export async function listSpecs(projectRoot: string): Promise<string[]> {
+  const specsDir = path.join(projectRoot, '.ralph', 'specs');
+  try {
+    const entries = await readdir(specsDir, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Loads the PRD/decompose_state from a spec directory.
+ *
+ * @param projectRoot - The project root directory
+ * @param specId - The spec identifier
+ * @returns The PRD data or null if not found
+ */
+export async function loadPRDForSpec(
+  projectRoot: string,
+  specId: string
+): Promise<PRDData | null> {
+  const prdPath = path.join(getSpecDir(projectRoot, specId), 'decompose_state.json');
+  try {
+    const content = await readFile(prdPath, 'utf-8');
+    return JSON.parse(content) as PRDData;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Saves the PRD/decompose_state to a spec directory.
+ *
+ * @param projectRoot - The project root directory
+ * @param specId - The spec identifier
+ * @param prd - The PRD data to save
+ */
+export async function savePRDForSpec(
+  projectRoot: string,
+  specId: string,
+  prd: PRDData
+): Promise<void> {
+  await ensureSpecDir(projectRoot, specId);
+  const prdPath = path.join(getSpecDir(projectRoot, specId), 'decompose_state.json');
+  await writeFile(prdPath, JSON.stringify(prd, null, 2), 'utf-8');
 }
