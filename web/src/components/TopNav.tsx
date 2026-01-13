@@ -17,9 +17,8 @@ interface TopNavProps {
 interface NavItemProps {
   icon: string;
   label: string;
-  path: string;
   active: boolean;
-  badge?: { text: string; type: "active" | "running" };
+  badge?: { text: string; type: 'active' | 'running' };
   onClick: () => void;
 }
 
@@ -50,9 +49,9 @@ export function TopNav({
   const location = useLocation();
   const currentPath = location.pathname;
 
-  const isSpecReviewPage = currentPath.startsWith("/spec-review");
+  const isSpecsPage = currentPath.startsWith("/specs") || currentPath.startsWith("/spec-review");
   const isSettingsPage = currentPath === "/settings";
-  const isExecutionPage = !isSpecReviewPage && !isSettingsPage;
+  const isExecutionPage = !isSpecsPage && !isSettingsPage;
 
   return (
     <nav className="topnav">
@@ -87,19 +86,17 @@ export function TopNav({
           <NavItem
             icon="📄"
             label="Specs"
-            path="/spec-review"
-            active={isSpecReviewPage}
-            onClick={() => onNavigate("/spec-review")}
+            active={isSpecsPage}
+            onClick={() => onNavigate('/specs')}
           />
           <NavItem
             icon="▶"
             label="Execution"
-            path="/execution"
             active={isExecutionPage}
             badge={
-              isRalphRunning ? { text: "Running", type: "running" } : undefined
+              isRalphRunning ? { text: 'Running', type: 'running' } : undefined
             }
-            onClick={() => onNavigate("/execution/live")}
+            onClick={() => onNavigate('/execution/live')}
           />
         </div>
 

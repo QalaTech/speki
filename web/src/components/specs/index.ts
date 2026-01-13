@@ -15,6 +15,8 @@ export { SpecEditorModal } from './SpecEditorModal';
 
 export { SpecExplorer } from './SpecExplorer';
 
+export { SpecDashboard } from './SpecDashboard';
+
 export { DiffOverlay } from './DiffOverlay';
 
 export { HunkControlPill } from './HunkControlPill';

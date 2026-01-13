@@ -10,7 +10,7 @@ import { ProgressView } from './components/ProgressView';
 import { DecomposeView } from './components/DecomposeView';
 import { SettingsView } from './components/SettingsView';
 import { KnowledgeView } from './components/KnowledgeView';
-import { SpecExplorer } from './components/specs';
+import { SpecExplorer, SpecDashboard } from './components/specs';
 import { TopNav } from './components/TopNav';
 import './App.css';
 
@@ -200,11 +200,15 @@ function App() {
   const selectedProject = searchParams.get('project');
 
   // Derive execution tab from URL path
-  const executionTab = location.pathname.includes('/live') ? 'live'
-    : location.pathname.includes('/list') ? 'list'
-    : location.pathname.includes('/log') ? 'log'
-    : location.pathname.includes('/knowledge') ? 'knowledge'
-    : 'kanban';
+  function getExecutionTab(pathname: string): string {
+    if (pathname.includes('/live')) return 'live';
+    if (pathname.includes('/list')) return 'list';
+    if (pathname.includes('/log')) return 'log';
+    if (pathname.includes('/knowledge')) return 'knowledge';
+    return 'kanban';
+  }
+
+  const executionTab = getExecutionTab(location.pathname);
 
   // Helper to add project param to API calls
   const apiUrl = useCallback((endpoint: string) => {
@@ -437,6 +441,14 @@ function App() {
             }
           />
           <Route path="/settings" element={<SettingsView />} />
+          <Route
+            path="/specs"
+            element={
+              selectedProject ? (
+                <SpecDashboard projectPath={selectedProject} />
+              ) : null
+            }
+          />
           <Route
             path="/spec-review"
             element={
