@@ -12,6 +12,7 @@
  * 5. Checks if all user stories in the PRD are complete
  */
 
+import path from 'path';
 import type {
   CompletionChainResult,
   PrdProgress,
@@ -300,8 +301,8 @@ export async function recalculatePrdAchievements(
 function extractSpecIdFromPath(specPath: string): string | null {
   if (!specPath) return null;
 
-  // Get the filename
-  const filename = specPath.split('/').pop() || specPath;
+  // Get the filename (cross-platform)
+  const filename = path.basename(specPath);
 
   // Remove .md extension
   if (filename.endsWith('.md')) {

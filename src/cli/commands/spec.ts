@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from 'fs';
 import { readdir, stat, writeFile } from 'fs/promises';
-import { join, relative, resolve } from 'path';
+import { basename, join, relative, resolve } from 'path';
 
 import { editor, select } from '@inquirer/prompts';
 import chalk from 'chalk';
@@ -117,7 +117,7 @@ export interface HandleGodSpecResult {
 }
 
 function displayGodSpecWarning(result: SpecReviewResult, specFile: string): void {
-  const filename = specFile.split('/').pop() ?? specFile;
+  const filename = basename(specFile);
   console.log(chalk.bold.yellow(`\n⚠️  God Spec Detected: ${filename}`));
 
   const godSpecCategory = result.categories['god_spec_detection'];
@@ -288,7 +288,7 @@ export function formatJsonOutput(result: SpecReviewResult): string {
 }
 
 export function formatHumanOutput(result: SpecReviewResult, specFile: string): void {
-  const filename = specFile.split('/').pop() ?? specFile;
+  const filename = basename(specFile);
   console.log(chalk.bold.blue(`\n═══ Spec Review: ${filename} ═══`));
 
   const verdictColor = getVerdictColor(result.verdict);
@@ -353,7 +353,7 @@ function formatTimeoutMs(ms: number): string {
 }
 
 export function displayTimeoutError(timeoutInfo: TimeoutInfo, specFile: string): void {
-  const filename = specFile.split('/').pop() ?? specFile;
+  const filename = basename(specFile);
   const timeoutFormatted = formatTimeoutMs(timeoutInfo.timeoutMs);
 
   console.log(chalk.bold.red(`\n⏱  Review Timed Out: ${filename}`));

@@ -19,7 +19,7 @@ export class Project {
   readonly ralphDir: string;
 
   constructor(projectPath: string) {
-    this.projectPath = projectPath.replace(/\/$/, '');
+    this.projectPath = projectPath.replace(/[/\\]$/, '');
     this.ralphDir = join(this.projectPath, RALPH_DIR_NAME);
   }
 

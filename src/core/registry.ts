@@ -61,7 +61,7 @@ export class Registry {
   static async register(projectPath: string, name: string): Promise<void> {
     const registry = await this.load();
 
-    const normalizedPath = projectPath.replace(/\/$/, ''); // Remove trailing slash
+    const normalizedPath = projectPath.replace(/[/\\]$/, ''); // Remove trailing slash
 
     registry.projects[normalizedPath] = {
       name,
@@ -78,7 +78,7 @@ export class Registry {
    */
   static async unregister(projectPath: string): Promise<boolean> {
     const registry = await this.load();
-    const normalizedPath = projectPath.replace(/\/$/, '');
+    const normalizedPath = projectPath.replace(/[/\\]$/, '');
 
     if (normalizedPath in registry.projects) {
       delete registry.projects[normalizedPath];
@@ -101,7 +101,7 @@ export class Registry {
    */
   static async get(projectPath: string): Promise<ProjectEntry | null> {
     const registry = await this.load();
-    const normalizedPath = projectPath.replace(/\/$/, '');
+    const normalizedPath = projectPath.replace(/[/\\]$/, '');
     return registry.projects[normalizedPath] ?? null;
   }
 
@@ -122,7 +122,7 @@ export class Registry {
     pid?: number
   ): Promise<void> {
     const registry = await this.load();
-    const normalizedPath = projectPath.replace(/\/$/, '');
+    const normalizedPath = projectPath.replace(/[/\\]$/, '');
 
     if (normalizedPath in registry.projects) {
       registry.projects[normalizedPath].status = status;
@@ -141,7 +141,7 @@ export class Registry {
    */
   static async touch(projectPath: string): Promise<void> {
     const registry = await this.load();
-    const normalizedPath = projectPath.replace(/\/$/, '');
+    const normalizedPath = projectPath.replace(/[/\\]$/, '');
 
     if (normalizedPath in registry.projects) {
       registry.projects[normalizedPath].lastActivity = new Date().toISOString();
