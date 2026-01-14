@@ -63,6 +63,42 @@
   color: #a371f7;
 }
 
+/* Spec type badge */
+.spec-header-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.spec-header-type-icon {
+  font-size: 12px;
+}
+
+.spec-header-type-label {
+  /* Label text */
+}
+
+.spec-type--prd {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.spec-type--tech-spec {
+  background: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+}
+
+.spec-type--bug {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
 /* Edit button */
 .spec-header-edit-btn {
   display: flex;
@@ -156,4 +192,114 @@
 
 .spec-header-tab-label {
   /* No specific styles needed */
+}
+
+/* ===== PRD Action Buttons ===== */
+
+.spec-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spec-header-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.spec-header-action-btn:hover {
+  background: var(--color-bg);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.spec-header-action-btn--primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
+}
+
+.spec-header-action-btn--primary:hover {
+  background: #4a90e2;
+  border-color: #4a90e2;
+  color: white;
+}
+
+/* ===== Progress Bar (PRDs) ===== */
+
+.spec-header-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 20px 12px;
+}
+
+.spec-header-progress-bar {
+  flex: 1;
+  max-width: 200px;
+  height: 6px;
+  background: var(--color-bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.spec-header-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-accent), #3fb950);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.spec-header-progress-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Parent Breadcrumb (Tech Specs) ===== */
+
+.spec-header-parent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 20px 10px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.spec-header-parent-icon {
+  font-size: 12px;
+}
+
+.spec-header-parent-label {
+  font-weight: 500;
+}
+
+.spec-header-parent-link {
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.spec-header-parent-link:hover {
+  background: rgba(88, 166, 255, 0.15);
+  text-decoration: underline;
 }

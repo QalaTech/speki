@@ -124,6 +124,77 @@
   opacity: 0.6;
 }
 
+/* Mode Selector (PRD decompose options) */
+.decompose-mode-selector {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.mode-label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.mode-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px;
+  background: var(--color-bg);
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mode-btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: rgba(88, 166, 255, 0.05);
+}
+
+.mode-btn--selected {
+  border-color: var(--color-accent);
+  background: rgba(88, 166, 255, 0.1);
+}
+
+.mode-btn--selected .mode-name {
+  color: var(--color-accent);
+}
+
+.mode-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mode-icon {
+  font-size: 24px;
+}
+
+.mode-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.mode-desc {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 /* Progress */
 .decompose-progress {
   display: flex;
@@ -275,6 +346,30 @@
 .task-complexity--high {
   background: rgba(218, 54, 51, 0.15);
   color: #f85149;
+}
+
+/* Review status indicator (for user stories) */
+.task-review-status {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.task-review-status--passed {
+  background: rgba(35, 134, 54, 0.15);
+  color: #3fb950;
+}
+
+.task-review-status--needs_improvement {
+  background: rgba(210, 153, 34, 0.15);
+  color: #d29922;
+}
+
+.task-review-status--pending {
+  background: rgba(139, 148, 158, 0.15);
+  color: #8b949e;
 }
 
 .task-chevron {
@@ -767,4 +862,110 @@
 
 .drawer-content::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
+}
+
+/* ===== Queue-Related Styles ===== */
+
+/* Queued badge status variants */
+.task-queued-badge--running {
+  background: rgba(35, 134, 54, 0.2);
+  color: #3fb950;
+}
+
+.task-queued-badge--completed {
+  background: rgba(35, 134, 54, 0.15);
+  color: #3fb950;
+}
+
+/* Task achieves indicator */
+.task-achieves {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--color-accent);
+  border-radius: 4px;
+}
+
+/* Queue action buttons */
+.task-action-btn--queue {
+  background: linear-gradient(135deg, var(--color-accent) 0%, #4a9eff 100%);
+  border-color: var(--color-accent);
+  color: white;
+}
+
+.task-action-btn--queue:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4a9eff 0%, #58a6ff 100%);
+  border-color: #4a9eff;
+  color: white;
+}
+
+.task-action-btn--remove {
+  background: rgba(218, 54, 51, 0.1);
+  border-color: rgba(218, 54, 51, 0.3);
+  color: #f85149;
+}
+
+.task-action-btn--remove:hover:not(:disabled) {
+  background: rgba(218, 54, 51, 0.2);
+  border-color: rgba(218, 54, 51, 0.5);
+}
+
+/* Drawer queue status */
+.drawer-queue-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.drawer-queue-status--queued {
+  background: rgba(163, 113, 247, 0.15);
+  color: #a371f7;
+}
+
+.drawer-queue-status--running {
+  background: rgba(35, 134, 54, 0.15);
+  color: #3fb950;
+}
+
+.drawer-queue-status--completed {
+  background: rgba(35, 134, 54, 0.1);
+  color: #3fb950;
+}
+
+.drawer-btn--remove {
+  background: rgba(218, 54, 51, 0.1);
+  border: 1px solid rgba(218, 54, 51, 0.3);
+  color: #f85149;
+}
+
+.drawer-btn--remove:hover:not(:disabled) {
+  background: rgba(218, 54, 51, 0.2);
+  border-color: rgba(218, 54, 51, 0.5);
+}
+
+/* Achieves user stories section */
+.drawer-achieves {
+  margin-top: 0 !important;
+  padding-top: 12px;
+}
+
+.drawer-story-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.drawer-story-badge {
+  display: inline-flex;
+  padding: 6px 10px;
+  background: rgba(88, 166, 255, 0.15);
+  border-radius: 6px;
+  font-family: 'SF Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-accent);
 }

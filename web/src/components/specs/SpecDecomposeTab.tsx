@@ -1,10 +1,27 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { UserStory, PRDData, DecomposeState } from '../../types';
+import type { UserStory, PRDData, DecomposeState, QueuedTaskReference } from '../../types';
 import './SpecDecomposeTab.css';
+
+type SpecType = 'prd' | 'tech-spec' | 'bug';
+// Note: Mode selector removed - PRD always generates user stories, tech spec generates tasks
 
 interface SpecDecomposeTabProps {
   specPath: string;
   projectPath: string;
+  /** Spec type - determines decompose options */
+  specType?: SpecType;
+  /** Callback when tech spec creation is requested */
+  onCreateTechSpec?: () => void;
+  /** Callback when quick execute is requested */
+  onQuickExecute?: () => void;
+}
+
+function detectSpecTypeFromFilename(filename: string): SpecType {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.prd.md')) return 'prd';
+  if (lower.endsWith('.tech.md')) return 'tech-spec';
+  if (lower.endsWith('.bug.md')) return 'bug';
+  return 'prd';
 }
 
 type TaskStatus = 'completed' | 'ready' | 'blocked' | 'in-progress';
@@ -40,14 +57,24 @@ function getComplexityBadge(complexity?: string) {
   );
 }
 
-export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProps) {
+export function SpecDecomposeTab({ specPath, projectPath, specType: propSpecType, onCreateTechSpec, onQuickExecute }: SpecDecomposeTabProps) {
   const [decomposeState, setDecomposeState] = useState<DecomposeState>({ status: 'IDLE', message: '' });
   const [draft, setDraft] = useState<PRDData | null>(null);
   const [draftPath, setDraftPath] = useState<string | null>(null);
   const [branch, setBranch] = useState('ralph/feature');
-  const [, setIsDecomposing] = useState(false);
+  const [isDecomposing, setIsDecomposing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+
+  // Queue state
+  const [queuedTasks, setQueuedTasks] = useState<QueuedTaskReference[]>([]);
+  const [queueLoading, setQueueLoading] = useState<Set<string>>(new Set());
+
+  // Determine spec type from prop or filename
+  const specType = propSpecType || detectSpecTypeFromFilename(specPath);
+
+  // PRDs generate user stories, tech specs/bugs generate tasks
+  // No mode selector - flow is determined by spec type
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -75,12 +102,16 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
   // Track selected task ID separately to avoid infinite loop
   const selectedTaskId = selectedTask?.id;
 
-  // Fetch decompose state and draft
+  // Extract spec ID from path for queue operations
+  const specId = specPath.replace(/^.*\//, '').replace(/\.md$/, '');
+
+  // Fetch decompose state, draft, and queue
   const fetchState = useCallback(async () => {
     try {
-      const [stateRes, draftRes] = await Promise.all([
+      const [stateRes, draftRes, queueRes] = await Promise.all([
         fetch(decomposeApiUrl('/api/decompose/state')),
         fetch(decomposeApiUrl('/api/decompose/draft')),
+        fetch(apiUrl('/api/queue')),
       ]);
 
       const stateData = await stateRes.json();
@@ -92,6 +123,12 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
 
       if (draftData.draft?.branchName) {
         setBranch(draftData.draft.branchName);
+      }
+
+      // Update queue state
+      if (queueRes.ok) {
+        const queueData = await queueRes.json();
+        setQueuedTasks(queueData.queue || []);
       }
 
       // Check if decompose is in progress
@@ -116,7 +153,7 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
     } catch (err) {
       console.error('Failed to fetch decompose state:', err);
     }
-  }, [decomposeApiUrl, selectedTaskId]);
+  }, [decomposeApiUrl, apiUrl, selectedTaskId]);
 
   // Initial fetch and polling
   useEffect(() => {
@@ -142,6 +179,9 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
           prdFile: specPath,
           branchName: branch,
           forceRedecompose: force,
+          specType,
+          // PRDs generate user stories, tech specs generate tasks
+          mode: specType === 'prd' ? 'user-stories' : 'tasks',
         }),
       });
 
@@ -264,6 +304,101 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
     }
   };
 
+  // Add task to queue
+  const handleAddToQueue = async (taskId: string) => {
+    setQueueLoading(prev => new Set(prev).add(taskId));
+    try {
+      const res = await fetch(apiUrl('/api/queue/add'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ specId, taskId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to add to queue');
+      }
+
+      await fetchState();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add to queue');
+    } finally {
+      setQueueLoading(prev => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
+    }
+  };
+
+  // Remove task from queue
+  const handleRemoveFromQueue = async (taskId: string) => {
+    setQueueLoading(prev => new Set(prev).add(taskId));
+    try {
+      const res = await fetch(apiUrl(`/api/queue/${specId}/${taskId}`), {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to remove from queue');
+      }
+
+      await fetchState();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove from queue');
+    } finally {
+      setQueueLoading(prev => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
+    }
+  };
+
+  // Add all tasks to queue
+  const handleAddAllToQueue = async () => {
+    const taskIds = stories.filter(s => !s.passes).map(s => s.id);
+    if (taskIds.length === 0) return;
+
+    setQueueLoading(new Set(taskIds));
+    try {
+      const res = await fetch(apiUrl('/api/queue/add-many'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks: taskIds.map(taskId => ({ specId, taskId })) }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to add tasks to queue');
+      }
+
+      await fetchState();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add tasks to queue');
+    } finally {
+      setQueueLoading(new Set());
+    }
+  };
+
+  // Get queue position for a task
+  const getQueuePosition = (taskId: string): number | null => {
+    const idx = queuedTasks.findIndex(t => t.specId === specId && t.taskId === taskId);
+    return idx >= 0 ? idx + 1 : null;
+  };
+
+  // Check if task is in queue
+  const isTaskQueued = (taskId: string): boolean => {
+    return queuedTasks.some(t => t.specId === specId && t.taskId === taskId);
+  };
+
+  // Get queued task status
+  const getQueuedTaskStatus = (taskId: string): string | null => {
+    const task = queuedTasks.find(t => t.specId === specId && t.taskId === taskId);
+    return task?.status || null;
+  };
+
   // Activate all tasks and start Ralph
   const handleActivateAndRun = async () => {
     setActivateLoading(true);
@@ -308,9 +443,11 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
 
   // Check if this spec has been decomposed
   const hasBeenDecomposed = stories.length > 0;
-  const isInProgress = ['STARTING', 'INITIALIZING', 'DECOMPOSING', 'REVIEWING', 'REVISING'].includes(decomposeState.status);
+  const isServerInProgress = ['STARTING', 'INITIALIZING', 'DECOMPOSING', 'REVIEWING', 'REVISING'].includes(decomposeState.status);
+  // Combined loading state for immediate button feedback
+  const isLoading = isDecomposing || isServerInProgress;
   const isComplete = decomposeState.status === 'COMPLETED';
-  const canActivate = (isComplete || hasBeenDecomposed) && draft && !isInProgress;
+  const canActivate = (isComplete || hasBeenDecomposed) && draft && !isLoading;
 
   return (
     <div className="spec-decompose-tab">
@@ -318,7 +455,10 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
       <div className="decompose-header">
         <div className="decompose-info">
           <h3 className="decompose-title">
-            {hasBeenDecomposed ? 'Task Breakdown' : 'Decompose Spec'}
+            {hasBeenDecomposed
+              ? (specType === 'prd' ? 'User Stories' : 'Tasks')
+              : (specType === 'prd' ? 'Generate User Stories' : 'Generate Tasks')
+            }
           </h3>
           {hasBeenDecomposed && (
             <div className="decompose-stats">
@@ -330,34 +470,73 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
         </div>
 
         <div className="decompose-actions">
-          {canActivate && (
+          {/* PRD-specific actions */}
+          {specType === 'prd' && hasBeenDecomposed && (
+            <>
+              {onCreateTechSpec && (
+                <button
+                  className="decompose-btn decompose-btn--primary"
+                  onClick={onCreateTechSpec}
+                  disabled={isLoading}
+                >
+                  🔧 Create Tech Spec
+                </button>
+              )}
+              {onQuickExecute && (
+                <button
+                  className="decompose-btn decompose-btn--secondary"
+                  onClick={onQuickExecute}
+                  disabled={isLoading}
+                >
+                  ⚡ Quick Execute
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Tech spec queue actions */}
+          {specType === 'tech-spec' && hasBeenDecomposed && (
             <button
               className="decompose-btn decompose-btn--primary"
+              onClick={handleAddAllToQueue}
+              disabled={queueLoading.size > 0 || stories.every(s => s.passes || isTaskQueued(s.id))}
+            >
+              {queueLoading.size > 0 ? '⏳ Adding...' : '📋 Add All to Queue'}
+            </button>
+          )}
+
+          {canActivate && (
+            <button
+              className="decompose-btn decompose-btn--secondary"
               onClick={handleActivateAndRun}
               disabled={activateLoading}
             >
-              {activateLoading ? '⏳ Starting...' : '▶ Run All Tasks'}
+              {activateLoading ? '⏳ Starting...' : '▶ Run Queue'}
             </button>
           )}
           {hasBeenDecomposed ? (
             <button
               className="decompose-btn decompose-btn--secondary"
               onClick={() => handleDecompose(true)}
-              disabled={isInProgress || activateLoading}
+              disabled={isLoading || activateLoading}
             >
-              {isInProgress ? '⏳ Running...' : '🔄 Re-decompose'}
+              {isLoading ? '⏳ Running...' :
+               specType === 'prd' ? '🔄 Regenerate Stories' : '🔄 Regenerate Tasks'}
             </button>
           ) : (
             <button
               className="decompose-btn decompose-btn--primary"
               onClick={() => handleDecompose(false)}
-              disabled={isInProgress}
+              disabled={isLoading}
             >
-              {isInProgress ? '⏳ Running...' : '🚀 Decompose'}
+              {isLoading ? '⏳ Running...' :
+               specType === 'prd' ? '📝 Generate User Stories' : '🔧 Generate Tasks'}
             </button>
           )}
         </div>
       </div>
+
+      {/* Mode selector removed - PRDs always generate user stories, tech specs generate tasks */}
 
       {/* Branch input */}
       <div className="decompose-branch">
@@ -368,12 +547,12 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
           value={branch}
           onChange={(e) => setBranch(e.target.value)}
           placeholder="ralph/feature"
-          disabled={isInProgress}
+          disabled={isLoading}
         />
       </div>
 
       {/* Progress indicator */}
-      {isInProgress && (
+      {isLoading && (
         <div className="decompose-progress">
           <div className="progress-spinner" />
           <span className="progress-message">{decomposeState.message || 'Processing...'}</span>
@@ -398,7 +577,7 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
             return (
               <div
                 key={story.id}
-                className={`task-card task-card--${status} ${story.inPrd ? 'task-card--queued' : ''}`}
+                className={`task-card task-card--${status} ${isTaskQueued(story.id) ? 'task-card--queued' : ''}`}
               >
                 <div
                   className="task-header"
@@ -409,8 +588,28 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
                   </span>
                   <span className="task-id">{story.id}</span>
                   <span className="task-title">{story.title}</span>
-                  {story.inPrd && <span className="task-queued-badge">Queued</span>}
+                  {/* Review status indicator for user stories */}
+                  {specType === 'prd' && story.reviewStatus && (
+                    <span className={`task-review-status task-review-status--${story.reviewStatus}`}>
+                      {story.reviewStatus === 'passed' && '✓ Reviewed'}
+                      {story.reviewStatus === 'needs_improvement' && '⚠ Needs Review'}
+                      {story.reviewStatus === 'pending' && '○ Pending'}
+                    </span>
+                  )}
+                  {isTaskQueued(story.id) && (
+                    <span className={`task-queued-badge task-queued-badge--${getQueuedTaskStatus(story.id)}`}>
+                      {getQueuedTaskStatus(story.id) === 'running' ? '▶ Running' :
+                       getQueuedTaskStatus(story.id) === 'completed' ? '✓ Done' :
+                       `#${getQueuePosition(story.id)} Queued`}
+                    </span>
+                  )}
                   {getComplexityBadge(story.complexity)}
+                  {/* User story achievement indicator for tech spec tasks */}
+                  {specType === 'tech-spec' && story.achievesUserStories && story.achievesUserStories.length > 0 && (
+                    <span className="task-achieves" title={`Achieves: ${story.achievesUserStories.join(', ')}`}>
+                      → {story.achievesUserStories.length} {story.achievesUserStories.length === 1 ? 'story' : 'stories'}
+                    </span>
+                  )}
                   <button
                     className="task-open-drawer"
                     onClick={(e) => {
@@ -463,6 +662,32 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
                     )}
 
                     <div className="task-inline-actions">
+                      {/* Queue actions for tech specs */}
+                      {specType === 'tech-spec' && !story.passes && (
+                        isTaskQueued(story.id) ? (
+                          <button
+                            className="task-action-btn task-action-btn--remove"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveFromQueue(story.id);
+                            }}
+                            disabled={queueLoading.has(story.id) || getQueuedTaskStatus(story.id) === 'running'}
+                          >
+                            {queueLoading.has(story.id) ? '⏳ ...' : '✕ Remove from Queue'}
+                          </button>
+                        ) : (
+                          <button
+                            className="task-action-btn task-action-btn--queue"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToQueue(story.id);
+                            }}
+                            disabled={queueLoading.has(story.id)}
+                          >
+                            {queueLoading.has(story.id) ? '⏳ ...' : '+ Add to Queue'}
+                          </button>
+                        )
+                      )}
                       <button
                         className="task-action-btn"
                         onClick={(e) => {
@@ -482,7 +707,7 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
       )}
 
       {/* Empty state */}
-      {!hasBeenDecomposed && !isInProgress && (
+      {!hasBeenDecomposed && !isLoading && (
         <div className="decompose-empty">
           <div className="empty-icon">📋</div>
           <h3 className="empty-title">No tasks yet</h3>
@@ -511,19 +736,67 @@ export function SpecDecomposeTab({ specPath, projectPath }: SpecDecomposeTabProp
             <div className="drawer-content">
               <h2 className="drawer-title">{selectedTask.title}</h2>
 
-              {/* Execute and error display */}
-              <div className="drawer-actions">
-                <button
-                  className="drawer-btn drawer-btn--execute"
-                  onClick={handleExecuteTask}
-                  disabled={executeLoading || selectedTask.inPrd}
-                >
-                  {executeLoading ? 'Adding...' : selectedTask.inPrd ? 'Already Queued' : '▶ Execute This Task'}
-                </button>
-              </div>
+              {/* Queue actions */}
+              {specType === 'tech-spec' && !selectedTask.passes && (
+                <div className="drawer-actions">
+                  {isTaskQueued(selectedTask.id) ? (
+                    <>
+                      <span className={`drawer-queue-status drawer-queue-status--${getQueuedTaskStatus(selectedTask.id)}`}>
+                        {getQueuedTaskStatus(selectedTask.id) === 'running' ? '▶ Running now' :
+                         getQueuedTaskStatus(selectedTask.id) === 'completed' ? '✓ Completed' :
+                         `#${getQueuePosition(selectedTask.id)} in queue`}
+                      </span>
+                      {getQueuedTaskStatus(selectedTask.id) !== 'running' && (
+                        <button
+                          className="drawer-btn drawer-btn--remove"
+                          onClick={() => handleRemoveFromQueue(selectedTask.id)}
+                          disabled={queueLoading.has(selectedTask.id)}
+                        >
+                          {queueLoading.has(selectedTask.id) ? 'Removing...' : '✕ Remove from Queue'}
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      className="drawer-btn drawer-btn--execute"
+                      onClick={() => handleAddToQueue(selectedTask.id)}
+                      disabled={queueLoading.has(selectedTask.id)}
+                    >
+                      {queueLoading.has(selectedTask.id) ? 'Adding...' : '+ Add to Queue'}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Legacy execute for non-tech-specs */}
+              {specType !== 'tech-spec' && (
+                <div className="drawer-actions">
+                  <button
+                    className="drawer-btn drawer-btn--execute"
+                    onClick={handleExecuteTask}
+                    disabled={executeLoading || selectedTask.inPrd}
+                  >
+                    {executeLoading ? 'Adding...' : selectedTask.inPrd ? 'Already Queued' : '▶ Execute This Task'}
+                  </button>
+                </div>
+              )}
 
               {executeError && (
                 <div className="drawer-error">{executeError}</div>
+              )}
+
+              {/* Show achievesUserStories for tech spec tasks */}
+              {specType === 'tech-spec' && selectedTask.achievesUserStories && selectedTask.achievesUserStories.length > 0 && (
+                <div className="drawer-section drawer-achieves">
+                  <h4>Achieves User Stories</h4>
+                  <div className="drawer-story-list">
+                    {selectedTask.achievesUserStories.map(storyId => (
+                      <span key={storyId} className="drawer-story-badge">
+                        {storyId}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
 
               <div className="drawer-section">

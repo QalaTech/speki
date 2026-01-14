@@ -1,12 +1,33 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import './SpecTree.css';
 
+export type SpecType = 'prd' | 'tech-spec' | 'bug';
+
 export interface SpecFileNode {
   name: string;
   path: string;
   type: 'file' | 'directory';
   children?: SpecFileNode[];
   reviewStatus?: 'reviewed' | 'pending' | 'god-spec' | 'in-progress' | 'none';
+  specType?: SpecType;
+  /** Progress for PRDs: completed user stories / total */
+  progress?: { completed: number; total: number };
+  /** Linked child specs (tech specs under PRDs) */
+  linkedSpecs?: SpecFileNode[];
+  /** Parent spec ID (for tech specs linked to PRDs) */
+  parentSpecId?: string;
+}
+
+/**
+ * Detect spec type from filename
+ */
+function detectSpecTypeFromFilename(filename: string): SpecType {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.prd.md')) return 'prd';
+  if (lower.endsWith('.tech.md')) return 'tech-spec';
+  if (lower.endsWith('.bug.md')) return 'bug';
+  // Legacy files without type suffix default to PRD
+  return 'prd';
 }
 
 interface SpecTreeProps {
@@ -38,14 +59,38 @@ function getStatusIcon(status?: string): string {
   }
 }
 
+/**
+ * Render progress dots (e.g., ●●●○○ for 3/5)
+ */
+function renderProgressDots(completed: number, total: number, maxDots = 5): string {
+  if (total === 0) return '';
+  const filledCount = Math.round((completed / total) * maxDots);
+  const filled = '●'.repeat(filledCount);
+  const empty = '○'.repeat(maxDots - filledCount);
+  return filled + empty;
+}
+
+function getSpecTypeIcon(specType: SpecType): string {
+  switch (specType) {
+    case 'prd': return '📋';
+    case 'tech-spec': return '🔧';
+    case 'bug': return '🐛';
+  }
+}
+
 function getFileIcon(node: SpecFileNode, isExpanded: boolean): string {
   if (node.type === 'directory') {
     return isExpanded ? '📂' : '📁';
   }
 
+  // For markdown files, show type-specific icon
+  if (node.name.endsWith('.md')) {
+    const specType = node.specType || detectSpecTypeFromFilename(node.name);
+    return getSpecTypeIcon(specType);
+  }
+
   const ext = node.name.split('.').pop()?.toLowerCase();
   switch (ext) {
-    case 'md': return '📄';
     case 'yaml':
     case 'yml': return '⚙️';
     case 'json': return '📋';
@@ -103,6 +148,24 @@ function TreeNode({
           {getFileIcon(node, isExpanded)}
         </span>
         <span className="tree-node-name">{node.name}</span>
+        {!isDirectory && node.name.endsWith('.md') && (
+          <span className={`tree-node-type tree-node-type--${node.specType || detectSpecTypeFromFilename(node.name)}`}>
+            {(node.specType || detectSpecTypeFromFilename(node.name)).replace('tech-spec', 'tech')}
+          </span>
+        )}
+        {node.progress && node.progress.total > 0 && (
+          <span
+            className="tree-node-progress"
+            title={`${node.progress.completed}/${node.progress.total} user stories achieved`}
+          >
+            <span className="tree-node-progress-fraction">
+              {node.progress.completed}/{node.progress.total}
+            </span>
+            <span className="tree-node-progress-dots">
+              {renderProgressDots(node.progress.completed, node.progress.total)}
+            </span>
+          </span>
+        )}
         {node.reviewStatus && node.reviewStatus !== 'none' && (
           <span className="tree-node-status" title={node.reviewStatus}>
             {getStatusIcon(node.reviewStatus)}

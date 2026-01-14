@@ -947,10 +947,10 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
                     <button
                       className="start-review-button"
                       onClick={handleStartReview}
-                      disabled={!selectedFile}
+                      disabled={!selectedFile || isStartingReview}
                       data-testid="start-review-button"
                     >
-                      Start Review
+                      {isStartingReview ? '⏳ Starting...' : 'Start Review'}
                     </button>
                   </>
                 ) : (

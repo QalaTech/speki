@@ -7,17 +7,16 @@ import { aggregateResults } from './aggregator.js';
 import { getReviewTimeout } from './timeout.js';
 import { saveReviewLog } from './review-logger.js';
 import {
-  GOD_SPEC_DETECTION_PROMPT,
-  REQUIREMENTS_COMPLETENESS_PROMPT,
-  CLARITY_SPECIFICITY_PROMPT,
-  TESTABILITY_PROMPT,
-  SCOPE_VALIDATION_PROMPT,
   MISSING_REQUIREMENTS_PROMPT,
   CONTRADICTIONS_PROMPT,
   DEPENDENCY_VALIDATION_PROMPT,
   DUPLICATE_DETECTION_PROMPT,
+  getReviewPromptsForType,
+  TECH_SPEC_STORY_ALIGNMENT_PROMPT,
+  buildAggregationPrompt,
 } from './prompts.js';
-import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SuggestionType, SpecReviewVerdict, ReviewFeedback, CliType, TimeoutInfo } from '../../types/index.js';
+import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SuggestionType, SpecReviewVerdict, ReviewFeedback, CliType, TimeoutInfo, SpecType, UserStory } from '../../types/index.js';
+import { detectSpecType, getParentSpec, loadPRDForSpec, extractSpecId } from './spec-metadata.js';
 
 export interface SpecReviewOptions {
   /** Timeout in milliseconds (overrides default) */
@@ -32,6 +31,8 @@ export interface SpecReviewOptions {
   cli?: CliType;
   /** Callback for progress updates */
   onProgress?: (message: string) => void;
+  /** Spec type (auto-detected from file if not provided) */
+  specType?: SpecType;
 }
 
 // Re-export TimeoutInfo for convenience
@@ -42,14 +43,6 @@ interface PromptDefinition {
   category: string;
   template: string;
 }
-
-const STANDALONE_PROMPTS: PromptDefinition[] = [
-  { name: 'god_spec_detection', category: 'scope', template: GOD_SPEC_DETECTION_PROMPT },
-  { name: 'requirements_completeness', category: 'completeness', template: REQUIREMENTS_COMPLETENESS_PROMPT },
-  { name: 'clarity_specificity', category: 'clarity', template: CLARITY_SPECIFICITY_PROMPT },
-  { name: 'testability', category: 'testability', template: TESTABILITY_PROMPT },
-  { name: 'scope_validation', category: 'scope_alignment', template: SCOPE_VALIDATION_PROMPT },
-];
 
 const DECOMPOSE_PROMPTS: PromptDefinition[] = [
   { name: 'missing_requirements', category: 'coverage', template: MISSING_REQUIREMENTS_PROMPT },
@@ -91,6 +84,55 @@ function buildDecomposePrompt(template: string, specContent: string, tasksJson: 
   return template
     .replace('{specContent}', specContent)
     .replace('{tasksJson}', tasksJson);
+}
+
+/**
+ * Builds the story alignment prompt for tech specs with parent user stories
+ */
+function buildStoryAlignmentPrompt(
+  template: string,
+  techSpecContent: string,
+  parentUserStories: UserStory[],
+  codebaseContext: CodebaseContext
+): string {
+  const storiesJson = JSON.stringify(parentUserStories.map(s => ({
+    id: s.id,
+    title: s.title,
+    description: s.description,
+    acceptanceCriteria: s.acceptanceCriteria,
+    priority: s.priority,
+  })), null, 2);
+
+  const contextString = JSON.stringify(codebaseContext, null, 2);
+
+  return template
+    .replace('{parentUserStories}', storiesJson)
+    .replace('{techSpecContent}', techSpecContent)
+    .replace('{codebaseContext}', contextString);
+}
+
+/**
+ * Loads parent user stories for a tech spec
+ */
+async function loadParentUserStories(
+  projectRoot: string,
+  specPath: string
+): Promise<UserStory[] | null> {
+  try {
+    const specId = extractSpecId(basename(specPath));
+    const parentMetadata = await getParentSpec(projectRoot, specId);
+
+    if (!parentMetadata?.specPath) {
+      return null;
+    }
+
+    // Extract parent spec ID from the spec path
+    const parentSpecId = extractSpecId(basename(parentMetadata.specPath));
+    const parentPrd = await loadPRDForSpec(projectRoot, parentSpecId);
+    return parentPrd?.userStories ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function createErrorResult(
@@ -283,6 +325,97 @@ function isTimeoutResult(result: FocusedPromptResult): boolean {
   return result.issues.some(issue => issue === 'Review timed out');
 }
 
+/**
+ * Runs the aggregation agent to deduplicate and synthesize review findings
+ */
+async function runAggregationAgent(
+  specPath: string,
+  results: FocusedPromptResult[],
+  cwd: string,
+  timeoutMs: number,
+  cli?: CliType,
+  onProgress?: (message: string) => void
+): Promise<{
+  verdict: SpecReviewVerdict;
+  executiveSummary: string;
+  suggestions: SuggestionCard[];
+  totalIssuesBeforeDedup: number;
+  totalIssuesAfterDedup: number;
+  splitProposal?: { reason: string; proposedSpecs: Array<{ filename: string; description: string }> };
+} | null> {
+  const progress = onProgress ?? (() => {});
+  progress('Running aggregation agent to deduplicate findings...');
+
+  // Prepare review results for the aggregation prompt
+  const reviewResultsForPrompt = results.map(r => ({
+    promptName: r.promptName,
+    verdict: r.verdict,
+    issues: r.issues,
+    suggestions: r.suggestions,
+  }));
+
+  const aggregationPrompt = buildAggregationPrompt(specPath, reviewResultsForPrompt, results.length);
+
+  const aggregationDef = {
+    name: 'review_aggregation',
+    category: 'aggregation',
+    template: '', // Not used, we have the full prompt
+  };
+
+  // Run with tools enabled so agent can read the spec
+  const aggregationResult = await runPrompt(
+    aggregationDef,
+    aggregationPrompt,
+    cwd,
+    timeoutMs,
+    { cli, disableTools: false }
+  );
+
+  if (isTimeoutResult(aggregationResult)) {
+    progress('Aggregation agent timed out, using simple aggregation');
+    return null;
+  }
+
+  // Parse the aggregation result
+  try {
+    const jsonMatch = aggregationResult.rawResponse?.match(/```json\s*([\s\S]*?)\s*```/);
+    if (!jsonMatch) {
+      progress('Could not parse aggregation result, using simple aggregation');
+      return null;
+    }
+
+    const parsed = JSON.parse(jsonMatch[1]);
+    progress(`Aggregation complete: ${parsed.totalIssuesBeforeDedup} issues → ${parsed.totalIssuesAfterDedup} after dedup`);
+
+    // Convert parsed suggestions to SuggestionCard format
+    const suggestions: SuggestionCard[] = (parsed.suggestions || []).map((s: Record<string, unknown>, index: number) => ({
+      id: (s.id as string) || `agg-${index}`,
+      category: (s.category as string) || 'general',
+      severity: (s.severity as 'critical' | 'warning' | 'info') || 'info',
+      type: (s.type as 'change' | 'comment') || 'comment',
+      section: (s.section as string) || '',
+      lineStart: s.lineStart as number | undefined,
+      lineEnd: s.lineEnd as number | undefined,
+      textSnippet: (s.textSnippet as string) || '',
+      issue: (s.issue as string) || '',
+      suggestedFix: (s.suggestedFix as string) || '',
+      status: 'pending' as const,
+    }));
+
+    return {
+      verdict: (parsed.verdict as SpecReviewVerdict) || 'PASS',
+      executiveSummary: (parsed.executiveSummary as string) || '',
+      suggestions,
+      totalIssuesBeforeDedup: parsed.totalIssuesBeforeDedup || results.flatMap(r => r.suggestions).length,
+      totalIssuesAfterDedup: parsed.totalIssuesAfterDedup || suggestions.length,
+      splitProposal: parsed.splitProposal || undefined,
+    };
+  } catch (error) {
+    progress(`Aggregation parsing failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    return null;
+  }
+}
+
 export async function runSpecReview(
   specPath: string,
   options: SpecReviewOptions = {}
@@ -299,18 +432,56 @@ export async function runSpecReview(
   const goldenStandard = await loadGoldenStandard(cwd, options.goldenStandardPath);
   const codebaseContext = await gatherCodebaseContext(dirname(specPath));
 
-  onProgress(`Loaded spec: ${specBasename}`);
-  onProgress(`Running ${STANDALONE_PROMPTS.length} review prompts...`);
+  // Detect spec type (auto-detect if not provided)
+  let specType = options.specType;
+  if (!specType) {
+    const detected = await detectSpecType(specPath, specContent);
+    specType = detected.type;
+  }
 
-  const promptTimeoutMs = Math.floor(timeoutMs / STANDALONE_PROMPTS.length);
+  // Get type-specific prompts
+  const reviewPrompts = getReviewPromptsForType(specType);
+
+  // For tech specs, load parent user stories for story alignment prompt
+  let parentUserStories: UserStory[] | null = null;
+  if (specType === 'tech-spec') {
+    parentUserStories = await loadParentUserStories(cwd, specPath);
+    if (parentUserStories && parentUserStories.length > 0) {
+      onProgress(`Loaded ${parentUserStories.length} parent user stories for alignment check`);
+    }
+  }
+
+  onProgress(`Loaded spec: ${specBasename} (type: ${specType})`);
+  onProgress(`Running ${reviewPrompts.length} review prompts...`);
+
+  const promptTimeoutMs = Math.floor(timeoutMs / reviewPrompts.length);
   const results: FocusedPromptResult[] = [];
   const prompts: Array<{ name: string; fullPrompt: string }> = [];
   const completedPromptNames: string[] = [];
   let didTimeout = false;
 
-  for (const promptDef of STANDALONE_PROMPTS) {
+  for (const promptDef of reviewPrompts) {
     onProgress(`Running ${promptDef.name}...`);
-    const fullPrompt = buildPrompt(promptDef.template, specPath, codebaseContext, goldenStandard);
+
+    let fullPrompt: string;
+
+    // Special handling for story alignment prompt
+    if (promptDef.name === 'tech_spec_story_alignment') {
+      if (!parentUserStories || parentUserStories.length === 0) {
+        // Skip story alignment if no parent stories available
+        onProgress(`${promptDef.name}: SKIPPED (no parent user stories)`);
+        continue;
+      }
+      fullPrompt = buildStoryAlignmentPrompt(
+        TECH_SPEC_STORY_ALIGNMENT_PROMPT,
+        specContent,
+        parentUserStories,
+        codebaseContext
+      );
+    } else {
+      fullPrompt = buildPrompt(promptDef.template, specPath, codebaseContext, goldenStandard);
+    }
+
     prompts.push({ name: promptDef.name, fullPrompt });
     // Tools must be enabled so AI can read the spec file with line numbers
     const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, { cli: options.cli, disableTools: false });
@@ -327,7 +498,49 @@ export async function runSpecReview(
     results.push(result);
   }
 
-  const aggregatedResult = aggregateResults(results, codebaseContext, '', specPath);
+  // Run aggregation agent to deduplicate and synthesize findings
+  // Give it 2 minutes for aggregation (or remaining time if timeout already occurred)
+  const aggregationTimeoutMs = didTimeout ? 30000 : 120000;
+  const aggregationAgentResult = await runAggregationAgent(
+    specPath,
+    results,
+    cwd,
+    aggregationTimeoutMs,
+    options.cli,
+    onProgress
+  );
+
+  let aggregatedResult: SpecReviewResult;
+
+  if (aggregationAgentResult) {
+    // Use the agent's deduplicated results
+    aggregatedResult = {
+      verdict: aggregationAgentResult.verdict,
+      categories: buildCategories(results),
+      splitProposal: aggregationAgentResult.splitProposal ? {
+        originalFile: specPath,
+        reason: aggregationAgentResult.splitProposal.reason,
+        proposedSpecs: aggregationAgentResult.splitProposal.proposedSpecs.map(s => ({
+          filename: s.filename,
+          description: s.description,
+          sections: [],
+          estimatedStories: 0,
+        })),
+      } : undefined,
+      codebaseContext,
+      suggestions: aggregationAgentResult.suggestions,
+      logPath: '',
+      durationMs: results.reduce((sum, r) => sum + r.durationMs, 0),
+      executiveSummary: aggregationAgentResult.executiveSummary,
+      deduplicationStats: {
+        before: aggregationAgentResult.totalIssuesBeforeDedup,
+        after: aggregationAgentResult.totalIssuesAfterDedup,
+      },
+    };
+  } else {
+    // Fallback to simple aggregation if agent fails
+    aggregatedResult = aggregateResults(results, codebaseContext, '', specPath);
+  }
 
   const logPaths = await saveReviewLog(logDir, {
     specPath,
@@ -342,12 +555,29 @@ export async function runSpecReview(
     finalResult.timeoutInfo = {
       timeoutMs,
       completedPrompts: completedPromptNames.length,
-      totalPrompts: STANDALONE_PROMPTS.length,
+      totalPrompts: reviewPrompts.length,
       completedPromptNames,
     };
   }
 
   return finalResult;
+}
+
+/**
+ * Builds categorized results from prompt results (helper for aggregation).
+ */
+function buildCategories(results: FocusedPromptResult[]): Record<string, { verdict: SpecReviewVerdict; issues: string[] }> {
+  const categories: Record<string, { verdict: SpecReviewVerdict; issues: string[] }> = {};
+
+  for (const result of results) {
+    const categoryKey = result.category || result.promptName;
+    categories[categoryKey] = {
+      verdict: result.verdict,
+      issues: result.issues,
+    };
+  }
+
+  return categories;
 }
 
 export interface DecomposeReviewOptions {

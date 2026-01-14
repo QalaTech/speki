@@ -235,3 +235,66 @@
   color: var(--color-text-muted);
   letter-spacing: 0.01em;
 }
+
+/* ===== Spec Type Badges ===== */
+
+.tree-node-type {
+  margin-left: auto;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.tree-node-type--prd {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.tree-node-type--tech-spec {
+  background: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+}
+
+.tree-node-type--bug {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+/* ===== Progress Indicator ===== */
+
+.tree-node-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.tree-node-progress-fraction {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tree-node-progress-dots {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--color-accent);
+}
+
+/* Linked spec indicator (nested under parent) */
+.tree-node--linked {
+  background: transparent;
+}
+
+.tree-node--linked::before {
+  content: '└─';
+  margin-right: 4px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}

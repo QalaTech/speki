@@ -66,6 +66,21 @@ export interface UserStory {
   // Tracking fields for executed tasks
   executedAt?: string;
   inPrd?: boolean;
+  /**
+   * For tech spec tasks: IDs of parent PRD user stories this task achieves.
+   */
+  achievesUserStories?: string[];
+  /**
+   * Review status after AI review agent evaluates the story.
+   * - 'pending': Not yet reviewed
+   * - 'passed': Review passed, story is ready
+   * - 'needs_improvement': Review found issues that should be addressed
+   */
+  reviewStatus?: 'pending' | 'passed' | 'needs_improvement';
+  /**
+   * Feedback from the review agent about this story.
+   */
+  reviewFeedback?: string;
 }
 
 export interface PRDData {
@@ -242,4 +257,40 @@ export interface PeerFeedback {
   blocking: BlockingIssue[];
   suggestions: TaskSuggestion[];
   lessonsLearned: LessonLearned[];
+}
+
+// Task Queue Types
+
+export type QueuedTaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
+
+export interface QueuedTaskReference {
+  specId: string;
+  taskId: string;
+  queuedAt: string;
+  status: QueuedTaskStatus;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface TaskQueue {
+  version: 1;
+  projectName: string;
+  branchName: string;
+  language: string;
+  queue: QueuedTaskReference[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QueueStats {
+  total: number;
+  queued: number;
+  running: number;
+  completed: number;
+  failed: number;
+  skipped: number;
+}
+
+export interface QueuedTaskWithData extends QueuedTaskReference {
+  task?: UserStory;
 }

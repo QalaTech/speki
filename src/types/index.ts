@@ -104,6 +104,22 @@ export interface UserStory {
   // Tracking fields for executed tasks
   executedAt?: string;
   inPrd?: boolean;
+  /**
+   * Which PRD user stories this task achieves (for tech spec tasks).
+   * Used to track completion chain: Task ✓ → User Story ✓ → PRD ✓
+   */
+  achievesUserStories?: string[];
+  /**
+   * Review status after AI review agent evaluates the story.
+   * - 'pending': Not yet reviewed
+   * - 'passed': Review passed, story is ready
+   * - 'needs_improvement': Review found issues that should be addressed
+   */
+  reviewStatus?: 'pending' | 'passed' | 'needs_improvement';
+  /**
+   * Feedback from the review agent about this story.
+   */
+  reviewFeedback?: string;
 }
 
 export interface PRDData {
@@ -376,6 +392,8 @@ export interface SpecMetadata {
   type?: SpecType;
   /** Parent spec path (for tech specs linked to PRDs) */
   parent?: string;
+  /** Child spec IDs (for PRDs with linked tech specs) */
+  children?: string[];
 }
 
 /**
@@ -606,4 +624,114 @@ export interface SpecReviewResult {
   durationMs: number;
   /** Timeout information if review timed out (contains partial results) */
   timeoutInfo?: TimeoutInfo;
+  /** Executive summary from aggregation agent */
+  executiveSummary?: string;
+  /** Deduplication statistics from aggregation agent */
+  deduplicationStats?: {
+    before: number;
+    after: number;
+  };
+}
+
+
+// =============================================================================
+// Task Queue Types (Task Queue Restructure)
+// =============================================================================
+
+/**
+ * Status of a queued task in the execution queue.
+ */
+export type QueuedTaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
+
+/**
+ * Reference to a task in a spec's decompose_state.json.
+ * The queue stores references only, not duplicate task data.
+ */
+export interface QueuedTaskReference {
+  /** ID of the spec containing this task (e.g., "my-feature.tech") */
+  specId: string;
+  /** ID of the task within the spec (e.g., "TASK-001") */
+  taskId: string;
+  /** ISO timestamp when added to queue */
+  queuedAt: string;
+  /** Current execution status */
+  status: QueuedTaskStatus;
+  /** ISO timestamp when execution started */
+  startedAt?: string;
+  /** ISO timestamp when completed */
+  completedAt?: string;
+}
+
+/**
+ * Central task queue stored in .ralph/task-queue.json.
+ * Contains references to tasks across all specs for ordered execution.
+ */
+export interface TaskQueue {
+  /** Schema version for future migrations */
+  version: 1;
+  /** Project name */
+  projectName: string;
+  /** Git branch for execution */
+  branchName: string;
+  /** Project language */
+  language: string;
+  /** Ordered list of task references to execute */
+  queue: QueuedTaskReference[];
+  /** ISO timestamp when queue was created */
+  createdAt: string;
+  /** ISO timestamp of last update */
+  updatedAt: string;
+}
+
+/**
+ * Statistics for the task queue.
+ */
+export interface QueueStats {
+  /** Total tasks in queue */
+  total: number;
+  /** Tasks waiting to be executed */
+  queued: number;
+  /** Currently running tasks */
+  running: number;
+  /** Successfully completed tasks */
+  completed: number;
+  /** Failed tasks */
+  failed: number;
+  /** Skipped tasks */
+  skipped: number;
+}
+
+/**
+ * Result of processing a task completion through the completion chain.
+ */
+export interface CompletionChainResult {
+  /** Spec ID of the completed task */
+  specId: string;
+  /** Task ID that was completed */
+  taskId: string;
+  /** User stories that were marked as achieved */
+  achievedStories: Array<{
+    prdSpecId: string;
+    storyId: string;
+  }>;
+  /** Whether any PRDs were fully completed */
+  completedPrds: string[];
+}
+
+/**
+ * Progress information for a PRD based on its linked tech specs.
+ */
+export interface PrdProgress {
+  /** PRD spec ID */
+  specId: string;
+  /** Total user stories in the PRD */
+  totalStories: number;
+  /** User stories marked as achieved */
+  achievedStories: number;
+  /** Whether all stories are achieved */
+  isComplete: boolean;
+  /** IDs of stories still pending */
+  pendingStoryIds: string[];
+  /** Linked tech spec IDs */
+  linkedTechSpecs: string[];
 }

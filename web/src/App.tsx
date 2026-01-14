@@ -11,6 +11,7 @@ import { DecomposeView } from './components/DecomposeView';
 import { SettingsView } from './components/SettingsView';
 import { KnowledgeView } from './components/KnowledgeView';
 import { SpecExplorer, SpecDashboard } from './components/specs';
+import { QueueView } from './components/queue';
 import { TopNav } from './components/TopNav';
 import './App.css';
 
@@ -454,6 +455,17 @@ function App() {
             element={
               selectedProject ? (
                 <SpecExplorer projectPath={selectedProject} />
+              ) : null
+            }
+          />
+          <Route
+            path="/queue"
+            element={
+              selectedProject ? (
+                <QueueView
+                  projectPath={selectedProject}
+                  onNavigateToSpec={(specId) => navigateTo(`/spec-review?spec=${specId}`)}
+                />
               ) : null
             }
           />

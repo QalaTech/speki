@@ -106,8 +106,19 @@ function sanitizeForMdx(content: string): string {
     // Odd indices are code blocks - don't modify
     if (index % 2 === 1) return part;
 
-    // Replace invalid HTML-like tags with escaped versions
-    return part.replace(/<(\/?[a-zA-Z][a-zA-Z0-9_-]*)([^>]*)>/g, (match, tagName, rest) => {
+    let result = part;
+
+    // 1. Escape incomplete tags (opening < without closing >)
+    // Match < followed by word characters but no > before end of line or next <
+    result = result.replace(/<([a-zA-Z][a-zA-Z0-9_-]*)(?![^<]*>)/g, '\\<$1');
+
+    // 2. Escape angle brackets that look like comparison operators
+    // Match < or > surrounded by spaces or alphanumeric (like "x < y" or "a > b")
+    result = result.replace(/(\s)<(\s)/g, '$1\\<$2');
+    result = result.replace(/(\s)>(\s)/g, '$1\\>$2');
+
+    // 3. Replace invalid HTML-like tags with escaped versions
+    result = result.replace(/<(\/?[a-zA-Z][a-zA-Z0-9_-]*)([^>]*)>/g, (match, tagName, rest) => {
       const normalizedTag = tagName.replace('/', '').toLowerCase();
       if (validHtmlTags.has(normalizedTag)) {
         return match; // Keep valid HTML
@@ -115,6 +126,8 @@ function sanitizeForMdx(content: string): string {
       // Escape the angle brackets
       return `\\<${tagName}${rest}\\>`;
     });
+
+    return result;
   }).join('');
 }
 
@@ -197,6 +210,7 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
         readOnly={readOnly}
         contentEditableClassName="spec-editor-content"
         onError={handleError}
+        suppressHtmlProcessing={true}
       />
     </div>
   );

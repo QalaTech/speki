@@ -50,8 +50,9 @@ export function TopNav({
   const currentPath = location.pathname;
 
   const isSpecsPage = currentPath.startsWith("/specs") || currentPath.startsWith("/spec-review");
+  const isQueuePage = currentPath === "/queue";
   const isSettingsPage = currentPath === "/settings";
-  const isExecutionPage = !isSpecsPage && !isSettingsPage;
+  const isExecutionPage = !isSpecsPage && !isQueuePage && !isSettingsPage;
 
   return (
     <nav className="topnav">
@@ -88,6 +89,12 @@ export function TopNav({
             label="Specs"
             active={isSpecsPage}
             onClick={() => onNavigate('/spec-review')}
+          />
+          <NavItem
+            icon="📋"
+            label="Queue"
+            active={isQueuePage}
+            onClick={() => onNavigate('/queue')}
           />
           <NavItem
             icon="▶"

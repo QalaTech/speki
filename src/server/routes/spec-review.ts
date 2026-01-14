@@ -8,6 +8,7 @@ import { executeSplit, buildSplitContent } from '../../core/spec-review/splitter
 import { generateSplitProposal, detectGodSpec } from '../../core/spec-review/god-spec-detector.js';
 import { loadSession, saveSession } from '../../core/spec-review/session-file.js';
 import { runChatMessage, loadSpecContent } from '../../core/spec-review/chat-runner.js';
+import { extractSpecId, getSpecLogsDir } from '../../core/spec-review/spec-metadata.js';
 import type { SessionFile, SplitProposal, CodebaseContext, ChatMessage } from '../../types/index.js';
 
 const router = Router();
@@ -359,11 +360,15 @@ router.post('/start', async (req, res) => {
     console.log('[spec-review/start] Session saved successfully');
 
     try {
+      // Use per-spec log directory for isolation
+      const specId = extractSpecId(resolvedSpecFile);
+      const specLogsDir = getSpecLogsDir(projectPath, specId);
+
       const result = await runSpecReview(resolvedSpecFile, {
         cwd: projectPath,
         timeoutMs: timeout,
         cli,
-        logDir: join(projectPath, '.ralph', 'logs'),
+        logDir: specLogsDir,
       });
 
       session.status = 'completed';

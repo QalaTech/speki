@@ -19,6 +19,7 @@ import settingsRouter from './routes/settings.js';
 import specReviewRouter from './routes/spec-review.js';
 import sessionsRouter from './routes/sessions.js';
 import specsRouter from './routes/specs.js';
+import queueRouter from './routes/queue.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -57,6 +58,7 @@ export async function createServer(options: ServerOptions = {}) {
   app.use('/api/spec-review', specReviewRouter);
   app.use('/api/sessions', sessionsRouter);
   app.use('/api/specs', specsRouter);
+  app.use('/api/queue', queueRouter);
 
   // Health check
   app.get('/api/health', function (_req, res) {

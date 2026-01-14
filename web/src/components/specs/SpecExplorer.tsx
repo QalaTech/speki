@@ -5,6 +5,8 @@ import { SpecEditor, type SpecEditorRef } from '../SpecEditor';
 import { SpecDecomposeTab } from './SpecDecomposeTab';
 import { DiffOverlay } from './DiffOverlay';
 import { ReviewChat, type DiscussingContext } from '../ReviewChat';
+import { CreateTechSpecModal } from './CreateTechSpecModal';
+import type { UserStory } from '../../types';
 import './SpecExplorer.css';
 
 interface SpecExplorerProps {
@@ -55,6 +57,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   // UI state
   const [activeTab, setActiveTab] = useState<SpecTab>('preview');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const editorRef = useRef<SpecEditorRef>(null);
 
   // Session state (for review tab)
@@ -81,6 +84,10 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   const [newSpecName, setNewSpecName] = useState('');
   const [newSpecType, setNewSpecType] = useState<'prd' | 'tech-spec' | 'bug'>('prd');
   const [isCreatingSpec, setIsCreatingSpec] = useState(false);
+
+  // Create Tech Spec modal state
+  const [isCreateTechSpecModalOpen, setIsCreateTechSpecModalOpen] = useState(false);
+  const [prdUserStories, setPrdUserStories] = useState<UserStory[]>([]);
 
   // API helper
   const apiUrl = useCallback((endpoint: string) => {
@@ -163,6 +170,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
         setContent(fileContent);
         setOriginalContent(fileContent);
         setHasUnsavedChanges(false);
+        setIsEditing(false); // Reset to preview mode when switching files
       } catch (err) {
         console.error('Failed to fetch spec content:', err);
       } finally {
@@ -229,6 +237,17 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
   // Get selected file name
   const selectedFileName = selectedPath?.split('/').pop() || '';
+
+  // Detect spec type from filename
+  const getSpecTypeFromFilename = (filename: string): 'prd' | 'tech-spec' | 'bug' => {
+    const lower = filename.toLowerCase();
+    if (lower.endsWith('.prd.md')) return 'prd';
+    if (lower.endsWith('.tech.md')) return 'tech-spec';
+    if (lower.endsWith('.bug.md')) return 'bug';
+    return 'prd';
+  };
+
+  const selectedSpecType = getSpecTypeFromFilename(selectedFileName);
 
   // Get review status for current file
   const getReviewStatus = (): 'reviewed' | 'pending' | 'god-spec' | 'in-progress' | 'none' => {
@@ -390,6 +409,32 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   ): Promise<void> => {
     if (!selectedPath) return;
 
+    // Optimistically add user message immediately
+    const optimisticUserMessage = {
+      id: `temp-${Date.now()}`,
+      role: 'user' as const,
+      content: message,
+      timestamp: new Date().toISOString(),
+      suggestionId,
+    };
+
+    setSession(prev => {
+      if (prev) {
+        return {
+          ...prev,
+          chatMessages: [...prev.chatMessages, optimisticUserMessage],
+        };
+      }
+      // Create local session state
+      return {
+        sessionId: `temp-${Date.now()}`,
+        status: 'completed',
+        suggestions: [],
+        reviewResult: null,
+        chatMessages: [optimisticUserMessage],
+      };
+    });
+
     setIsSendingChat(true);
     try {
       const res = await fetch(apiUrl('/api/spec-review/chat'), {
@@ -406,33 +451,41 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
       const data = await res.json();
 
-      if (data.success && data.userMessage && data.assistantMessage) {
+      if (data.success && data.assistantMessage) {
         // Check if agent updated the spec file
         if (data.assistantMessage.content?.includes('[SPEC_UPDATED]')) {
           console.log('[SpecExplorer] Detected [SPEC_UPDATED] marker, refetching content');
           refetchContent();
         }
 
-        // Update session with new messages (or create local session if none existed)
+        // Replace optimistic message with server version and add assistant response
         setSession(prev => {
           if (prev) {
+            // Remove optimistic message and add server messages
+            const messagesWithoutOptimistic = prev.chatMessages.filter(
+              m => m.id !== optimisticUserMessage.id
+            );
             return {
               ...prev,
-              chatMessages: [...prev.chatMessages, data.userMessage, data.assistantMessage],
+              sessionId: data.sessionId || prev.sessionId,
+              chatMessages: [...messagesWithoutOptimistic, data.userMessage, data.assistantMessage],
             };
           }
-          // Create local session state using backend's session ID
-          return {
-            sessionId: data.sessionId,
-            status: 'completed',
-            suggestions: [],
-            reviewResult: null,
-            chatMessages: [data.userMessage, data.assistantMessage],
-          };
+          return prev;
         });
       }
     } catch (error) {
       console.error('Failed to send chat message:', error);
+      // Remove optimistic message on error
+      setSession(prev => {
+        if (prev) {
+          return {
+            ...prev,
+            chatMessages: prev.chatMessages.filter(m => m.id !== optimisticUserMessage.id),
+          };
+        }
+        return prev;
+      });
     } finally {
       setIsSendingChat(false);
     }
@@ -544,6 +597,83 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     setNewSpecType('prd');
   }, []);
 
+  // Handle opening Create Tech Spec modal for PRDs
+  const handleOpenCreateTechSpec = useCallback(async () => {
+    if (!selectedPath) return;
+
+    // Fetch the PRD's user stories from decompose state
+    try {
+      const res = await fetch(apiUrl(`/api/decompose/draft?specPath=${encodeURIComponent(selectedPath)}`));
+      const data = await res.json();
+
+      if (data.draft?.userStories) {
+        setPrdUserStories(data.draft.userStories);
+        setIsCreateTechSpecModalOpen(true);
+      } else {
+        console.error('No user stories found - decompose the PRD first');
+      }
+    } catch (err) {
+      console.error('Failed to fetch PRD user stories:', err);
+    }
+  }, [selectedPath, apiUrl]);
+
+  // Handle tech spec created - navigate to it
+  const handleTechSpecCreated = useCallback(async (techSpecPath: string) => {
+    setIsCreateTechSpecModalOpen(false);
+
+    // Refresh file tree
+    try {
+      const [filesRes, statusesRes] = await Promise.all([
+        fetch(apiUrl('/api/spec-review/files')),
+        fetch(apiUrl('/api/sessions/statuses')),
+      ]);
+
+      const filesData = await filesRes.json();
+      const statusesData = await statusesRes.json();
+
+      const filesWithStatus = mergeStatusesIntoTree(
+        filesData.files || [],
+        statusesData.statuses || {}
+      );
+      setFiles(filesWithStatus);
+
+      // Navigate to the new tech spec
+      setSelectedPath(techSpecPath);
+    } catch (err) {
+      console.error('Failed to refresh after tech spec creation:', err);
+    }
+  }, [apiUrl]);
+
+  // Handle quick execute (PRD -> Tasks directly, skip tech spec)
+  const handleQuickExecute = useCallback(async () => {
+    if (!selectedPath) return;
+
+    // Extract spec ID from path
+    const specId = selectedPath.replace(/^.*\//, '').replace(/\.md$/, '');
+
+    try {
+      const res = await fetch(apiUrl('/api/queue/quick-start'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ specId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error('Quick start failed:', data.error);
+        return;
+      }
+
+      console.log(`Quick Start: Queued ${data.addedCount} stories as tasks`);
+
+      // Navigate to queue view after queueing
+      window.location.href = '/queue';
+    } catch (err) {
+      console.error('Quick start failed:', err);
+    }
+  }, [selectedPath, apiUrl]);
+
   // Render content based on active tab
   const renderTabContent = () => {
     if (isLoadingContent) {
@@ -561,24 +691,145 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     switch (activeTab) {
       case 'preview':
         return (
-          <div className="spec-editor-container">
-            <SpecEditor
-              ref={editorRef}
-              content={content}
-              onChange={handleContentChange}
-              readOnly={false}
-              className="spec-editor-inline"
-            />
-            {hasUnsavedChanges && (
-              <div className="spec-editor-toolbar">
-                <button
-                  className="spec-editor-save-btn"
-                  onClick={() => handleSave()}
-                >
-                  Save
-                </button>
+          <div className="spec-preview-layout">
+            {/* Editor Panel (Left) */}
+            <div className="spec-editor-panel">
+              <div className="spec-editor-container">
+                {/* Edit mode toolbar - top right */}
+                <div className="spec-editor-header">
+                  {!isEditing ? (
+                    <button
+                      className="spec-editor-edit-btn"
+                      onClick={() => setIsEditing(true)}
+                      title="Edit spec"
+                    >
+                      ✏️
+                    </button>
+                  ) : (
+                    <div className="spec-editor-edit-actions">
+                      <button
+                        className="spec-editor-cancel-btn"
+                        onClick={() => {
+                          setIsEditing(false);
+                          // Revert any unsaved changes
+                          if (hasUnsavedChanges && editorRef.current) {
+                            // Refetch original content
+                            fetch(apiUrl(`/api/spec-review/content/${encodeURIComponent(selectedPath!)}`))
+                              .then(res => res.json())
+                              .then(data => {
+                                setContent(data.content || '');
+                                setHasUnsavedChanges(false);
+                              });
+                          }
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="spec-editor-save-btn"
+                        onClick={() => {
+                          handleSave();
+                          setIsEditing(false);
+                        }}
+                        disabled={!hasUnsavedChanges}
+                      >
+                        Save
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <SpecEditor
+                  ref={editorRef}
+                  content={content}
+                  onChange={handleContentChange}
+                  readOnly={!isEditing}
+                  className="spec-editor-inline"
+                />
               </div>
-            )}
+            </div>
+
+            {/* Review Panel (Right) */}
+            <div className="spec-review-panel">
+              <div className="spec-review-panel-content">
+                {!session && !isStartingReview ? (
+                  // Empty state - no review yet
+                  <div className="spec-review-empty">
+                    <div className="spec-review-empty-icon">🔍</div>
+                    <h4 className="spec-review-empty-title">AI Review</h4>
+                    <p className="spec-review-empty-desc">
+                      Get AI-powered suggestions to improve this spec
+                    </p>
+                    <button
+                      className="spec-review-start-btn"
+                      onClick={() => handleStartReview(false)}
+                      disabled={isStartingReview}
+                    >
+                      Start Review
+                    </button>
+                  </div>
+                ) : isStartingReview || session?.status === 'in_progress' ? (
+                  // In progress state
+                  <div className="spec-review-in-progress">
+                    <div className="spec-review-spinner"></div>
+                    <p>Running AI Review...</p>
+                    <p className="spec-review-hint">This may take 2-5 minutes</p>
+                  </div>
+                ) : session ? (
+                  // Has results
+                  <div className="spec-review-results">
+                    <div className="spec-review-panel-header">
+                      <h4>Review ({session.suggestions.filter(s => s.status === 'pending').length} pending)</h4>
+                      <button
+                        className="spec-review-rereview-btn"
+                        onClick={() => handleStartReview(true)}
+                        disabled={isStartingReview}
+                        title="Run a fresh review"
+                      >
+                        🔄
+                      </button>
+                    </div>
+                    <div className="spec-review-suggestions">
+                      {session.suggestions.map(suggestion => (
+                        <div
+                          key={suggestion.id}
+                          className={`suggestion-card suggestion-card--${suggestion.severity} suggestion-card--${suggestion.status}`}
+                        >
+                          <div className="suggestion-card-header">
+                            <span className={`suggestion-severity suggestion-severity--${suggestion.severity}`}>
+                              {suggestion.severity}
+                            </span>
+                            {suggestion.status !== 'pending' && (
+                              <span className={`suggestion-status suggestion-status--${suggestion.status}`}>
+                                {suggestion.status}
+                              </span>
+                            )}
+                          </div>
+                          <p className="suggestion-issue">{suggestion.issue}</p>
+                          {suggestion.status === 'pending' && (
+                            <div className="suggestion-actions">
+                              {suggestion.type !== 'comment' && (
+                                <button
+                                  className="suggestion-btn suggestion-btn--review"
+                                  onClick={() => handleReviewDiff(suggestion)}
+                                >
+                                  Review
+                                </button>
+                              )}
+                              <button
+                                className="suggestion-btn suggestion-btn--discuss"
+                                onClick={() => handleDiscussSuggestion(suggestion)}
+                              >
+                                Discuss
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
         );
 
@@ -587,83 +838,10 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
           <SpecDecomposeTab
             specPath={selectedPath}
             projectPath={projectPath}
+            specType={selectedSpecType}
+            onCreateTechSpec={handleOpenCreateTechSpec}
+            onQuickExecute={handleQuickExecute}
           />
-        );
-
-      case 'review':
-        return (
-          <div className="spec-review-tab">
-            {!session || isStartingReview ? (
-              <div className="spec-review-start">
-                <p>Start an AI review to get suggestions for improving this spec.</p>
-                <button
-                  className="spec-review-start-btn"
-                  onClick={() => handleStartReview(false)}
-                  disabled={isStartingReview}
-                >
-                  {isStartingReview ? 'Running Review...' : 'Start Review'}
-                </button>
-              </div>
-            ) : session.status === 'in_progress' ? (
-              <div className="spec-review-in-progress">
-                <div className="spec-review-spinner"></div>
-                <p>Running AI Review...</p>
-                <p className="spec-review-hint">This may take 2-5 minutes as multiple prompts are analyzed.</p>
-              </div>
-            ) : (
-              <div className="spec-review-results">
-                <div className="spec-review-results-header">
-                  <h3>Suggestions ({session.suggestions.filter(s => s.status === 'pending').length} pending)</h3>
-                  <button
-                    className="spec-review-rereview-btn"
-                    onClick={() => handleStartReview(true)}
-                    disabled={isStartingReview}
-                    title="Run a fresh review (preserves chat history)"
-                  >
-                    🔄 Re-review
-                  </button>
-                </div>
-                <div className="spec-review-suggestions">
-                  {session.suggestions.map(suggestion => (
-                    <div
-                      key={suggestion.id}
-                      className={`suggestion-card suggestion-card--${suggestion.severity} suggestion-card--${suggestion.status}`}
-                    >
-                      <div className="suggestion-card-header">
-                        <span className={`suggestion-severity suggestion-severity--${suggestion.severity}`}>
-                          {suggestion.severity}
-                        </span>
-                        {suggestion.status !== 'pending' && (
-                          <span className={`suggestion-status suggestion-status--${suggestion.status}`}>
-                            {suggestion.status}
-                          </span>
-                        )}
-                      </div>
-                      <p className="suggestion-issue">{suggestion.issue}</p>
-                      {suggestion.status === 'pending' && (
-                        <div className="suggestion-actions">
-                          {suggestion.type !== 'comment' && (
-                            <button
-                              className="suggestion-btn suggestion-btn--review"
-                              onClick={() => handleReviewDiff(suggestion)}
-                            >
-                              Review Diff
-                            </button>
-                          )}
-                          <button
-                            className="suggestion-btn suggestion-btn--discuss"
-                            onClick={() => handleDiscussSuggestion(suggestion)}
-                          >
-                            Discuss
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         );
 
       default:
@@ -694,6 +872,8 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
             onEdit={() => {}} // Unused - always in edit mode
             reviewStatus={getReviewStatus()}
             hasUnsavedChanges={hasUnsavedChanges}
+            onCreateTechSpec={handleOpenCreateTechSpec}
+            onQuickExecute={handleQuickExecute}
           />
         )}
 
@@ -843,6 +1023,19 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Create Tech Spec Modal */}
+      {isCreateTechSpecModalOpen && selectedPath && (
+        <CreateTechSpecModal
+          isOpen={isCreateTechSpecModalOpen}
+          onClose={() => setIsCreateTechSpecModalOpen(false)}
+          prdSpecId={selectedPath.replace(/^.*\//, '').replace(/\.md$/, '')}
+          prdName={selectedFileName}
+          userStories={prdUserStories}
+          projectPath={projectPath}
+          onCreated={handleTechSpecCreated}
+        />
       )}
     </div>
   );

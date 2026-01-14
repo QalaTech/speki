@@ -370,6 +370,227 @@ ${CLOSING_INSTRUCTION}`;
 
 
 // =============================================================================
+// ENHANCED PRD REVIEW PROMPTS
+// These prompts focus on PRD-specific quality criteria
+// =============================================================================
+
+/**
+ * PRD_E2E_FLOW_PROMPT - Analyzes end-to-end user flows for completeness
+ *
+ * Detects missing flows, incomplete happy/error paths, and flow gaps
+ */
+export const PRD_E2E_FLOW_PROMPT = `You are analyzing a Product Requirements Document (PRD) for end-to-end flow completeness. Your goal is to identify user flows that are incomplete or missing.
+
+${buildContextHeader()}
+
+## RULES FOR EVALUATION
+
+### Flow Analysis
+1. **Entry Points**: Every user journey must have a clear starting point (how does the user get here?)
+2. **Happy Path**: Each feature must describe the successful flow from start to completion
+3. **Error Paths**: What happens when things go wrong? Network errors, validation failures, timeouts
+4. **Exit Points**: Every flow must have clear completion criteria (success state, confirmation, next steps)
+5. **Edge Cases**: Boundary conditions, empty states, concurrent operations
+
+### Common Missing Flows
+1. **Onboarding**: First-time user experience often overlooked
+2. **Recovery Flows**: Password reset, session timeout, data recovery
+3. **Cancellation/Undo**: How to reverse or cancel an operation mid-flow
+4. **State Transitions**: What happens between states (loading, pending, processing)
+5. **Multi-device/Session**: Same user on multiple devices, browser tabs, sessions
+6. **Offline/Degraded**: Behavior when connectivity is poor or unavailable
+7. **Batch Operations**: Bulk actions, imports, exports
+
+### Flow Diagram Mental Model
+For each feature, you should be able to trace:
+\`\`\`
+Entry → Preconditions → Actions → Validations → Success/Error → Exit/Next
+\`\`\`
+
+If any segment is missing or vague, flag it.
+
+### System Boundaries
+Check flows that cross system boundaries:
+1. **Authentication**: Login, logout, session management
+2. **External APIs**: Third-party integrations, webhooks
+3. **Background Jobs**: Async operations, scheduled tasks
+4. **Notifications**: Email, push, in-app alerts
+
+${buildSeveritySection({
+  critical: 'Major user flow is incomplete or missing entirely - users cannot complete core tasks',
+  warning: 'Error path or edge case flow is missing - could cause user confusion',
+  info: 'Minor flow optimization or alternative path suggestion',
+})}
+
+${buildStandardOutputFormat('e2e_flow_analysis', 'flow')}
+
+${buildVerdictGuidelines({
+  pass: 'All user flows are complete with clear entry, actions, and exit points',
+  fail: 'Critical user flows are incomplete or missing',
+  needsImprovement: 'Some flows need error handling or edge case coverage',
+})}
+
+${CLOSING_INSTRUCTION}`;
+
+/**
+ * PRD_BEST_PRACTICES_PROMPT - Validates PRD against industry best practices
+ *
+ * Checks for personas, goals, success metrics, and PRD structure
+ */
+export const PRD_BEST_PRACTICES_PROMPT = `You are analyzing a Product Requirements Document (PRD) against industry best practices. Your goal is to ensure the PRD follows proven patterns for successful product definition.
+
+${buildContextHeader()}
+
+## RULES FOR EVALUATION
+
+### PRD Structure Best Practices
+1. **Problem Statement**: Clear articulation of the problem being solved
+2. **User Personas**: Defined target users with roles, goals, and pain points
+3. **Goals & Non-Goals**: Explicit scope - what we WILL and WON'T build
+4. **Success Metrics**: Measurable KPIs to evaluate feature success
+5. **User Stories/Requirements**: Actionable, prioritized requirements
+
+### Problem Definition Quality
+1. **Customer Pain**: Is the user pain point clearly articulated?
+2. **Business Value**: Why is this worth building? ROI, revenue, retention?
+3. **Market Context**: Competitive landscape, timing, market need
+4. **Constraints**: Budget, timeline, technical, regulatory limitations
+
+### Persona Best Practices
+1. **Named Personas**: "Admin Alice", "Customer Carol" - not just "the user"
+2. **Goals per Persona**: What does each persona want to achieve?
+3. **Pain Points**: Current frustrations or unmet needs
+4. **Context of Use**: When, where, and how they'll use this feature
+5. **Anti-Personas**: Who is this NOT for? (helps scope)
+
+### Success Metrics (SMART)
+1. **Specific**: Concrete metric, not vague ("increase engagement")
+2. **Measurable**: Can be quantified ("increase DAU by 10%")
+3. **Achievable**: Realistic given scope and timeline
+4. **Relevant**: Tied to business objectives
+5. **Time-bound**: Target date or time frame
+
+### Goals vs Non-Goals
+A good PRD explicitly states:
+- **Goals**: What this feature will definitely deliver
+- **Non-Goals**: What's explicitly out of scope (prevents scope creep)
+- **Future Considerations**: Things we might do later
+
+### Common PRD Anti-Patterns
+1. **Solution-first**: Jumping to "how" before defining "what" and "why"
+2. **God PRD**: Trying to solve everything at once
+3. **Vague Success**: "Make users happy" without metrics
+4. **No Priorities**: Everything is P0 (nothing is P0)
+5. **Implementation Details**: Prescribing architecture in a PRD
+6. **Missing "Why"**: Features without justification
+
+${buildSeveritySection({
+  critical: 'Missing essential PRD element (problem statement, personas, or success metrics)',
+  warning: 'PRD element present but weak or incomplete',
+  info: 'Suggestion to strengthen PRD with best practices',
+})}
+
+${buildStandardOutputFormat('prd_best_practices', 'best_practices')}
+
+${buildVerdictGuidelines({
+  pass: 'PRD follows best practices with clear problem, personas, and success metrics',
+  fail: 'PRD missing essential elements or has major structural issues',
+  needsImprovement: 'PRD has most elements but needs strengthening',
+})}
+
+${CLOSING_INSTRUCTION}`;
+
+
+// =============================================================================
+// TECH SPEC STORY ALIGNMENT PROMPT
+// Reviews tech spec against parent PRD user stories
+// =============================================================================
+
+/**
+ * TECH_SPEC_STORY_ALIGNMENT_PROMPT - Validates tech spec covers parent user stories
+ *
+ * Used when reviewing a tech spec that has a parent PRD
+ */
+export const TECH_SPEC_STORY_ALIGNMENT_PROMPT = `You are reviewing a Technical Specification against its parent PRD's user stories. Your goal is to ensure the tech spec adequately addresses ALL user stories from the PRD.
+
+## PARENT USER STORIES
+{parentUserStories}
+
+## TECHNICAL SPECIFICATION
+{techSpecContent}
+
+## CODEBASE CONTEXT
+{codebaseContext}
+
+## RULES FOR EVALUATION
+
+### Story Coverage Analysis
+1. **Complete Coverage**: Every user story from the PRD must be addressed by the tech spec
+2. **Acceptance Criteria Alignment**: Tech spec implementation must satisfy story acceptance criteria
+3. **No Orphan Features**: Tech spec should not include features not traceable to user stories
+4. **Priority Preservation**: High-priority stories should have proportional technical detail
+
+### Technical Feasibility Check
+1. **Implementation Path**: For each user story, is there a clear technical path?
+2. **Dependency Mapping**: Are technical dependencies aligned with story dependencies?
+3. **Risk Assessment**: Are technically risky stories identified and mitigated?
+4. **Architecture Fit**: Does the tech approach fit the existing codebase architecture?
+
+### Common Alignment Issues
+1. **Scope Creep**: Tech spec adds features beyond user stories (gold-plating)
+2. **Partial Coverage**: Story mentioned but acceptance criteria not fully addressed
+3. **Implementation Gap**: Story covered conceptually but no concrete implementation details
+4. **Contradiction**: Technical approach would not satisfy story acceptance criteria
+
+### Traceability Matrix
+For each user story, identify:
+- Which tech spec sections address it
+- What implementation details are provided
+- Whether all acceptance criteria are technically covered
+
+### Severity Guide
+- **critical**: User story has NO coverage in tech spec
+- **warning**: User story partially covered or acceptance criteria not fully addressed
+- **info**: Suggestion to improve traceability or technical detail
+
+## OUTPUT FORMAT
+Return a JSON object:
+{
+  "analysisName": "tech_spec_story_alignment",
+  "category": "alignment",
+  "verdict": "pass" | "fail" | "needs_improvement",
+  "summary": "Brief assessment of story coverage",
+  "storyAnalysis": [
+    {
+      "storyId": "US-001",
+      "storyTitle": "Story title",
+      "coverage": "full" | "partial" | "none",
+      "techSpecSections": ["Section names that address this story"],
+      "acceptanceCriteriaCoverage": {
+        "total": number,
+        "covered": number,
+        "gaps": ["List of acceptance criteria not covered"]
+      }
+    }
+  ],
+  "orphanFeatures": ["Features in tech spec with no user story"],
+  "suggestions": [
+    {
+      "storyId": "US-001" | "tech_spec",
+      "type": "missing_coverage" | "partial_coverage" | "orphan_feature",
+      "severity": "critical" | "warning" | "info",
+      "message": "Description of the issue",
+      "suggestion": "How to resolve"
+    }
+  ]
+}
+
+Focus on ensuring every user story has clear technical implementation details.
+
+${CLOSING_INSTRUCTION}`;
+
+
+// =============================================================================
 // DECOMPOSE REVIEW PROMPTS (FR-6)
 // These prompts compare spec document against generated tasks JSON.
 // They run WITHOUT tools - pure document comparison.
@@ -616,3 +837,539 @@ ${buildDecomposeVerdictGuidelines({
 })}
 
 ${CLOSING_INSTRUCTION}`;
+
+
+// =============================================================================
+// TYPE-SPECIFIC REVIEW PROMPTS
+// Different spec types require different review focus
+// =============================================================================
+
+/**
+ * TECH_SPEC_COMPLETENESS_PROMPT - For technical specifications (how to implement)
+ */
+export const TECH_SPEC_COMPLETENESS_PROMPT = `You are analyzing a TECHNICAL SPECIFICATION document. Tech specs describe HOW to implement a feature, focusing on architecture, APIs, data models, and implementation details.
+
+${buildContextHeader()}
+
+## RULES FOR EVALUATION
+
+### Technical Completeness Checklist
+1. **API Design**: Endpoints, methods, request/response schemas, error codes
+2. **Data Models**: Entity definitions, relationships, database schema changes
+3. **Component Architecture**: How components interact, data flow, dependencies
+4. **Integration Points**: External services, webhooks, third-party APIs
+5. **Error Handling**: How errors are caught, logged, and communicated to users
+6. **Security Considerations**: Authentication, authorization, data validation
+
+### Implementation Readiness
+1. **File Paths**: Clear indication of which files to create/modify
+2. **Code Examples**: Pseudo-code or examples for complex logic
+3. **Testing Strategy**: Unit test approaches, integration test scenarios
+4. **Migration Plan**: Database migrations, backwards compatibility
+5. **Dependencies**: Libraries, services, or features this depends on
+
+${buildSeveritySection({
+  critical: 'Missing technical detail that would block implementation',
+  warning: 'Ambiguity that could lead to incorrect implementation',
+  info: 'Nice-to-have technical clarification',
+})}
+
+${buildStandardOutputFormat('tech_spec_completeness', 'technical')}
+
+${buildVerdictGuidelines({
+  pass: 'Tech spec is implementation-ready with clear technical details',
+  fail: 'Critical technical gaps that prevent implementation',
+  needsImprovement: 'Some technical details need clarification',
+})}
+${FACTUAL_CLAIMS_WARNING}
+
+${CLOSING_INSTRUCTION}`;
+
+/**
+ * API_CONTRACT_PROMPT - Validates API contracts in tech specs
+ */
+export const API_CONTRACT_PROMPT = `You are analyzing a technical specification's API contracts. Your goal is to ensure API definitions are complete, consistent, and follow best practices.
+
+${buildContextHeader()}
+
+## RULES FOR EVALUATION
+
+### API Contract Requirements
+1. **Endpoint Definition**: HTTP method, path, path parameters, query parameters
+2. **Request Schema**: Required/optional fields, data types, validation rules
+3. **Response Schema**: Success response shape, field types, pagination if applicable
+4. **Error Responses**: HTTP status codes, error response format, error codes
+5. **Authentication**: Auth requirements for each endpoint
+
+### REST Best Practices
+1. **HTTP Methods**: GET for reads, POST for creates, PUT/PATCH for updates, DELETE for removals
+2. **URL Structure**: Resource-oriented URLs, proper nesting, consistent naming
+3. **Status Codes**: Appropriate codes (200, 201, 400, 401, 403, 404, 500)
+4. **Idempotency**: PUT/DELETE should be idempotent
+5. **Versioning**: API version strategy if applicable
+
+### Common Issues
+1. **Missing error cases**: Not defining what happens on validation failure
+2. **Inconsistent naming**: camelCase vs snake_case mixing
+3. **Missing pagination**: List endpoints without pagination strategy
+4. **Incomplete schemas**: Fields referenced but not defined
+
+${buildSeveritySection({
+  critical: 'API contract issue that would cause runtime errors or security issues',
+  warning: 'API inconsistency that could confuse consumers',
+  info: 'API design improvement suggestion',
+})}
+
+${buildStandardOutputFormat('api_contract', 'api')}
+
+${buildVerdictGuidelines({
+  pass: 'API contracts are complete and well-designed',
+  fail: 'Critical API issues that must be fixed',
+  needsImprovement: 'Some API details need refinement',
+})}
+
+${CLOSING_INSTRUCTION}`;
+
+/**
+ * BUG_REPORT_COMPLETENESS_PROMPT - For bug reports
+ */
+export const BUG_REPORT_COMPLETENESS_PROMPT = `You are analyzing a BUG REPORT. Bug reports describe what's broken and need to provide enough information to reproduce, diagnose, and fix the issue.
+
+${buildContextHeader()}
+
+## RULES FOR EVALUATION
+
+### Bug Report Essentials
+1. **Summary**: Clear, concise description of the bug
+2. **Reproduction Steps**: Numbered steps to consistently reproduce the issue
+3. **Expected Behavior**: What SHOULD happen
+4. **Actual Behavior**: What ACTUALLY happens
+5. **Environment**: Browser, OS, version, or other relevant context
+6. **Evidence**: Screenshots, error messages, logs, stack traces
+
+### Root Cause Analysis
+1. **Affected Components**: Which parts of the system are involved
+2. **Trigger Conditions**: What specific conditions cause the bug
+3. **Impact Assessment**: Who is affected and how severely
+4. **Related Issues**: Similar bugs or potential side effects
+
+### Fix Requirements
+1. **Acceptance Criteria**: How to verify the bug is fixed
+2. **Regression Prevention**: Test cases to add
+3. **Scope Boundaries**: What is NOT being fixed (avoiding scope creep)
+
+${buildSeveritySection({
+  critical: 'Missing information that prevents understanding or reproducing the bug',
+  warning: 'Missing detail that could lead to incomplete fix',
+  info: 'Additional context that would help investigation',
+})}
+
+${buildStandardOutputFormat('bug_report_completeness', 'bug')}
+
+${buildVerdictGuidelines({
+  pass: 'Bug report is complete and actionable',
+  fail: 'Missing critical information to reproduce or fix the bug',
+  needsImprovement: 'Some details need clarification for effective fixing',
+})}
+
+${CLOSING_INSTRUCTION}`;
+
+/**
+ * BUG_REPRODUCTION_PROMPT - Validates bug reproduction steps
+ */
+export const BUG_REPRODUCTION_PROMPT = `You are analyzing a bug report's reproduction steps. Your goal is to ensure the steps are clear, complete, and reliably reproduce the issue.
+
+${buildContextHeader()}
+
+## RULES FOR EVALUATION
+
+### Reproduction Step Quality
+1. **Numbered Steps**: Each action is a separate, numbered step
+2. **Preconditions**: Clear starting state (logged in? specific page? test data?)
+3. **Specific Actions**: "Click the submit button" not "submit the form"
+4. **Observable Checkpoints**: How to verify each step worked
+5. **Consistent Reproduction**: Steps should reproduce 100% of the time
+
+### Common Issues
+1. **Missing setup**: Need test data or configuration not mentioned
+2. **Assumed knowledge**: Steps assume familiarity with the system
+3. **Timing issues**: Race conditions or delays not mentioned
+4. **Environment differences**: Works in dev but not production
+
+### Evidence Validation
+1. **Screenshots/Videos**: Match the described steps
+2. **Error Messages**: Exact error text included
+3. **Console Logs**: Relevant errors captured
+4. **Network Requests**: Failing requests identified
+
+${buildSeveritySection({
+  critical: 'Cannot reproduce the bug with given steps',
+  warning: 'Steps are unclear or may not reliably reproduce',
+  info: 'Additional detail would help reproduction',
+})}
+
+${buildStandardOutputFormat('bug_reproduction', 'reproduction')}
+
+${buildVerdictGuidelines({
+  pass: 'Reproduction steps are clear and complete',
+  fail: 'Cannot reliably reproduce the bug from given steps',
+  needsImprovement: 'Steps need more detail or clarification',
+})}
+
+${CLOSING_INSTRUCTION}`;
+
+
+// =============================================================================
+// TYPE-SPECIFIC PROMPT SETS
+// Export prompt arrays for each spec type
+// =============================================================================
+
+import type { SpecType } from '../../types/index.js';
+
+interface PromptDefinition {
+  name: string;
+  category: string;
+  template: string;
+}
+
+/** Prompts for PRD review (default, existing prompts) */
+export const PRD_REVIEW_PROMPTS: PromptDefinition[] = [
+  { name: 'god_spec_detection', category: 'scope', template: GOD_SPEC_DETECTION_PROMPT },
+  { name: 'requirements_completeness', category: 'completeness', template: REQUIREMENTS_COMPLETENESS_PROMPT },
+  { name: 'clarity_specificity', category: 'clarity', template: CLARITY_SPECIFICITY_PROMPT },
+  { name: 'testability', category: 'testability', template: TESTABILITY_PROMPT },
+  { name: 'scope_validation', category: 'scope_alignment', template: SCOPE_VALIDATION_PROMPT },
+  { name: 'e2e_flow_analysis', category: 'flow', template: PRD_E2E_FLOW_PROMPT },
+  { name: 'prd_best_practices', category: 'best_practices', template: PRD_BEST_PRACTICES_PROMPT },
+];
+
+/** Prompts for Tech Spec review */
+export const TECH_SPEC_REVIEW_PROMPTS: PromptDefinition[] = [
+  { name: 'tech_spec_completeness', category: 'technical', template: TECH_SPEC_COMPLETENESS_PROMPT },
+  { name: 'api_contract', category: 'api', template: API_CONTRACT_PROMPT },
+  { name: 'clarity_specificity', category: 'clarity', template: CLARITY_SPECIFICITY_PROMPT },
+  { name: 'testability', category: 'testability', template: TESTABILITY_PROMPT },
+  { name: 'tech_spec_story_alignment', category: 'alignment', template: TECH_SPEC_STORY_ALIGNMENT_PROMPT },
+];
+
+/** Prompts for Bug report review */
+export const BUG_REVIEW_PROMPTS: PromptDefinition[] = [
+  { name: 'bug_report_completeness', category: 'bug', template: BUG_REPORT_COMPLETENESS_PROMPT },
+  { name: 'bug_reproduction', category: 'reproduction', template: BUG_REPRODUCTION_PROMPT },
+  { name: 'clarity_specificity', category: 'clarity', template: CLARITY_SPECIFICITY_PROMPT },
+];
+
+
+// =============================================================================
+// USER STORY REVIEW PROMPTS
+// Used to review generated user stories against the parent PRD
+// =============================================================================
+
+/**
+ * STORY_ACCEPTANCE_CRITERIA_PROMPT - Validates acceptance criteria quality
+ */
+export const STORY_ACCEPTANCE_CRITERIA_PROMPT = `You are reviewing user stories generated from a PRD. Your task is to evaluate the quality of acceptance criteria.
+
+## PARENT PRD
+{prdContent}
+
+## USER STORIES TO REVIEW
+{stories}
+
+## RULES FOR EVALUATION
+
+### Acceptance Criteria Quality
+1. **Specific**: Each criterion describes a concrete, observable outcome
+2. **Testable**: Can be verified with a clear pass/fail result
+3. **Complete**: No ambiguous terms like "should work properly" or "user-friendly"
+4. **Independent**: Each criterion can be tested separately
+
+### Common Issues
+1. **Vague criteria**: "System should be fast" → should specify response time
+2. **Missing edge cases**: Happy path only, no error handling criteria
+3. **Implementation details**: Criteria should describe WHAT, not HOW
+4. **Unmeasurable outcomes**: "Good user experience" without metrics
+
+### Severity Guide
+- **critical**: Acceptance criteria are missing or completely untestable
+- **warning**: Criteria are vague or missing edge cases
+- **info**: Minor improvements for clarity
+
+## OUTPUT FORMAT
+Return a JSON object:
+{
+  "analysisName": "acceptance_criteria_validation",
+  "category": "criteria",
+  "verdict": "pass" | "fail" | "needs_improvement",
+  "summary": "Brief assessment of overall criteria quality",
+  "suggestions": [
+    {
+      "storyId": "US-001",
+      "type": "criteria_improvement",
+      "severity": "critical" | "warning" | "info",
+      "message": "What's wrong",
+      "suggestion": "How to improve"
+    }
+  ]
+}
+
+Focus on criteria that cannot be tested or verified.`;
+
+/**
+ * STORY_COMPLETENESS_PROMPT - Checks if stories cover all PRD requirements
+ */
+export const STORY_COMPLETENESS_PROMPT = `You are reviewing user stories generated from a PRD. Your task is to verify that all PRD requirements are addressed by the generated stories.
+
+## PARENT PRD
+{prdContent}
+
+## USER STORIES TO REVIEW
+{stories}
+
+## RULES FOR EVALUATION
+
+### Coverage Check
+1. **Every requirement mapped**: Each PRD requirement should trace to at least one story
+2. **No orphan requirements**: Requirements mentioned but not covered by any story
+3. **No gold-plating**: Stories should not add features beyond the PRD scope
+4. **Priority alignment**: High-priority requirements should be in high-priority stories
+
+### Gap Analysis
+1. **Functional gaps**: Features mentioned in PRD but no story covers them
+2. **Non-functional gaps**: Performance, security, accessibility requirements missed
+3. **Integration gaps**: Dependencies or external systems not addressed
+4. **Edge case gaps**: Error scenarios, boundary conditions not covered
+
+### Severity Guide
+- **critical**: Major PRD requirement has no corresponding story
+- **warning**: Requirement partially covered or story is too vague to confirm coverage
+- **info**: Minor improvement suggestions
+
+## OUTPUT FORMAT
+Return a JSON object:
+{
+  "analysisName": "story_completeness",
+  "category": "completeness",
+  "verdict": "pass" | "fail" | "needs_improvement",
+  "summary": "Brief assessment of PRD coverage",
+  "coveredRequirements": ["list of PRD requirements that ARE covered"],
+  "missingRequirements": ["list of PRD requirements NOT covered"],
+  "suggestions": [
+    {
+      "storyId": "new" | "US-001",
+      "type": "missing_requirement" | "partial_coverage",
+      "severity": "critical" | "warning" | "info",
+      "message": "What requirement is missing or incomplete",
+      "suggestion": "Suggested story or improvement"
+    }
+  ]
+}
+
+Focus on PRD requirements that have no story coverage.`;
+
+/**
+ * STORY_COMPLEXITY_PROMPT - Assesses story complexity and suggests splitting
+ */
+export const STORY_COMPLEXITY_PROMPT = `You are reviewing user stories generated from a PRD. Your task is to assess if each story is appropriately sized and suggest splitting if needed.
+
+## PARENT PRD
+{prdContent}
+
+## USER STORIES TO REVIEW
+{stories}
+
+## RULES FOR EVALUATION
+
+### Size Assessment
+1. **Single session**: Each story should be completable in one development session (1-4 hours)
+2. **Single concern**: Each story should address one user need or feature
+3. **Clear scope**: Story boundaries should be unambiguous
+4. **Independent**: Stories should be implementable without depending on unfinished stories
+
+### Split Signals
+1. **Multiple personas**: Story serves different user types → split by persona
+2. **Multiple actions**: Story has "and" in the description → split by action
+3. **Complex acceptance criteria**: More than 5-6 criteria → consider splitting
+4. **Technical layers**: Story touches UI, API, and DB → consider vertical slicing
+
+### Merge Signals
+1. **Trivial stories**: Stories that are too small to be meaningful alone
+2. **Tightly coupled**: Stories that cannot be implemented independently
+3. **Same feature**: Multiple stories that are naturally one unit of work
+
+### Severity Guide
+- **critical**: Story is far too large to implement in reasonable time
+- **warning**: Story could benefit from splitting
+- **info**: Minor suggestions for story structure
+
+## OUTPUT FORMAT
+Return a JSON object:
+{
+  "analysisName": "story_complexity",
+  "category": "complexity",
+  "verdict": "pass" | "fail" | "needs_improvement",
+  "summary": "Brief assessment of story sizing",
+  "suggestions": [
+    {
+      "storyId": "US-001",
+      "type": "split_recommended" | "merge_recommended" | "complexity_concern",
+      "severity": "critical" | "warning" | "info",
+      "message": "Why this story should be split/merged",
+      "suggestion": "How to split/merge"
+    }
+  ]
+}
+
+Focus on stories that are too large or too small.`;
+
+/** Prompts for User Story review (after PRD decomposition) */
+export const USER_STORY_REVIEW_PROMPTS: PromptDefinition[] = [
+  { name: 'acceptance_criteria_validation', category: 'criteria', template: STORY_ACCEPTANCE_CRITERIA_PROMPT },
+  { name: 'story_completeness', category: 'completeness', template: STORY_COMPLETENESS_PROMPT },
+  { name: 'story_complexity', category: 'complexity', template: STORY_COMPLEXITY_PROMPT },
+];
+
+/**
+ * Get prompts for reviewing user stories
+ */
+export function getUserStoryReviewPrompts(): PromptDefinition[] {
+  return USER_STORY_REVIEW_PROMPTS;
+}
+
+/**
+ * Get the appropriate review prompts for a spec type
+ */
+export function getReviewPromptsForType(specType: SpecType): PromptDefinition[] {
+  switch (specType) {
+    case 'tech-spec':
+      return TECH_SPEC_REVIEW_PROMPTS;
+    case 'bug':
+      return BUG_REVIEW_PROMPTS;
+    case 'prd':
+    default:
+      return PRD_REVIEW_PROMPTS;
+  }
+}
+
+
+// =============================================================================
+// REVIEW AGGREGATION PROMPT
+// Final aggregation step that deduplicates and synthesizes all review findings
+// =============================================================================
+
+/**
+ * REVIEW_AGGREGATION_PROMPT - Synthesizes and deduplicates findings from multiple review prompts
+ *
+ * This is the final step after all individual review prompts have run.
+ * It produces a consolidated, deduplicated set of suggestions.
+ */
+export const REVIEW_AGGREGATION_PROMPT = `You are a senior technical reviewer performing the final aggregation of a spec review. Multiple specialized review prompts have already analyzed this spec from different angles. Your job is to:
+
+1. **Deduplicate**: Identify suggestions that are essentially the same issue flagged by different prompts
+2. **Synthesize**: Combine related findings into coherent, actionable items
+3. **Prioritize**: Ensure the most critical issues are surfaced prominently
+4. **Contextualize**: Read the actual spec to ensure suggestions make sense in context
+
+## SPEC FILE
+Read the spec file to understand the context: {specPath}
+
+## INDIVIDUAL REVIEW RESULTS
+The following are the raw results from {promptCount} specialized review prompts:
+
+{reviewResults}
+
+## YOUR TASK
+
+### 1. Identify Duplicates
+Look for suggestions that target:
+- The same line numbers or text sections
+- The same conceptual issue (even if worded differently)
+- The same requirement or feature
+
+### 2. Merge Duplicates
+When you find duplicates:
+- Keep the suggestion with the most actionable fix
+- Use the highest severity among duplicates
+- Combine category tags (e.g., "completeness, flow, testability")
+- Note which prompts flagged it (for transparency)
+
+### 3. Synthesize Related Issues
+Some issues may be related but not exact duplicates:
+- Group them under a parent issue if they share a root cause
+- Or keep them separate if they require different fixes
+
+### 4. Validate Against Spec
+Read the spec file and verify:
+- Each suggestion is still valid (not already addressed in the spec)
+- Line numbers are accurate
+- The suggested fixes make sense in context
+
+### 5. Add Executive Summary
+Provide a brief (2-3 sentence) summary of the spec's overall quality and the most important issues to address.
+
+## OUTPUT FORMAT
+Return a JSON object with this structure:
+
+\`\`\`json
+{
+  "verdict": "PASS" | "FAIL" | "NEEDS_IMPROVEMENT" | "SPLIT_RECOMMENDED",
+  "executiveSummary": "Brief overview of spec quality and key issues",
+  "totalIssuesBeforeDedup": number,
+  "totalIssuesAfterDedup": number,
+  "suggestions": [
+    {
+      "id": "agg-001",
+      "category": "completeness, flow",
+      "severity": "critical" | "warning" | "info",
+      "type": "change" | "comment",
+      "section": "Section name",
+      "lineStart": number | null,
+      "lineEnd": number | null,
+      "textSnippet": "Relevant text from spec",
+      "issue": "Clear description of the issue",
+      "suggestedFix": "Concrete fix or clarifying question",
+      "status": "pending",
+      "sourcePrompts": ["prompt1", "prompt2"],
+      "mergedFrom": number
+    }
+  ],
+  "categorySummary": {
+    "critical": number,
+    "warning": number,
+    "info": number
+  },
+  "splitProposal": null | {
+    "reason": "Why spec should be split",
+    "proposedSpecs": [{"filename": "name.md", "description": "what it covers"}]
+  }
+}
+\`\`\`
+
+### Deduplication Rules
+- **Exact match**: Same lineStart/lineEnd AND similar issue text → merge
+- **Semantic match**: Different lines but same root cause → merge with note
+- **Related but distinct**: Keep separate but group in output
+
+### Severity Escalation
+When merging, use the highest severity:
+- If any source is "critical" → merged is "critical"
+- If any source is "warning" → merged is "warning"
+- Otherwise → "info"
+
+Focus on producing a clean, actionable list that a developer can work through without seeing redundant items.`;
+
+/**
+ * Builds the aggregation prompt with review results
+ */
+export function buildAggregationPrompt(
+  specPath: string,
+  reviewResults: Array<{ promptName: string; verdict: string; issues: string[]; suggestions: unknown[] }>,
+  promptCount: number
+): string {
+  const resultsJson = JSON.stringify(reviewResults, null, 2);
+
+  return REVIEW_AGGREGATION_PROMPT
+    .replace('{specPath}', specPath)
+    .replace('{promptCount}', String(promptCount))
+    .replace('{reviewResults}', resultsJson);
+}

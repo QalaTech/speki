@@ -2,7 +2,7 @@
  * Timeout configuration for spec review operations.
  */
 
-const DEFAULT_TIMEOUT_MS = 600_000; // 10 minutes
+const DEFAULT_TIMEOUT_MS = 1_200_000; // 20 minutes
 const MIN_TIMEOUT_MS = 30_000; // 30 seconds
 const MAX_TIMEOUT_MS = 1_800_000; // 30 minutes
 
@@ -35,7 +35,7 @@ export function validateTimeout(ms: number): number {
  * Priority:
  * 1. CLI flag (cliTimeout parameter)
  * 2. Environment variable RALPH_REVIEW_TIMEOUT_MS
- * 3. Default (600000ms / 10 minutes)
+ * 3. Default (1200000ms / 20 minutes)
  *
  * @param cliTimeout - Optional timeout from CLI flag
  * @returns The resolved timeout in milliseconds, validated to [30s, 30min]

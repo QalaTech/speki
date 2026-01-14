@@ -416,3 +416,243 @@ export async function saveDecomposeStateForSpec(
   const statePath = getDecomposeProgressPath(projectRoot, specId);
   await writeFile(statePath, JSON.stringify(state, null, 2), 'utf-8');
 }
+
+// =============================================================================
+// Tech Spec / PRD Hierarchy Functions
+// =============================================================================
+
+/**
+ * Get all child specs (tech specs) linked to a parent PRD.
+ *
+ * @param projectRoot - The project root directory
+ * @param prdSpecId - The parent PRD spec ID
+ * @returns Array of SpecMetadata for child tech specs
+ */
+export async function getChildSpecs(
+  projectRoot: string,
+  prdSpecId: string
+): Promise<SpecMetadata[]> {
+  // Method 1: Check the parent PRD's children array
+  const prdMetadata = await readSpecMetadata(projectRoot, prdSpecId);
+  if (prdMetadata?.children?.length) {
+    const children: SpecMetadata[] = [];
+    for (const childId of prdMetadata.children) {
+      const childMeta = await readSpecMetadata(projectRoot, childId);
+      if (childMeta) {
+        children.push(childMeta);
+      }
+    }
+    return children;
+  }
+
+  // Method 2: Scan all specs and find those with parent pointing to this PRD
+  const allSpecIds = await listSpecs(projectRoot);
+  const children: SpecMetadata[] = [];
+
+  for (const specId of allSpecIds) {
+    if (specId === prdSpecId) continue;
+
+    const metadata = await readSpecMetadata(projectRoot, specId);
+    if (!metadata) continue;
+
+    // Check if this spec's parent matches the PRD
+    if (metadata.parent) {
+      const parentSpecId = extractSpecId(metadata.parent);
+      if (parentSpecId === prdSpecId) {
+        children.push(metadata);
+      }
+    }
+  }
+
+  return children;
+}
+
+/**
+ * Get the parent spec for a tech spec.
+ *
+ * @param projectRoot - The project root directory
+ * @param techSpecId - The tech spec ID
+ * @returns The parent SpecMetadata or null if no parent
+ */
+export async function getParentSpec(
+  projectRoot: string,
+  techSpecId: string
+): Promise<SpecMetadata | null> {
+  const metadata = await readSpecMetadata(projectRoot, techSpecId);
+  if (!metadata?.parent) {
+    return null;
+  }
+
+  const parentSpecId = extractSpecId(metadata.parent);
+  return readSpecMetadata(projectRoot, parentSpecId);
+}
+
+/**
+ * Link a tech spec to a parent PRD.
+ * Updates both the tech spec's parent field and the PRD's children array.
+ *
+ * @param projectRoot - The project root directory
+ * @param techSpecId - The tech spec ID to link
+ * @param prdSpecId - The parent PRD spec ID
+ */
+export async function linkTechSpecToPrd(
+  projectRoot: string,
+  techSpecId: string,
+  prdSpecId: string
+): Promise<void> {
+  // Update tech spec's parent
+  const techSpecMetadata = await readSpecMetadata(projectRoot, techSpecId);
+  if (!techSpecMetadata) {
+    throw new Error(`Tech spec metadata not found: ${techSpecId}`);
+  }
+
+  techSpecMetadata.parent = `specs/${prdSpecId}.md`;
+  techSpecMetadata.lastModified = new Date().toISOString();
+  await writeSpecMetadata(projectRoot, techSpecId, techSpecMetadata);
+
+  // Update PRD's children array
+  const prdMetadata = await readSpecMetadata(projectRoot, prdSpecId);
+  if (prdMetadata) {
+    const children = prdMetadata.children || [];
+    if (!children.includes(techSpecId)) {
+      children.push(techSpecId);
+      prdMetadata.children = children;
+      prdMetadata.lastModified = new Date().toISOString();
+      await writeSpecMetadata(projectRoot, prdSpecId, prdMetadata);
+    }
+  }
+}
+
+/**
+ * Generate tech spec content from a PRD's user stories.
+ *
+ * @param prdContent - The PRD markdown content
+ * @param userStories - The decomposed user stories
+ * @param prdFileName - The PRD filename for the parent reference
+ * @returns Generated tech spec markdown content
+ */
+export function generateTechSpecContent(
+  prdContent: string,
+  userStories: Array<{ id: string; title: string; acceptanceCriteria: string[] }>,
+  prdFileName: string
+): string {
+  // Extract PRD title from first heading
+  const titleMatch = prdContent.match(/^#\s+(.+)$/m);
+  const prdTitle = titleMatch ? titleMatch[1] : 'Feature';
+
+  // Build user stories section
+  const storiesSection = userStories
+    .map((story) => {
+      const acList = story.acceptanceCriteria.map((ac) => `- ${ac}`).join('\n');
+      return `### ${story.id}: ${story.title}\n${acList}`;
+    })
+    .join('\n\n');
+
+  return `---
+type: tech-spec
+status: draft
+parent: specs/${prdFileName}
+created: ${new Date().toISOString().split('T')[0]}
+---
+
+# Technical Specification: ${prdTitle}
+
+## Parent PRD
+
+**Implements:** [${prdFileName}](./${prdFileName})
+
+## User Stories to Achieve
+
+${storiesSection}
+
+---
+
+## Technical Approach
+
+[Describe the overall architecture and how components work together]
+
+## API Design
+
+[Define endpoints, request/response schemas - consider shared auth/middleware]
+
+## Data Model
+
+[Define entities, database changes - design for all user stories]
+
+## Shared Components
+
+[Identify components that serve multiple user stories]
+
+## Implementation Notes
+
+[Any technical considerations, trade-offs, or decisions]
+`;
+}
+
+/**
+ * Create a tech spec from a PRD.
+ *
+ * @param projectRoot - The project root directory
+ * @param prdSpecId - The parent PRD spec ID
+ * @param techSpecName - Name for the new tech spec (without extension)
+ * @returns Object with created spec info
+ */
+export async function createTechSpecFromPrd(
+  projectRoot: string,
+  prdSpecId: string,
+  techSpecName?: string
+): Promise<{ specId: string; filePath: string }> {
+  // Load PRD content
+  const prdFilePath = path.join(projectRoot, SPECS_DIRECTORY, `${prdSpecId}.md`);
+  const prdContent = await readFile(prdFilePath, 'utf-8');
+
+  // Load decomposed user stories
+  const prdData = await loadPRDForSpec(projectRoot, prdSpecId);
+  const userStories = prdData?.userStories || [];
+
+  // Generate tech spec filename
+  // Default: same base name as PRD but with .tech.md extension
+  let techSpecFileName: string;
+  if (techSpecName) {
+    techSpecFileName = techSpecName.endsWith('.tech.md')
+      ? techSpecName
+      : `${techSpecName}.tech.md`;
+  } else {
+    // Extract base name from PRD (remove .prd.md or .md)
+    const baseName = prdSpecId
+      .replace(/\.prd$/, '')
+      .replace(/\.md$/, '');
+    techSpecFileName = `${baseName}.tech.md`;
+  }
+
+  const techSpecPath = path.join(projectRoot, SPECS_DIRECTORY, techSpecFileName);
+  const techSpecId = extractSpecId(techSpecPath);
+
+  // Generate tech spec content
+  const content = generateTechSpecContent(
+    prdContent,
+    userStories.map((s) => ({
+      id: s.id,
+      title: s.title,
+      acceptanceCriteria: s.acceptanceCriteria,
+    })),
+    `${prdSpecId}.md`
+  );
+
+  // Write tech spec file
+  await writeFile(techSpecPath, content, 'utf-8');
+
+  // Initialize metadata with parent link
+  await initSpecMetadata(projectRoot, techSpecPath, {
+    type: 'tech-spec',
+    parent: `specs/${prdSpecId}.md`,
+  });
+
+  // Link tech spec to PRD
+  await linkTechSpecToPrd(projectRoot, techSpecId, prdSpecId);
+
+  return {
+    specId: techSpecId,
+    filePath: techSpecPath,
+  };
+}

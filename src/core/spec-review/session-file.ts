@@ -2,23 +2,24 @@ import { readFile, writeFile, mkdir, access, readdir } from 'fs/promises';
 import { join, dirname, basename } from 'path';
 import { createHash } from 'crypto';
 import type { SessionFile } from '../../types/index.js';
+import { extractSpecId, getSpecDir, listSpecs } from './spec-metadata.js';
 
 export type ReviewStatus = 'reviewed' | 'pending' | 'god-spec' | 'in-progress' | 'none';
 
 /**
  * Gets the session file path for a given spec file.
- * Session files are stored in .ralph/sessions/{basename}.session.json
+ * Session files are stored in .ralph/specs/{specId}/session.json (per-spec isolation)
  *
  * @param specFilePath - Path to the spec file being reviewed
  * @param projectRoot - Optional project root directory (defaults to deriving from specFilePath)
- * @returns Path to the session file in .ralph/sessions/
+ * @returns Path to the session file in .ralph/specs/{specId}/
  */
 export function getSessionPath(specFilePath: string, projectRoot?: string): string {
-  const specBasename = basename(specFilePath, '.md');
+  const specId = extractSpecId(specFilePath);
   // If projectRoot not provided, derive it from the spec file path
   // Spec files are typically in specs/, docs/, or .ralph/specs/ - find .ralph or use parent
   const resolvedRoot = projectRoot ?? findProjectRoot(specFilePath);
-  return join(resolvedRoot, '.ralph', 'sessions', `${specBasename}.session.json`);
+  return join(getSpecDir(resolvedRoot, specId), 'session.json');
 }
 
 /**
@@ -114,23 +115,21 @@ function getStatusFromSession(session: SessionFile): ReviewStatus {
 
 /**
  * Gets review statuses for all specs that have session files.
+ * Scans per-spec directories under .ralph/specs/{specId}/session.json
  *
  * @param projectRoot - Project root directory
  * @returns Map of spec paths to their review status
  */
 export async function getAllSessionStatuses(projectRoot: string): Promise<Record<string, ReviewStatus>> {
-  const sessionsDir = join(projectRoot, '.ralph', 'sessions');
   const statuses: Record<string, ReviewStatus> = {};
 
   try {
-    await access(sessionsDir);
-    const files = await readdir(sessionsDir);
+    // Get all spec IDs from .ralph/specs/
+    const specIds = await listSpecs(projectRoot);
 
-    for (const file of files) {
-      if (!file.endsWith('.session.json')) continue;
-
+    for (const specId of specIds) {
       try {
-        const sessionPath = join(sessionsDir, file);
+        const sessionPath = join(getSpecDir(projectRoot, specId), 'session.json');
         const content = await readFile(sessionPath, 'utf-8');
         const session = JSON.parse(content) as SessionFile;
 
@@ -138,11 +137,11 @@ export async function getAllSessionStatuses(projectRoot: string): Promise<Record
           statuses[session.specFilePath] = getStatusFromSession(session);
         }
       } catch {
-        // Skip invalid session files
+        // Skip specs without session files
       }
     }
   } catch {
-    // Sessions directory doesn't exist yet
+    // Specs directory doesn't exist yet
   }
 
   return statuses;

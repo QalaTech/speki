@@ -24,7 +24,7 @@ export interface ChatResponse {
   error?: string;
 }
 
-const DEFAULT_TIMEOUT_MS = 120000; // 2 minutes
+const DEFAULT_TIMEOUT_MS = 1_200_000; // 20 minutes
 
 /**
  * Build the system prompt for the chat session.

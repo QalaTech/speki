@@ -714,12 +714,31 @@ export async function runDecompose(
       reviewAttempt++;
     }
 
+    // Set reviewStatus on each story based on review verdict
+    const reviewStatus = verdict === 'PASS' ? 'passed' : 'needs_improvement';
+    prd.userStories = prd.userStories.map(story => ({
+      ...story,
+      reviewStatus: reviewStatus as 'passed' | 'needs_improvement' | 'pending',
+    }));
+
+    // Save updated stories with review status
+    await fs.writeFile(outputPath, JSON.stringify(prd, null, 2));
+
     await updateState(project.projectPath, specId, {
       status: 'COMPLETED',
       message: `Decompose review complete: ${verdict}`,
       verdict,
       draftFile: outputPath,
     }, onProgress);
+  } else {
+    // Review skipped - set stories to pending
+    prd.userStories = prd.userStories.map(story => ({
+      ...story,
+      reviewStatus: 'pending' as const,
+    }));
+
+    // Save updated stories with pending status
+    await fs.writeFile(outputPath, JSON.stringify(prd, null, 2));
   }
 
   await updateState(project.projectPath, specId, {

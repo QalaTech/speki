@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ChatMessage } from '../../../src/types/index.js';
+import { ChatMarkdown } from './ChatMarkdown';
 import './ReviewChat.css';
 
 /** Context for discussing a specific suggestion */
@@ -100,7 +101,7 @@ export function ReviewChat({
                       </span>
                       <span className="chat-message-time">{formatTimestamp(msg.timestamp)}</span>
                     </div>
-                    <div className="chat-bubble-content">{msg.content}</div>
+                    <ChatMarkdown content={msg.content} className="chat-bubble-content" />
                     {msg.suggestionId && (
                       <div className="chat-context-badge" data-testid="message-context">
                         Related to suggestion

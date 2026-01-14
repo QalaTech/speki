@@ -17,6 +17,9 @@ import {
   saveDecomposeStateForSpec,
   getSpecLogsDir,
   loadPRDForSpec,
+  createTechSpecFromPrd,
+  getChildSpecs,
+  getParentSpec,
 } from '../../core/spec-review/spec-metadata.js';
 import type { DecomposeState, PRDData } from '../../types/index.js';
 
@@ -773,6 +776,97 @@ router.post('/retry-review', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: 'Failed to retry peer review',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/decompose/create-tech-spec
+ * Create a tech spec from a PRD's user stories
+ */
+router.post('/create-tech-spec', async (req, res) => {
+  try {
+    const { prdSpecId, techSpecName } = req.body;
+
+    if (!prdSpecId) {
+      return res.status(400).json({ error: 'prdSpecId is required' });
+    }
+
+    // Create the tech spec
+    const result = await createTechSpecFromPrd(
+      req.projectPath!,
+      prdSpecId,
+      techSpecName
+    );
+
+    res.json({
+      success: true,
+      specId: result.specId,
+      filePath: result.filePath,
+      message: `Tech spec created: ${result.specId}`,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to create tech spec',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/decompose/child-specs/:specId
+ * Get child tech specs for a PRD
+ */
+router.get('/child-specs/:specId', async (req, res) => {
+  try {
+    const { specId } = req.params;
+
+    const children = await getChildSpecs(req.projectPath!, specId);
+
+    res.json({
+      specId,
+      children: children.map(c => ({
+        specId: extractSpecId(c.specPath),
+        specPath: c.specPath,
+        status: c.status,
+        type: c.type,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get child specs',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/decompose/parent-spec/:specId
+ * Get parent PRD for a tech spec
+ */
+router.get('/parent-spec/:specId', async (req, res) => {
+  try {
+    const { specId } = req.params;
+
+    const parent = await getParentSpec(req.projectPath!, specId);
+
+    if (!parent) {
+      return res.json({ specId, parent: null });
+    }
+
+    res.json({
+      specId,
+      parent: {
+        specId: extractSpecId(parent.specPath),
+        specPath: parent.specPath,
+        status: parent.status,
+        type: parent.type,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get parent spec',
       details: error instanceof Error ? error.message : String(error),
     });
   }
