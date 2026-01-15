@@ -16,6 +16,7 @@ import { runPeerReview } from './peer-review.js';
 import { loadGlobalSettings } from '../settings.js';
 import { resolveCliPath } from '../cli-path.js';
 import { runDecomposeReview } from '../spec-review/runner.js';
+import { selectEngine } from '../llm/engine-factory.js';
 import { getReviewTimeout } from '../spec-review/timeout.js';
 import {
   extractSpecId,
@@ -538,7 +539,7 @@ export async function runDecompose(
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const logPath = join(specLogsDir, `decompose_${timestamp}.log`);
 
-    console.log(chalk.yellow('Starting Claude CLI...'));
+    console.log(chalk.yellow('Starting engine...'));
     console.log(chalk.blue('(This may take 1-3 minutes for large PRDs)'));
     console.log('');
     console.log(chalk.cyan('─────────────────────────────────────────────'));
@@ -547,11 +548,22 @@ export async function runDecompose(
 
     await updateState(project.projectPath, specId, {
       status: 'DECOMPOSING',
-      message: 'Claude is generating tasks from PRD',
+      message: 'Engine is generating tasks from PRD',
     }, onProgress);
 
+    // Write full prompt to a temp file used by the engine
+    const promptPath = join(specLogsDir, `decompose_prompt_${timestamp}.md`);
+    await fs.writeFile(promptPath, fullPrompt, 'utf-8');
+
     const startTime = Date.now();
-    const result = await runClaudeDecompose(fullPrompt, project.projectPath, logPath);
+    const sel = await selectEngine({ engineName: options.engineName, model: options.model });
+    const result = await sel.engine.runStream({
+      promptPath,
+      cwd: project.projectPath,
+      logDir: specLogsDir,
+      iteration: 0,
+      model: sel.model,
+    });
     const elapsed = Math.round((Date.now() - startTime) / 1000);
 
     console.log('');
@@ -561,13 +573,13 @@ export async function runDecompose(
     if (!result.success) {
       await updateState(project.projectPath, specId, {
         status: 'ERROR',
-        message: 'Claude failed to generate tasks',
-        error: 'Claude CLI error',
+        message: 'Engine failed to generate tasks',
+        error: 'Engine error',
       }, onProgress);
       return {
         success: false,
         storyCount: 0,
-        error: 'Claude CLI error',
+        error: 'Engine error',
       };
     }
 
@@ -576,13 +588,13 @@ export async function runDecompose(
     if (!extracted) {
       await updateState(project.projectPath, specId, {
         status: 'ERROR',
-        message: 'Could not extract JSON from Claude response',
+        message: 'Could not extract JSON from engine output',
         error: 'JSON extraction failed',
       }, onProgress);
       return {
         success: false,
         storyCount: 0,
-        error: 'Could not extract JSON from Claude response. Check log file: ' + logPath,
+        error: 'Could not extract JSON from engine output. Check logs in: ' + specLogsDir,
       };
     }
 

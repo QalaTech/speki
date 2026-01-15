@@ -9,6 +9,7 @@ import { preventSleep, allowSleep, isPreventingSleep } from '../../core/keep-awa
 import { loadGlobalSettings } from '../../core/settings.js';
 import {
   updateSpecStatus,
+  loadPRDForSpec,
 } from '../../core/spec-review/spec-metadata.js';
 import { resolveSpecAndLoadPRD } from '../shared/spec-utils.js';
 import type { PRDData } from '../../types/index.js';

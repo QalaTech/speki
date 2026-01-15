@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import { join, dirname, basename } from 'path';
 import { resolveCliPath } from '../cli-path.js';
+import { selectEngine } from '../llm/engine-factory.js';
 import { gatherCodebaseContext } from './codebase-context.js';
 import { aggregateResults } from './aggregator.js';
 import { getReviewTimeout } from './timeout.js';
@@ -167,70 +168,28 @@ async function runPrompt(
   options: RunPromptOptions = {}
 ): Promise<FocusedPromptResult> {
   const startTime = Date.now();
-  const cliType = options.cli ?? 'claude';
-  const cliPath = resolveCliPath(cliType);
-  const args = ['--dangerously-skip-permissions', '--print', '--output-format', 'text'];
+  try {
+    // Ensure a logs directory exists
+    const logsDir = join(cwd, '.ralph', 'logs');
+    try { await fs.mkdir(logsDir, { recursive: true }); } catch {}
+    const promptPath = join(logsDir, `spec_review_${promptDef.name}_${Date.now()}.md`);
+    await fs.writeFile(promptPath, fullPrompt, 'utf-8');
 
-  if (options.disableTools) {
-    args.push('--tools', '');
-  }
-
-  return new Promise((resolve) => {
-    let stdout = '';
-    let timedOut = false;
-    let sigkillTimeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    const cliProcess = spawn(cliPath, args, {
+    const sel = await selectEngine();
+    const result = await sel.engine.runStream({
+      promptPath,
       cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        NO_COLOR: '1',
-        FORCE_COLOR: '0',
-      },
+      logDir: logsDir,
+      iteration: 0,
+      model: sel.model,
     });
 
-    const timeoutId = setTimeout(() => {
-      timedOut = true;
-      cliProcess.kill('SIGTERM');
-
-      // If process doesn't exit within 5 seconds, send SIGKILL
-      sigkillTimeoutId = setTimeout(() => {
-        cliProcess.kill('SIGKILL');
-      }, SIGKILL_DELAY_MS);
-    }, timeoutMs);
-
-    cliProcess.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-
-    cliProcess.stdin.write(fullPrompt);
-    cliProcess.stdin.end();
-
-    cliProcess.on('close', () => {
-      clearTimeout(timeoutId);
-      if (sigkillTimeoutId) {
-        clearTimeout(sigkillTimeoutId);
-      }
-      const durationMs = Date.now() - startTime;
-
-      if (timedOut) {
-        resolve(createErrorResult(promptDef, 'Review timed out', stdout, durationMs));
-        return;
-      }
-
-      resolve(parsePromptResponse(promptDef, stdout, durationMs));
-    });
-
-    cliProcess.on('error', () => {
-      clearTimeout(timeoutId);
-      if (sigkillTimeoutId) {
-        clearTimeout(sigkillTimeoutId);
-      }
-      const durationMs = Date.now() - startTime;
-      resolve(createErrorResult(promptDef, `Failed to spawn ${cliType} CLI`, '', durationMs));
-    });
-  });
+    const durationMs = Date.now() - startTime;
+    return parsePromptResponse(promptDef, result.output, durationMs);
+  } catch (err) {
+    const durationMs = Date.now() - startTime;
+    return createErrorResult(promptDef, (err as Error).message || 'Engine error', '', durationMs);
+  }
 }
 
 function createParseFailureResult(

@@ -161,6 +161,44 @@ export function isCliAvailable(cli: CliType): boolean {
 }
 
 /**
+ * Resolve a generic executable by name.
+ * Uses platform-specific locator (where/which) and PATH scanning with suffixes.
+ */
+export function resolveExecutable(name: string): string | null {
+  // Try platform locator first
+  const isWin = platform() === 'win32';
+  const locator = isWin ? 'where' : 'which';
+  try {
+    const out = execFileSync(locator, [name], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 3000,
+    }).trim();
+    const first = out.split(/\r?\n/)[0]?.trim();
+    if (first && existsSync(first)) return first;
+  } catch {
+    // continue to PATH scan below
+  }
+  // PATH scan with common executable suffixes on Windows
+  const pathVar = process.env.PATH || '';
+  const sep = isWin ? ';' : ':';
+  const dirs = pathVar.split(sep).filter(Boolean);
+  const exts = isWin ? ['.exe', '.cmd', '.ps1', ''] : [''];
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      const candidate = join(dir, name + ext);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return null;
+}
+
+/** True if an executable can be resolved by name. */
+export function isExecutableAvailable(name: string): boolean {
+  return resolveExecutable(name) !== null;
+}
+
+/**
  * Installation instructions for CLI tools.
  */
 const INSTALL_INSTRUCTIONS: Record<CliType, string> = {

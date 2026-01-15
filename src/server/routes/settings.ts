@@ -88,17 +88,17 @@ router.put('/', async (req, res) => {
     }
 
     // Validate and update LLM if provided
-    const llm = currentSettings.llm || {};
+    const llm = { ...(currentSettings.llm || {}) } as NonNullable<GlobalSettings['llm']>;
     if (body.llm && typeof body.llm === 'object') {
-      const { defaultEngine, defaultModel, engines } = body.llm as Partial<GlobalSettings['llm']>;
-      if (defaultEngine !== undefined && typeof defaultEngine === 'string') {
-        llm.defaultEngine = defaultEngine;
+      const llmBody = body.llm as { defaultEngine?: string; defaultModel?: string; engines?: Record<string, { command?: string; args?: string[]; model?: string }>; };
+      if (typeof llmBody.defaultEngine === 'string') {
+        llm.defaultEngine = llmBody.defaultEngine;
       }
-      if (defaultModel !== undefined && typeof defaultModel === 'string') {
-        llm.defaultModel = defaultModel;
+      if (typeof llmBody.defaultModel === 'string') {
+        llm.defaultModel = llmBody.defaultModel;
       }
-      if (engines !== undefined && typeof engines === 'object') {
-        llm.engines = engines as Record<string, { command?: string; args?: string[]; model?: string }>;
+      if (llmBody.engines && typeof llmBody.engines === 'object') {
+        llm.engines = llmBody.engines;
       }
     }
 

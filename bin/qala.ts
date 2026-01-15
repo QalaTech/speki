@@ -13,6 +13,7 @@ import { unregisterCommand } from '../src/cli/commands/unregister.js';
 import { tasksCommand } from '../src/cli/commands/tasks.js';
 import { specCommand } from '../src/cli/commands/spec.js';
 import { updateCommand } from '../src/cli/commands/update.js';
+import { tuiCommand } from '../src/cli/commands/tui.js';
 
 program
   .name('qala')
@@ -31,5 +32,13 @@ program.addCommand(unregisterCommand);
 program.addCommand(tasksCommand);
 program.addCommand(specCommand);
 program.addCommand(updateCommand);
+program.addCommand(tuiCommand);
 
-program.parse();
+// If no arguments provided, launch TUI by default
+if (process.argv.length <= 2) {
+  // Lazy import to avoid ESM cycle
+  const { runTui } = await import('../src/tui/index.js');
+  await runTui();
+} else {
+  program.parse();
+}

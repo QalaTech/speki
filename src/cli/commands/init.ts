@@ -1,50 +1,24 @@
 import chalk from "chalk";
-import { execFileSync, execSync } from "child_process";
+import { execSync } from "child_process";
 import { Command } from "commander";
 import { basename, join } from "path";
-import { existsSync } from "fs";
 import { Project } from "../../core/project.js";
 import { Registry } from "../../core/registry.js";
+import { isCliAvailable, isExecutableAvailable } from "../../core/cli-path.js";
 
-/**
- * Cross-platform command existence check
- */
-function commandExists(command: string): boolean {
-  const isWin = process.platform === 'win32';
-  const locator = isWin ? 'where' : 'which';
-  try {
-    const out = execFileSync(locator, [command], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000 }).trim();
-    return !!out;
-  } catch {
-    // Fallback: scan PATH for Windows where .cmd/.exe may be needed
-    const pathVar = process.env.PATH || '';
-    const sep = isWin ? ';' : ':';
-    const dirs = pathVar.split(sep).filter(Boolean);
-    const exts = isWin ? ['.exe', '.cmd', '.ps1', ''] : [''];
-    for (const dir of dirs) {
-      for (const ext of exts) {
-        const candidate = join(dir, command + ext);
-        if (existsSync(candidate)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-}
 
 /**
  * Install Serena MCP server for Claude Code integration
  */
 async function installSerena(projectPath: string): Promise<void> {
   // Check if Claude CLI exists
-  if (!commandExists("claude")) {
+  if (!isCliAvailable('claude')) {
     console.log(chalk.yellow("  Skipping Serena: Claude CLI not found"));
     return;
   }
 
   // Check if uv is installed
-  if (!commandExists("uv")) {
+  if (!isExecutableAvailable('uv')) {
     console.log("");
     console.log(
       chalk.red("Error: uv is required to install Serena but was not found.")
