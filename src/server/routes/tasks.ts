@@ -10,6 +10,7 @@ import { promises as fs } from 'fs';
 import { join, basename } from 'path';
 import { projectContext } from '../middleware/project-context.js';
 import type { PRDData, UserStory } from '../../types/index.js';
+import { publishTasks } from '../sse.js';
 
 const router = Router();
 
@@ -43,6 +44,7 @@ router.put('/', async (req, res) => {
   try {
     const prd = req.body as PRDData;
     await req.project!.savePRD(prd);
+    publishTasks(req.projectPath!, 'tasks/updated', prd);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({
@@ -147,6 +149,7 @@ router.put('/:storyId', async (req, res) => {
     };
 
     await req.project!.savePRD(prd);
+    publishTasks(req.projectPath!, 'tasks/updated', prd);
     res.json({ success: true, story: prd.userStories[storyIndex] });
   } catch (error) {
     res.status(500).json({
@@ -174,6 +177,7 @@ router.put('/:storyId/pass', async (req, res) => {
 
     story.passes = true;
     await req.project!.savePRD(prd);
+    publishTasks(req.projectPath!, 'tasks/updated', prd);
     res.json({ success: true, story });
   } catch (error) {
     res.status(500).json({

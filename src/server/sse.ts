@@ -1,5 +1,6 @@
 import type { Response } from 'express';
-import type { RalphSseEvent, DecomposeSseEvent } from '../types/index.js';
+import type { RalphSseEvent, DecomposeSseEvent, TasksSseEvent, PeerFeedbackSseEvent, ProjectsSseEvent, SpecReviewSseEvent, PRDData, PeerFeedback } from '../types/index.js';
+import type { ProjectEntry } from '../types/index.js';
 
 type ProjectKey = string;
 
@@ -12,6 +13,14 @@ const ralphSubs = new Map<ProjectKey, Set<Subscriber>>();
 const decomposeSubs = new Map<ProjectKey, Set<Subscriber>>();
 const ralphIds = new Map<ProjectKey, number>();
 const decomposeIds = new Map<ProjectKey, number>();
+const tasksSubs = new Map<ProjectKey, Set<Subscriber>>();
+const tasksIds = new Map<ProjectKey, number>();
+const peerSubs = new Map<ProjectKey, Set<Subscriber>>();
+const peerIds = new Map<ProjectKey, number>();
+const projectsSubs = new Map<ProjectKey, Set<Subscriber>>();
+let projectsId = 0;
+const specReviewSubs = new Map<ProjectKey, Set<Subscriber>>();
+const specReviewIds = new Map<ProjectKey, number>();
 
 function getSet(map: Map<ProjectKey, Set<Subscriber>>, key: ProjectKey): Set<Subscriber> {
   let set = map.get(key);
@@ -88,4 +97,45 @@ export function publishRalph<K extends RalphSseEvent['event']>(projectPath: stri
 
 export function publishDecompose<K extends DecomposeSseEvent['event']>(projectPath: string, event: K, data: Extract<DecomposeSseEvent, { event: K }>['data']): void {
   publish(decomposeSubs, decomposeIds, projectPath, event, data);
+}
+
+// Tasks (PRD)
+export function subscribeTasks(projectPath: string, res: Response): void {
+  addSubscriber(tasksSubs, projectPath, res);
+}
+export function publishTasks<K extends TasksSseEvent['event']>(projectPath: string, event: K, data: Extract<TasksSseEvent, { event: K }>['data']): void {
+  publish(tasksSubs, tasksIds, projectPath, event, data);
+}
+
+// Peer feedback
+export function subscribePeerFeedback(projectPath: string, res: Response): void {
+  addSubscriber(peerSubs, projectPath, res);
+}
+export function publishPeerFeedback<K extends PeerFeedbackSseEvent['event']>(projectPath: string, event: K, data: Extract<PeerFeedbackSseEvent, { event: K }>['data']): void {
+  publish(peerSubs, peerIds, projectPath, event, data);
+}
+
+// Projects (global, no projectPath scoping)
+export function subscribeProjects(res: Response): void {
+  addSubscriber(projectsSubs, '*', res);
+}
+export function publishProjects<K extends ProjectsSseEvent['event']>(event: K, data: Extract<ProjectsSseEvent, { event: K }>['data']): void {
+  const subs = projectsSubs.get('*');
+  if (!subs || subs.size === 0) return;
+  projectsId += 1;
+  const envelope = { event, projectPath: '*', data, timestamp: new Date().toISOString() } as const;
+  for (const sub of subs) {
+    try {
+      writeSse(sub.res, projectsId, envelope);
+    } catch {}
+  }
+}
+
+// Spec Review
+export function subscribeSpecReview(projectPath: string, res: Response): void {
+  addSubscriber(specReviewSubs, projectPath, res);
+  publishSpecReview(projectPath, 'spec-review/connected', { message: 'connected' });
+}
+export function publishSpecReview<K extends SpecReviewSseEvent['event']>(projectPath: string, event: K, data: Extract<SpecReviewSseEvent, { event: K }>['data']): void {
+  publish(specReviewSubs, specReviewIds, projectPath, event, data);
 }

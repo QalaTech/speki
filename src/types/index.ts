@@ -224,6 +224,28 @@ export type DecomposeSseEvent =
   | SseEnvelope<'decompose/state', DecomposeState>
   | SseEnvelope<'decompose/connected', { message: string }>;
 
+// Tasks (PRD) SSE events
+export type TasksSseEvent =
+  | SseEnvelope<'tasks/snapshot', PRDData>
+  | SseEnvelope<'tasks/updated', PRDData>;
+
+// Peer Feedback SSE events
+export type PeerFeedbackSseEvent =
+  | SseEnvelope<'peer-feedback/snapshot', PeerFeedback>
+  | SseEnvelope<'peer-feedback/updated', PeerFeedback>;
+
+// Projects SSE events
+export type ProjectsSseEvent =
+  | SseEnvelope<'projects/snapshot', ProjectEntry[]>
+  | SseEnvelope<'projects/updated', ProjectEntry[]>;
+
+// Spec Review SSE events
+export type SpecReviewSseEvent =
+  | SseEnvelope<'spec-review/connected', { message: string }>
+  | SseEnvelope<'spec-review/status', { sessionId: string; status: SessionStatus }>
+  | SseEnvelope<'spec-review/result', { sessionId: string; verdict: SpecReviewVerdict; suggestions: SuggestionCard[]; logPath?: string }>
+  | SseEnvelope<'spec-review/complete', { sessionId: string }>;
+
 
 // CLI detection result
 export interface CliDetectionResult {

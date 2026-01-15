@@ -229,23 +229,25 @@ function App() {
     setSearchParams({ project: projectPath });
   }, [setSearchParams]);
 
-  // Fetch list of projects
-  const fetchProjects = useCallback(async () => {
-    try {
-      const res = await fetch('/api/projects');
-      const data = await res.json();
-      setProjects(data);
-      // Auto-select first project if none selected
-      if (!selectedProject && data.length > 0) {
-        setSearchParams({ project: data[0].path });
-      }
-    } catch (err) {
-      console.error('Failed to fetch projects:', err);
-    }
-  }, [selectedProject, setSearchParams]);
-
+  // SSE: subscribe to Projects registry
   useEffect(() => {
-    fetchProjects();
+    if (typeof window === 'undefined' || !('EventSource' in window)) return;
+    const es = new EventSource('/api/events/projects');
+    const apply = (list: any[]) => {
+      setProjects(list);
+      if (!selectedProject && list.length > 0) {
+        setSearchParams({ project: list[0].path });
+      }
+    };
+    es.addEventListener('projects/snapshot', (e: MessageEvent) => {
+      try { const payload = JSON.parse(e.data); apply(payload.data); } catch {}
+    });
+    es.addEventListener('projects/updated', (e: MessageEvent) => {
+      try { const payload = JSON.parse(e.data); apply(payload.data); } catch {}
+    });
+    es.onerror = () => es.close();
+    return () => es.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -266,14 +268,13 @@ function App() {
         currentStory: statusData.currentStory || null,
       });
 
-      const tasksRes = await fetch(apiUrl('/api/tasks'));
-      const tasksData = await tasksRes.json();
-      if (tasksData.error) {
-        setError(tasksData.error);
-        setPrdData(null);
-      } else {
-        setPrdData(tasksData);
-        setError(null);
+      // tasks will update via SSE; keep fallback only if prdData missing
+      if (!prdData) {
+        try {
+          const tasksRes = await fetch(apiUrl('/api/tasks'));
+          const tasksData = await tasksRes.json();
+          if (!tasksData.error) setPrdData(tasksData);
+        } catch {}
       }
 
       const decomposeRes = await fetch(apiUrl('/api/decompose/state'));
@@ -286,15 +287,16 @@ function App() {
       // Update currentIteration from status
       setCurrentIteration(statusData.currentIteration || null);
 
-      // Fetch raw JSONL when running - ChatLogView will parse it
+      // Fetch log content; prefer normalized if available
       if (statusData.status === 'running' && statusData.currentIteration) {
-        const currentIterationLog = `iteration_${statusData.currentIteration}.jsonl`;
+        const normLog = `iteration_${statusData.currentIteration}.norm.jsonl`;
+        const rawLog = `iteration_${statusData.currentIteration}.jsonl`;
         try {
-          const logRes = await fetch(apiUrl(`/api/ralph/logs/${currentIterationLog}`));
-          if (logRes.ok) {
-            const rawJsonl = await logRes.text();
-            setIterationLog(rawJsonl);
+          let res = await fetch(apiUrl(`/api/ralph/logs/${normLog}`));
+          if (!res.ok) {
+            res = await fetch(apiUrl(`/api/ralph/logs/${rawLog}`));
           }
+          if (res.ok) setIterationLog(await res.text());
         } catch (logErr) {
           console.warn('Failed to fetch current iteration log:', logErr);
         }
@@ -302,10 +304,7 @@ function App() {
         setIterationLog('');
       }
 
-      // Progress file for historical summary
-      const progressRes = await fetch(apiUrl('/api/ralph/progress'));
-      const progressContent = await progressRes.text();
-      setProgress(progressContent);
+      // Progress fetched on demand only when viewing logs; SSE could push summaries later
 
       // Peer feedback / knowledge base
       try {
@@ -376,6 +375,33 @@ function App() {
     es.addEventListener('decompose/state', () => scheduleRefresh());
     es.onerror = () => es.close();
     return () => es.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject]);
+
+  // SSE: subscribe to Tasks (PRD) and Peer Feedback per project
+  useEffect(() => {
+    if (!selectedProject) return;
+    if (typeof window === 'undefined' || !('EventSource' in window)) return;
+
+    const tasksEs = new EventSource(apiUrl('/api/events/tasks'));
+    tasksEs.addEventListener('tasks/snapshot', (e: MessageEvent) => {
+      try { const payload = JSON.parse(e.data); setPrdData(payload.data as PRDData); setError(null); } catch {}
+    });
+    tasksEs.addEventListener('tasks/updated', (e: MessageEvent) => {
+      try { const payload = JSON.parse(e.data); setPrdData(payload.data as PRDData); setError(null); } catch {}
+    });
+    tasksEs.onerror = () => tasksEs.close();
+
+    const pfEs = new EventSource(apiUrl('/api/events/peer-feedback'));
+    pfEs.addEventListener('peer-feedback/snapshot', (e: MessageEvent) => {
+      try { const payload = JSON.parse(e.data); setPeerFeedback(payload.data as PeerFeedback); } catch {}
+    });
+    pfEs.addEventListener('peer-feedback/updated', (e: MessageEvent) => {
+      try { const payload = JSON.parse(e.data); setPeerFeedback(payload.data as PeerFeedback); } catch {}
+    });
+    pfEs.onerror = () => pfEs.close();
+
+    return () => { tasksEs.close(); pfEs.close(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject]);
 

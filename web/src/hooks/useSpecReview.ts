@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 export type SuggestionStatus = 'pending' | 'approved' | 'rejected' | 'edited';
 export type SuggestionSeverity = 'critical' | 'warning' | 'info';
@@ -82,6 +82,7 @@ function buildApiUrl(endpoint: string, projectPath?: string): string {
 
 export function useSpecReview(): UseSpecReviewReturn {
   const [state, setState] = useState<SpecReviewState>(initialState);
+  const esRef = useRef<EventSource | null>(null);
 
   const startReview = useCallback(
     async (specPath: string, projectPath?: string): Promise<void> => {
@@ -116,10 +117,37 @@ export function useSpecReview(): UseSpecReviewReturn {
           isLoading: data.status === 'in_progress',
         }));
 
-        if (data.status === 'in_progress') {
-          await pollForResults(data.sessionId, projectPath);
+        // Subscribe to SSE for spec-review events
+        if (typeof window !== 'undefined' && 'EventSource' in window) {
+          if (esRef.current) { esRef.current.close(); esRef.current = null; }
+          const es = new EventSource(buildApiUrl('/api/events/spec-review', projectPath));
+          es.addEventListener('spec-review/status', (e: MessageEvent) => {
+            try {
+              const payload = JSON.parse(e.data) as { data: { sessionId: string; status: string } };
+              if (!payload.data || !payload.data.sessionId) return;
+              setState((prev) => ({ ...prev, isLoading: payload.data.status === 'in_progress' }));
+            } catch {}
+          });
+          es.addEventListener('spec-review/result', (e: MessageEvent) => {
+            try {
+              const payload = JSON.parse(e.data) as { data: { sessionId: string; verdict: ReviewVerdict; suggestions: TrackedSuggestion[] } };
+              setState((prev) => ({
+                ...prev,
+                verdict: payload.data.verdict,
+                suggestions: payload.data.suggestions.map((s: any) => ({ ...s, status: s.status || 'pending' })),
+                isLoading: false,
+                error: null,
+              }));
+            } catch {}
+          });
+          es.addEventListener('spec-review/complete', () => {
+            setState((prev) => ({ ...prev, isLoading: false }));
+          });
+          es.onerror = () => { es.close(); };
+          esRef.current = es;
         } else {
-          updateStateFromStatus(data);
+          // Fallback polling on environments without SSE
+          await pollForResults(data.sessionId, projectPath);
         }
       } catch (error) {
         setState((prev) => ({

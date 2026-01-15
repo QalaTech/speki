@@ -12,7 +12,7 @@ import { calculateLoopLimit } from '../../core/ralph-loop/loop-limit.js';
 import { loadGlobalSettings } from '../../core/settings.js';
 import { preventSleep, allowSleep } from '../../core/keep-awake.js';
 import type { RalphStatus } from '../../types/index.js';
-import { publishRalph } from '../sse.js';
+import { publishRalph, publishTasks, publishPeerFeedback } from '../sse.js';
 
 const router = Router();
 
@@ -186,12 +186,18 @@ router.post('/start', async (req, res) => {
           },
           onIterationEnd: async (iteration, completed, allComplete) => {
             // Don't check abort here - only check at start of new work
-            console.log(`[Ralph] Iteration ${iteration} ended: completed=${completed}, allComplete=${allComplete}`);
+          console.log(`[Ralph] Iteration ${iteration} ended: completed=${completed}, allComplete=${allComplete}`);
             publishRalph(projectPath, 'ralph/iteration-end', {
               iteration,
               storyCompleted: completed,
               allComplete,
             });
+            try {
+              const prdNow = await project.loadPRD();
+              if (prdNow) publishTasks(projectPath, 'tasks/updated', prdNow);
+              const pf = await project.loadPeerFeedback();
+              publishPeerFeedback(projectPath, 'peer-feedback/updated', pf);
+            } catch {}
           },
         });
 

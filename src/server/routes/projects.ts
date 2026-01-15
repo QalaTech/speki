@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import { Registry } from '../../core/registry.js';
 import { Project } from '../../core/project.js';
+import { publishProjects } from '../sse.js';
 
 const router = Router();
 
@@ -116,7 +117,8 @@ router.post('/register', async (req, res) => {
 
     const projectName = name || (await project.loadConfig()).name;
     await Registry.register(projectPath, projectName);
-
+    const projects = await Registry.list();
+    publishProjects('projects/updated', projects);
     res.json({ success: true, path: projectPath, name: projectName });
   } catch (error) {
     res.status(500).json({
@@ -140,6 +142,8 @@ router.delete('/:encodedPath', async (req, res) => {
     }
 
     await Registry.unregister(projectPath);
+    const projects = await Registry.list();
+    publishProjects('projects/updated', projects);
     res.json({ success: true, path: projectPath });
   } catch (error) {
     res.status(500).json({
@@ -163,7 +167,8 @@ router.put('/:encodedPath/status', async (req, res) => {
     }
 
     await Registry.updateStatus(projectPath, status);
-
+    const projects = await Registry.list();
+    publishProjects('projects/updated', projects);
     res.json({ success: true, path: projectPath, status });
   } catch (error) {
     res.status(500).json({

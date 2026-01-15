@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { projectContext } from '../middleware/project-context.js';
 import type { Request, Response } from 'express';
 import type { RalphStatus, DecomposeState } from '../../types/index.js';
-import { subscribeRalph, subscribeDecompose } from '../sse.js';
+import { subscribeRalph, subscribeDecompose, subscribeTasks, subscribePeerFeedback, subscribeProjects, publishTasks, publishPeerFeedback, publishProjects, subscribeSpecReview } from '../sse.js';
+import { Registry } from '../../core/registry.js';
 
 const router = Router();
 
@@ -31,6 +32,38 @@ router.get('/decompose', projectContext(true), async (req: Request, res: Respons
   } catch {
     // ignore
   }
+});
+
+// SSE: Tasks (PRD) events
+router.get('/tasks', projectContext(true), async (req: Request, res: Response) => {
+  subscribeTasks(req.projectPath!, res);
+  try {
+    const prd = await req.project!.loadPRD();
+    if (prd) publishTasks(req.projectPath!, 'tasks/snapshot', prd);
+  } catch {}
+});
+
+// SSE: Peer feedback events
+router.get('/peer-feedback', projectContext(true), async (req: Request, res: Response) => {
+  subscribePeerFeedback(req.projectPath!, res);
+  try {
+    const pf = await req.project!.loadPeerFeedback();
+    publishPeerFeedback(req.projectPath!, 'peer-feedback/snapshot', pf);
+  } catch {}
+});
+
+// SSE: Projects registry (global)
+router.get('/projects', async (_req: Request, res: Response) => {
+  subscribeProjects(res);
+  try {
+    const projects = await Registry.list();
+    publishProjects('projects/snapshot', projects);
+  } catch {}
+});
+
+// SSE: Spec review events
+router.get('/spec-review', projectContext(true), async (req: Request, res: Response) => {
+  subscribeSpecReview(req.projectPath!, res);
 });
 
 export default router;

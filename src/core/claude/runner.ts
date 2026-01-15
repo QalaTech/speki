@@ -70,6 +70,7 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
   await fs.mkdir(logDir, { recursive: true });
 
   const jsonlPath = join(logDir, `iteration_${iteration}.jsonl`);
+  const normPath = join(logDir, `iteration_${iteration}.norm.jsonl`);
   const stderrPath = join(logDir, `iteration_${iteration}.err`);
 
   // Read the prompt content
@@ -135,6 +136,25 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
   // Parse the stream
   const parsed = await parseStream(parserStream, callbacks);
 
+  // Write a normalized JSONL file (best-effort) after run completes
+  try {
+    const { promises: fsPromises } = await import('fs');
+    const normLines: string[] = [];
+    // Metadata event
+    normLines.push(JSON.stringify({ event: 'metadata', data: { engine: 'claude-cli' }, timestamp: new Date().toISOString() }));
+    // Tool calls
+    for (const t of parsed.toolCalls) {
+      normLines.push(JSON.stringify({ event: 'tool_call', data: { id: t.id, name: t.name, input: t.input, detail: t.detail }, timestamp: new Date().toISOString() }));
+    }
+    // Full text as a single text event (streamed chunking could be done in drivers later)
+    if (parsed.fullText) {
+      normLines.push(JSON.stringify({ event: 'text', data: { content: parsed.fullText }, timestamp: new Date().toISOString() }));
+    }
+    await fsPromises.writeFile(normPath, normLines.join('\n') + '\n', 'utf-8');
+  } catch {
+    // ignore normalization failures
+  }
+
   // Wait for process to exit
   const exitCode = await new Promise<number | null>((resolve) => {
     claude.on('close', (code) => {
@@ -153,17 +173,18 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
     if (jsonlStream.writableFinished) resolve();
   });
 
-  return {
-    success: exitCode === 0 || exitCode === 141, // 141 = SIGPIPE, normal for piped output
-    isComplete: parsed.isComplete,
-    durationMs,
-    output: parsed.fullText,
-    jsonlPath,
-    stderrPath,
-    exitCode,
-    parsed,
-    claudePid: claude.pid,
-  };
+    return {
+      success: exitCode === 0 || exitCode === 141, // 141 = SIGPIPE, normal for piped output
+      isComplete: parsed.isComplete,
+      durationMs,
+      output: parsed.fullText,
+      jsonlPath,
+      // expose normPath for future use
+      stderrPath,
+      exitCode,
+      parsed,
+      claudePid: claude.pid,
+    };
 }
 
 /**

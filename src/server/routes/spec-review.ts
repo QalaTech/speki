@@ -9,6 +9,7 @@ import { generateSplitProposal, detectGodSpec } from '../../core/spec-review/god
 import { loadSession, saveSession } from '../../core/spec-review/session-file.js';
 import { runChatMessage, loadSpecContent } from '../../core/spec-review/chat-runner.js';
 import { extractSpecId, getSpecLogsDir } from '../../core/spec-review/spec-metadata.js';
+import { publishSpecReview } from '../sse.js';
 import type { SessionFile, SplitProposal, CodebaseContext, ChatMessage } from '../../types/index.js';
 
 const router = Router();
@@ -358,6 +359,7 @@ router.post('/start', async (req, res) => {
     console.log('[spec-review/start] Saving session:', { sessionId, specFilePath: session.specFilePath, status: session.status });
     await saveSession(session, projectPath);
     console.log('[spec-review/start] Session saved successfully');
+    publishSpecReview(projectPath, 'spec-review/status', { sessionId, status: 'in_progress' });
 
     try {
       // Use per-spec log directory for isolation
@@ -380,6 +382,14 @@ router.post('/start', async (req, res) => {
 
       await saveSession(session, projectPath);
 
+      publishSpecReview(projectPath, 'spec-review/result', {
+        sessionId,
+        verdict: result.verdict,
+        suggestions: result.suggestions,
+        logPath: result.logPath,
+      });
+      publishSpecReview(projectPath, 'spec-review/complete', { sessionId });
+
       res.json({
         sessionId,
         status: 'completed',
@@ -391,7 +401,7 @@ router.post('/start', async (req, res) => {
       session.lastUpdatedAt = new Date().toISOString();
 
       await saveSession(session, projectPath);
-
+      publishSpecReview(projectPath, 'spec-review/status', { sessionId, status: 'needs_attention' });
       res.status(500).json({
         sessionId,
         status: 'error',
