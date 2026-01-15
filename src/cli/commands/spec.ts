@@ -273,7 +273,9 @@ export async function handleGodSpec(
 }
 
 export const specCommand = new Command('spec')
-  .description('Spec review and validation commands');
+  .description('Spec review and validation commands')
+  .option('--engine <name>', 'LLM engine name (overrides settings)')
+  .option('--model <name>', 'LLM model name (overrides settings)');
 
 export function validateCliOption(value: string): CliType {
   const validOptions: CliType[] = ['claude', 'codex'];

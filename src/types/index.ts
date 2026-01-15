@@ -225,6 +225,7 @@ export type RalphSseEvent =
   | SseEnvelope<'ralph/iteration-start', { iteration: number; maxIterations: number; currentStory?: string | null }>
   | SseEnvelope<'ralph/iteration-end', { iteration: number; storyCompleted: boolean; allComplete: boolean }>
   | SseEnvelope<'ralph/complete', { iterationsRun: number; storiesCompleted: number }>
+  | SseEnvelope<'ralph/log', { line: string }>
   | SseEnvelope<'ralph/connected', { message: string }>;
 
 // Decompose SSE events

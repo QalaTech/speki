@@ -16,6 +16,8 @@ export const decomposeCommand = new Command('decompose')
   .option('-r, --redecompose', 'Force re-decomposition even if draft exists')
   .option('--review', 'Enable peer review after decomposition')
   .option('--timeout <ms>', 'Review timeout in milliseconds', parseInt)
+  .option('--engine <name>', 'LLM engine name (overrides settings)')
+  .option('--model <name>', 'LLM model name (overrides settings)')
   .action(async (prdFile, options) => {
     try {
       const projectPath = options.project || (await findProjectRoot()) || process.cwd();
@@ -46,6 +48,8 @@ export const decomposeCommand = new Command('decompose')
           forceRedecompose: options.redecompose,
           enablePeerReview: options.review,
           reviewTimeoutMs: options.timeout,
+          engineName: options.engine,
+          model: options.model,
         });
 
         if (!result.success) {

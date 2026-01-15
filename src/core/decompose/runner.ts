@@ -50,6 +50,9 @@ export interface DecomposeOptions {
   reviewTimeoutMs?: number;
   /** Callback for progress updates */
   onProgress?: (state: DecomposeState) => void;
+  /** Preferred engine name and model (overrides settings/env) */
+  engineName?: string;
+  model?: string;
 }
 
 export interface DecomposeResult {

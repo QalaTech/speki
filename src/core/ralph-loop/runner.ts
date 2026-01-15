@@ -14,6 +14,7 @@ import { Registry } from '../registry.js';
 import { isDefaultEngineAvailable, selectEngine } from '../llm/engine-factory.js';
 import { createConsoleCallbacks } from '../claude/stream-parser.js';
 import type { PRDData, UserStory, RalphStatus } from '../../types/index.js';
+import type { StreamCallbacks } from '../claude/types.js';
 
 export interface LoopOptions {
   /** Maximum number of iterations (static value or getter for dynamic updates) */
@@ -31,6 +32,8 @@ export interface LoopOptions {
   /** Preferred engine name and model (overrides settings/env) */
   engineName?: string;
   model?: string;
+  /** Optional stream callbacks (e.g., for SSE log piping) */
+  streamCallbacks?: StreamCallbacks;
 }
 
 export interface LoopResult {
@@ -212,7 +215,7 @@ export async function runRalphLoop(
       console.log(chalk.yellow('Starting Claude...'));
       console.log('');
 
-      const callbacks = createConsoleCallbacks();
+      const callbacks = options.streamCallbacks || createConsoleCallbacks();
       const sel = await selectEngine({ engineName: options.engineName, model: options.model });
       const result = await sel.engine.runStream({
         promptPath: project.promptPath,

@@ -287,22 +287,8 @@ function App() {
       // Update currentIteration from status
       setCurrentIteration(statusData.currentIteration || null);
 
-      // Fetch log content; prefer normalized if available
-      if (statusData.status === 'running' && statusData.currentIteration) {
-        const normLog = `iteration_${statusData.currentIteration}.norm.jsonl`;
-        const rawLog = `iteration_${statusData.currentIteration}.jsonl`;
-        try {
-          let res = await fetch(apiUrl(`/api/ralph/logs/${normLog}`));
-          if (!res.ok) {
-            res = await fetch(apiUrl(`/api/ralph/logs/${rawLog}`));
-          }
-          if (res.ok) setIterationLog(await res.text());
-        } catch (logErr) {
-          console.warn('Failed to fetch current iteration log:', logErr);
-        }
-      } else {
-        setIterationLog('');
-      }
+      // Live log now arrives via SSE; clear when not running
+      if (statusData.status !== 'running') setIterationLog('');
 
       // Progress fetched on demand only when viewing logs; SSE could push summaries later
 
@@ -346,10 +332,19 @@ function App() {
     };
 
     es.addEventListener('ralph/status', () => scheduleRefresh());
-
-    es.addEventListener('ralph/iteration-start', () => scheduleRefresh());
+    es.addEventListener('ralph/iteration-start', () => {
+      // Clear live log when a new iteration starts
+      setIterationLog('');
+      scheduleRefresh();
+    });
     es.addEventListener('ralph/iteration-end', () => scheduleRefresh());
     es.addEventListener('ralph/complete', () => scheduleRefresh());
+    es.addEventListener('ralph/log', (e: MessageEvent) => {
+      try {
+        const payload = JSON.parse(e.data) as { data: { line: string } };
+        setIterationLog((prev) => prev + payload.data.line);
+      } catch {}
+    });
 
     es.onerror = () => {
       // Close on error; polling remains as fallback

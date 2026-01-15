@@ -12,6 +12,7 @@ import { calculateLoopLimit } from '../../core/ralph-loop/loop-limit.js';
 import { loadGlobalSettings } from '../../core/settings.js';
 import { preventSleep, allowSleep } from '../../core/keep-awake.js';
 import type { RalphStatus } from '../../types/index.js';
+import type { StreamCallbacks } from '../../core/claude/types.js';
 import { publishRalph, publishTasks, publishPeerFeedback } from '../sse.js';
 
 const router = Router();
@@ -173,6 +174,17 @@ router.post('/start', async (req, res) => {
     // Run the loop asynchronously (don't await - return immediately)
     const loopPromise = (async () => {
       try {
+        const streamCallbacks: StreamCallbacks = {
+          onText: (text: string) => {
+            publishRalph(projectPath, 'ralph/log', { line: text });
+          },
+          onToolCall: (name: string, detail: string) => {
+            publishRalph(projectPath, 'ralph/log', { line: `🔧 ${name}: ${detail}` });
+          },
+          onToolResult: (result: string) => {
+            publishRalph(projectPath, 'ralph/log', { line: result });
+          },
+        };
         const result = await runRalphLoop(project, {
           maxIterations: getMaxIterations, // Pass getter for dynamic updates
           onIterationStart: async (iteration, story) => {
@@ -186,7 +198,7 @@ router.post('/start', async (req, res) => {
           },
           onIterationEnd: async (iteration, completed, allComplete) => {
             // Don't check abort here - only check at start of new work
-          console.log(`[Ralph] Iteration ${iteration} ended: completed=${completed}, allComplete=${allComplete}`);
+            console.log(`[Ralph] Iteration ${iteration} ended: completed=${completed}, allComplete=${allComplete}`);
             publishRalph(projectPath, 'ralph/iteration-end', {
               iteration,
               storyCompleted: completed,
@@ -199,6 +211,7 @@ router.post('/start', async (req, res) => {
               publishPeerFeedback(projectPath, 'peer-feedback/updated', pf);
             } catch {}
           },
+          streamCallbacks,
         });
 
         console.log(`[Ralph] Loop finished: allComplete=${result.allComplete}, storiesCompleted=${result.storiesCompleted}`);
