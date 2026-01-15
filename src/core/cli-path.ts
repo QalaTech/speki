@@ -7,7 +7,7 @@
 
 import { execFileSync } from 'child_process';
 import { existsSync } from 'fs';
-import { homedir } from 'os';
+import { homedir, platform } from 'os';
 import { join } from 'path';
 import type { CliType } from '../types/index.js';
 
@@ -22,11 +22,17 @@ const COMMON_PATHS: Record<CliType, string[]> = {
     join(homedir(), '.claude', 'local', 'claude'),
     '/usr/local/bin/claude',
     '/opt/homebrew/bin/claude',
+    // Windows global npm bin (common)
+    join(homedir(), 'AppData', 'Roaming', 'npm', 'claude.cmd'),
+    join(homedir(), 'AppData', 'Roaming', 'npm', 'claude.exe'),
   ],
   codex: [
     '/usr/local/bin/codex',
     '/opt/homebrew/bin/codex',
     join(homedir(), '.local', 'bin', 'codex'),
+    // Windows global npm bin (common)
+    join(homedir(), 'AppData', 'Roaming', 'npm', 'codex.cmd'),
+    join(homedir(), 'AppData', 'Roaming', 'npm', 'codex.exe'),
   ],
 };
 
@@ -37,12 +43,15 @@ const COMMON_PATHS: Record<CliType, string[]> = {
  */
 function resolveFromWhich(cli: CliType): string | null {
   try {
+    const isWin = platform() === 'win32';
+    const cmd = isWin ? 'where' : 'which';
     // Use execFileSync for safety - no shell injection possible
-    const result = execFileSync('which', [cli], {
+    const resultRaw = execFileSync(cmd, [cli], {
       encoding: 'utf-8',
       timeout: 3000,
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
+    const result = resultRaw.split(/\r?\n/)[0]?.trim();
 
     if (result && existsSync(result)) {
       return result;
@@ -51,6 +60,26 @@ function resolveFromWhich(cli: CliType): string | null {
     // which failed, CLI not in PATH
   }
 
+  return null;
+}
+
+/**
+ * PATH directory scan with common executable suffixes (Windows friendly)
+ */
+function resolveFromPathDirs(cli: CliType): string | null {
+  const pathVar = process.env.PATH || '';
+  const sep = process.platform === 'win32' ? ';' : ':';
+  const dirs = pathVar.split(sep).filter(Boolean);
+  const exts = process.platform === 'win32' ? ['.exe', '.cmd', '.ps1', ''] : [''];
+
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      const candidate = join(dir, cli + ext);
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
   return null;
 }
 
@@ -97,6 +126,11 @@ export function resolveCliPath(cli: CliType, useCache: boolean = true): string {
   // 2. Check common installation paths
   if (!resolvedPath) {
     resolvedPath = resolveFromCommonPaths(cli);
+  }
+
+  // 3. Scan PATH directories (for Windows .cmd/.exe)
+  if (!resolvedPath) {
+    resolvedPath = resolveFromPathDirs(cli);
   }
 
   // Cache the result

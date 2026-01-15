@@ -3,6 +3,7 @@ import { join, dirname, basename } from 'path';
 import { createHash } from 'crypto';
 import type { SessionFile } from '../../types/index.js';
 import { extractSpecId, getSpecDir, listSpecs } from './spec-metadata.js';
+import { findProjectRoot as findProjectRootCore } from '../project.js';
 
 export type ReviewStatus = 'reviewed' | 'pending' | 'god-spec' | 'in-progress' | 'none';
 
@@ -18,29 +19,12 @@ export function getSessionPath(specFilePath: string, projectRoot?: string): stri
   const specId = extractSpecId(specFilePath);
   // If projectRoot not provided, derive it from the spec file path
   // Spec files are typically in specs/, docs/, or .ralph/specs/ - find .ralph or use parent
-  const resolvedRoot = projectRoot ?? findProjectRoot(specFilePath);
+  const resolvedRoot = projectRoot
+    ?? (findProjectRootCore(dirname(specFilePath)) || dirname(dirname(specFilePath)) || process.cwd());
   return join(getSpecDir(resolvedRoot, specId), 'session.json');
 }
 
-/**
- * Finds the project root by looking for .ralph directory or using parent of spec dir
- */
-function findProjectRoot(specFilePath: string): string {
-  const specDir = dirname(specFilePath);
-  const specDirName = basename(specDir);
-
-  // If spec is in specs/, docs/, or .ralph/specs/, go up appropriately
-  if (specDirName === 'specs' || specDirName === 'docs') {
-    return dirname(specDir);
-  }
-  if (specDir.includes('.ralph')) {
-    // Find the .ralph directory and return its parent
-    const ralphIndex = specDir.indexOf('.ralph');
-    return specDir.substring(0, ralphIndex);
-  }
-  // Default to cwd if we can't determine
-  return process.cwd();
-}
+// Removed local findProjectRoot — use core/project.findProjectRoot for DRY
 
 /**
  * Loads an existing session file if it exists.

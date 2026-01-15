@@ -1,11 +1,17 @@
-import { homedir } from 'os';
 import { join } from 'path';
 import { mkdir, readFile, writeFile, access } from 'fs/promises';
 import type { ProjectRegistry, ProjectEntry, ProjectStatus, GlobalConfig } from '../types/index.js';
+import { getQalaDir as getQalaHomeDir } from './settings.js';
 
-const QALA_DIR = join(homedir(), '.qala');
-const PROJECTS_FILE = join(QALA_DIR, 'projects.json');
-const CONFIG_FILE = join(QALA_DIR, 'config.json');
+// Resolve QALA home with QALA_HOME override support
+function getPaths() {
+  const QALA_DIR = getQalaHomeDir();
+  return {
+    QALA_DIR,
+    PROJECTS_FILE: join(QALA_DIR, 'projects.json'),
+    CONFIG_FILE: join(QALA_DIR, 'config.json'),
+  };
+}
 
 const REGISTRY_VERSION = 1;
 
@@ -14,6 +20,7 @@ export class Registry {
    * Ensure ~/.qala directory and files exist
    */
   static async ensureExists(): Promise<void> {
+    const { QALA_DIR, PROJECTS_FILE, CONFIG_FILE } = getPaths();
     try {
       await access(QALA_DIR);
     } catch {
@@ -43,6 +50,7 @@ export class Registry {
    */
   static async load(): Promise<ProjectRegistry> {
     await this.ensureExists();
+    const { PROJECTS_FILE } = getPaths();
     const content = await readFile(PROJECTS_FILE, 'utf-8');
     return JSON.parse(content) as ProjectRegistry;
   }
@@ -52,6 +60,7 @@ export class Registry {
    */
   static async save(registry: ProjectRegistry): Promise<void> {
     await this.ensureExists();
+    const { PROJECTS_FILE } = getPaths();
     await writeFile(PROJECTS_FILE, JSON.stringify(registry, null, 2));
   }
 
@@ -154,6 +163,7 @@ export class Registry {
    */
   static async getConfig(): Promise<GlobalConfig> {
     await this.ensureExists();
+    const { CONFIG_FILE } = getPaths();
     const content = await readFile(CONFIG_FILE, 'utf-8');
     return JSON.parse(content) as GlobalConfig;
   }
@@ -163,6 +173,7 @@ export class Registry {
    */
   static async saveConfig(config: GlobalConfig): Promise<void> {
     await this.ensureExists();
+    const { CONFIG_FILE } = getPaths();
     await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
   }
 
@@ -170,6 +181,6 @@ export class Registry {
    * Get the qala directory path
    */
   static getQalaDir(): string {
-    return QALA_DIR;
+    return getPaths().QALA_DIR;
   }
 }

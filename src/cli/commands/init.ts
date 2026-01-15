@@ -1,18 +1,34 @@
 import chalk from "chalk";
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 import { Command } from "commander";
-import { basename } from "path";
+import { basename, join } from "path";
+import { existsSync } from "fs";
 import { Project } from "../../core/project.js";
 import { Registry } from "../../core/registry.js";
 
 /**
- * Check if a command exists on the system
+ * Cross-platform command existence check
  */
 function commandExists(command: string): boolean {
+  const isWin = process.platform === 'win32';
+  const locator = isWin ? 'where' : 'which';
   try {
-    execSync(`command -v ${command}`, { stdio: "ignore" });
-    return true;
+    const out = execFileSync(locator, [command], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000 }).trim();
+    return !!out;
   } catch {
+    // Fallback: scan PATH for Windows where .cmd/.exe may be needed
+    const pathVar = process.env.PATH || '';
+    const sep = isWin ? ';' : ':';
+    const dirs = pathVar.split(sep).filter(Boolean);
+    const exts = isWin ? ['.exe', '.cmd', '.ps1', ''] : [''];
+    for (const dir of dirs) {
+      for (const ext of exts) {
+        const candidate = join(dir, command + ext);
+        if (existsSync(candidate)) {
+          return true;
+        }
+      }
+    }
     return false;
   }
 }
@@ -65,8 +81,8 @@ async function installSerena(projectPath: string): Promise<void> {
     return;
   }
 
-  // Install Serena
-  console.log(chalk.blue("  Adding Serena MCP server..."));
+  // Install Serena (only relevant for Claude CLI integrations)
+  console.log(chalk.blue("  Adding Serena MCP server (Claude) ..."));
   try {
     execSync(
       `claude mcp add serena -- uvx --from git+https://github.com/oraios/serena serena start-mcp-server --context claude-code --project "${projectPath}" --enable-web-dashboard False`,

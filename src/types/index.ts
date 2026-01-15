@@ -195,6 +195,36 @@ export interface GlobalSettings {
   execution: ExecutionConfig;
 }
 
+// =============================================================================
+// Server-Sent Events (SSE) Types
+// =============================================================================
+
+/** Generic SSE envelope */
+export interface SseEnvelope<TEvent extends string, TData> {
+  /** Discriminator (used as SSE event name) */
+  event: TEvent;
+  /** Absolute or workspace path of project */
+  projectPath: string;
+  /** Event payload */
+  data: TData;
+  /** ISO timestamp */
+  timestamp: string;
+}
+
+// Ralph SSE events
+export type RalphSseEvent =
+  | SseEnvelope<'ralph/status', { status: RalphStatus }>
+  | SseEnvelope<'ralph/iteration-start', { iteration: number; maxIterations: number; currentStory?: string | null }>
+  | SseEnvelope<'ralph/iteration-end', { iteration: number; storyCompleted: boolean; allComplete: boolean }>
+  | SseEnvelope<'ralph/complete', { iterationsRun: number; storiesCompleted: number }>
+  | SseEnvelope<'ralph/connected', { message: string }>;
+
+// Decompose SSE events
+export type DecomposeSseEvent =
+  | SseEnvelope<'decompose/state', DecomposeState>
+  | SseEnvelope<'decompose/connected', { message: string }>;
+
+
 // CLI detection result
 export interface CliDetectionResult {
   available: boolean;
@@ -359,6 +389,40 @@ export type SuggestionStatus = 'pending' | 'approved' | 'rejected' | 'edited';
 export type SuggestionType = 'change' | 'comment';
 
 /**
+ * Domain/concern tags for cross-cutting filtering of suggestions.
+ * These are orthogonal to category - a 'clarity' issue can also be tagged 'security'.
+ */
+export type SuggestionTag =
+  | 'security'        // Auth, vulnerabilities, data protection
+  | 'performance'     // Speed, optimization, caching
+  | 'scalability'     // Load handling, growth
+  | 'data'            // Data models, privacy, GDPR
+  | 'api'             // API design, contracts
+  | 'ux'              // User experience, usability
+  | 'accessibility'   // A11y, WCAG compliance
+  | 'architecture'    // System design, patterns
+  | 'testing'         // Test coverage, strategy
+  | 'infrastructure'  // Deployment, DevOps, CI/CD
+  | 'error-handling'  // Error cases, edge cases
+  | 'documentation';  // Docs, comments, clarity
+
+/** All available suggestion tags */
+export const SUGGESTION_TAGS: SuggestionTag[] = [
+  'security',
+  'performance',
+  'scalability',
+  'data',
+  'api',
+  'ux',
+  'accessibility',
+  'architecture',
+  'testing',
+  'infrastructure',
+  'error-handling',
+  'documentation',
+];
+
+/**
  * Status of a spec review session.
  */
 export type SessionStatus = 'in_progress' | 'completed' | 'needs_attention';
@@ -520,6 +584,8 @@ export interface SuggestionCard {
   userVersion?: string;
   /** ISO timestamp when reviewed */
   reviewedAt?: string;
+  /** Domain/concern tags for cross-cutting filtering (e.g., 'security', 'performance') */
+  tags?: SuggestionTag[];
 }
 
 /**

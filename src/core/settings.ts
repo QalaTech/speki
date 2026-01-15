@@ -8,6 +8,10 @@ import type { GlobalSettings } from '../types/index.js';
  * Computed lazily to allow for testing
  */
 export function getQalaDir(): string {
+  const override = process.env.QALA_HOME;
+  if (override && override.trim().length > 0) {
+    return override;
+  }
   return join(homedir(), '.qala');
 }
 

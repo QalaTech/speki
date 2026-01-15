@@ -331,6 +331,38 @@ function App() {
     }
   }, [selectedProject]);
 
+  // SSE: subscribe to Ralph events per project to reduce latency vs polling
+  useEffect(() => {
+    if (!selectedProject) return;
+    if (typeof window === 'undefined' || !('EventSource' in window)) return;
+
+    const url = apiUrl('/api/events/ralph');
+    const es = new EventSource(url);
+
+    const scheduleRefresh = () => {
+      // Throttle refresh slightly to allow server to flush files
+      setTimeout(() => {
+        fetchData();
+      }, 200);
+    };
+
+    es.addEventListener('ralph/status', () => scheduleRefresh());
+
+    es.addEventListener('ralph/iteration-start', () => scheduleRefresh());
+    es.addEventListener('ralph/iteration-end', () => scheduleRefresh());
+    es.addEventListener('ralph/complete', () => scheduleRefresh());
+
+    es.onerror = () => {
+      // Close on error; polling remains as fallback
+      es.close();
+    };
+
+    return () => {
+      es.close();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject]);
+
   useEffect(() => {
     if (!selectedProject) return;
 

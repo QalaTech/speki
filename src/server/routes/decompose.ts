@@ -9,6 +9,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { projectContext } from '../middleware/project-context.js';
 import { runDecompose } from '../../core/decompose/runner.js';
+import { publishDecompose } from '../sse.js';
 import { calculateLoopLimit } from '../../core/ralph-loop/loop-limit.js';
 import { getRunningLoop } from './ralph.js';
 import {
@@ -496,6 +497,7 @@ router.post('/start', async (req, res) => {
       onProgress: async (state) => {
         // Progress updates are saved to file for polling
         await req.project!.saveDecomposeState(state);
+        publishDecompose(req.projectPath!, 'decompose/state', state);
       },
     });
 

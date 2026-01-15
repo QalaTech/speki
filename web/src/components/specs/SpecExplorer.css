@@ -289,6 +289,29 @@
   border: 1px solid var(--color-border);
   border-radius: 8px;
   margin-bottom: 12px;
+  transition: all 0.2s ease;
+}
+
+/* Clickable card with line info */
+.suggestion-card--clickable {
+  cursor: pointer;
+}
+
+.suggestion-card--clickable:hover {
+  border-color: var(--color-accent);
+  background: var(--color-surface-hover, rgba(88, 166, 255, 0.05));
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.suggestion-card--clickable:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.suggestion-card--clickable:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .suggestion-card--approved {
@@ -397,6 +420,230 @@
 
 .suggestion-btn--discuss:hover {
   background: rgba(163, 113, 247, 0.2);
+}
+
+.suggestion-btn--approve {
+  background: rgba(63, 185, 80, 0.1);
+  border-color: #3fb950;
+  color: #3fb950;
+}
+
+.suggestion-btn--approve:hover {
+  background: rgba(63, 185, 80, 0.2);
+}
+
+.suggestion-btn--reject {
+  background: rgba(248, 81, 73, 0.1);
+  border-color: #f85149;
+  color: #f85149;
+}
+
+.suggestion-btn--reject:hover {
+  background: rgba(248, 81, 73, 0.2);
+}
+
+/* Suggestion location (section + line numbers) */
+.suggestion-location {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.suggestion-lines {
+  color: var(--color-accent);
+  font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+  font-size: 10px;
+}
+
+/* Suggestion tags */
+.suggestion-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.suggestion-tag {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: 10px;
+  text-transform: lowercase;
+}
+
+/* Tag color variants */
+.suggestion-tag--security {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+}
+
+.suggestion-tag--performance {
+  background: rgba(210, 153, 34, 0.15);
+  color: #d29922;
+}
+
+.suggestion-tag--scalability {
+  background: rgba(163, 113, 247, 0.15);
+  color: #a371f7;
+}
+
+.suggestion-tag--data {
+  background: rgba(88, 166, 255, 0.15);
+  color: #58a6ff;
+}
+
+.suggestion-tag--api {
+  background: rgba(121, 192, 255, 0.15);
+  color: #79c0ff;
+}
+
+.suggestion-tag--ux {
+  background: rgba(219, 97, 162, 0.15);
+  color: #db61a2;
+}
+
+.suggestion-tag--accessibility {
+  background: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+}
+
+.suggestion-tag--architecture {
+  background: rgba(139, 148, 158, 0.15);
+  color: #8b949e;
+}
+
+.suggestion-tag--testing {
+  background: rgba(187, 128, 9, 0.15);
+  color: #bb8009;
+}
+
+.suggestion-tag--infrastructure {
+  background: rgba(110, 118, 129, 0.15);
+  color: #6e7681;
+}
+
+.suggestion-tag--error-handling {
+  background: rgba(248, 81, 73, 0.1);
+  color: #f85149;
+}
+
+.suggestion-tag--documentation {
+  background: rgba(139, 148, 158, 0.1);
+  color: #8b949e;
+}
+
+/* ===== Tag Filter Bar ===== */
+
+.spec-review-tag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tag-filter-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tag-filter-btn:hover {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+}
+
+.tag-filter-btn--active {
+  border-color: transparent;
+}
+
+/* Active filter tag variants */
+.tag-filter-btn--security.tag-filter-btn--active {
+  background: rgba(248, 81, 73, 0.2);
+  color: #f85149;
+}
+
+.tag-filter-btn--performance.tag-filter-btn--active {
+  background: rgba(210, 153, 34, 0.2);
+  color: #d29922;
+}
+
+.tag-filter-btn--scalability.tag-filter-btn--active {
+  background: rgba(163, 113, 247, 0.2);
+  color: #a371f7;
+}
+
+.tag-filter-btn--data.tag-filter-btn--active {
+  background: rgba(88, 166, 255, 0.2);
+  color: #58a6ff;
+}
+
+.tag-filter-btn--api.tag-filter-btn--active {
+  background: rgba(121, 192, 255, 0.2);
+  color: #79c0ff;
+}
+
+.tag-filter-btn--ux.tag-filter-btn--active {
+  background: rgba(219, 97, 162, 0.2);
+  color: #db61a2;
+}
+
+.tag-filter-btn--accessibility.tag-filter-btn--active {
+  background: rgba(63, 185, 80, 0.2);
+  color: #3fb950;
+}
+
+.tag-filter-btn--architecture.tag-filter-btn--active {
+  background: rgba(139, 148, 158, 0.2);
+  color: #8b949e;
+}
+
+.tag-filter-btn--testing.tag-filter-btn--active {
+  background: rgba(187, 128, 9, 0.2);
+  color: #bb8009;
+}
+
+.tag-filter-btn--infrastructure.tag-filter-btn--active {
+  background: rgba(110, 118, 129, 0.2);
+  color: #6e7681;
+}
+
+.tag-filter-btn--error-handling.tag-filter-btn--active {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+}
+
+.tag-filter-btn--documentation.tag-filter-btn--active {
+  background: rgba(139, 148, 158, 0.15);
+  color: #8b949e;
+}
+
+.tag-filter-clear {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tag-filter-clear:hover {
+  color: var(--color-text);
+  text-decoration: underline;
 }
 
 /* ===== Inline Editor Styles ===== */

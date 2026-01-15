@@ -155,45 +155,11 @@ async function getNextUSNumber(project: Project, freshStart: boolean): Promise<n
   return maxNum + 1;
 }
 
-/**
- * Extract JSON from Claude's output
- */
+import { extractReviewJson } from '../spec-review/json-parser.js';
+
+/** Extract JSON from AI output (code blocks, raw JSON, or mixed prose). */
 function extractJson(output: string): PRDData | null {
-  // Try to find JSON in code blocks first
-  const codeBlockMatch = output.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeBlockMatch) {
-    try {
-      return JSON.parse(codeBlockMatch[1].trim()) as PRDData;
-    } catch {
-      // Continue to other methods
-    }
-  }
-
-  // Try to find raw JSON starting with {
-  const jsonStart = output.indexOf('{');
-  if (jsonStart !== -1) {
-    // Find matching closing brace
-    let depth = 0;
-    for (let i = jsonStart; i < output.length; i++) {
-      if (output[i] === '{') depth++;
-      else if (output[i] === '}') {
-        depth--;
-        if (depth === 0) {
-          try {
-            const jsonStr = output.substring(jsonStart, i + 1);
-            const parsed = JSON.parse(jsonStr) as PRDData;
-            if (parsed.userStories) {
-              return parsed;
-            }
-          } catch {
-            // Continue searching
-          }
-        }
-      }
-    }
-  }
-
-  return null;
+  return extractReviewJson<PRDData>(output);
 }
 
 /**

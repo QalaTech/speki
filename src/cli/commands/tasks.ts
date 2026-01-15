@@ -1,13 +1,12 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { select } from '@inquirer/prompts';
 import { Project, findProjectRoot } from '../../core/project.js';
 import { PRDData, UserStory } from '../../types/index.js';
 import {
-  listSpecs,
   loadPRDForSpec,
   savePRDForSpec,
 } from '../../core/spec-review/spec-metadata.js';
+import { resolveSpecAndLoadPRD } from '../shared/spec-utils.js';
 
 /**
  * Get next pending task (by priority, respecting dependencies)
@@ -24,116 +23,7 @@ function getNextTask(stories: UserStory[]): UserStory | null {
   return ready[0] || null;
 }
 
-/**
- * Resolves the spec ID and loads PRD from spec-partitioned location.
- * Falls back to legacy .ralph/prd.json if no specs exist.
- *
- * @param projectPath - The project root path
- * @param project - The Project instance
- * @param specOption - Optional spec ID provided via --spec flag
- * @returns The PRD and spec ID (null if using legacy location)
- */
-async function resolveSpecAndLoadPRD(
-  projectPath: string,
-  project: Project,
-  specOption?: string
-): Promise<{ prd: PRDData; specId: string | null } | null> {
-  const specs = await listSpecs(projectPath);
-
-  // If --spec flag is provided, use that
-  if (specOption) {
-    return resolveExplicitSpec(projectPath, specs, specOption);
-  }
-
-  // If single spec exists, use it
-  if (specs.length === 1) {
-    const specId = specs[0];
-    const prd = await loadPRDForSpec(projectPath, specId);
-    if (prd) {
-      return { prd, specId };
-    }
-  }
-
-  // If multiple specs exist, prompt user to select
-  if (specs.length > 1) {
-    return resolveMultipleSpecs(projectPath, specs);
-  }
-
-  // No specs exist, fall back to legacy location
-  const legacyPrd = await project.loadPRD();
-  if (legacyPrd) {
-    return { prd: legacyPrd, specId: null };
-  }
-
-  return null;
-}
-
-/**
- * Handles explicit --spec flag by validating and loading the specified spec.
- */
-async function resolveExplicitSpec(
-  projectPath: string,
-  specs: string[],
-  specOption: string
-): Promise<{ prd: PRDData; specId: string } | null> {
-  if (!specs.includes(specOption)) {
-    console.error(chalk.red(`Error: Spec '${specOption}' not found.`));
-    console.error(chalk.yellow(`Available specs: ${specs.join(', ') || 'none'}`));
-    return null;
-  }
-
-  const prd = await loadPRDForSpec(projectPath, specOption);
-  if (!prd) {
-    console.error(chalk.red(`Error: No PRD found for spec '${specOption}'.`));
-    return null;
-  }
-
-  return { prd, specId: specOption };
-}
-
-/**
- * Handles multiple specs by filtering to those with PRDs and prompting for selection.
- */
-async function resolveMultipleSpecs(
-  projectPath: string,
-  specs: string[]
-): Promise<{ prd: PRDData; specId: string } | null> {
-  // Check if any specs have PRDs
-  const specsWithPrds: string[] = [];
-  for (const spec of specs) {
-    const prd = await loadPRDForSpec(projectPath, spec);
-    if (prd) {
-      specsWithPrds.push(spec);
-    }
-  }
-
-  if (specsWithPrds.length === 0) {
-    console.error(chalk.red('Error: No specs have decomposed PRDs. Run `qala decompose` first.'));
-    return null;
-  }
-
-  // Single spec with PRD - use it directly
-  if (specsWithPrds.length === 1) {
-    const specId = specsWithPrds[0];
-    const prd = await loadPRDForSpec(projectPath, specId);
-    if (prd) {
-      return { prd, specId };
-    }
-    return null;
-  }
-
-  // Multiple specs with PRDs - prompt for selection
-  const specId = await select({
-    message: 'Multiple specs found. Select one:',
-    choices: specsWithPrds.map((spec) => ({ name: spec, value: spec })),
-  });
-
-  const prd = await loadPRDForSpec(projectPath, specId);
-  if (prd) {
-    return { prd, specId };
-  }
-  return null;
-}
+// Spec resolution DRY: pulled into ../shared/spec-utils
 
 export const tasksCommand = new Command('tasks')
   .description('Manage PRD tasks');

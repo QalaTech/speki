@@ -74,6 +74,14 @@ export interface SpecEditorRef {
    * Gets the underlying MDXEditor methods for advanced operations.
    */
   getEditorMethods: () => MDXEditorMethods | null;
+  /**
+   * Scrolls the editor to a specific line number with smooth animation.
+   */
+  scrollToLine: (lineStart: number, lineEnd?: number) => void;
+  /**
+   * Scrolls the editor to content matching the given section name.
+   */
+  scrollToSection: (sectionName: string) => void;
 }
 
 /**
@@ -140,6 +148,7 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
   ref
 ) {
   const editorRef = useRef<MDXEditorMethods>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [parseError, setParseError] = useState<string | null>(null);
 
   // Sanitize content to escape problematic angle brackets
@@ -166,6 +175,222 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
       focus: () => editorRef.current?.focus(),
       insertMarkdown: (markdown: string) => editorRef.current?.insertMarkdown(markdown),
       getEditorMethods: () => editorRef.current,
+      scrollToLine: (lineStart: number, _lineEnd?: number) => {
+        const container = containerRef.current;
+        if (!container) {
+          console.warn('[scrollToLine] No container ref');
+          return;
+        }
+
+        // Try multiple selectors to find the scrollable area
+        const possibleContainers = [
+          container.querySelector('.mdxeditor-root-contenteditable'),
+          container.querySelector('[contenteditable="true"]'),
+          container.querySelector('.mdxeditor'),
+          container.querySelector('.spec-editor-content'),
+        ];
+
+        const scrollableArea = possibleContainers.find(el => el !== null) as HTMLElement;
+
+        if (!scrollableArea) {
+          console.warn('[scrollToLine] No scrollable area found');
+          return;
+        }
+
+        console.log('[scrollToLine] Found scrollable area:', scrollableArea.className);
+
+        // Get the markdown content and extract text at target lines
+        const markdown = editorRef.current?.getMarkdown() ?? '';
+        const lines = markdown.split('\n');
+
+        // Get the text content at the target line (use first 50 chars as search string)
+        const targetLine = lines[lineStart - 1] || '';
+        const searchText = targetLine.trim().substring(0, 50).replace(/[#*_`[\]]/g, ''); // Strip markdown formatting
+
+        console.log('[scrollToLine] Searching for text:', searchText, 'at line', lineStart);
+
+        if (!searchText) {
+          console.warn('[scrollToLine] No text content at target line');
+          return;
+        }
+
+        // Find all text nodes and elements that might contain this text
+        const allElements = scrollableArea.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, th, pre, div');
+        let targetElement: HTMLElement | null = null;
+
+        for (const elem of allElements) {
+          const htmlElem = elem as HTMLElement;
+          const elemText = htmlElem.textContent || '';
+
+          // Check if this element contains our search text
+          if (elemText.includes(searchText)) {
+            targetElement = htmlElem;
+            console.log('[scrollToLine] Found matching element:', htmlElem.tagName, htmlElem.textContent?.substring(0, 50));
+            break;
+          }
+        }
+
+        if (!targetElement) {
+          console.warn('[scrollToLine] Could not find element with text:', searchText);
+          return;
+        }
+
+        // Get scroll parent (might be the element itself or a parent)
+        let scrollParent: HTMLElement | null = scrollableArea;
+        while (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight) {
+          scrollParent = scrollParent.parentElement;
+        }
+
+        if (!scrollParent) {
+          scrollParent = scrollableArea;
+        }
+
+        console.log('[scrollToLine] Scroll parent:', scrollParent.className);
+
+        // Calculate position to center the target element in viewport
+        const elementTop = targetElement.offsetTop;
+        const elementHeight = targetElement.offsetHeight;
+        const viewportHeight = scrollParent.clientHeight;
+        const centeredPosition = Math.max(0, elementTop - (viewportHeight / 2) + (elementHeight / 2));
+
+        console.log('[scrollToLine] Element top:', elementTop, 'height:', elementHeight, 'scrolling to:', centeredPosition);
+
+        // Smooth scroll to position
+        scrollParent.scrollTo({
+          top: centeredPosition,
+          behavior: 'smooth'
+        });
+
+        // Highlight the found element
+        const originalBg = targetElement.style.background;
+        const originalBorder = targetElement.style.border;
+        const originalTransition = targetElement.style.transition;
+
+        targetElement.style.transition = 'all 0.3s ease';
+        targetElement.style.background = 'rgba(88, 166, 255, 0.15)';
+        targetElement.style.border = '2px solid rgba(88, 166, 255, 0.4)';
+        targetElement.style.borderRadius = '4px';
+
+        setTimeout(() => {
+          if (targetElement) {
+            targetElement.style.transition = 'all 1s ease';
+            targetElement.style.background = originalBg;
+            targetElement.style.border = originalBorder;
+
+            setTimeout(() => {
+              if (targetElement) {
+                targetElement.style.transition = originalTransition;
+              }
+            }, 1000);
+          }
+        }, 1500);
+      },
+      scrollToSection: (sectionName: string) => {
+        const container = containerRef.current;
+        if (!container) {
+          console.warn('[scrollToSection] No container ref');
+          return;
+        }
+
+        const scrollableArea = [
+          container.querySelector('.mdxeditor-root-contenteditable'),
+          container.querySelector('[contenteditable="true"]'),
+          container.querySelector('.mdxeditor'),
+        ].find(el => el !== null) as HTMLElement;
+
+        if (!scrollableArea) {
+          console.warn('[scrollToSection] No scrollable area found');
+          return;
+        }
+
+        console.log('[scrollToSection] Searching for section:', sectionName);
+
+        // Try to match section headings - strip common prefixes
+        const searchTerms = [
+          sectionName,
+          sectionName.replace(/^(Feature|Section|Chapter)\s+\d+:\s*/i, ''),
+          sectionName.split(':').pop()?.trim() || sectionName,
+        ];
+
+        console.log('[scrollToSection] Search terms:', searchTerms);
+
+        // Search all headings
+        const headings = scrollableArea.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        let targetElement: HTMLElement | null = null;
+
+        for (const heading of headings) {
+          const headingText = (heading.textContent || '').trim();
+
+          for (const term of searchTerms) {
+            if (headingText.toLowerCase().includes(term.toLowerCase())) {
+              targetElement = heading as HTMLElement;
+              console.log('[scrollToSection] Found heading:', headingText);
+              break;
+            }
+          }
+
+          if (targetElement) break;
+        }
+
+        if (!targetElement) {
+          // Fallback: search all text content
+          const allElements = scrollableArea.querySelectorAll('p, div, li, td, th');
+          for (const elem of allElements) {
+            const text = (elem.textContent || '').trim();
+            for (const term of searchTerms) {
+              if (text.toLowerCase().includes(term.toLowerCase())) {
+                targetElement = elem as HTMLElement;
+                console.log('[scrollToSection] Found in element:', elem.tagName, text.substring(0, 50));
+                break;
+              }
+            }
+            if (targetElement) break;
+          }
+        }
+
+        if (!targetElement) {
+          console.warn('[scrollToSection] Could not find section:', sectionName);
+          return;
+        }
+
+        // Get scroll parent
+        let scrollParent: HTMLElement | null = scrollableArea;
+        while (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight) {
+          scrollParent = scrollParent.parentElement;
+        }
+        if (!scrollParent) scrollParent = scrollableArea;
+
+        // Center in viewport
+        const elementTop = targetElement.offsetTop;
+        const elementHeight = targetElement.offsetHeight;
+        const viewportHeight = scrollParent.clientHeight;
+        const centeredPosition = Math.max(0, elementTop - (viewportHeight / 2) + (elementHeight / 2));
+
+        console.log('[scrollToSection] Scrolling to:', centeredPosition);
+
+        scrollParent.scrollTo({
+          top: centeredPosition,
+          behavior: 'smooth'
+        });
+
+        // Highlight
+        const originalBg = targetElement.style.background;
+        const originalBorder = targetElement.style.border;
+
+        targetElement.style.transition = 'all 0.3s ease';
+        targetElement.style.background = 'rgba(88, 166, 255, 0.2)';
+        targetElement.style.border = '2px solid rgba(88, 166, 255, 0.6)';
+        targetElement.style.borderRadius = '4px';
+        targetElement.style.padding = '8px';
+
+        setTimeout(() => {
+          if (targetElement) {
+            targetElement.style.transition = 'all 1s ease';
+            targetElement.style.background = originalBg;
+            targetElement.style.border = originalBorder;
+          }
+        }, 2000);
+      },
     }),
     []
   );
@@ -192,7 +417,7 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
   );
 
   return (
-    <div className={`spec-editor ${className ?? ''} ${readOnly ? 'spec-editor--readonly' : ''}`} data-testid="spec-editor">
+    <div ref={containerRef} className={`spec-editor ${className ?? ''} ${readOnly ? 'spec-editor--readonly' : ''}`} data-testid="spec-editor">
       {parseError && (
         <div className="spec-editor-error-banner">
           <span>⚠️ Some content couldn't be parsed in rich-text mode. Showing source view.</span>

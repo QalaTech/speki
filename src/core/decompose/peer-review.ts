@@ -17,6 +17,7 @@ import { detectAllClis, detectCli } from "../cli-detect.js";
 import { resolveCliPath } from "../cli-path.js";
 import type { Project } from "../project.js";
 import { loadGlobalSettings } from "../settings.js";
+import * as logger from "../logger.js";
 
 /** Timeout for Claude CLI execution in milliseconds (5 minutes) */
 export const CLAUDE_TIMEOUT_MS = 300000;
@@ -161,10 +162,7 @@ export async function runWithClaude(
   options: ClaudeReviewOptions
 ): Promise<ClaudeReviewResult> {
   const { prompt, outputPath, projectPath } = options;
-
-  console.log(
-    `  [DEBUG] runWithClaude called with prompt length: ${prompt.length}, projectPath: ${projectPath}`
-  );
+  logger.debug(`runWithClaude called (prompt length=${prompt.length}, projectPath=${projectPath})`, 'peer-review');
   const startTime = Date.now();
 
   return new Promise((resolve, reject) => {
@@ -173,7 +171,7 @@ export async function runWithClaude(
     let timedOut = false;
     let processExited = false;
 
-    console.log(`  [DEBUG] Spawning Claude CLI...`);
+    logger.debug('Spawning Claude CLI...', 'peer-review');
     // Resolve the Claude CLI path - handles cases where claude is an alias not in PATH
     const claudePath = resolveCliPath("claude");
 
@@ -224,9 +222,7 @@ export async function runWithClaude(
       processExited = true;
       clearTimeout(timeoutId);
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(
-        `  [DEBUG] Claude closed after ${elapsed}s, exit code: ${code}, stdout length: ${stdout.length}`
-      );
+      logger.debug(`Claude closed after ${elapsed}s, exit code: ${code}, stdout length: ${stdout.length}`,'peer-review');
 
       // Write raw output to file
       try {

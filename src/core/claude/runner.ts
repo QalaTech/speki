@@ -102,6 +102,14 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
   const jsonlStream = createWriteStream(jsonlPath);
   const stderrStream = createWriteStream(stderrPath);
 
+  // Write initial engine metadata line to JSONL for downstream parsers (UI-safe; system lines are ignored by existing parser)
+  try {
+    const meta = JSON.stringify({ type: 'system', subtype: 'qala-engine', engine: 'claude-cli' });
+    jsonlStream.write(meta + "\n");
+  } catch {
+    // non-fatal
+  }
+
   // Tee stdout: one copy to JSONL file, one to parser
   const parserStream = new PassThrough();
 

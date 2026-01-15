@@ -12,6 +12,7 @@ import { calculateLoopLimit } from '../../core/ralph-loop/loop-limit.js';
 import { loadGlobalSettings } from '../../core/settings.js';
 import { preventSleep, allowSleep } from '../../core/keep-awake.js';
 import type { RalphStatus } from '../../types/index.js';
+import { publishRalph } from '../sse.js';
 
 const router = Router();
 
@@ -177,24 +178,43 @@ router.post('/start', async (req, res) => {
           onIterationStart: async (iteration, story) => {
             if (aborted) throw new Error('Aborted');
             console.log(`[Ralph] Iteration ${iteration} starting: ${story?.id || 'none'}`);
+            publishRalph(projectPath, 'ralph/iteration-start', {
+              iteration,
+              maxIterations: getMaxIterations(),
+              currentStory: story ? `${story.id}: ${story.title}` : null,
+            });
           },
           onIterationEnd: async (iteration, completed, allComplete) => {
             // Don't check abort here - only check at start of new work
             console.log(`[Ralph] Iteration ${iteration} ended: completed=${completed}, allComplete=${allComplete}`);
+            publishRalph(projectPath, 'ralph/iteration-end', {
+              iteration,
+              storyCompleted: completed,
+              allComplete,
+            });
           },
         });
 
         console.log(`[Ralph] Loop finished: allComplete=${result.allComplete}, storiesCompleted=${result.storiesCompleted}`);
 
         // Update final status
-        await project.saveStatus({
+        const finalStatus: RalphStatus = {
           status: result.allComplete ? 'completed' : 'idle',
           currentIteration: result.iterationsRun,
           maxIterations: getMaxIterations(),
-        });
+        };
+        await project.saveStatus(finalStatus);
+        publishRalph(projectPath, 'ralph/status', { status: finalStatus });
+        if (result.allComplete) {
+          publishRalph(projectPath, 'ralph/complete', {
+            iterationsRun: result.iterationsRun,
+            storiesCompleted: result.storiesCompleted,
+          });
+        }
       } catch (error) {
         console.error(`[Ralph] Loop error:`, error);
         await project.saveStatus({ status: 'error' });
+        publishRalph(projectPath, 'ralph/status', { status: { status: 'error' } as RalphStatus });
       } finally {
         runningLoops.delete(projectPath);
         await Registry.updateStatus(projectPath, 'idle');
@@ -214,6 +234,8 @@ router.post('/start', async (req, res) => {
       updateMaxIterations,
     });
 
+    // Publish starting status
+    publishRalph(projectPath, 'ralph/status', { status });
     res.json({ success: true, status });
   } catch (error) {
     res.status(500).json({
@@ -239,9 +261,10 @@ router.post('/stop', async (req, res) => {
       runningLoops.delete(projectPath);
     }
 
-    // Update status
-    await req.project!.saveStatus({ status: 'idle' });
-    await Registry.updateStatus(projectPath, 'idle');
+  // Update status
+  await req.project!.saveStatus({ status: 'idle' });
+  await Registry.updateStatus(projectPath, 'idle');
+  publishRalph(projectPath, 'ralph/status', { status: { status: 'idle' } as RalphStatus });
 
     res.json({ success: true });
   } catch (error) {

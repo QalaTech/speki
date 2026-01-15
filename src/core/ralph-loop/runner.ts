@@ -11,7 +11,8 @@
 import chalk from 'chalk';
 import { Project } from '../project.js';
 import { Registry } from '../registry.js';
-import { runClaude, isClaudeAvailable } from '../claude/runner.js';
+import { runClaude } from '../claude/runner.js';
+import { isDefaultEngineAvailable } from '../llm/engine-factory.js';
 import { createConsoleCallbacks } from '../claude/stream-parser.js';
 import type { PRDData, UserStory, RalphStatus } from '../../types/index.js';
 
@@ -132,8 +133,8 @@ export async function runRalphLoop(
 
   const loadPRD = options.loadPRD ?? (() => project.loadPRD());
 
-  if (!(await isClaudeAvailable())) {
-    throw new Error('Claude CLI is not available. Please install it first.');
+  if (!(await isDefaultEngineAvailable())) {
+    throw new Error('No compatible LLM engine is available. Configure or install one to proceed.');
   }
 
   let prd = await loadPRD();

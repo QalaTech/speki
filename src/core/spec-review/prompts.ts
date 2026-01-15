@@ -5,7 +5,7 @@
 
 // Common instruction appended to all prompts
 const CLOSING_INSTRUCTION =
-  'Analyze the spec and return ONLY the JSON response, no additional commentary.';
+  "Analyze the spec and return ONLY the JSON response, no additional commentary.";
 
 /**
  * Critical guidance about factual claims - appended to prompts that might
@@ -56,7 +56,10 @@ function buildSeveritySection(descriptions: {
 /**
  * Builds the standard suggestion output format used by most prompts.
  */
-function buildStandardOutputFormat(promptName: string, category: string): string {
+function buildStandardOutputFormat(
+  promptName: string,
+  category: string
+): string {
   return `## EXPECTED OUTPUT FORMAT
 Return a JSON object with this exact structure:
 
@@ -80,7 +83,8 @@ Return a JSON object with this exact structure:
       "textSnippet": "Relevant text from spec (required for 'change' type)",
       "issue": "Description of the issue",
       "suggestedFix": "Proposed replacement text (for 'change') OR clarifying question/comment (for 'comment')",
-      "status": "pending"
+      "status": "pending",
+      "tags": ["security", "api"]
     }
   ],
   "durationMs": 0
@@ -95,7 +99,23 @@ Return a JSON object with this exact structure:
 
 ### Suggestion Type Guidelines
 - Use \`"type": "change"\` when you have specific text to replace (textSnippet + suggestedFix as concrete text modification)
-- Use \`"type": "comment"\` when asking a clarifying question, noting a general concern, or the issue requires human judgment`;
+- Use \`"type": "comment"\` when asking a clarifying question, noting a general concern, or the issue requires human judgment
+
+### Tags Guidelines
+- **tags**: Array of domain/concern tags that apply to this suggestion. Choose from:
+  - \`security\` - Auth, vulnerabilities, data protection, encryption
+  - \`performance\` - Speed, optimization, caching, latency
+  - \`scalability\` - Load handling, growth, horizontal scaling
+  - \`data\` - Data models, privacy, GDPR, storage
+  - \`api\` - API design, contracts, endpoints, versioning
+  - \`ux\` - User experience, usability, flows
+  - \`accessibility\` - A11y, WCAG compliance, screen readers
+  - \`architecture\` - System design, patterns, dependencies
+  - \`testing\` - Test coverage, test strategy, testability
+  - \`infrastructure\` - Deployment, DevOps, CI/CD, monitoring
+  - \`error-handling\` - Error cases, edge cases, fallbacks
+  - \`documentation\` - Docs, comments, clarity of explanation
+- Include relevant tags per suggestion. A suggestion can have multiple tags.`;
 }
 
 /**
@@ -214,17 +234,17 @@ ${buildContextHeader()}
 5. **Security Requirements**: Authentication, authorization, data protection needs
 
 ${buildSeveritySection({
-  critical: 'Implementation cannot proceed without this information',
-  warning: 'Ambiguity that could lead to incorrect implementation',
-  info: 'Nice-to-have clarification that would improve the spec',
+  critical: "Implementation cannot proceed without this information",
+  warning: "Ambiguity that could lead to incorrect implementation",
+  info: "Nice-to-have clarification that would improve the spec",
 })}
 
-${buildStandardOutputFormat('requirements_completeness', 'completeness')}
+${buildStandardOutputFormat("requirements_completeness", "completeness")}
 
 ${buildVerdictGuidelines({
-  pass: 'All critical requirements present, minor gaps at most',
-  fail: 'Critical requirements missing that block implementation',
-  needsImprovement: 'No critical gaps but significant warnings present',
+  pass: "All critical requirements present, minor gaps at most",
+  fail: "Critical requirements missing that block implementation",
+  needsImprovement: "No critical gaps but significant warnings present",
 })}
 ${FACTUAL_CLAIMS_WARNING}
 
@@ -256,17 +276,17 @@ ${buildContextHeader()}
 5. **Unambiguous Language**: Replace "should" with "must" where mandatory
 
 ${buildSeveritySection({
-  critical: 'Ambiguity that could result in fundamentally wrong implementation',
-  warning: 'Ambiguity that could cause rework or misaligned expectations',
-  info: 'Minor clarity improvements that would enhance understanding',
+  critical: "Ambiguity that could result in fundamentally wrong implementation",
+  warning: "Ambiguity that could cause rework or misaligned expectations",
+  info: "Minor clarity improvements that would enhance understanding",
 })}
 
-${buildStandardOutputFormat('clarity_specificity', 'clarity')}
+${buildStandardOutputFormat("clarity_specificity", "clarity")}
 
 ${buildVerdictGuidelines({
-  pass: 'Spec is clear and specific, minor improvements only',
-  fail: 'Critical ambiguities that could cause major misimplementation',
-  needsImprovement: 'Several warnings that should be addressed',
+  pass: "Spec is clear and specific, minor improvements only",
+  fail: "Critical ambiguities that could cause major misimplementation",
+  needsImprovement: "Several warnings that should be addressed",
 })}
 ${FACTUAL_CLAIMS_WARNING}
 
@@ -304,17 +324,17 @@ For each major feature, you should be able to derive:
 - Clear pass/fail criteria
 
 ${buildSeveritySection({
-  critical: 'Core functionality cannot be verified',
-  warning: 'Feature testable but acceptance criteria unclear',
-  info: 'Suggestion to add explicit test scenarios',
+  critical: "Core functionality cannot be verified",
+  warning: "Feature testable but acceptance criteria unclear",
+  info: "Suggestion to add explicit test scenarios",
 })}
 
-${buildStandardOutputFormat('testability', 'testability')}
+${buildStandardOutputFormat("testability", "testability")}
 
 ${buildVerdictGuidelines({
-  pass: 'All requirements are testable with clear acceptance criteria',
-  fail: 'Core requirements cannot be verified',
-  needsImprovement: 'Some requirements need clearer success criteria',
+  pass: "All requirements are testable with clear acceptance criteria",
+  fail: "Core requirements cannot be verified",
+  needsImprovement: "Some requirements need clearer success criteria",
 })}
 
 ${CLOSING_INSTRUCTION}`;
@@ -352,22 +372,23 @@ ${buildContextHeader()}
 5. **Future Flexibility**: Does this constrain or enable future development?
 
 ${buildSeveritySection({
-  critical: 'Architectural violation or scope that would cause system-wide issues',
-  warning: 'Scope concern that should be reconsidered or requires justification',
-  info: 'Suggestion for better alignment with existing patterns',
+  critical:
+    "Architectural violation or scope that would cause system-wide issues",
+  warning:
+    "Scope concern that should be reconsidered or requires justification",
+  info: "Suggestion for better alignment with existing patterns",
 })}
 
-${buildStandardOutputFormat('scope_validation', 'scope')}
+${buildStandardOutputFormat("scope_validation", "scope")}
 
 ${buildVerdictGuidelines({
-  pass: 'Scope is well-defined and aligns with codebase architecture',
-  fail: 'Scope violates architecture or would cause significant problems',
-  needsImprovement: 'Scope needs refinement for better alignment',
+  pass: "Scope is well-defined and aligns with codebase architecture",
+  fail: "Scope violates architecture or would cause significant problems",
+  needsImprovement: "Scope needs refinement for better alignment",
 })}
 ${FACTUAL_CLAIMS_WARNING}
 
 ${CLOSING_INSTRUCTION}`;
-
 
 // =============================================================================
 // ENHANCED PRD REVIEW PROMPTS
@@ -417,17 +438,19 @@ Check flows that cross system boundaries:
 4. **Notifications**: Email, push, in-app alerts
 
 ${buildSeveritySection({
-  critical: 'Major user flow is incomplete or missing entirely - users cannot complete core tasks',
-  warning: 'Error path or edge case flow is missing - could cause user confusion',
-  info: 'Minor flow optimization or alternative path suggestion',
+  critical:
+    "Major user flow is incomplete or missing entirely - users cannot complete core tasks",
+  warning:
+    "Error path or edge case flow is missing - could cause user confusion",
+  info: "Minor flow optimization or alternative path suggestion",
 })}
 
-${buildStandardOutputFormat('e2e_flow_analysis', 'flow')}
+${buildStandardOutputFormat("e2e_flow_analysis", "flow")}
 
 ${buildVerdictGuidelines({
-  pass: 'All user flows are complete with clear entry, actions, and exit points',
-  fail: 'Critical user flows are incomplete or missing',
-  needsImprovement: 'Some flows need error handling or edge case coverage',
+  pass: "All user flows are complete with clear entry, actions, and exit points",
+  fail: "Critical user flows are incomplete or missing",
+  needsImprovement: "Some flows need error handling or edge case coverage",
 })}
 
 ${CLOSING_INSTRUCTION}`;
@@ -485,21 +508,21 @@ A good PRD explicitly states:
 6. **Missing "Why"**: Features without justification
 
 ${buildSeveritySection({
-  critical: 'Missing essential PRD element (problem statement, personas, or success metrics)',
-  warning: 'PRD element present but weak or incomplete',
-  info: 'Suggestion to strengthen PRD with best practices',
+  critical:
+    "Missing essential PRD element (problem statement, personas, or success metrics)",
+  warning: "PRD element present but weak or incomplete",
+  info: "Suggestion to strengthen PRD with best practices",
 })}
 
-${buildStandardOutputFormat('prd_best_practices', 'best_practices')}
+${buildStandardOutputFormat("prd_best_practices", "best_practices")}
 
 ${buildVerdictGuidelines({
-  pass: 'PRD follows best practices with clear problem, personas, and success metrics',
-  fail: 'PRD missing essential elements or has major structural issues',
-  needsImprovement: 'PRD has most elements but needs strengthening',
+  pass: "PRD follows best practices with clear problem, personas, and success metrics",
+  fail: "PRD missing essential elements or has major structural issues",
+  needsImprovement: "PRD has most elements but needs strengthening",
 })}
 
 ${CLOSING_INSTRUCTION}`;
-
 
 // =============================================================================
 // TECH SPEC STORY ALIGNMENT PROMPT
@@ -589,7 +612,6 @@ Focus on ensuring every user story has clear technical implementation details.
 
 ${CLOSING_INSTRUCTION}`;
 
-
 // =============================================================================
 // DECOMPOSE REVIEW PROMPTS (FR-6)
 // These prompts compare spec document against generated tasks JSON.
@@ -610,7 +632,10 @@ function buildDecomposeContextHeader(): string {
 /**
  * Builds the standard decompose review output format.
  */
-function buildDecomposeOutputFormat(promptName: string, category: string): string {
+function buildDecomposeOutputFormat(
+  promptName: string,
+  category: string
+): string {
   return `## EXPECTED OUTPUT FORMAT
 Return a JSON object with this exact structure:
 
@@ -634,7 +659,6 @@ Return a JSON object with this exact structure:
 }
 \`\`\``;
 }
-
 
 /**
  * Builds severity classification for decompose review prompts.
@@ -687,16 +711,16 @@ ${buildDecomposeContextHeader()}
 4. Flag requirements with no matching task coverage
 
 ${buildDecomposeSeveritySection({
-  critical: 'Core functionality requirement not covered by any task',
-  warning: 'Secondary requirement or edge case missing coverage',
-  info: 'Nice-to-have or implicit requirement not explicitly tasked',
+  critical: "Core functionality requirement not covered by any task",
+  warning: "Secondary requirement or edge case missing coverage",
+  info: "Nice-to-have or implicit requirement not explicitly tasked",
 })}
 
-${buildDecomposeOutputFormat('missing_requirements', 'coverage')}
+${buildDecomposeOutputFormat("missing_requirements", "coverage")}
 
 ${buildDecomposeVerdictGuidelines({
-  pass: 'All requirements in spec have corresponding task coverage',
-  fail: 'One or more requirements lack task coverage',
+  pass: "All requirements in spec have corresponding task coverage",
+  fail: "One or more requirements lack task coverage",
 })}
 
 ${CLOSING_INSTRUCTION}`;
@@ -728,16 +752,16 @@ ${buildDecomposeContextHeader()}
 4. **Ordering Contradictions**: Tasks assume different execution orders that conflict
 
 ${buildDecomposeSeveritySection({
-  critical: 'Direct contradiction that would cause implementation failure',
-  warning: 'Inconsistency that could lead to confusion or rework',
-  info: 'Minor discrepancy that should be clarified',
+  critical: "Direct contradiction that would cause implementation failure",
+  warning: "Inconsistency that could lead to confusion or rework",
+  info: "Minor discrepancy that should be clarified",
 })}
 
-${buildDecomposeOutputFormat('contradictions', 'consistency')}
+${buildDecomposeOutputFormat("contradictions", "consistency")}
 
 ${buildDecomposeVerdictGuidelines({
-  pass: 'No contradictions found between spec and tasks or between tasks',
-  fail: 'One or more contradictions detected that need resolution',
+  pass: "No contradictions found between spec and tasks or between tasks",
+  fail: "One or more contradictions detected that need resolution",
 })}
 
 ${CLOSING_INSTRUCTION}`;
@@ -773,16 +797,17 @@ ${buildDecomposeContextHeader()}
 4. **Setup before Use**: Configuration/setup before dependent features
 
 ${buildDecomposeSeveritySection({
-  critical: 'Circular dependency or missing critical dependency that blocks execution',
-  warning: 'Missing dependency that could cause implementation issues',
-  info: 'Unnecessary dependency that could be removed for efficiency',
+  critical:
+    "Circular dependency or missing critical dependency that blocks execution",
+  warning: "Missing dependency that could cause implementation issues",
+  info: "Unnecessary dependency that could be removed for efficiency",
 })}
 
-${buildDecomposeOutputFormat('dependency_validation', 'dependencies')}
+${buildDecomposeOutputFormat("dependency_validation", "dependencies")}
 
 ${buildDecomposeVerdictGuidelines({
-  pass: 'All dependencies are valid and form a correct execution DAG',
-  fail: 'Dependency issues found that need correction',
+  pass: "All dependencies are valid and form a correct execution DAG",
+  fail: "Dependency issues found that need correction",
 })}
 
 ${CLOSING_INSTRUCTION}`;
@@ -824,20 +849,19 @@ ${buildDecomposeContextHeader()}
 - Same API endpoint modified by multiple tasks = potential conflict
 
 ${buildDecomposeSeveritySection({
-  critical: 'Exact duplicate tasks that should be removed',
-  warning: 'Significant overlap that should be merged or clarified',
-  info: 'Minor overlap that could be better organized',
+  critical: "Exact duplicate tasks that should be removed",
+  warning: "Significant overlap that should be merged or clarified",
+  info: "Minor overlap that could be better organized",
 })}
 
-${buildDecomposeOutputFormat('duplicate_detection', 'duplication')}
+${buildDecomposeOutputFormat("duplicate_detection", "duplication")}
 
 ${buildDecomposeVerdictGuidelines({
-  pass: 'No duplicate or significantly overlapping tasks found',
-  fail: 'Duplicate or overlapping tasks detected that need resolution',
+  pass: "No duplicate or significantly overlapping tasks found",
+  fail: "Duplicate or overlapping tasks detected that need resolution",
 })}
 
 ${CLOSING_INSTRUCTION}`;
-
 
 // =============================================================================
 // TYPE-SPECIFIC REVIEW PROMPTS
@@ -869,17 +893,17 @@ ${buildContextHeader()}
 5. **Dependencies**: Libraries, services, or features this depends on
 
 ${buildSeveritySection({
-  critical: 'Missing technical detail that would block implementation',
-  warning: 'Ambiguity that could lead to incorrect implementation',
-  info: 'Nice-to-have technical clarification',
+  critical: "Missing technical detail that would block implementation",
+  warning: "Ambiguity that could lead to incorrect implementation",
+  info: "Nice-to-have technical clarification",
 })}
 
-${buildStandardOutputFormat('tech_spec_completeness', 'technical')}
+${buildStandardOutputFormat("tech_spec_completeness", "technical")}
 
 ${buildVerdictGuidelines({
-  pass: 'Tech spec is implementation-ready with clear technical details',
-  fail: 'Critical technical gaps that prevent implementation',
-  needsImprovement: 'Some technical details need clarification',
+  pass: "Tech spec is implementation-ready with clear technical details",
+  fail: "Critical technical gaps that prevent implementation",
+  needsImprovement: "Some technical details need clarification",
 })}
 ${FACTUAL_CLAIMS_WARNING}
 
@@ -915,17 +939,18 @@ ${buildContextHeader()}
 4. **Incomplete schemas**: Fields referenced but not defined
 
 ${buildSeveritySection({
-  critical: 'API contract issue that would cause runtime errors or security issues',
-  warning: 'API inconsistency that could confuse consumers',
-  info: 'API design improvement suggestion',
+  critical:
+    "API contract issue that would cause runtime errors or security issues",
+  warning: "API inconsistency that could confuse consumers",
+  info: "API design improvement suggestion",
 })}
 
-${buildStandardOutputFormat('api_contract', 'api')}
+${buildStandardOutputFormat("api_contract", "api")}
 
 ${buildVerdictGuidelines({
-  pass: 'API contracts are complete and well-designed',
-  fail: 'Critical API issues that must be fixed',
-  needsImprovement: 'Some API details need refinement',
+  pass: "API contracts are complete and well-designed",
+  fail: "Critical API issues that must be fixed",
+  needsImprovement: "Some API details need refinement",
 })}
 
 ${CLOSING_INSTRUCTION}`;
@@ -959,17 +984,18 @@ ${buildContextHeader()}
 3. **Scope Boundaries**: What is NOT being fixed (avoiding scope creep)
 
 ${buildSeveritySection({
-  critical: 'Missing information that prevents understanding or reproducing the bug',
-  warning: 'Missing detail that could lead to incomplete fix',
-  info: 'Additional context that would help investigation',
+  critical:
+    "Missing information that prevents understanding or reproducing the bug",
+  warning: "Missing detail that could lead to incomplete fix",
+  info: "Additional context that would help investigation",
 })}
 
-${buildStandardOutputFormat('bug_report_completeness', 'bug')}
+${buildStandardOutputFormat("bug_report_completeness", "bug")}
 
 ${buildVerdictGuidelines({
-  pass: 'Bug report is complete and actionable',
-  fail: 'Missing critical information to reproduce or fix the bug',
-  needsImprovement: 'Some details need clarification for effective fixing',
+  pass: "Bug report is complete and actionable",
+  fail: "Missing critical information to reproduce or fix the bug",
+  needsImprovement: "Some details need clarification for effective fixing",
 })}
 
 ${CLOSING_INSTRUCTION}`;
@@ -1003,28 +1029,27 @@ ${buildContextHeader()}
 4. **Network Requests**: Failing requests identified
 
 ${buildSeveritySection({
-  critical: 'Cannot reproduce the bug with given steps',
-  warning: 'Steps are unclear or may not reliably reproduce',
-  info: 'Additional detail would help reproduction',
+  critical: "Cannot reproduce the bug with given steps",
+  warning: "Steps are unclear or may not reliably reproduce",
+  info: "Additional detail would help reproduction",
 })}
 
-${buildStandardOutputFormat('bug_reproduction', 'reproduction')}
+${buildStandardOutputFormat("bug_reproduction", "reproduction")}
 
 ${buildVerdictGuidelines({
-  pass: 'Reproduction steps are clear and complete',
-  fail: 'Cannot reliably reproduce the bug from given steps',
-  needsImprovement: 'Steps need more detail or clarification',
+  pass: "Reproduction steps are clear and complete",
+  fail: "Cannot reliably reproduce the bug from given steps",
+  needsImprovement: "Steps need more detail or clarification",
 })}
 
 ${CLOSING_INSTRUCTION}`;
-
 
 // =============================================================================
 // TYPE-SPECIFIC PROMPT SETS
 // Export prompt arrays for each spec type
 // =============================================================================
 
-import type { SpecType } from '../../types/index.js';
+import type { SpecType } from "../../types/index.js";
 
 interface PromptDefinition {
   name: string;
@@ -1034,31 +1059,86 @@ interface PromptDefinition {
 
 /** Prompts for PRD review (default, existing prompts) */
 export const PRD_REVIEW_PROMPTS: PromptDefinition[] = [
-  { name: 'god_spec_detection', category: 'scope', template: GOD_SPEC_DETECTION_PROMPT },
-  { name: 'requirements_completeness', category: 'completeness', template: REQUIREMENTS_COMPLETENESS_PROMPT },
-  { name: 'clarity_specificity', category: 'clarity', template: CLARITY_SPECIFICITY_PROMPT },
-  { name: 'testability', category: 'testability', template: TESTABILITY_PROMPT },
-  { name: 'scope_validation', category: 'scope_alignment', template: SCOPE_VALIDATION_PROMPT },
-  { name: 'e2e_flow_analysis', category: 'flow', template: PRD_E2E_FLOW_PROMPT },
-  { name: 'prd_best_practices', category: 'best_practices', template: PRD_BEST_PRACTICES_PROMPT },
+  {
+    name: "god_spec_detection",
+    category: "scope",
+    template: GOD_SPEC_DETECTION_PROMPT,
+  },
+  {
+    name: "requirements_completeness",
+    category: "completeness",
+    template: REQUIREMENTS_COMPLETENESS_PROMPT,
+  },
+  {
+    name: "clarity_specificity",
+    category: "clarity",
+    template: CLARITY_SPECIFICITY_PROMPT,
+  },
+  {
+    name: "testability",
+    category: "testability",
+    template: TESTABILITY_PROMPT,
+  },
+  {
+    name: "scope_validation",
+    category: "scope_alignment",
+    template: SCOPE_VALIDATION_PROMPT,
+  },
+  {
+    name: "e2e_flow_analysis",
+    category: "flow",
+    template: PRD_E2E_FLOW_PROMPT,
+  },
+  {
+    name: "prd_best_practices",
+    category: "best_practices",
+    template: PRD_BEST_PRACTICES_PROMPT,
+  },
 ];
 
 /** Prompts for Tech Spec review */
 export const TECH_SPEC_REVIEW_PROMPTS: PromptDefinition[] = [
-  { name: 'tech_spec_completeness', category: 'technical', template: TECH_SPEC_COMPLETENESS_PROMPT },
-  { name: 'api_contract', category: 'api', template: API_CONTRACT_PROMPT },
-  { name: 'clarity_specificity', category: 'clarity', template: CLARITY_SPECIFICITY_PROMPT },
-  { name: 'testability', category: 'testability', template: TESTABILITY_PROMPT },
-  { name: 'tech_spec_story_alignment', category: 'alignment', template: TECH_SPEC_STORY_ALIGNMENT_PROMPT },
+  {
+    name: "tech_spec_completeness",
+    category: "technical",
+    template: TECH_SPEC_COMPLETENESS_PROMPT,
+  },
+  { name: "api_contract", category: "api", template: API_CONTRACT_PROMPT },
+  {
+    name: "clarity_specificity",
+    category: "clarity",
+    template: CLARITY_SPECIFICITY_PROMPT,
+  },
+  {
+    name: "testability",
+    category: "testability",
+    template: TESTABILITY_PROMPT,
+  },
+  {
+    name: "tech_spec_story_alignment",
+    category: "alignment",
+    template: TECH_SPEC_STORY_ALIGNMENT_PROMPT,
+  },
 ];
 
 /** Prompts for Bug report review */
 export const BUG_REVIEW_PROMPTS: PromptDefinition[] = [
-  { name: 'bug_report_completeness', category: 'bug', template: BUG_REPORT_COMPLETENESS_PROMPT },
-  { name: 'bug_reproduction', category: 'reproduction', template: BUG_REPRODUCTION_PROMPT },
-  { name: 'clarity_specificity', category: 'clarity', template: CLARITY_SPECIFICITY_PROMPT },
+  {
+    name: "bug_report_completeness",
+    category: "bug",
+    template: BUG_REPORT_COMPLETENESS_PROMPT,
+  },
+  {
+    name: "bug_reproduction",
+    category: "reproduction",
+    template: BUG_REPRODUCTION_PROMPT,
+  },
+  {
+    name: "clarity_specificity",
+    category: "clarity",
+    template: CLARITY_SPECIFICITY_PROMPT,
+  },
 ];
-
 
 // =============================================================================
 // USER STORY REVIEW PROMPTS
@@ -1224,9 +1304,21 @@ Focus on stories that are too large or too small.`;
 
 /** Prompts for User Story review (after PRD decomposition) */
 export const USER_STORY_REVIEW_PROMPTS: PromptDefinition[] = [
-  { name: 'acceptance_criteria_validation', category: 'criteria', template: STORY_ACCEPTANCE_CRITERIA_PROMPT },
-  { name: 'story_completeness', category: 'completeness', template: STORY_COMPLETENESS_PROMPT },
-  { name: 'story_complexity', category: 'complexity', template: STORY_COMPLEXITY_PROMPT },
+  {
+    name: "acceptance_criteria_validation",
+    category: "criteria",
+    template: STORY_ACCEPTANCE_CRITERIA_PROMPT,
+  },
+  {
+    name: "story_completeness",
+    category: "completeness",
+    template: STORY_COMPLETENESS_PROMPT,
+  },
+  {
+    name: "story_complexity",
+    category: "complexity",
+    template: STORY_COMPLEXITY_PROMPT,
+  },
 ];
 
 /**
@@ -1239,18 +1331,19 @@ export function getUserStoryReviewPrompts(): PromptDefinition[] {
 /**
  * Get the appropriate review prompts for a spec type
  */
-export function getReviewPromptsForType(specType: SpecType): PromptDefinition[] {
+export function getReviewPromptsForType(
+  specType: SpecType
+): PromptDefinition[] {
   switch (specType) {
-    case 'tech-spec':
+    case "tech-spec":
       return TECH_SPEC_REVIEW_PROMPTS;
-    case 'bug':
+    case "bug":
       return BUG_REVIEW_PROMPTS;
-    case 'prd':
+    case "prd":
     default:
       return PRD_REVIEW_PROMPTS;
   }
 }
-
 
 // =============================================================================
 // REVIEW AGGREGATION PROMPT
@@ -1363,13 +1456,17 @@ Focus on producing a clean, actionable list that a developer can work through wi
  */
 export function buildAggregationPrompt(
   specPath: string,
-  reviewResults: Array<{ promptName: string; verdict: string; issues: string[]; suggestions: unknown[] }>,
+  reviewResults: Array<{
+    promptName: string;
+    verdict: string;
+    issues: string[];
+    suggestions: unknown[];
+  }>,
   promptCount: number
 ): string {
   const resultsJson = JSON.stringify(reviewResults, null, 2);
 
-  return REVIEW_AGGREGATION_PROMPT
-    .replace('{specPath}', specPath)
-    .replace('{promptCount}', String(promptCount))
-    .replace('{reviewResults}', resultsJson);
+  return REVIEW_AGGREGATION_PROMPT.replace("{specPath}", specPath)
+    .replace("{promptCount}", String(promptCount))
+    .replace("{reviewResults}", resultsJson);
 }

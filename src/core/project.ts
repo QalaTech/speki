@@ -129,28 +129,7 @@ export class Project {
    * Copy template files from the package
    */
   private async copyTemplates(language: string): Promise<void> {
-    // Get the templates directory - try multiple locations
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-
-    // Try possible template locations:
-    // 1. From dist/src/core -> ../../.. -> package root -> templates
-    // 2. From src/core -> ../.. -> package root -> templates
-    const possiblePaths = [
-      join(__dirname, '..', '..', '..', 'templates'),  // from dist/src/core
-      join(__dirname, '..', '..', 'templates'),        // from src/core (dev)
-    ];
-
-    let templatesDir: string | null = null;
-    for (const p of possiblePaths) {
-      try {
-        await access(p);
-        templatesDir = p;
-        break;
-      } catch {
-        // Try next path
-      }
-    }
+    const templatesDir = await this.resolveTemplatesDir();
 
     if (!templatesDir) {
       // No templates found, create placeholders
@@ -218,26 +197,7 @@ export class Project {
    */
   async updateTemplates(): Promise<string[]> {
     const updated: string[] = [];
-
-    // Get the templates directory
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-
-    const possiblePaths = [
-      join(__dirname, '..', '..', '..', 'templates'),  // from dist/src/core
-      join(__dirname, '..', '..', 'templates'),        // from src/core (dev)
-    ];
-
-    let templatesDir: string | null = null;
-    for (const p of possiblePaths) {
-      try {
-        await access(p);
-        templatesDir = p;
-        break;
-      } catch {
-        // Try next path
-      }
-    }
+    const templatesDir = await this.resolveTemplatesDir();
 
     if (!templatesDir) {
       throw new Error('Templates directory not found');
@@ -302,6 +262,27 @@ export class Project {
     }
 
     return updated;
+  }
+
+  /**
+   * Resolve templates directory from source or dist locations.
+   */
+  private async resolveTemplatesDir(): Promise<string | null> {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const possiblePaths = [
+      join(__dirname, '..', '..', '..', 'templates'),  // from dist/src/core
+      join(__dirname, '..', '..', 'templates'),        // from src/core (dev)
+    ];
+    for (const p of possiblePaths) {
+      try {
+        await access(p);
+        return p;
+      } catch {
+        // try next path
+      }
+    }
+    return null;
   }
 
   // Config operations

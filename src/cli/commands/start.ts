@@ -1,19 +1,16 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { select } from '@inquirer/prompts';
 import { Project, findProjectRoot } from '../../core/project.js';
 import { Registry } from '../../core/registry.js';
 import { runRalphLoop } from '../../core/ralph-loop/runner.js';
 import { calculateLoopLimit } from '../../core/ralph-loop/loop-limit.js';
-import { isClaudeAvailable } from '../../core/claude/runner.js';
+import { isDefaultEngineAvailable } from '../../core/llm/engine-factory.js';
 import { preventSleep, allowSleep, isPreventingSleep } from '../../core/keep-awake.js';
 import { loadGlobalSettings } from '../../core/settings.js';
 import {
-  listSpecs,
-  loadPRDForSpec,
   updateSpecStatus,
-  readSpecMetadata,
 } from '../../core/spec-review/spec-metadata.js';
+import { resolveSpecAndLoadPRD } from '../shared/spec-utils.js';
 import type { PRDData } from '../../types/index.js';
 
 /**
@@ -25,99 +22,7 @@ import type { PRDData } from '../../types/index.js';
  * @param specOption - Optional spec ID provided via --spec flag
  * @returns The PRD and spec ID (null if using legacy location)
  */
-async function resolveSpecAndLoadPRD(
-  projectPath: string,
-  project: Project,
-  specOption?: string
-): Promise<{ prd: PRDData; specId: string | null } | null> {
-  const specs = await listSpecs(projectPath);
-
-  // If --spec flag is provided, use that
-  if (specOption) {
-    return resolveExplicitSpec(projectPath, specs, specOption);
-  }
-
-  // If single spec exists, use it
-  if (specs.length === 1) {
-    const specId = specs[0];
-    const prd = await loadPRDForSpec(projectPath, specId);
-    if (prd) {
-      return { prd, specId };
-    }
-  }
-
-  // If multiple specs exist, prompt user to select
-  if (specs.length > 1) {
-    return resolveMultipleSpecs(projectPath, specs);
-  }
-
-  // No specs exist, fall back to legacy location
-  const legacyPrd = await project.loadPRD();
-  if (legacyPrd) {
-    return { prd: legacyPrd, specId: null };
-  }
-
-  return null;
-}
-
-/**
- * Handles explicit --spec flag by validating and loading the specified spec.
- */
-async function resolveExplicitSpec(
-  projectPath: string,
-  specs: string[],
-  specOption: string
-): Promise<{ prd: PRDData; specId: string } | null> {
-  if (!specs.includes(specOption)) {
-    console.error(chalk.red(`Error: Spec '${specOption}' not found.`));
-    console.error(chalk.yellow(`Available specs: ${specs.join(', ') || 'none'}`));
-    return null;
-  }
-
-  const prd = await loadPRDForSpec(projectPath, specOption);
-  if (!prd) {
-    console.error(chalk.red(`Error: No PRD found for spec '${specOption}'. Run \`qala decompose\` first.`));
-    return null;
-  }
-
-  return { prd, specId: specOption };
-}
-
-/**
- * Handles multiple specs by filtering to those with decomposed PRDs and prompting for selection.
- */
-async function resolveMultipleSpecs(
-  projectPath: string,
-  specs: string[]
-): Promise<{ prd: PRDData; specId: string } | null> {
-  const validStatuses = ['decomposed', 'active', 'completed'];
-  const specsWithPrds: string[] = [];
-
-  for (const spec of specs) {
-    const metadata = await readSpecMetadata(projectPath, spec);
-    if (metadata && validStatuses.includes(metadata.status)) {
-      const prd = await loadPRDForSpec(projectPath, spec);
-      if (prd) {
-        specsWithPrds.push(spec);
-      }
-    }
-  }
-
-  if (specsWithPrds.length === 0) {
-    console.error(chalk.red('Error: No specs have decomposed PRDs. Run `qala decompose` first.'));
-    return null;
-  }
-
-  const specId = specsWithPrds.length === 1
-    ? specsWithPrds[0]
-    : await select({
-        message: 'Multiple decomposed specs found. Select one to start:',
-        choices: specsWithPrds.map((spec) => ({ name: spec, value: spec })),
-      });
-
-  const prd = await loadPRDForSpec(projectPath, specId);
-  return prd ? { prd, specId } : null;
-}
+// Spec resolution DRY: pulled into ../shared/spec-utils
 
 export const startCommand = new Command('start')
   .description('Start Ralph loop for current project')
@@ -139,13 +44,9 @@ export const startCommand = new Command('start')
         process.exit(1);
       }
 
-      if (!(await isClaudeAvailable())) {
-        console.error(
-          chalk.red('Error: Claude CLI is not available.')
-        );
-        console.error(
-          chalk.gray('Install it from: https://docs.anthropic.com/claude-code')
-        );
+      if (!(await isDefaultEngineAvailable())) {
+        console.error(chalk.red('Error: No compatible LLM engine is available.'));
+        console.error(chalk.gray('Configure or install an engine via ~/.qala/config.json or environment.'));
         process.exit(1);
       }
 

@@ -21,14 +21,33 @@ interface SpecSession {
   chatMessages: ChatMessage[];
 }
 
+type SuggestionTag =
+  | 'security'
+  | 'performance'
+  | 'scalability'
+  | 'data'
+  | 'api'
+  | 'ux'
+  | 'accessibility'
+  | 'architecture'
+  | 'testing'
+  | 'infrastructure'
+  | 'error-handling'
+  | 'documentation';
+
 interface Suggestion {
   id: string;
   type?: 'change' | 'comment';
   severity: 'critical' | 'warning' | 'info';
-  location: { section: string; lineStart: number; lineEnd: number };
+  // Data can come in two formats - handle both
+  location?: { section: string; lineStart?: number; lineEnd?: number };
+  section?: string;
+  lineStart?: number | null;
+  lineEnd?: number | null;
   issue: string;
   suggestedFix: string;
   status: 'pending' | 'approved' | 'rejected' | 'edited';
+  tags?: SuggestionTag[];
 }
 
 interface ReviewResult {
@@ -63,6 +82,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   // Session state (for review tab)
   const [session, setSession] = useState<SpecSession | null>(null);
   const [isStartingReview, setIsStartingReview] = useState(false);
+  const [selectedTagFilters, setSelectedTagFilters] = useState<Set<SuggestionTag>>(new Set());
 
   // Diff overlay state
   const [diffOverlay, setDiffOverlay] = useState<{
@@ -365,10 +385,59 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
   // Simple suggestion application (real implementation would be smarter)
   const applySuggestion = (text: string, suggestion: Suggestion): string => {
-    // This is a placeholder - in reality, you'd use the suggestion's location
-    // to intelligently replace text
-    return suggestion.suggestedFix || text;
-  };
+    // Get location info from either root level or nested in location object
+    const section = suggestion.section ?? suggestion.location?.section;
+    const lineStart = suggestion.lineStart ?? suggestion.location?.lineStart;
+    const lineEnd = suggestion.lineEnd ?? suggestion.location?.lineEnd;
+
+    // If we have line numbers, try to insert at that location
+    if (lineStart != null) {
+      const lines = text.split('\n');
+      const targetLineIndex = lineStart - 1; // Convert to 0-based index
+
+      if (targetLineIndex >= 0 && targetLineIndex < lines.length) {
+        // Insert the suggested fix after the end line (or start line if no end)
+        const insertIndex = (lineEnd ?? lineStart);
+        
+        // Add the suggested fix as a new section after the target location
+        lines.splice(insertIndex, 0, '', suggestion.suggestedFix, '');
+        return lines.join('\n');
+      }
+    }
+
+    // If we have a section but no line numbers, try to find the section heading
+    if (section) {
+      const lines = text.split('\n');
+      let sectionIndex = -1;
+
+      // Find the section heading
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.toLowerCase().includes(section.toLowerCase())) {
+          sectionIndex = i;
+          break;
+        }
+      }
+
+      if (sectionIndex >= 0) {
+        // Find the end of this section (next heading or end of document)
+        let sectionEndIndex = lines.length;
+        for (let i = sectionIndex + 1; i < lines.length; i++) {
+          if (lines[i].match(/^#{1,6}\s/)) {
+            sectionEndIndex = i;
+            break;
+          }
+        }
+
+        // Insert the suggested fix at the end of the section
+        lines.splice(sectionEndIndex, 0, '', suggestion.suggestedFix, '');
+        return lines.join('\n');
+      }
+    }
+
+    // Fallback: append to end of document
+    return text + '\n\n' + suggestion.suggestedFix;
+  };;
 
   // Handle diff approval
   const handleDiffApprove = async (finalContent: string) => {
@@ -400,6 +469,60 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     // Close overlay
     setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' });
   };
+
+  // Handle suggestion status update (approve/reject/edit)
+  const handleSuggestionAction = useCallback(async (
+    suggestionId: string,
+    action: 'approved' | 'rejected' | 'edited',
+    userVersion?: string
+  ) => {
+    if (!session?.sessionId) return;
+
+    // If approving, apply the suggestion to the spec first
+    if (action === 'approved') {
+      const suggestion = session.suggestions.find(s => s.id === suggestionId);
+      if (suggestion) {
+        const updatedContent = applySuggestion(content, suggestion);
+        await handleSave(updatedContent);
+        setContent(updatedContent);
+      }
+    }
+
+    try {
+      const res = await fetch(apiUrl('/api/spec-review/suggestion'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: session.sessionId,
+          suggestionId,
+          action,
+          userVersion,
+        }),
+      });
+
+      if (!res.ok) {
+        console.error('Failed to update suggestion status');
+        return;
+      }
+
+      const data = await res.json();
+
+      // Update local session state with the updated suggestion
+      if (data.success && data.suggestion) {
+        setSession(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            suggestions: prev.suggestions.map(s =>
+              s.id === suggestionId ? { ...s, status: action, reviewedAt: data.suggestion.reviewedAt } : s
+            ),
+          };
+        });
+      }
+    } catch (error) {
+      console.error('Failed to update suggestion:', error);
+    }
+  }, [session?.sessionId, session?.suggestions, content, apiUrl, handleSave, applySuggestion]);;
 
   // Handle sending chat message
   const handleSendChatMessage = useCallback(async (
@@ -788,43 +911,147 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
                         🔄
                       </button>
                     </div>
-                    <div className="spec-review-suggestions">
-                      {session.suggestions.map(suggestion => (
-                        <div
-                          key={suggestion.id}
-                          className={`suggestion-card suggestion-card--${suggestion.severity} suggestion-card--${suggestion.status}`}
-                        >
-                          <div className="suggestion-card-header">
-                            <span className={`suggestion-severity suggestion-severity--${suggestion.severity}`}>
-                              {suggestion.severity}
-                            </span>
-                            {suggestion.status !== 'pending' && (
-                              <span className={`suggestion-status suggestion-status--${suggestion.status}`}>
-                                {suggestion.status}
-                              </span>
-                            )}
-                          </div>
-                          <p className="suggestion-issue">{suggestion.issue}</p>
-                          {suggestion.status === 'pending' && (
-                            <div className="suggestion-actions">
-                              {suggestion.type !== 'comment' && (
-                                <button
-                                  className="suggestion-btn suggestion-btn--review"
-                                  onClick={() => handleReviewDiff(suggestion)}
-                                >
-                                  Review
-                                </button>
-                              )}
-                              <button
-                                className="suggestion-btn suggestion-btn--discuss"
-                                onClick={() => handleDiscussSuggestion(suggestion)}
-                              >
-                                Discuss
-                              </button>
-                            </div>
+                    {/* Tag filters */}
+                    {(() => {
+                      const allTags = new Set<SuggestionTag>();
+                      session.suggestions.forEach(s => s.tags?.forEach(t => allTags.add(t)));
+                      if (allTags.size === 0) return null;
+                      return (
+                        <div className="spec-review-tag-filters">
+                          {Array.from(allTags).sort().map(tag => (
+                            <button
+                              key={tag}
+                              className={`tag-filter-btn tag-filter-btn--${tag}${selectedTagFilters.has(tag) ? ' tag-filter-btn--active' : ''}`}
+                              onClick={() => {
+                                setSelectedTagFilters(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(tag)) {
+                                    next.delete(tag);
+                                  } else {
+                                    next.add(tag);
+                                  }
+                                  return next;
+                                });
+                              }}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                          {selectedTagFilters.size > 0 && (
+                            <button
+                              className="tag-filter-clear"
+                              onClick={() => setSelectedTagFilters(new Set())}
+                            >
+                              Clear
+                            </button>
                           )}
                         </div>
-                      ))}
+                      );
+                    })()}
+                    <div className="spec-review-suggestions">
+                      {session.suggestions
+                        .filter(suggestion => {
+                          if (selectedTagFilters.size === 0) return true;
+                          return suggestion.tags?.some(tag => selectedTagFilters.has(tag)) ?? false;
+                        })
+                        .map(suggestion => {
+                          // Handle both data formats: root-level or nested in location
+                          const section = suggestion.section ?? suggestion.location?.section;
+                          const lineStart = suggestion.lineStart ?? suggestion.location?.lineStart;
+                          const lineEnd = suggestion.lineEnd ?? suggestion.location?.lineEnd;
+                          const hasLineInfo = lineStart != null;
+                          const isClickable = section != null || hasLineInfo;
+
+                          const handleCardClick = () => {
+                            if (editorRef.current) {
+                              // Prefer section-based scroll (more reliable), fallback to line-based
+                              if (section) {
+                                editorRef.current.scrollToSection(section);
+                              } else if (hasLineInfo) {
+                                editorRef.current.scrollToLine(lineStart!, lineEnd ?? undefined);
+                              }
+                            }
+                          };
+
+                          return (
+                            <div
+                              key={suggestion.id}
+                              className={`suggestion-card suggestion-card--${suggestion.severity} suggestion-card--${suggestion.status}${isClickable ? ' suggestion-card--clickable' : ''}`}
+                              onClick={isClickable ? handleCardClick : undefined}
+                              role={isClickable ? 'button' : undefined}
+                              tabIndex={isClickable ? 0 : undefined}
+                              onKeyDown={isClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleCardClick(); } : undefined}
+                            >
+                              <div className="suggestion-card-header">
+                                <span className={`suggestion-severity suggestion-severity--${suggestion.severity}`}>
+                                  {suggestion.severity}
+                                </span>
+                                {section && (
+                                  <span className="suggestion-location">
+                                    {section}
+                                    {lineStart && (
+                                      <span className="suggestion-lines">
+                                        {lineEnd && lineEnd !== lineStart
+                                          ? ` (L${lineStart}-${lineEnd})`
+                                          : ` (L${lineStart})`}
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
+                                {suggestion.status !== 'pending' && (
+                                  <span className={`suggestion-status suggestion-status--${suggestion.status}`}>
+                                    {suggestion.status}
+                                  </span>
+                                )}
+                              </div>
+                              {/* Tags */}
+                              {suggestion.tags && suggestion.tags.length > 0 && (
+                                <div className="suggestion-tags">
+                                  {suggestion.tags.map(tag => (
+                                    <span key={tag} className={`suggestion-tag suggestion-tag--${tag}`}>
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <p className="suggestion-issue">{suggestion.issue}</p>
+                              {suggestion.status === 'pending' && (
+                                <div className="suggestion-actions" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    className="suggestion-btn suggestion-btn--approve"
+                                    onClick={() => handleSuggestionAction(suggestion.id, 'approved')}
+                                    title="Mark as approved"
+                                  >
+                                    ✓ Approve
+                                  </button>
+                                  <button
+                                    className="suggestion-btn suggestion-btn--reject"
+                                    onClick={() => handleSuggestionAction(suggestion.id, 'rejected')}
+                                    title="Mark as rejected"
+                                  >
+                                    ✕ Reject
+                                  </button>
+                                  {suggestion.type !== 'comment' && (
+                                    <button
+                                      className="suggestion-btn suggestion-btn--review"
+                                      onClick={() => handleReviewDiff(suggestion)}
+                                      title="Review with diff"
+                                    >
+                                      Review
+                                    </button>
+                                  )}
+                                  <button
+                                    className="suggestion-btn suggestion-btn--discuss"
+                                    onClick={() => handleDiscussSuggestion(suggestion)}
+                                    title="Discuss with AI"
+                                  >
+                                    Discuss
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
                 ) : null}
