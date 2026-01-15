@@ -363,15 +363,21 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject]);
 
+  // SSE: subscribe to Decompose events per project
   useEffect(() => {
     if (!selectedProject) return;
+    if (typeof window === 'undefined' || !('EventSource' in window)) return;
 
-    // Refresh faster when Ralph is running or decomposition is in progress
-    const isActive = ralphStatus.running ||
-      ['STARTING', 'INITIALIZING', 'DECOMPOSING', 'DECOMPOSED', 'REVIEWING'].includes(decomposeState.status);
-    const interval = setInterval(fetchData, isActive ? 2000 : 5000);
-    return () => clearInterval(interval);
-  }, [fetchData, ralphStatus.running, decomposeState.status, selectedProject]);
+    const url = apiUrl('/api/events/decompose');
+    const es = new EventSource(url);
+    const scheduleRefresh = () => {
+      setTimeout(() => fetchData(), 200);
+    };
+    es.addEventListener('decompose/state', () => scheduleRefresh());
+    es.onerror = () => es.close();
+    return () => es.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject]);
 
   const handleTasksActivated = () => {
     fetchData();

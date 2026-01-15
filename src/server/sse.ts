@@ -10,6 +10,8 @@ interface Subscriber {
 
 const ralphSubs = new Map<ProjectKey, Set<Subscriber>>();
 const decomposeSubs = new Map<ProjectKey, Set<Subscriber>>();
+const ralphIds = new Map<ProjectKey, number>();
+const decomposeIds = new Map<ProjectKey, number>();
 
 function getSet(map: Map<ProjectKey, Set<Subscriber>>, key: ProjectKey): Set<Subscriber> {
   let set = map.get(key);
@@ -20,7 +22,8 @@ function getSet(map: Map<ProjectKey, Set<Subscriber>>, key: ProjectKey): Set<Sub
   return set;
 }
 
-function writeSse<T extends string, D>(res: Response, evt: { event: T; projectPath: string; data: D; timestamp: string }) {
+function writeSse<T extends string, D>(res: Response, id: number, evt: { event: T; projectPath: string; data: D; timestamp: string }) {
+  res.write(`id: ${id}\n`);
   res.write(`event: ${evt.event}\n`);
   res.write(`data: ${JSON.stringify(evt)}\n\n`);
 }
@@ -58,13 +61,21 @@ export function subscribeDecompose(projectPath: string, res: Response): void {
   publishDecompose(projectPath, 'decompose/connected', { message: 'connected' });
 }
 
-function publish<T extends string, D>(map: Map<ProjectKey, Set<Subscriber>>, projectPath: string, event: T, data: D) {
+function publish<T extends string, D>(
+  map: Map<ProjectKey, Set<Subscriber>>,
+  idMap: Map<ProjectKey, number>,
+  projectPath: string,
+  event: T,
+  data: D
+) {
   const subs = map.get(projectPath);
   if (!subs || subs.size === 0) return;
+  const nextId = (idMap.get(projectPath) ?? 0) + 1;
+  idMap.set(projectPath, nextId);
   const envelope = { event, projectPath, data, timestamp: new Date().toISOString() } as const;
   for (const sub of subs) {
     try {
-      writeSse(sub.res, envelope);
+      writeSse(sub.res, nextId, envelope);
     } catch {
       // ignore broken pipe; cleanup will happen on 'close'
     }
@@ -72,10 +83,9 @@ function publish<T extends string, D>(map: Map<ProjectKey, Set<Subscriber>>, pro
 }
 
 export function publishRalph<K extends RalphSseEvent['event']>(projectPath: string, event: K, data: Extract<RalphSseEvent, { event: K }>['data']): void {
-  publish(ralphSubs, projectPath, event, data);
+  publish(ralphSubs, ralphIds, projectPath, event, data);
 }
 
 export function publishDecompose<K extends DecomposeSseEvent['event']>(projectPath: string, event: K, data: Extract<DecomposeSseEvent, { event: K }>['data']): void {
-  publish(decomposeSubs, projectPath, event, data);
+  publish(decomposeSubs, decomposeIds, projectPath, event, data);
 }
-
