@@ -193,6 +193,14 @@ export interface ExecutionConfig {
 export interface GlobalSettings {
   reviewer: ReviewerConfig;
   execution: ExecutionConfig;
+  llm?: {
+    /** Engine selection: 'auto' | 'claude-cli' | 'codex-cli' | 'custom-cli' */
+    defaultEngine?: string;
+    /** Default model identifier to pass to the engine */
+    defaultModel?: string;
+    /** Optional per-engine config */
+    engines?: Record<string, { command?: string; args?: string[]; model?: string }>;
+  };
 }
 
 // =============================================================================

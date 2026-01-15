@@ -1,5 +1,7 @@
-import type { Engine, EngineAvailability } from './engine.js';
+import type { Engine } from './engine.js';
 import { detectCli } from '../cli-detect.js';
+import { loadGlobalSettings } from '../settings.js';
+import { ClaudeCliEngine } from './drivers/claude-cli.js';
 
 /**
  * Minimal engine factory
@@ -8,27 +10,42 @@ import { detectCli } from '../cli-detect.js';
  * This keeps callers vendor-agnostic; drivers handle specifics.
  */
 
-class ClaudeCliEngine implements Engine {
-  name = 'cli-engine';
-  async isAvailable(): Promise<EngineAvailability> {
-    const d = await detectCli('claude');
-    return { available: d.available, name: this.name, version: d.version };
-  }
+/** Engine selection: return a driver implementation by name. */
+export function getEngineByName(name: string | undefined): Engine {
+  // For now, only 'claude-cli' is implemented; default to it.
+  return new ClaudeCliEngine();
+}
+
+export interface EngineSelection {
+  engine: Engine;
+  engineName: string;
+  model?: string;
 }
 
 /**
- * Returns the default engine for this install.
- * Later, read from settings (.qala/config) and project config.
+ * Resolve engine and model based on (priority): CLI flags > env vars > global settings > auto detection.
  */
-export function getDefaultEngine(): Engine {
-  // TODO: use settings.llm.defaultEngine; for now, return Claude driver wrapper
-  return new ClaudeCliEngine();
+export async function selectEngine(opts?: { engineName?: string; model?: string }): Promise<EngineSelection> {
+  const settings = await loadGlobalSettings();
+  const envEngine = process.env.QALA_ENGINE;
+  const envModel = process.env.QALA_MODEL;
+  const engineName = opts?.engineName || envEngine || settings.llm?.defaultEngine || 'auto';
+  const model = opts?.model || envModel || settings.llm?.defaultModel;
+
+  if (engineName === 'auto') {
+    const c = await detectCli('claude');
+    if (c.available) {
+      return { engine: new ClaudeCliEngine(), engineName: 'claude-cli', model };
+    }
+    return { engine: new ClaudeCliEngine(), engineName: 'claude-cli', model };
+  }
+
+  return { engine: getEngineByName(engineName), engineName, model };
 }
 
 /** Check if the default engine is available. */
 export async function isDefaultEngineAvailable(): Promise<boolean> {
-  const engine = getDefaultEngine();
+  const { engine } = await selectEngine();
   const res = await engine.isAvailable();
   return res.available;
 }
-

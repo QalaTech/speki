@@ -11,8 +11,7 @@
 import chalk from 'chalk';
 import { Project } from '../project.js';
 import { Registry } from '../registry.js';
-import { runClaude } from '../claude/runner.js';
-import { isDefaultEngineAvailable } from '../llm/engine-factory.js';
+import { isDefaultEngineAvailable, selectEngine } from '../llm/engine-factory.js';
 import { createConsoleCallbacks } from '../claude/stream-parser.js';
 import type { PRDData, UserStory, RalphStatus } from '../../types/index.js';
 
@@ -29,6 +28,9 @@ export interface LoopOptions {
   loadPRD?: () => Promise<PRDData | null>;
   /** Custom PRD saver for spec-partitioned state (overrides project.savePRD) */
   savePRD?: (prd: PRDData) => Promise<void>;
+  /** Preferred engine name and model (overrides settings/env) */
+  engineName?: string;
+  model?: string;
 }
 
 export interface LoopResult {
@@ -211,12 +213,14 @@ export async function runRalphLoop(
       console.log('');
 
       const callbacks = createConsoleCallbacks();
-      const result = await runClaude({
+      const sel = await selectEngine({ engineName: options.engineName, model: options.model });
+      const result = await sel.engine.runStream({
         promptPath: project.promptPath,
         cwd: project.projectPath,
         logDir: project.logsDir,
         iteration,
         callbacks,
+        model: sel.model,
       });
 
       console.log('');

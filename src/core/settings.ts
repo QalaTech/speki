@@ -35,6 +35,9 @@ const DEFAULT_SETTINGS: GlobalSettings = {
   execution: {
     keepAwake: true,
   },
+  llm: {
+    defaultEngine: 'auto',
+  },
 };
 
 /**
@@ -55,6 +58,11 @@ export async function loadGlobalSettings(): Promise<GlobalSettings> {
         },
         execution: {
           keepAwake: parsed.execution?.keepAwake ?? DEFAULT_SETTINGS.execution.keepAwake,
+        },
+        llm: {
+          defaultEngine: parsed.llm?.defaultEngine ?? DEFAULT_SETTINGS.llm?.defaultEngine,
+          defaultModel: parsed.llm?.defaultModel ?? undefined,
+          engines: parsed.llm?.engines ?? undefined,
         },
       };
     }

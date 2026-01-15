@@ -31,6 +31,8 @@ export const startCommand = new Command('start')
   .option('-i, --iterations <number>', 'Maximum iterations (default: auto-calculated based on task count)')
   .option('-k, --keep-awake', 'Prevent system sleep (default: from settings, use --no-keep-awake to disable)')
   .option('--no-keep-awake', 'Allow system to sleep while running')
+  .option('--engine <name>', 'LLM engine name (overrides settings)')
+  .option('--model <name>', 'LLM model name (overrides settings)')
   .option('--daemon', 'Run in background (not yet implemented)')
   .action(async (options) => {
     try {
@@ -151,6 +153,8 @@ export const startCommand = new Command('start')
             currentMaxIterations = newLimit;
           }
         },
+        engineName: options.engine,
+        model: options.model,
       });
 
       if (isPreventingSleep()) {
