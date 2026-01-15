@@ -87,6 +87,21 @@ router.put('/', async (req, res) => {
       }
     }
 
+    // Validate and update LLM if provided
+    const llm = currentSettings.llm || {};
+    if (body.llm && typeof body.llm === 'object') {
+      const { defaultEngine, defaultModel, engines } = body.llm as Partial<GlobalSettings['llm']>;
+      if (defaultEngine !== undefined && typeof defaultEngine === 'string') {
+        llm.defaultEngine = defaultEngine;
+      }
+      if (defaultModel !== undefined && typeof defaultModel === 'string') {
+        llm.defaultModel = defaultModel;
+      }
+      if (engines !== undefined && typeof engines === 'object') {
+        llm.engines = engines as Record<string, { command?: string; args?: string[]; model?: string }>;
+      }
+    }
+
     // Build and save settings
     const settings: GlobalSettings = {
       reviewer: {
@@ -95,6 +110,7 @@ router.put('/', async (req, res) => {
       execution: {
         keepAwake,
       },
+      llm,
     };
 
     await saveGlobalSettings(settings);

@@ -19,6 +19,11 @@ interface GlobalSettings {
   execution: {
     keepAwake: boolean;
   };
+  llm?: {
+    defaultEngine?: string; // 'auto' | 'claude-cli' | 'codex-cli' | 'custom-cli'
+    defaultModel?: string;
+    engines?: Record<string, { command?: string; args?: string[]; model?: string }>;
+  };
 }
 
 type CliType = 'codex' | 'claude';
@@ -57,6 +62,8 @@ export function SettingsView() {
   const [_settings, setSettings] = useState<GlobalSettings | null>(null);
   const [selectedCli, setSelectedCli] = useState<CliType>('codex');
   const [keepAwake, setKeepAwake] = useState<boolean>(true);
+  const [engineName, setEngineName] = useState<string>('auto');
+  const [modelName, setModelName] = useState<string>('');
 
   // _settings is intentionally unused - we track selectedCli/keepAwake locally but persist via setSettings
   const [loading, setLoading] = useState(true);
@@ -123,6 +130,10 @@ export function SettingsView() {
       // keepAwake defaults to true if not set
       setKeepAwake(currentSettings?.execution?.keepAwake ?? true);
 
+      // llm defaults
+      setEngineName(currentSettings?.llm?.defaultEngine || 'auto');
+      setModelName(currentSettings?.llm?.defaultModel || '');
+
       // Check if no CLIs are available
       if (detection && !detection.codex.available && !detection.claude.available) {
         setError('No CLI tools are available. Please install Codex or Claude CLI.');
@@ -145,7 +156,8 @@ export function SettingsView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reviewer: { cli: selectedCli },
-          execution: { keepAwake }
+          execution: { keepAwake },
+          llm: { defaultEngine: engineName, defaultModel: modelName || undefined },
         })
       });
 
@@ -281,6 +293,52 @@ export function SettingsView() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <div className="section-header">
+          <h3>LLM Engine</h3>
+          <p>Select the default engine and model for execution</p>
+        </div>
+
+        <div className="section-content">
+          <div className="config-field">
+            <label>Default Engine</label>
+            <div className="select-wrapper">
+              <select
+                value={engineName}
+                onChange={(e) => setEngineName(e.target.value)}
+                disabled={saving}
+              >
+                <option value="auto">Auto</option>
+                {/* Map detection to engine names */}
+                {cliDetection?.claude.available && (
+                  <option value="claude-cli">Claude CLI</option>
+                )}
+                {cliDetection?.codex.available && (
+                  <option value="codex-cli">Codex CLI</option>
+                )}
+              </select>
+            </div>
+            <p className="field-description">
+              Auto selects the first available driver. You can override per-run using --engine/--model flags.
+            </p>
+          </div>
+
+          <div className="config-field">
+            <label>Default Model</label>
+            <input
+              type="text"
+              value={modelName}
+              onChange={(e) => setModelName(e.target.value)}
+              placeholder="e.g., claude-3.5-sonnet"
+              disabled={saving}
+            />
+            <p className="field-description">
+              Optional model identifier passed to the selected engine.
+            </p>
           </div>
         </div>
       </div>
