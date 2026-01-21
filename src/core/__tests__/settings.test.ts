@@ -37,7 +37,7 @@ describe('settings', () => {
   });
 
   describe('loadGlobalSettings', () => {
-    it('loadGlobalSettings_WithNoConfig_ShouldReturnClaudeAsDefaultCli', async () => {
+    it('Settings_Load_ReturnsDefaults_WhenFileMissing', async () => {
       // Arrange
       const enoentError = new Error('ENOENT: no such file or directory') as NodeJS.ErrnoException;
       enoentError.code = 'ENOENT';
@@ -47,30 +47,41 @@ describe('settings', () => {
       const result = await loadGlobalSettings();
 
       // Assert
-      expect(result.reviewer.cli).toBe('claude');
-    });
-
-    it('loadGlobalSettings_WithExplicitCodexConfig_ShouldReturnCodex', async () => {
-      // Arrange
-      const codexSettings = JSON.stringify({
-        reviewer: {
-          cli: 'codex',
-        },
-      });
-      vi.mocked(readFile).mockResolvedValue(codexSettings);
-
-      // Act
-      const result = await loadGlobalSettings();
-
-      // Assert
-      expect(result.reviewer.cli).toBe('codex');
+      expect(result).toHaveProperty('decompose');
+      expect(result).toHaveProperty('condenser');
+      expect(result).toHaveProperty('specGenerator');
+      expect(result).toHaveProperty('taskRunner');
+      expect(result).toHaveProperty('specChat');
+      expect(result).toHaveProperty('execution');
     });
 
     it('loadGlobalSettings_WithExplicitClaudeConfig_ShouldReturnClaude', async () => {
       // Arrange
       const claudeSettings = JSON.stringify({
-        reviewer: {
-          cli: 'claude',
+        decompose: {
+          reviewer: {
+            agent: 'claude' as const,
+            model: 'claude-3-5-sonnet-20241022',
+          },
+        },
+        condenser: {
+          agent: 'claude' as const,
+          model: 'claude-3-5-sonnet-20241022',
+        },
+        specGenerator: {
+          agent: 'claude' as const,
+          model: 'claude-3-5-sonnet-20241022',
+        },
+        taskRunner: {
+          agent: 'auto' as const,
+          model: 'claude-3-5-sonnet-20241022',
+        },
+        specChat: {
+          agent: 'claude' as const,
+          model: 'claude-3-5-sonnet-20241022',
+        },
+        execution: {
+          keepAwake: true,
         },
       });
       vi.mocked(readFile).mockResolvedValue(claudeSettings);
@@ -79,7 +90,7 @@ describe('settings', () => {
       const result = await loadGlobalSettings();
 
       // Assert
-      expect(result.reviewer.cli).toBe('claude');
+      expect(result.decompose.reviewer.agent).toBe('claude');
       expect(readFile).toHaveBeenCalledWith(mockSettingsFile, 'utf-8');
     });
 
@@ -93,7 +104,7 @@ describe('settings', () => {
       const result = await loadGlobalSettings();
 
       // Assert
-      expect(result.reviewer.cli).toBe('claude');
+      expect(result).toHaveProperty('decompose');
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Warning: Could not parse global settings file'),
         expect.any(String)
@@ -102,11 +113,30 @@ describe('settings', () => {
   });
 
   describe('saveGlobalSettings', () => {
-    it('saveGlobalSettings_WithNewSettings_ShouldPersistToFile', async () => {
+    it('Settings_Save_WritesToFile', async () => {
       // Arrange
       const newSettings = {
-        reviewer: {
-          cli: 'claude' as const,
+        decompose: {
+          reviewer: {
+            agent: 'claude' as const,
+            model: 'claude-3-5-sonnet-20241022',
+          },
+        },
+        condenser: {
+          agent: 'claude' as const,
+          model: 'claude-3-5-sonnet-20241022',
+        },
+        specGenerator: {
+          agent: 'claude' as const,
+          model: 'claude-3-5-sonnet-20241022',
+        },
+        taskRunner: {
+          agent: 'auto' as const,
+          model: 'claude-3-5-sonnet-20241022',
+        },
+        specChat: {
+          agent: 'claude' as const,
+          model: 'claude-3-5-sonnet-20241022',
         },
         execution: {
           keepAwake: true,
@@ -128,8 +158,27 @@ describe('settings', () => {
     it('saveGlobalSettings_WithMissingDirectory_ShouldCreateDirectoryAndFile', async () => {
       // Arrange
       const newSettings = {
-        reviewer: {
-          cli: 'codex' as const,
+        decompose: {
+          reviewer: {
+            agent: 'codex' as const,
+            model: 'codex-latest',
+          },
+        },
+        condenser: {
+          agent: 'codex' as const,
+          model: 'codex-latest',
+        },
+        specGenerator: {
+          agent: 'codex' as const,
+          model: 'codex-latest',
+        },
+        taskRunner: {
+          agent: 'auto' as const,
+          model: 'codex-latest',
+        },
+        specChat: {
+          agent: 'codex' as const,
+          model: 'codex-latest',
         },
         execution: {
           keepAwake: false,

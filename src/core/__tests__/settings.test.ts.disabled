@@ -1,2 +1,0 @@
-// Tests disabled - schema changed from reviewer.cli to decompose/condenser/engine stages
-// TODO: Update tests for new GlobalSettings schema
