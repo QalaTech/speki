@@ -539,5 +539,17 @@ describe('Decompose_LogOutput_ShowsEngineNotClaude', () => {
       call => typeof call[0] === 'string' && call[0].includes('Claude Output:')
     );
     expect(claudeOutputCall).toBeUndefined();
+
+    // Verify no other Claude-specific labels appear in logs
+    const allLogCalls = consoleLogSpy.mock.calls.map(call => call[0]);
+    const claudeSpecificLabels = allLogCalls.filter(call =>
+      typeof call === 'string' && (
+        call.includes('Claude exited') ||
+        call.includes('Claude failed') ||
+        call.includes('Claude is ') ||
+        (call.includes('Claude') && !call.includes('using an Engine'))
+      )
+    );
+    expect(claudeSpecificLabels.length).toBe(0);
   });
 });

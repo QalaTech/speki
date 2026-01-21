@@ -48,7 +48,7 @@ export function LiveExecutionView({
     iterationLogLength: iterationLog?.length || 0,
   });
 
-  // Order stories: done (top, scroll up to see), running (middle, visible), ready, blocked (bottom)
+  // Order stories: done (top), running, ready, blocked - preserving queue order within each group
   const { orderedStories, firstActiveIndex } = useMemo(() => {
     const completedIds = new Set(stories.filter(s => s.passes).map(s => s.id));
 
@@ -59,10 +59,14 @@ export function LiveExecutionView({
       return depsOk ? 2 : 3; // Ready = 2, Blocked = 3
     };
 
+    // Create index map to preserve original queue order
+    const originalIndex = new Map(stories.map((s, i) => [s.id, i]));
+
     const sorted = [...stories].sort((a, b) => {
       const orderDiff = getOrder(a) - getOrder(b);
       if (orderDiff !== 0) return orderDiff;
-      return (a.priority || 999) - (b.priority || 999);
+      // Preserve queue order within same status group (not priority)
+      return (originalIndex.get(a.id) ?? 999) - (originalIndex.get(b.id) ?? 999);
     });
 
     // Find index of first non-done task

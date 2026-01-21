@@ -2,7 +2,7 @@
  * PRD Decomposition Runner
  *
  * Takes a PRD markdown file and breaks it into small,
- * Ralph-compatible task files using Claude.
+ * Ralph-compatible task files using an Engine.
  */
 
 import { promises as fs } from 'fs';
@@ -724,7 +724,7 @@ export async function runDecompose(
         // Show issues from feedback
         logFeedbackIssues(feedback);
 
-        // Send feedback to Claude for revision
+        // Send feedback to Engine for revision
         console.log('');
         console.log(chalk.yellow('Sending feedback to Engine for revision...'));
 

@@ -1,8 +1,8 @@
 {
   "status": "running",
-  "currentIteration": 5,
-  "maxIterations": 20,
-  "currentStory": "TS-007: Refactor chat-runner.ts to delegate CLI spawning to Engine.runChat",
-  "startedAt": "2026-01-21T16:29:52.024Z",
-  "pid": 24267
+  "currentIteration": 1,
+  "maxIterations": 14,
+  "currentStory": "TS-006: Rename Claude Output label to Engine Output in decompose/runner.ts",
+  "startedAt": "2026-01-21T16:40:52.831Z",
+  "pid": 88852
 }

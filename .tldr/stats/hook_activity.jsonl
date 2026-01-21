@@ -186,3 +186,6 @@
 {"hook_name": "post-edit-notify", "invocations": 2, "successes": 2, "failures": 0, "metrics": {"edits_notified": 2, "reindexes_triggered": 0}, "timestamp": "2026-01-21T16:23:23.206755+00:00"}
 {"hook_name": "edit-context-inject", "invocations": 2, "successes": 2, "failures": 0, "metrics": {"edits_processed": 2, "symbols_shown": 26}, "timestamp": "2026-01-21T16:27:32.129116+00:00"}
 {"hook_name": "post-edit-notify", "invocations": 3, "successes": 3, "failures": 0, "metrics": {"edits_notified": 3, "reindexes_triggered": 0}, "timestamp": "2026-01-21T16:27:32.129116+00:00"}
+{"hook_name": "edit-context-inject", "invocations": 2, "successes": 2, "failures": 0, "metrics": {"edits_processed": 2, "symbols_shown": 20}, "timestamp": "2026-01-21T16:41:30.256271+00:00"}
+{"hook_name": "post-edit-notify", "invocations": 2, "successes": 2, "failures": 0, "metrics": {"edits_notified": 2, "reindexes_triggered": 0}, "timestamp": "2026-01-21T16:41:30.256271+00:00"}
+{"hook_name": "impact-refactor", "invocations": 1, "successes": 1, "failures": 0, "metrics": {"analyses_run": 3, "results_found": 3}, "timestamp": "2026-01-21T16:41:30.256271+00:00"}
