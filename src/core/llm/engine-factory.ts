@@ -6,22 +6,47 @@ import { CodexCliEngine } from './drivers/codex-cli.js';
 import type { EnginePurpose, GlobalSettings } from '../../types/index.js';
 
 /**
- * Engine factory for multi-engine LLM abstraction.
- * Selects engine based on CLI flags > env vars > global settings > auto detection.
- * This keeps callers vendor-agnostic; drivers handle agent-specific details.
+ * Engine Factory - Selects LLM engine based on precedence:
+ * 1. CLI flags (--engine, --model from opts parameter)
+ * 2. Environment variables (QALA_ENGINE, QALA_MODEL)
+ * 3. Project config (.ralph/config.json llm.engine, llm.model)
+ * 4. Purpose-specific settings (decompose, specChat, condenser, specGenerator, taskRunner)
+ * 5. Auto-detection (Claude first for backwards-compat, then Codex)
+ *
+ * Supported engine names (case-insensitive):
+ * - 'claude' or 'claude-cli': Claude Code CLI (preferred)
+ * - 'codex' or 'codex-cli' or 'openai': OpenAI Codex CLI
+ * - 'auto': Auto-detect available CLI (prefers Claude)
+ *
+ * Backwards compatibility:
+ * - Config key 'agent' in settings maps to engine selection (via purpose settings)
+ * - Project config uses 'engine' key (llm.engine in config file)
+ * - Both work identically through the precedence chain
+ * - CLI always uses '--engine' flag
+ *
+ * This abstraction keeps callers vendor-agnostic; drivers handle agent-specific details.
  */
 
-/** Engine selection: return a driver implementation by name. */
+/**
+ * Get engine driver by name. Accepts multiple aliases for backwards compatibility.
+ * @param name - Engine name: 'claude' | 'claude-cli' | 'codex' | 'codex-cli' | 'openai' (case-insensitive)
+ * @returns Engine driver instance (defaults to Claude if name unrecognized)
+ */
 export function getEngineByName(name: string | undefined): Engine {
-  switch (name) {
-    case 'codex-cli':
-    case 'codex':
-      return new CodexCliEngine();
-    case 'claude-cli':
-    case 'claude':
-    default:
-      return new ClaudeCliEngine();
+  const normalized = (name || '').toLowerCase().trim();
+
+  // Codex aliases
+  if (['codex', 'codex-cli', 'openai'].includes(normalized)) {
+    return new CodexCliEngine();
   }
+
+  // Claude aliases (default for unknown names for backwards-compat)
+  if (['claude', 'claude-cli'].includes(normalized)) {
+    return new ClaudeCliEngine();
+  }
+
+  // Default to Claude if name is empty or unrecognized
+  return new ClaudeCliEngine();
 }
 
 export interface EngineSelection {

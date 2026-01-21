@@ -373,4 +373,44 @@ describe('selectEngine with purpose parameter', () => {
     expect(result.engineName).toBe('claude');
     expect(result.model).toBe('cli-model');
   });
+
+  it('selectEngine_ClaudeAliases_AcceptsAllVariations', async () => {
+    // Arrange
+    const claudeAliases = ['claude', 'claude-cli', 'CLAUDE', 'Claude-CLI'];
+
+    for (const alias of claudeAliases) {
+      // Act
+      const result = await selectEngine({ engineName: alias });
+
+      // Assert - all Claude aliases should work
+      expect(result).toBeDefined();
+      expect(result.engine).toBeDefined();
+    }
+  });
+
+  it('selectEngine_CodexAliases_AcceptsAllVariations', async () => {
+    // Arrange
+    const codexAliases = ['codex', 'codex-cli', 'openai', 'CODEX', 'OpenAI'];
+
+    for (const alias of codexAliases) {
+      // Act
+      const result = await selectEngine({ engineName: alias });
+
+      // Assert - all Codex aliases should work
+      expect(result).toBeDefined();
+      expect(result.engine).toBeDefined();
+    }
+  });
+
+  it('selectEngine_UnknownEngine_DefaultsToSafeFallback', async () => {
+    // Arrange - use completely unknown engine name
+
+    // Act
+    const result = await selectEngine({ engineName: 'unknown-engine' });
+
+    // Assert - should still return a valid engine (defaults to Claude)
+    expect(result).toBeDefined();
+    expect(result.engineName).toBe('unknown-engine');
+    expect(result.engine).toBeDefined();
+  });
 });
