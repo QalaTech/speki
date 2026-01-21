@@ -1,4 +1,5 @@
 import type { StreamCallbacks } from '../claude/types.js';
+import type { ReviewOptions, ReviewResult } from '../../types/index.js';
 
 export interface EngineAvailability {
   available: boolean;
@@ -36,6 +37,8 @@ export interface RunChatOptions {
   specContent?: string;
   specPath?: string;
   model?: string;
+  /** Optional streaming callback for real-time updates (JSONL lines) */
+  onStreamLine?: (line: string) => void;
 }
 
 export interface RunChatResult {
@@ -53,4 +56,6 @@ export interface Engine {
   runStream(options: RunStreamOptions): Promise<RunStreamResult>;
   /** Run a chat message with optional session semantics */
   runChat(options: RunChatOptions): Promise<RunChatResult>;
+  /** Run a peer review with generic options (agent-agnostic) */
+  runReview(options: ReviewOptions): Promise<ReviewResult>;
 }

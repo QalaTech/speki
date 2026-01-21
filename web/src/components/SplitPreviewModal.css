@@ -194,13 +194,13 @@
 }
 
 .save-all-button {
-  background: var(--primary-color, #2563eb);
+  background: var(--color-primary, #a371f7);
   border: none;
   color: white;
 }
 
 .save-all-button:hover:not(:disabled) {
-  background: var(--primary-hover, #1d4ed8);
+  background: var(--color-primary-hover, #b48afa);
 }
 
 .cancel-button:disabled,

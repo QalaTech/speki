@@ -123,13 +123,13 @@
 }
 
 .review-diff-button {
-  background-color: var(--color-accent);
-  border-color: var(--color-accent);
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
   color: #fff;
 }
 
 .review-diff-button:hover {
-  background-color: var(--color-accent-hover, #4a9eff);
+  background-color: var(--color-primary-hover);
 }
 
 .discuss-button {

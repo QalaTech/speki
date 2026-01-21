@@ -10,6 +10,7 @@ import { join } from 'path';
 import { projectContext } from '../middleware/project-context.js';
 import { runDecompose } from '../../core/decompose/runner.js';
 import { publishDecompose } from '../sse.js';
+import { generateTechSpec } from '../../core/tech-spec/index.js';
 import { calculateLoopLimit } from '../../core/ralph-loop/loop-limit.js';
 import { getRunningLoop } from './ralph.js';
 import {
@@ -31,6 +32,14 @@ const SERVER_STARTUP_TIME = new Date().toISOString();
 
 // Active decompose statuses that indicate a process is in progress
 const ACTIVE_DECOMPOSE_STATUSES = ['INITIALIZING', 'DECOMPOSING', 'REVIEWING', 'REVISING'];
+
+// Track active tech spec generations (in-memory, per project)
+// Map: projectPath -> { prdSpecId, techSpecName, startedAt }
+const activeTechSpecGenerations = new Map<string, {
+  prdSpecId: string;
+  techSpecName: string;
+  startedAt: string;
+}>();
 
 // Apply project context middleware to all routes
 router.use(projectContext(true));
@@ -484,6 +493,19 @@ router.post('/start', async (req, res) => {
       prdFile: resolvedPrdFile,
     });
 
+    // Create stream callbacks for real-time log output
+    const streamCallbacks = {
+      onText: (text: string) => {
+        publishDecompose(req.projectPath!, 'decompose/log', { line: text });
+      },
+      onToolCall: (name: string, detail: string) => {
+        publishDecompose(req.projectPath!, 'decompose/log', { line: `🔧 ${name}: ${detail}` });
+      },
+      onToolResult: (result: string) => {
+        publishDecompose(req.projectPath!, 'decompose/log', { line: result });
+      },
+    };
+
     // Run decomposition (this is blocking, runs in request context)
     // For long-running PRDs, consider making this async with WebSocket updates
     const result = await runDecompose(req.project!, {
@@ -494,6 +516,7 @@ router.post('/start', async (req, res) => {
       freshStart,
       forceRedecompose,
       maxReviewAttempts,
+      streamCallbacks,
       onProgress: async (state) => {
         // Progress updates are saved to file for polling
         await req.project!.saveDecomposeState(state);
@@ -813,6 +836,132 @@ router.post('/create-tech-spec', async (req, res) => {
       error: 'Failed to create tech spec',
       details: error instanceof Error ? error.message : String(error),
     });
+  }
+});
+
+/**
+ * POST /api/decompose/generate-tech-spec
+ * Generate a tech spec using AI from PRD + user stories
+ * Streams progress via SSE (decompose channel)
+ */
+router.post('/generate-tech-spec', async (req, res) => {
+  try {
+    const { prdSpecId, techSpecName, engineName, model } = req.body;
+
+    if (!prdSpecId) {
+      return res.status(400).json({ error: 'prdSpecId is required' });
+    }
+
+    // Build the PRD file path
+    const prdPath = join(req.projectPath!, 'specs', `${prdSpecId}.md`);
+
+    // Verify PRD exists
+    try {
+      await fs.access(prdPath);
+    } catch {
+      return res.status(404).json({
+        error: 'PRD file not found',
+        details: `Expected at: ${prdPath}`,
+      });
+    }
+
+    // Create stream callbacks for real-time output
+    const streamCallbacks = {
+      onText: (text: string) => {
+        publishDecompose(req.projectPath!, 'decompose/log', { line: text });
+      },
+      onToolCall: (name: string, detail: string) => {
+        publishDecompose(req.projectPath!, 'decompose/log', { line: `🔧 ${name}: ${detail}` });
+      },
+      onToolResult: (result: string) => {
+        publishDecompose(req.projectPath!, 'decompose/log', { line: result });
+      },
+    };
+
+    // Track active generation
+    activeTechSpecGenerations.set(req.projectPath!, {
+      prdSpecId,
+      techSpecName: techSpecName || `${prdSpecId}.tech.md`,
+      startedAt: new Date().toISOString(),
+    });
+
+    // Publish start event via decompose/log (no dedicated techspec channel)
+    publishDecompose(req.projectPath!, 'decompose/log', {
+      line: '📝 Starting tech spec generation...',
+    });
+
+    // Run AI-powered generation
+    const result = await generateTechSpec({
+      prdPath,
+      projectRoot: req.projectPath!,
+      outputName: techSpecName,
+      engineName,
+      model,
+      onProgress: (message) => {
+        publishDecompose(req.projectPath!, 'decompose/log', {
+          line: `📝 ${message}`,
+        });
+      },
+      streamCallbacks,
+    });
+
+    // Clear generation tracking
+    activeTechSpecGenerations.delete(req.projectPath!);
+
+    if (result.success && result.outputPath) {
+      // Publish success event
+      publishDecompose(req.projectPath!, 'decompose/log', {
+        line: `✅ Tech spec generated: ${result.outputPath}`,
+      });
+
+      res.json({
+        success: true,
+        outputPath: result.outputPath,
+        specId: extractSpecId(result.outputPath),
+      });
+    } else {
+      // Publish failure event
+      publishDecompose(req.projectPath!, 'decompose/log', {
+        line: `❌ Tech spec generation failed: ${result.error || 'Unknown error'}`,
+      });
+
+      res.status(400).json({
+        success: false,
+        error: result.error,
+        validationErrors: result.validationErrors,
+      });
+    }
+  } catch (error) {
+    // Clear generation tracking on error
+    activeTechSpecGenerations.delete(req.projectPath!);
+
+    publishDecompose(req.projectPath!, 'decompose/log', {
+      line: `❌ Error: ${error instanceof Error ? error.message : String(error)}`,
+    });
+
+    res.status(500).json({
+      error: 'Failed to generate tech spec',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/decompose/generation-status
+ * Check if a tech spec generation is in progress
+ */
+router.get('/generation-status', (req, res) => {
+  const generation = activeTechSpecGenerations.get(req.projectPath!);
+
+  if (generation) {
+    res.json({
+      generating: true,
+      prdSpecId: generation.prdSpecId,
+      techSpecName: generation.techSpecName,
+      startedAt: generation.startedAt,
+    });
+  } else {
+    res.json({ generating: false });
   }
 });
 

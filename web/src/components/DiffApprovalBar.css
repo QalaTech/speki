@@ -86,12 +86,12 @@
 }
 
 .edit-button {
-  background: #3b82f6;
+  background: var(--color-primary);
   color: #ffffff;
 }
 
 .edit-button:hover:not(:disabled) {
-  background: #2563eb;
+  background: var(--color-primary-hover);
 }
 
 .edit-button:active:not(:disabled) {

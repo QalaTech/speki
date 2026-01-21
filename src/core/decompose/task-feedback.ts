@@ -1,13 +1,12 @@
 /**
  * Task Feedback Handler
  *
- * Runs Claude to update a specific task based on user feedback.
+ * Runs an LLM engine to update a specific task based on user feedback.
  */
 
-import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { resolveCliPath } from '../cli-path.js';
+import { selectEngine } from '../llm/engine-factory.js';
 import type { Project } from '../project.js';
 import type { PRDData, UserStory } from '../../types/index.js';
 
@@ -87,58 +86,31 @@ Respond with ONLY the updated task as valid JSON. Do not include any explanation
   await fs.writeFile(promptPath, prompt);
 
   try {
-    // Run Claude
-    const claudePath = resolveCliPath('claude');
-    const result = await new Promise<{ success: boolean; output: string; error?: string }>((resolve) => {
-      const claude = spawn(claudePath, ['--print', '-p', prompt], {
-        cwd: project.projectPath,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: {
-          ...process.env,
-          NO_COLOR: '1',
-          FORCE_COLOR: '0',
-        },
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      claude.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      claude.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      claude.on('close', (code) => {
-        if (code !== 0 && code !== 141) {
-          resolve({ success: false, output: stdout, error: stderr || `Exit code ${code}` });
-        } else {
-          resolve({ success: true, output: stdout });
-        }
-      });
-
-      claude.on('error', (err) => {
-        resolve({ success: false, output: '', error: err.message });
-      });
+    // Use engine abstraction with decompose purpose (task feedback is part of decompose workflow)
+    const sel = await selectEngine({ purpose: 'decompose' });
+    const result = await sel.engine.runStream({
+      promptPath,
+      cwd: project.projectPath,
+      logDir: project.logsDir,
+      iteration: 0,
+      model: sel.model,
     });
 
     if (!result.success) {
-      return { success: false, error: result.error };
+      return { success: false, error: 'Engine failed to process feedback' };
     }
 
-    // Parse the response - Claude should return just the JSON
+    // Parse the response - engine should return just the JSON
     let updatedTask: UserStory;
     try {
-      // Try to extract JSON from the response (in case Claude added explanation)
+      // Try to extract JSON from the response (in case LLM added explanation)
       const jsonMatch = result.output.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        return { success: false, error: 'Could not find JSON in Claude response' };
+        return { success: false, error: 'Could not find JSON in engine response' };
       }
       updatedTask = JSON.parse(jsonMatch[0]);
     } catch (parseErr) {
-      return { success: false, error: `Failed to parse Claude response: ${parseErr}` };
+      return { success: false, error: `Failed to parse engine response: ${parseErr}` };
     }
 
     // Validate the updated task has required fields

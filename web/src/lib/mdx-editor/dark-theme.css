@@ -583,6 +583,38 @@
   display: none;
 }
 
+/* Hide code block controls (dropdown and delete button) in read-only mode */
+/* Hide code block headers and toolbars completely */
+.spec-editor--readonly .mdxeditor [class*="_codeBlockHeader_"],
+.spec-editor--readonly .mdxeditor [class*="_codeBlockToolbar_"],
+.spec-editor--readonly .mdxeditor [class*="CodeBlockToolbar"],
+.spec-editor--readonly .mdxeditor [class*="CodeBlock"][class*="Toolbar"],
+.spec-editor--readonly .mdxeditor [class*="codeBlock"][class*="Toolbar"],
+.spec-editor--readonly .mdxeditor [class*="codeBlock"][class*="Header"],
+.spec-editor--readonly .mdxeditor div[class*="code"] > div:first-child:has(select),
+.spec-editor--readonly .mdxeditor div[class*="code"] > div:first-child:has(button) {
+  display: none !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+/* Hide individual controls as fallback */
+.spec-editor--readonly .mdxeditor [class*="_codeBlockHeader_"] select,
+.spec-editor--readonly .mdxeditor [class*="_codeBlockHeader_"] button,
+.spec-editor--readonly .mdxeditor [class*="_codeBlockToolbar_"] select,
+.spec-editor--readonly .mdxeditor [class*="_codeBlockToolbar_"] button,
+.spec-editor--readonly .mdxeditor [class*="_codeBlockLanguage_"],
+.spec-editor--readonly .mdxeditor div[class*="code"] select,
+.spec-editor--readonly .mdxeditor div[class*="code"] button:not(.cm-button) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* ===== Focus States ===== */
 .mdxeditor:focus-within {
   border-color: var(--color-accent);

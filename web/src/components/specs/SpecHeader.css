@@ -225,15 +225,35 @@
 }
 
 .spec-header-action-btn--primary {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
   color: white;
 }
 
 .spec-header-action-btn--primary:hover {
-  background: #4a90e2;
-  border-color: #4a90e2;
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
   color: white;
+}
+
+/* Generating state indicator */
+.spec-header-generating {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(136, 87, 229, 0.15);
+  border: 1px solid rgba(136, 87, 229, 0.3);
+  border-radius: 8px;
+  color: #a371f7;
+  font-size: 13px;
+  font-weight: 500;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 /* ===== Progress Bar (PRDs) ===== */

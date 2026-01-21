@@ -20,6 +20,8 @@
   --color-running-bg: rgba(163, 113, 247, 0.15);
   --color-warning: #d29922;
   --color-accent: #58a6ff;
+  --color-primary: #a371f7;
+  --color-primary-hover: #b48afa;
 }
 
 body {
@@ -2232,21 +2234,21 @@ body {
 /* Buttons */
 .btn-primary {
   padding: 0.625rem 1.5rem;
-  background: linear-gradient(135deg, var(--color-accent) 0%, #4393e4 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
   border: none;
   border-radius: 10px;
-  color: var(--color-bg);
+  color: white;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 8px rgba(88, 166, 255, 0.25);
+  box-shadow: 0 2px 8px rgba(163, 113, 247, 0.25);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #79b8ff 0%, var(--color-accent) 100%);
+  background: linear-gradient(135deg, var(--color-primary-hover) 0%, var(--color-primary) 100%);
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(88, 166, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(163, 113, 247, 0.35);
 }
 
 .btn-primary:active:not(:disabled) {

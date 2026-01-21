@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate, useLocation, useSearchParams, Navigate } from 'react-router-dom';
-import type { PRDData, RalphStatus, DecomposeState, PeerFeedback } from './types';
+import type { PRDData, RalphStatus, PeerFeedback } from './types';
 import { calculateStats } from './types';
+import { useUnifiedSSE } from './hooks/useUnifiedSSE';
 import { StatsBar } from './components/StatsBar';
 import { TaskList } from './components/TaskList';
 import { KanbanView } from './components/KanbanView';
@@ -11,7 +12,7 @@ import { DecomposeView } from './components/DecomposeView';
 import { SettingsView } from './components/SettingsView';
 import { KnowledgeView } from './components/KnowledgeView';
 import { SpecExplorer, SpecDashboard } from './components/specs';
-import { QueueView } from './components/queue';
+// QueueView removed - queue is now integrated into KanbanView
 import { TopNav } from './components/TopNav';
 import './App.css';
 
@@ -186,19 +187,23 @@ function App() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [projects, setProjects] = useState<ProjectEntry[]>([]);
-  const [prdData, setPrdData] = useState<PRDData | null>(null);
-  const [progress, setProgress] = useState<string>('');
-  const [iterationLog, setIterationLog] = useState<string>('');
-  const [currentIteration, setCurrentIteration] = useState<number | null>(null);
-  const [ralphStatus, setRalphStatus] = useState<RalphStatus>(defaultStatus);
-  const [decomposeState, setDecomposeState] = useState<DecomposeState>({ status: 'IDLE', message: '' });
-  const [peerFeedback, setPeerFeedback] = useState<PeerFeedback | null>(null);
+  const [progress] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Removed navCollapsed state - using top nav now
 
   // Get selected project from URL params
   const selectedProject = searchParams.get('project');
+
+  // Use unified SSE connection for all per-project events
+  const unifiedSSE = useUnifiedSSE(selectedProject);
+
+  // Extract state from unified SSE hook
+  const prdData = unifiedSSE.prdData;
+  const ralphStatus = unifiedSSE.ralphStatus || defaultStatus;
+  const iterationLog = unifiedSSE.iterationLog;
+  const currentIteration = unifiedSSE.currentIteration;
+  const peerFeedback = unifiedSSE.peerFeedback;
 
   // Derive execution tab from URL path
   function getExecutionTab(pathname: string): string {
@@ -235,170 +240,84 @@ function App() {
     const es = new EventSource('/api/events/projects');
     const apply = (list: any[]) => {
       setProjects(list);
-      if (!selectedProject && list.length > 0) {
+      setLoading(false); // Clear loading state once projects are loaded
+      // Only auto-select if we're on a route that needs a project and none is selected
+      if (!selectedProject && list.length > 0 && location.pathname !== '/') {
         setSearchParams({ project: list[0].path });
       }
     };
     es.addEventListener('projects/snapshot', (e: MessageEvent) => {
-      try { const payload = JSON.parse(e.data); apply(payload.data); } catch {}
+      try {
+        console.log('[App] Received projects/snapshot:', e.data);
+        const payload = JSON.parse(e.data);
+        console.log('[App] Parsed payload:', payload);
+        apply(payload.data);
+        console.log('[App] Applied projects:', payload.data.length);
+      } catch (err) {
+        console.error('[App] Error processing projects/snapshot:', err, e.data);
+      }
     });
     es.addEventListener('projects/updated', (e: MessageEvent) => {
-      try { const payload = JSON.parse(e.data); apply(payload.data); } catch {}
+      try {
+        console.log('[App] Received projects/updated:', e.data);
+        const payload = JSON.parse(e.data);
+        apply(payload.data);
+      } catch (err) {
+        console.error('[App] Error processing projects/updated:', err, e.data);
+      }
     });
     es.onerror = () => es.close();
     return () => es.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     if (!selectedProject) {
       setLoading(false);
       return;
     }
 
     try {
-      // Fetch sequentially to reduce file descriptor usage
-      const statusRes = await fetch(apiUrl('/api/ralph/status'));
-      const statusData = await statusRes.json();
-      setRalphStatus({
-        running: statusData.status === 'running',
-        status: statusData.status,
-        currentIteration: statusData.currentIteration || 0,
-        maxIterations: statusData.maxIterations || 0,
-        currentStory: statusData.currentStory || null,
-      });
+      // Most data now comes from unified SSE - only fetch on initial load or user actions
+      // SSE provides: ralphStatus, prdData, peerFeedback, iterationLog, currentIteration
+      // This function is kept for explicit user actions (start/stop Ralph) that need immediate feedback
 
-      // tasks will update via SSE; keep fallback only if prdData missing
-      if (!prdData) {
-        try {
-          const tasksRes = await fetch(apiUrl('/api/tasks'));
-          const tasksData = await tasksRes.json();
-          if (!tasksData.error) setPrdData(tasksData);
-        } catch {}
-      }
+      if (signal?.aborted) return;
 
-      const decomposeRes = await fetch(apiUrl('/api/decompose/state'));
-      const decomposeData = await decomposeRes.json();
-      setDecomposeState({
-        status: decomposeData.status?.toUpperCase() || 'IDLE',
-        message: decomposeData.message || '',
-      });
-
-      // Update currentIteration from status
-      setCurrentIteration(statusData.currentIteration || null);
-
-      // Live log now arrives via SSE; clear when not running
-      if (statusData.status !== 'running') setIterationLog('');
-
-      // Progress fetched on demand only when viewing logs; SSE could push summaries later
-
-      // Peer feedback / knowledge base
-      try {
-        const feedbackRes = await fetch(apiUrl('/api/ralph/peer-feedback'));
-        if (feedbackRes.ok) {
-          const feedbackData = await feedbackRes.json();
-          setPeerFeedback(feedbackData);
-        }
-      } catch (feedbackErr) {
-        console.warn('Failed to fetch peer feedback:', feedbackErr);
-      }
+      setLoading(false);
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return; // Request was cancelled, ignore
+      }
       setError(err instanceof Error ? err.message : 'Failed to fetch data');
     } finally {
-      setLoading(false);
-    }
-  }, [selectedProject, apiUrl]);
-
-  useEffect(() => {
-    if (selectedProject) {
-      setLoading(true);
-      fetchData();
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   }, [selectedProject]);
 
-  // SSE: subscribe to Ralph events per project to reduce latency vs polling
   useEffect(() => {
     if (!selectedProject) return;
-    if (typeof window === 'undefined' || !('EventSource' in window)) return;
 
-    const url = apiUrl('/api/events/ralph');
-    const es = new EventSource(url);
-
-    const scheduleRefresh = () => {
-      // Throttle refresh slightly to allow server to flush files
-      setTimeout(() => {
-        fetchData();
-      }, 200);
-    };
-
-    es.addEventListener('ralph/status', () => scheduleRefresh());
-    es.addEventListener('ralph/iteration-start', () => {
-      // Clear live log when a new iteration starts
-      setIterationLog('');
-      scheduleRefresh();
-    });
-    es.addEventListener('ralph/iteration-end', () => scheduleRefresh());
-    es.addEventListener('ralph/complete', () => scheduleRefresh());
-    es.addEventListener('ralph/log', (e: MessageEvent) => {
-      try {
-        const payload = JSON.parse(e.data) as { data: { line: string } };
-        setIterationLog((prev) => prev + payload.data.line);
-      } catch {}
-    });
-
-    es.onerror = () => {
-      // Close on error; polling remains as fallback
-      es.close();
-    };
+    const abortController = new AbortController();
+    setLoading(true);
+    fetchData(abortController.signal);
 
     return () => {
-      es.close();
+      abortController.abort();
+      setLoading(false); // Clear loading immediately when switching projects
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject]);
 
-  // SSE: subscribe to Decompose events per project
-  useEffect(() => {
-    if (!selectedProject) return;
-    if (typeof window === 'undefined' || !('EventSource' in window)) return;
-
-    const url = apiUrl('/api/events/decompose');
-    const es = new EventSource(url);
-    const scheduleRefresh = () => {
-      setTimeout(() => fetchData(), 200);
-    };
-    es.addEventListener('decompose/state', () => scheduleRefresh());
-    es.onerror = () => es.close();
-    return () => es.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject]);
-
-  // SSE: subscribe to Tasks (PRD) and Peer Feedback per project
-  useEffect(() => {
-    if (!selectedProject) return;
-    if (typeof window === 'undefined' || !('EventSource' in window)) return;
-
-    const tasksEs = new EventSource(apiUrl('/api/events/tasks'));
-    tasksEs.addEventListener('tasks/snapshot', (e: MessageEvent) => {
-      try { const payload = JSON.parse(e.data); setPrdData(payload.data as PRDData); setError(null); } catch {}
-    });
-    tasksEs.addEventListener('tasks/updated', (e: MessageEvent) => {
-      try { const payload = JSON.parse(e.data); setPrdData(payload.data as PRDData); setError(null); } catch {}
-    });
-    tasksEs.onerror = () => tasksEs.close();
-
-    const pfEs = new EventSource(apiUrl('/api/events/peer-feedback'));
-    pfEs.addEventListener('peer-feedback/snapshot', (e: MessageEvent) => {
-      try { const payload = JSON.parse(e.data); setPeerFeedback(payload.data as PeerFeedback); } catch {}
-    });
-    pfEs.addEventListener('peer-feedback/updated', (e: MessageEvent) => {
-      try { const payload = JSON.parse(e.data); setPeerFeedback(payload.data as PeerFeedback); } catch {}
-    });
-    pfEs.onerror = () => pfEs.close();
-
-    return () => { tasksEs.close(); pfEs.close(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProject]);
+  // All per-project SSE events now handled by useUnifiedSSE hook (single connection)
+  // This replaced 4 separate SSE connections:
+  // - /api/events/ralph (status, iteration-start, log, iteration-end, complete)
+  // - /api/events/decompose (state, log)
+  // - /api/events/tasks (snapshot, updated)
+  // - /api/events/peer-feedback (snapshot, updated)
+  // Now all flow through /api/events/all
 
   const handleTasksActivated = () => {
     fetchData();
@@ -517,17 +436,7 @@ function App() {
               ) : null
             }
           />
-          <Route
-            path="/queue"
-            element={
-              selectedProject ? (
-                <QueueView
-                  projectPath={selectedProject}
-                  onNavigateToSpec={(specId) => navigateTo(`/spec-review?spec=${specId}`)}
-                />
-              ) : null
-            }
-          />
+          {/* Queue route removed - queue integrated into KanbanView at /execution/kanban */}
           <Route path="/execution" element={<Navigate to="/execution/live" replace />} />
           <Route path="/execution/live" element={<ExecutionView {...executionViewProps} />} />
           <Route path="/execution/kanban" element={<ExecutionView {...executionViewProps} />} />

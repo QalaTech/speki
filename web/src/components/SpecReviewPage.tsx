@@ -123,6 +123,14 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
     lastLoadedFileRef.current = selectedFile;
     setLoadingSession(true);
 
+    // Clear state immediately when switching specs to prevent showing stale data
+    setChatMessages([]);
+    setSessionId(null);
+    setSessionStatus(null);
+    setSuggestions([]);
+    setReviewResult(null);
+    setDiscussingContext(null);
+
     const loadData = async (): Promise<void> => {
       try {
         const encodedPath = encodeURIComponent(selectedFile);
@@ -603,13 +611,13 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
     }, 100);
   }, [specEditor]);
 
-  // Chat message handler
+  // Chat message handler - uses streaming endpoint for inner monologue
   const handleSendMessage = useCallback(async (message: string, selectionContext?: string, suggestionId?: string): Promise<void> => {
     if (!sessionId) return;
 
     setIsSendingMessage(true);
     try {
-      const response = await fetch(apiUrl('/api/spec-review/chat'), {
+      const response = await fetch(apiUrl('/api/spec-review/chat/stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -617,36 +625,61 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
           message,
           selectedText: selectionContext,
           suggestionId,
+          specPath: selectedFile,
         }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send message');
+      // The streaming endpoint returns SSE, so we need to listen for the 'complete' event
+      if (!response.body) {
+        throw new Error('No response body');
       }
 
-      // Add both user and assistant messages to the chat
-      const newMessages: ChatMessage[] = [];
-      if (data.userMessage) {
-        newMessages.push(data.userMessage);
-      }
-      if (data.assistantMessage) {
-        newMessages.push(data.assistantMessage);
-      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      if (newMessages.length > 0) {
-        setChatMessages((prev) => [...prev, ...newMessages]);
-      }
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      // Clear selection after sending
-      specEditor.clearSelection();
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('event: complete')) {
+            // Next line should be the data
+            continue;
+          }
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.substring(6));
+
+            if (data.success !== undefined) {
+              // Final response received
+              const newMessages: ChatMessage[] = [];
+              if (data.userMessage) {
+                newMessages.push(data.userMessage);
+              }
+              if (data.assistantMessage) {
+                newMessages.push(data.assistantMessage);
+              }
+
+              if (newMessages.length > 0) {
+                setChatMessages((prev) => [...prev, ...newMessages]);
+              }
+
+              // Clear selection after sending
+              specEditor.clearSelection();
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('Failed to send chat message:', error);
     } finally {
       setIsSendingMessage(false);
     }
-  }, [sessionId, apiUrl, specEditor]);
+  }, [sessionId, apiUrl, specEditor, selectedFile]);
 
   // God spec handlers
   const handleAcceptSplit = useCallback(async (proposal: SplitProposal): Promise<void> => {
@@ -971,6 +1004,7 @@ export function SpecReviewPage({ projectPath }: SpecReviewPageProps): React.Reac
                   onSendMessage={handleSendMessage}
                   onClearDiscussingContext={() => setDiscussingContext(null)}
                   isSending={isSendingMessage}
+                  projectPath={projectPath}
                 />
               </div>
             )}

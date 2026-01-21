@@ -181,3 +181,309 @@
   cursor: not-allowed;
   box-shadow: none;
 }
+
+/* Inner Monologue Panel */
+.inner-monologue-panel {
+  border-top: 1px solid rgba(255,255,255,0.05);
+  background: linear-gradient(135deg, #1f1f2e 0%, #16161f 100%);
+}
+
+.inner-monologue-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.inner-monologue-header:hover {
+  background-color: rgba(255,255,255,0.02);
+}
+
+.inner-monologue-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #a0a0ff;
+  letter-spacing: 0.3px;
+}
+
+.inner-monologue-count {
+  flex: 1;
+  font-size: 11px;
+  color: #888;
+  text-align: right;
+}
+
+.inner-monologue-toggle {
+  background: none;
+  border: none;
+  color: #a0a0ff;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 10px;
+  opacity: 0.7;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.inner-monologue-toggle:hover {
+  opacity: 1;
+}
+
+.inner-monologue-toggle.expanded {
+  transform: rotate(0deg);
+}
+
+.inner-monologue-content {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 8px 16px 12px;
+  border-top: 1px solid rgba(160,160,255,0.1);
+  background: rgba(0,0,0,0.2);
+}
+
+/* Scrollbar for inner monologue */
+.inner-monologue-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.inner-monologue-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.inner-monologue-content::-webkit-scrollbar-thumb {
+  background: rgba(160,160,255,0.15);
+  border-radius: 3px;
+}
+
+.inner-monologue-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(160,160,255,0.25);
+}
+
+/* Inline streaming bubble - visually distinct from final messages */
+.chat-bubble-streaming {
+  min-height: 40px;
+  background: linear-gradient(135deg, rgba(138, 180, 248, 0.06) 0%, rgba(168, 148, 248, 0.04) 100%);
+  border: 1px dashed rgba(138, 180, 248, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 0 12px rgba(138, 180, 248, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle shimmer animation on streaming bubble */
+.chat-bubble-streaming::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(138, 180, 248, 0.08),
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Quirky streaming indicator - uses TextEffect for text animation */
+@import './ui/TextEffect.css';
+
+.streaming-quirky {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  min-height: 32px;
+}
+
+.quirky-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.quirky-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: #a0b4f8;
+  letter-spacing: 0.3px;
+}
+
+/* TextEffect segment styling inside quirky text */
+.quirky-text .text-effect-segment {
+  color: #a0b4f8;
+}
+
+/* Streaming response with typewriter cursor */
+.streaming-response {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.streaming-response .chat-bubble-content {
+  flex: 1;
+}
+
+.typing-cursor {
+  color: #667eea;
+  animation: blink 0.8s ease-in-out infinite;
+  font-size: 14px;
+  line-height: 1;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* Single inline activity (replaces, not stacks) */
+.streaming-activity {
+  font-size: 13px;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Thinking activity */
+.activity-thinking {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #a0a0ff;
+}
+
+.activity-thinking .activity-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.activity-thinking .activity-text {
+  font-style: italic;
+  color: #b0b0b0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Text response activity (inline streaming) */
+.activity-text-response {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  color: #e0e0e0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.activity-text-response .activity-text {
+  flex: 1;
+}
+
+.activity-text-response .typing-cursor {
+  color: #667eea;
+  animation: blink 0.8s ease-in-out infinite;
+  font-size: 14px;
+}
+
+/* Tool activity */
+.activity-tool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8b5cf6;
+}
+
+.activity-tool .activity-icon {
+  font-size: 14px;
+}
+
+.activity-tool-name {
+  font-weight: 600;
+  font-size: 12px;
+  background: rgba(139, 92, 246, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.activity-tool-detail {
+  color: #888;
+  font-size: 11px;
+  font-family: 'SF Mono', Monaco, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+/* Tool result activity */
+.activity-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4ade80;
+}
+
+.activity-result .activity-icon {
+  font-size: 12px;
+}
+
+.activity-result .activity-text {
+  color: #888;
+  font-size: 11px;
+  font-family: 'SF Mono', Monaco, monospace;
+}
+
+/* Waiting dots animation */
+.streaming-waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.waiting-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.waiting-dots span {
+  font-size: 18px;
+  color: #667eea;
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+
+.waiting-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.waiting-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dotPulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}

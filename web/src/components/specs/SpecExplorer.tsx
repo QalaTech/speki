@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { SpecTree, type SpecFileNode } from './SpecTree';
 import { SpecHeader, type SpecTab } from './SpecHeader';
 import { SpecEditor, type SpecEditorRef } from '../SpecEditor';
@@ -6,6 +7,7 @@ import { SpecDecomposeTab } from './SpecDecomposeTab';
 import { DiffOverlay } from './DiffOverlay';
 import { ReviewChat, type DiscussingContext } from '../ReviewChat';
 import { CreateTechSpecModal } from './CreateTechSpecModal';
+import { useFileVersion } from '../../hooks/useFileWatcher';
 import type { UserStory } from '../../types';
 import './SpecExplorer.css';
 
@@ -63,15 +65,36 @@ interface ChatMessage {
 }
 
 export function SpecExplorer({ projectPath }: SpecExplorerProps) {
+  // Use React Router's useSearchParams for URL state
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // Tree state
   const [files, setFiles] = useState<SpecFileNode[]>([]);
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [selectedPath, setSelectedPathState] = useState<string | null>(
+    () => searchParams.get('spec') || null
+  );
   const [, setIsLoadingTree] = useState(true);
+
+  // Wrapper to sync selectedPath with URL
+  const setSelectedPath = useCallback((path: string | null) => {
+    setSelectedPathState(path);
+    setSearchParams(prev => {
+      if (path) {
+        prev.set('spec', path);
+      } else {
+        prev.delete('spec');
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // Content state
   const [content, setContent] = useState<string>('');
   const [, setOriginalContent] = useState<string>('');
   const [isLoadingContent, setIsLoadingContent] = useState(false);
+
+  // File watcher - triggers refetch when selected file changes on disk
+  const fileVersion = useFileVersion(projectPath, selectedPath);
 
   // UI state
   const [activeTab, setActiveTab] = useState<SpecTab>('preview');
@@ -108,6 +131,11 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   // Create Tech Spec modal state
   const [isCreateTechSpecModalOpen, setIsCreateTechSpecModalOpen] = useState(false);
   const [prdUserStories, setPrdUserStories] = useState<UserStory[]>([]);
+  const [isGeneratingTechSpec, setIsGeneratingTechSpec] = useState(false);
+  const [generatingTechSpecInfo, setGeneratingTechSpecInfo] = useState<{
+    parentPath: string;
+    name: string;
+  } | null>(null);
 
   // API helper
   const apiUrl = useCallback((endpoint: string) => {
@@ -137,19 +165,21 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     });
   }
 
-  // Fetch tree structure and statuses
+  // Fetch tree structure, statuses, and generation status
   useEffect(() => {
     async function fetchFilesAndStatuses() {
       setIsLoadingTree(true);
       try {
-        // Fetch both in parallel
-        const [filesRes, statusesRes] = await Promise.all([
+        // Fetch all in parallel
+        const [filesRes, statusesRes, generationRes] = await Promise.all([
           fetch(apiUrl('/api/spec-review/files')),
           fetch(apiUrl('/api/sessions/statuses')),
+          fetch(apiUrl('/api/decompose/generation-status')),
         ]);
 
         const filesData = await filesRes.json();
         const statusesData = await statusesRes.json();
+        const generationData = await generationRes.json();
 
         // Merge statuses into tree
         const filesWithStatus = mergeStatusesIntoTree(
@@ -157,6 +187,15 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
           statusesData.statuses || {}
         );
         setFiles(filesWithStatus);
+
+        // Restore generation state if a generation is in progress
+        if (generationData.generating) {
+          setIsGeneratingTechSpec(true);
+          setGeneratingTechSpecInfo({
+            parentPath: `specs/${generationData.prdSpecId}.md`,
+            name: generationData.techSpecName,
+          });
+        }
 
         // Auto-select first file if none selected
         if (!selectedPath && filesWithStatus?.length > 0) {
@@ -172,6 +211,41 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     fetchFilesAndStatuses();
   }, [projectPath, apiUrl]);
 
+  // Poll for generation completion when generating
+  useEffect(() => {
+    if (!isGeneratingTechSpec) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(apiUrl('/api/decompose/generation-status'));
+        const data = await res.json();
+
+        if (!data.generating) {
+          // Generation completed - clear state and refresh file list
+          setIsGeneratingTechSpec(false);
+          setGeneratingTechSpecInfo(null);
+
+          // Refresh file list to show the new spec
+          const [filesRes, statusesRes] = await Promise.all([
+            fetch(apiUrl('/api/spec-review/files')),
+            fetch(apiUrl('/api/sessions/statuses')),
+          ]);
+          const filesData = await filesRes.json();
+          const statusesData = await statusesRes.json();
+          const filesWithStatus = mergeStatusesIntoTree(
+            filesData.files || [],
+            statusesData.statuses || {}
+          );
+          setFiles(filesWithStatus);
+        }
+      } catch (err) {
+        console.error('Failed to poll generation status:', err);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [isGeneratingTechSpec, apiUrl]);
+
   // Reset review state when file changes
   useEffect(() => {
     setIsStartingReview(false);
@@ -181,10 +255,18 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   useEffect(() => {
     if (!selectedPath) return;
 
+    const abortController = new AbortController();
+    let cancelled = false;
+
     async function fetchContent() {
       setIsLoadingContent(true);
       try {
-        const res = await fetch(apiUrl(`/api/spec-review/content/${encodeURIComponent(selectedPath!)}`));
+        const res = await fetch(apiUrl(`/api/spec-review/content/${encodeURIComponent(selectedPath!)}`), {
+          signal: abortController.signal,
+        });
+
+        if (cancelled) return; // Don't process if we've been cancelled
+
         const data = await res.json();
         const fileContent = data.content || '';
         setContent(fileContent);
@@ -192,30 +274,53 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
         setHasUnsavedChanges(false);
         setIsEditing(false); // Reset to preview mode when switching files
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          // Request was cancelled, ignore
+          return;
+        }
         console.error('Failed to fetch spec content:', err);
       } finally {
-        setIsLoadingContent(false);
+        // Only clear loading if not cancelled (to avoid clearing new request's loading state)
+        if (!cancelled) {
+          setIsLoadingContent(false);
+        }
       }
     }
 
     // Also fetch session if exists
     async function fetchSession() {
       try {
-        const res = await fetch(apiUrl(`/api/sessions/spec/${encodeURIComponent(selectedPath!)}`));
+        const res = await fetch(apiUrl(`/api/sessions/spec/${encodeURIComponent(selectedPath!)}`), {
+          signal: abortController.signal,
+        });
+
+        if (cancelled) return;
+
         if (res.ok) {
           const data = await res.json();
           setSession(data.session || null);
         } else {
           setSession(null);
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
         setSession(null);
       }
     }
 
     fetchContent();
     fetchSession();
-  }, [selectedPath, apiUrl]);
+
+    return () => {
+      cancelled = true;
+      abortController.abort();
+      // Clear loading state immediately when switching files
+      // This ensures we don't get stuck in loading state
+      setIsLoadingContent(false);
+    };
+  }, [selectedPath, apiUrl, fileVersion]); // fileVersion triggers refetch when file changes on disk
 
   // Poll for session updates when status is in_progress
   useEffect(() => {
@@ -559,46 +664,110 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     });
 
     setIsSendingChat(true);
+
     try {
-      const res = await fetch(apiUrl('/api/spec-review/chat'), {
+      console.log('[SpecExplorer] Sending chat message:', {
+        sessionId: session?.sessionId,
+        specPath: selectedPath,
+        messageLength: message.length,
+      });
+
+      // Send the message via POST to streaming endpoint
+      const res = await fetch(apiUrl('/api/spec-review/chat/stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: session?.sessionId,
-          specPath: selectedPath, // Always pass specPath so backend can create session if needed
+          specPath: selectedPath,
           message,
           suggestionId,
           selectedText: selectionContext,
         }),
       });
 
-      const data = await res.json();
+      console.log('[SpecExplorer] Got response:', {
+        status: res.status,
+        ok: res.ok,
+        headers: Object.fromEntries(res.headers.entries()),
+      });
 
-      if (data.success && data.assistantMessage) {
-        // Check if agent updated the spec file
-        if (data.assistantMessage.content?.includes('[SPEC_UPDATED]')) {
-          console.log('[SpecExplorer] Detected [SPEC_UPDATED] marker, refetching content');
-          refetchContent();
-        }
+      // Read the SSE stream from response
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-        // Replace optimistic message with server version and add assistant response
-        setSession(prev => {
-          if (prev) {
-            // Remove optimistic message and add server messages
-            const messagesWithoutOptimistic = prev.chatMessages.filter(
-              m => m.id !== optimisticUserMessage.id
-            );
-            return {
-              ...prev,
-              sessionId: data.sessionId || prev.sessionId,
-              chatMessages: [...messagesWithoutOptimistic, data.userMessage, data.assistantMessage],
-            };
+      console.log('[SpecExplorer] Starting to read stream...');
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          console.log('[SpecExplorer] Stream chunk:', { done, valueLength: value?.length });
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+          console.log('[SpecExplorer] Processing lines:', lines.length);
+          for (const line of lines) {
+            console.log('[SpecExplorer] Line:', line.substring(0, 100));
+            if (line.startsWith('event: complete')) {
+              console.log('[SpecExplorer] Got complete event');
+              // Next line should be the data
+              continue;
+            }
+            if (line.startsWith('data: ')) {
+              const jsonData = line.substring(6); // Remove 'data: ' prefix
+              console.log('[SpecExplorer] Parsing data:', jsonData.substring(0, 200));
+              try {
+                const data = JSON.parse(jsonData);
+                console.log('[SpecExplorer] Parsed data:', {
+                  success: data.success,
+                  hasAssistantMessage: !!data.assistantMessage,
+                });
+
+                if (data.success && data.assistantMessage) {
+                  // Check if agent updated the spec file
+                  if (data.assistantMessage.content?.includes('[SPEC_UPDATED]')) {
+                    console.log('[SpecExplorer] Detected [SPEC_UPDATED] marker, refetching content');
+                    refetchContent();
+                  }
+
+                  // Replace optimistic message with server version and add assistant response
+                  setSession(prev => {
+                    if (prev) {
+                      const messagesWithoutOptimistic = prev.chatMessages.filter(
+                        m => m.id !== optimisticUserMessage.id
+                      );
+                      return {
+                        ...prev,
+                        sessionId: data.sessionId || prev.sessionId,
+                        chatMessages: [...messagesWithoutOptimistic, data.userMessage, data.assistantMessage],
+                      };
+                    } else if (data.sessionId && data.userMessage && data.assistantMessage) {
+                      // Create new session if none exists (first message)
+                      return {
+                        sessionId: data.sessionId,
+                        status: 'completed' as const,
+                        suggestions: [],
+                        reviewResult: null,
+                        chatMessages: [data.userMessage, data.assistantMessage],
+                      };
+                    }
+                    return prev;
+                  });
+                }
+              } catch (parseError) {
+                // Ignore parse errors for non-complete events
+              }
+            }
           }
-          return prev;
-        });
+        }
+        console.log('[SpecExplorer] Stream reading complete');
+      } else {
+        console.error('[SpecExplorer] No reader available from response');
       }
     } catch (error) {
-      console.error('Failed to send chat message:', error);
+      console.error('[SpecExplorer] Failed to send chat message:', error);
       // Remove optimistic message on error
       setSession(prev => {
         if (prev) {
@@ -637,7 +806,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
       setIsSendingChat(true);
       try {
-        const res = await fetch(apiUrl('/api/spec-review/chat'), {
+        const res = await fetch(apiUrl('/api/spec-review/chat/stream'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -647,13 +816,38 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
           }),
         });
 
-        const data = await res.json();
+        // Read the SSE stream from response
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-        if (data.success && data.userMessage && data.assistantMessage) {
-          setSession(prev => prev ? {
-            ...prev,
-            chatMessages: [...prev.chatMessages, data.userMessage, data.assistantMessage],
-          } : prev);
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const jsonData = line.substring(6);
+                try {
+                  const data = JSON.parse(jsonData);
+
+                  if (data.success && data.userMessage && data.assistantMessage) {
+                    setSession(prev => prev ? {
+                      ...prev,
+                      chatMessages: [...prev.chatMessages, data.userMessage, data.assistantMessage],
+                    } : prev);
+                  }
+                } catch (parseError) {
+                  // Ignore parse errors
+                }
+              }
+            }
+          }
         }
       } catch (error) {
         console.error('Failed to send discuss message:', error);
@@ -729,14 +923,16 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
       const res = await fetch(apiUrl(`/api/decompose/draft?specPath=${encodeURIComponent(selectedPath)}`));
       const data = await res.json();
 
-      if (data.draft?.userStories) {
+      if (data.draft?.userStories && data.draft.userStories.length > 0) {
         setPrdUserStories(data.draft.userStories);
         setIsCreateTechSpecModalOpen(true);
       } else {
-        console.error('No user stories found - decompose the PRD first');
+        // Show alert so user knows why modal didn't open
+        alert('No user stories found. Please decompose the PRD first (use the Decompose tab).');
       }
     } catch (err) {
       console.error('Failed to fetch PRD user stories:', err);
+      alert('Failed to load PRD data. Please try again.');
     }
   }, [selectedPath, apiUrl]);
 
@@ -791,7 +987,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
       console.log(`Quick Start: Queued ${data.addedCount} stories as tasks`);
 
       // Navigate to queue view after queueing
-      window.location.href = '/queue';
+      window.location.href = '/execution/kanban';
     } catch (err) {
       console.error('Quick start failed:', err);
     }
@@ -911,6 +1107,16 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
                         🔄
                       </button>
                     </div>
+                    {/* Verdict display */}
+                    {session.reviewResult?.verdict && (
+                      <div className={`spec-review-verdict spec-review-verdict--${session.reviewResult.verdict.toLowerCase()}`}>
+                        {session.reviewResult.verdict === 'PASS' ? '✅' : session.reviewResult.verdict === 'FAIL' ? '❌' : '⚠️'}
+                        <span>{session.reviewResult.verdict}</span>
+                        {session.suggestions.length === 0 && session.reviewResult.verdict === 'PASS' && (
+                          <span className="spec-review-verdict-note">No issues found</span>
+                        )}
+                      </div>
+                    )}
                     {/* Tag filters */}
                     {(() => {
                       const allTags = new Set<SuggestionTag>();
@@ -1068,6 +1274,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
             specType={selectedSpecType}
             onCreateTechSpec={handleOpenCreateTechSpec}
             onQuickExecute={handleQuickExecute}
+            isGeneratingTechSpec={isGeneratingTechSpec}
           />
         );
 
@@ -1085,6 +1292,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
           selectedPath={selectedPath}
           onSelect={setSelectedPath}
           onCreateNew={handleOpenNewSpecModal}
+          generatingSpec={generatingTechSpecInfo || undefined}
         />
       </div>
 
@@ -1101,6 +1309,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
             hasUnsavedChanges={hasUnsavedChanges}
             onCreateTechSpec={handleOpenCreateTechSpec}
             onQuickExecute={handleQuickExecute}
+            isGeneratingTechSpec={isGeneratingTechSpec}
           />
         )}
 
@@ -1163,6 +1372,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
                   setDiscussStartTimestamp(null);
                 }}
                 isSending={isSendingChat}
+                projectPath={projectPath}
               />
             </div>
           )}
@@ -1261,7 +1471,24 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
           prdName={selectedFileName}
           userStories={prdUserStories}
           projectPath={projectPath}
-          onCreated={handleTechSpecCreated}
+          onCreated={(path) => {
+            handleTechSpecCreated(path);
+            setGeneratingTechSpecInfo(null);
+            setIsGeneratingTechSpec(false);
+            // Navigate to the new spec
+            setSelectedPath(path);
+          }}
+          onGenerationStart={(specName) => {
+            setIsGeneratingTechSpec(true);
+            setGeneratingTechSpecInfo({
+              parentPath: selectedPath,
+              name: specName,
+            });
+          }}
+          onGenerationEnd={() => {
+            setGeneratingTechSpecInfo(null);
+            setIsGeneratingTechSpec(false);
+          }}
         />
       )}
     </div>

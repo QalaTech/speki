@@ -104,3 +104,53 @@ export async function detectAllClis(): Promise<AllCliDetectionResults> {
 
   return { codex, claude };
 }
+
+/**
+ * Model detection result
+ */
+export interface ModelDetectionResult {
+  available: boolean;
+  models: string[];
+  error?: string;
+}
+
+/**
+ * Known models for each CLI.
+ * These are the recommended short names that work with each CLI.
+ */
+const KNOWN_MODELS: Record<CliType, string[]> = {
+  claude: ['opus', 'sonnet', 'haiku'],
+  codex: ['gpt-5', 'gpt-5-codex'],
+};
+
+/**
+ * Get available models for a CLI.
+ * Returns hardcoded list of known models for reliability.
+ */
+export async function detectModels(cli: CliType): Promise<ModelDetectionResult> {
+  const models = KNOWN_MODELS[cli] || [];
+  return {
+    available: models.length > 0,
+    models,
+  };
+}
+
+/**
+ * All CLI model detection results
+ */
+export interface AllModelDetectionResults {
+  codex: ModelDetectionResult;
+  claude: ModelDetectionResult;
+}
+
+/**
+ * Detect models for all CLIs
+ */
+export async function detectAllModels(): Promise<AllModelDetectionResults> {
+  const [codex, claude] = await Promise.all([
+    detectModels('codex'),
+    detectModels('claude'),
+  ]);
+
+  return { codex, claude };
+}

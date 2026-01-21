@@ -6,7 +6,6 @@ import { editor, select } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
-import { checkCliAvailable } from '../../core/cli-path.js';
 import { findProjectRoot } from '../../core/project.js';
 import { runSpecReview } from '../../core/spec-review/runner.js';
 import {
@@ -18,7 +17,7 @@ import {
   updateSpecStatus,
 } from '../../core/spec-review/spec-metadata.js';
 import { executeSplit } from '../../core/spec-review/splitter.js';
-import type { CliType, SpecReviewVerdict, SplitProposal, SpecReviewResult, SpecStatus, TimeoutInfo } from '../../types/index.js';
+import type { SpecReviewVerdict, SplitProposal, SpecReviewResult, SpecStatus, TimeoutInfo } from '../../types/index.js';
 
 /**
  * Returns the appropriate exit code for a spec review verdict.
@@ -277,14 +276,6 @@ export const specCommand = new Command('spec')
   .option('--engine <name>', 'LLM engine name (overrides settings)')
   .option('--model <name>', 'LLM model name (overrides settings)');
 
-export function validateCliOption(value: string): CliType {
-  const validOptions: CliType[] = ['claude', 'codex'];
-  if (!validOptions.includes(value as CliType)) {
-    throw new Error(`Invalid CLI option: ${value}. Must be 'claude' or 'codex'.`);
-  }
-  return value as CliType;
-}
-
 export function formatJsonOutput(result: SpecReviewResult): string {
   return JSON.stringify(result, null, 2);
 }
@@ -383,7 +374,6 @@ specCommand
   .description('Review a specification file for quality and completeness')
   .option('-p, --project <path>', 'Project path (defaults to current directory)')
   .option('-t, --timeout <ms>', 'Timeout in milliseconds', parseInt)
-  .option('-c, --cli <cli>', 'CLI to use (claude or codex)', validateCliOption)
   .option('-v, --verbose', 'Show detailed progress output')
   .option('-j, --json', 'Output machine-readable JSON')
   .action(async (specFile: string | undefined, options) => {
@@ -409,15 +399,6 @@ specCommand
         }
       }
 
-      // Check CLI availability before running review
-      const cli: CliType = options.cli ?? 'claude';
-      const cliCheck = checkCliAvailable(cli);
-      if (!cliCheck.available) {
-        console.error(chalk.red(`Error: ${cliCheck.error}`));
-        console.error(chalk.yellow(`\n${cliCheck.installInstructions}`));
-        process.exit(2);
-      }
-
       // Initialize spec metadata if not exists
       const specId = extractSpecId(resolvedSpecFile);
       const existingMetadata = await readSpecMetadata(projectPath, specId);
@@ -439,10 +420,14 @@ specCommand
         ? (message: string) => console.log(chalk.gray(`  ${message}`))
         : undefined;
 
+      // Get engine/model from parent command options
+      const parentOpts = specCommand.opts();
+
       const result = await runSpecReview(resolvedSpecFile, {
         cwd: projectPath,
         timeoutMs: options.timeout,
-        cli,
+        engineName: parentOpts.engine,
+        model: parentOpts.model,
         onProgress,
         logDir: specLogsDir,
       });

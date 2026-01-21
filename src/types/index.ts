@@ -6,6 +6,13 @@ export interface ProjectConfig {
   language: string;
   createdAt: string;
   lastRunAt?: string;
+  /** Per-project LLM engine overrides */
+  llm?: {
+    /** Project-specific engine override */
+    engine?: string;
+    /** Project-specific model override */
+    model?: string;
+  };
 }
 
 // Entry in the central registry ~/.qala/projects.json
@@ -175,31 +182,94 @@ export interface RalphStatus {
   error?: string;
 }
 
-// CLI type for reviewer selection
+// CLI type for agent selection
 export type CliType = 'codex' | 'claude';
 
-// Reviewer configuration
-export interface ReviewerConfig {
-  cli: CliType;
+/** Purpose identifier for engine selection - determines which settings to use */
+export type EnginePurpose =
+  | 'taskRunner'
+  | 'decompose'
+  | 'specChat'
+  | 'condenser'
+  | 'specGenerator'
+  | 'specReview';
+
+// Reasoning effort levels for Codex models
+export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
+
+// Decompose reviewer configuration
+export interface DecomposeReviewerConfig {
+  /** CLI agent to use for peer review */
+  agent: CliType;
+  /** Optional model identifier */
+  model?: string;
+  /** Reasoning effort for Codex models */
+  reasoningEffort?: ReasoningEffort;
 }
 
-// Execution configuration
-export interface ExecutionConfig {
-  /** Prevent system sleep during execution (default: true) */
-  keepAwake: boolean;
+// Spec condenser configuration
+export interface CondenserConfig {
+  /** CLI agent to use for spec condensing */
+  agent: CliType;
+  /** Optional model identifier */
+  model?: string;
+  /** Reasoning effort for Codex models */
+  reasoningEffort?: ReasoningEffort;
+}
+
+// Spec generator configuration
+export interface SpecGeneratorConfig {
+  /** CLI agent to use for spec generation */
+  agent: CliType;
+  /** Optional model identifier */
+  model?: string;
+  /** Reasoning effort for Codex models */
+  reasoningEffort?: ReasoningEffort;
+}
+
+// Task runner configuration
+export interface TaskRunnerConfig {
+  /** CLI agent to use for task execution ('auto' for auto-detection) */
+  agent: CliType | 'auto';
+  /** Optional model identifier */
+  model?: string;
+  /** Reasoning effort for Codex models */
+  reasoningEffort?: ReasoningEffort;
+}
+
+// Spec chat configuration
+export interface SpecChatConfig {
+  /** CLI agent to use for spec chat */
+  agent: CliType;
+  /** Optional model identifier */
+  model?: string;
+  /** Reasoning effort for Codex models */
+  reasoningEffort?: ReasoningEffort;
 }
 
 // Global settings stored in ~/.qala/config.json
 export interface GlobalSettings {
-  reviewer: ReviewerConfig;
-  execution: ExecutionConfig;
-  llm?: {
-    /** Engine selection: 'auto' | 'claude-cli' | 'codex-cli' | 'custom-cli' */
-    defaultEngine?: string;
-    /** Default model identifier to pass to the engine */
-    defaultModel?: string;
-    /** Optional per-engine config */
-    engines?: Record<string, { command?: string; args?: string[]; model?: string }>;
+  /** Decompose reviewer - peer review during PRD decomposition */
+  decompose: {
+    reviewer: DecomposeReviewerConfig;
+  };
+
+  /** Spec condenser - optimizes PRD for LLM (token reduction) */
+  condenser: CondenserConfig;
+
+  /** Spec generator - drafts PRDs/tech specs from inputs */
+  specGenerator: SpecGeneratorConfig;
+
+  /** Task runner - executes user stories */
+  taskRunner: TaskRunnerConfig;
+
+  /** Spec chat - interactive chat for spec review */
+  specChat: SpecChatConfig;
+
+  /** Execution settings */
+  execution: {
+    /** Prevent system sleep during execution (default: true) */
+    keepAwake: boolean;
   };
 }
 
@@ -231,7 +301,8 @@ export type RalphSseEvent =
 // Decompose SSE events
 export type DecomposeSseEvent =
   | SseEnvelope<'decompose/state', DecomposeState>
-  | SseEnvelope<'decompose/connected', { message: string }>;
+  | SseEnvelope<'decompose/connected', { message: string }>
+  | SseEnvelope<'decompose/log', { line: string }>;
 
 // Tasks (PRD) SSE events
 export type TasksSseEvent =
@@ -253,8 +324,21 @@ export type SpecReviewSseEvent =
   | SseEnvelope<'spec-review/connected', { message: string }>
   | SseEnvelope<'spec-review/status', { sessionId: string; status: SessionStatus }>
   | SseEnvelope<'spec-review/result', { sessionId: string; verdict: SpecReviewVerdict; suggestions: SuggestionCard[]; logPath?: string }>
-  | SseEnvelope<'spec-review/complete', { sessionId: string }>;
+  | SseEnvelope<'spec-review/complete', { sessionId: string }>
+  | SseEnvelope<'spec-review/chat-stream', { sessionId: string; line: string }>
+  | SseEnvelope<'spec-review/log', { sessionId: string; line: string }>
+  | SseEnvelope<'spec-review/file-changed', { filePath: string; changeType: 'add' | 'change' | 'unlink' }>;
 
+// Event channel identifier
+export type EventChannel = 'ralph' | 'decompose' | 'tasks' | 'peer-feedback' | 'spec-review';
+
+// Unified SSE event (all per-project events)
+export type UnifiedSseEvent =
+  | RalphSseEvent
+  | DecomposeSseEvent
+  | TasksSseEvent
+  | PeerFeedbackSseEvent
+  | SpecReviewSseEvent;
 
 // CLI detection result
 export interface CliDetectionResult {
@@ -392,6 +476,69 @@ export interface ReviewFeedback {
   standaloneTasks?: StandaloneTask[];
 }
 
+// =============================================================================
+// Generic Peer Review Types (Agent-Agnostic)
+// =============================================================================
+
+/**
+ * Generic options for running peer review.
+ * Drivers adapt these to their specific format.
+ */
+export interface ReviewOptions {
+  /** The review prompt to send to the engine */
+  prompt: string;
+  /** Path to write raw output file */
+  outputPath: string;
+  /** Project path for working directory context */
+  projectPath: string;
+  /** Optional timeout in milliseconds */
+  timeoutMs?: number;
+  /** Optional model to use */
+  model?: string;
+}
+
+/**
+ * Generic result from peer review execution.
+ * Drivers convert their specific outputs to this format.
+ */
+export interface ReviewResult {
+  /** Whether the review completed successfully */
+  success: boolean;
+  /** The review feedback (parsed and validated) */
+  feedback: ReviewFeedback;
+  /** Error message if failed */
+  error?: string;
+  /** Captured stdout output (raw response) */
+  stdout?: string;
+  /** Captured stderr output */
+  stderr?: string;
+  /** Duration in milliseconds */
+  durationMs?: number;
+}
+
+// =============================================================================
+// Normalized Stream Events (Cross-Engine)
+// =============================================================================
+
+/**
+ * Normalized stream events that all engines must emit.
+ * Drivers convert engine-specific outputs to these standardized events.
+ */
+export type NormalizedEvent =
+  | { type: 'text'; content: string }
+  | { type: 'tool_call'; id: string; name: string; input: Record<string, unknown>; detail?: string }
+  | { type: 'tool_result'; tool_use_id: string; content?: string; is_error?: boolean }
+  | { type: 'metadata'; data: Record<string, unknown> }
+  | { type: 'complete'; reason?: string }
+  | { type: 'error'; message: string };
+
+/**
+ * Stream normalizer interface - converts engine-specific output to standard events
+ */
+export interface StreamNormalizer {
+  /** Convert engine-specific stream chunk to normalized events */
+  normalize(chunk: string): NormalizedEvent[];
+}
 
 // =============================================================================
 // Spec Review Types (FR-21)

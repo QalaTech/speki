@@ -71,6 +71,7 @@ async function projectDashboard(ctx: Ctx) {
         { name: 'Decompose PRD', value: 'decompose' },
         { name: 'Spec Review', value: 'spec' },
         { name: 'Open Dashboard', value: 'dashboard' },
+        { name: 'Project Settings', value: 'project-settings' },
         { name: 'Back', value: 'back' },
       ],
     });
@@ -98,24 +99,67 @@ async function projectDashboard(ctx: Ctx) {
       }
     } else if (action === 'dashboard') {
       await runCli(['dashboard']);
+    } else if (action === 'project-settings') {
+      await projectSettingsScreen(projectPath);
     }
   }
+}
+
+async function projectSettingsScreen(projectPath: string) {
+  const project = new Project(projectPath);
+  const config = await project.loadConfig();
+
+  console.log('');
+  console.log(chalk.bold(`Project Settings: ${config.name}`));
+  console.log(`  Project Engine: ${config.llm?.engine ?? '(use global default)'}`);
+  console.log(`  Project Model: ${config.llm?.model ?? '(use global default)'}`);
+
+  const change = await confirm({ message: 'Edit project LLM settings?', default: false });
+  if (!change) return;
+
+  const engine = await input({
+    message: 'Project engine override (blank for global default):',
+    default: config.llm?.engine ?? '',
+  });
+
+  const model = await input({
+    message: 'Project model override (blank for global default):',
+    default: config.llm?.model ?? '',
+  });
+
+  // Update config
+  const updatedConfig = {
+    ...config,
+    llm: {
+      engine: engine || undefined,
+      model: model || undefined,
+    },
+  };
+
+  await project.saveConfig(updatedConfig);
+  console.log(chalk.green('Project settings saved.'));
 }
 
 async function settingsScreen() {
   const settings = await loadGlobalSettings();
   console.log('');
   console.log(chalk.bold('Global Settings'));
-  console.log(`  Reviewer CLI: ${settings.reviewer.cli}`);
+  console.log(`  Decompose Reviewer: ${settings.decompose.reviewer.agent} ${settings.decompose.reviewer.model ? `(${settings.decompose.reviewer.model})` : ''}`);
+  console.log(`  Spec Condenser: ${settings.condenser.agent} ${settings.condenser.model ? `(${settings.condenser.model})` : ''}`);
+  console.log(`  Task Runner: ${settings.taskRunner.agent} ${settings.taskRunner.model ? `(${settings.taskRunner.model})` : ''}`);
   console.log(`  Keep Awake: ${settings.execution.keepAwake ? 'Yes' : 'No'}`);
-  console.log(`  LLM Engine: ${settings.llm?.defaultEngine ?? 'auto'}`);
-  console.log(`  LLM Model: ${settings.llm?.defaultModel ?? ''}`);
 
-  const change = await confirm({ message: 'Edit LLM engine/model?', default: false });
+  const change = await confirm({ message: 'Edit settings?', default: false });
   if (!change) return;
-  const engine = await input({ message: 'Default engine (auto/claude-cli/codex-cli/custom-cli):', default: settings.llm?.defaultEngine ?? 'auto' });
-  const model = await input({ message: 'Default model (optional):', default: settings.llm?.defaultModel ?? '' });
-  const newSettings = { ...settings, llm: { ...(settings.llm || {}), defaultEngine: engine || 'auto', defaultModel: model || undefined } };
+
+  console.log(chalk.bold('\nTask Runner Settings'));
+  const agent = await input({ message: 'Task runner agent (auto/claude/codex):', default: settings.taskRunner.agent });
+  const model = await input({ message: 'Task runner model (optional):', default: settings.taskRunner.model ?? '' });
+
+  const newSettings = {
+    ...settings,
+    taskRunner: { agent: agent as any, model: model || undefined }
+  };
   await saveGlobalSettings(newSettings);
   console.log(chalk.green('Settings saved.'));
 }

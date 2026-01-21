@@ -200,6 +200,38 @@
   margin-left: auto;
 }
 
+/* Generating indicator */
+.tree-node-generating {
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1;
+  margin-left: auto;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Generating node styling */
+.tree-node--generating {
+  opacity: 0.7;
+  cursor: default;
+  pointer-events: none;
+}
+
+.tree-node--generating .tree-node-name {
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+/* Linked specs under PRDs */
+.tree-node-linked {
+  border-left: 1px dashed var(--color-border);
+  margin-left: 20px;
+}
+
 /* Children container */
 .tree-node-children {
   /* Indentation handled by padding-left on tree-node */

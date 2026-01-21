@@ -216,7 +216,7 @@ export async function runRalphLoop(
       console.log('');
 
       const callbacks = options.streamCallbacks || createConsoleCallbacks();
-      const sel = await selectEngine({ engineName: options.engineName, model: options.model });
+      const sel = await selectEngine({ engineName: options.engineName, model: options.model, purpose: 'taskRunner' });
       const result = await sel.engine.runStream({
         promptPath: project.promptPath,
         cwd: project.projectPath,

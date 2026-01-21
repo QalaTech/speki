@@ -15,6 +15,7 @@ import { join } from 'path';
 import { PassThrough } from 'stream';
 import { parseStream, createConsoleCallbacks } from './stream-parser.js';
 import { resolveCliPath } from '../cli-path.js';
+import { ClaudeStreamNormalizer } from '../llm/normalizers/claude-normalizer.js';
 import type { ParsedOutput, StreamCallbacks } from './types.js';
 
 export interface RunOptions {
@@ -30,6 +31,8 @@ export interface RunOptions {
   callbacks?: StreamCallbacks;
   /** Skip permissions check (--dangerously-skip-permissions) */
   skipPermissions?: boolean;
+  /** Optional model identifier to pass to CLI */
+  model?: string;
 }
 
 export interface RunResult {
@@ -64,6 +67,7 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
     iteration,
     callbacks = createConsoleCallbacks(),
     skipPermissions = true,
+    model,
   } = options;
 
   // Ensure log directory exists
@@ -84,6 +88,11 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
     args.unshift('--dangerously-skip-permissions');
   }
 
+  // Add model if provided
+  if (model && model.trim()) {
+    args.push('--model', model.trim());
+  }
+
   // Resolve Claude CLI path - handles cases where claude is an alias not in PATH
   const claudePath = resolveCliPath('claude');
 
@@ -101,6 +110,7 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
 
   // Create write streams for logs
   const jsonlStream = createWriteStream(jsonlPath);
+  const normStream = createWriteStream(normPath);
   const stderrStream = createWriteStream(stderrPath);
 
   // Write initial engine metadata line to JSONL for downstream parsers (UI-safe; system lines are ignored by existing parser)
@@ -111,19 +121,42 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
     // non-fatal
   }
 
-  // Tee stdout: one copy to JSONL file, one to parser
+  // Write initial metadata to normalized stream
+  try {
+    const metaEvent = JSON.stringify({ type: 'metadata', data: { engine: 'claude-cli', timestamp: new Date().toISOString() } });
+    normStream.write(metaEvent + '\n');
+  } catch {
+    // non-fatal
+  }
+
+  // Tee stdout: one copy to JSONL file, one to parser, and normalize in real-time
   const parserStream = new PassThrough();
+  const normalizer = new ClaudeStreamNormalizer();
 
   claude.stdout.on('data', (chunk: Buffer) => {
+    const text = chunk.toString();
+
     // Write to JSONL file
     jsonlStream.write(chunk);
+
     // Pass to parser
     parserStream.write(chunk);
+
+    // Normalize and write to .norm.jsonl in real-time
+    try {
+      const events = normalizer.normalize(text);
+      for (const event of events) {
+        normStream.write(JSON.stringify(event) + '\n');
+      }
+    } catch {
+      // Ignore normalization errors - continue streaming
+    }
   });
 
   claude.stdout.on('end', () => {
     jsonlStream.end();
     parserStream.end();
+    normStream.end();
   });
 
   // Capture stderr
@@ -135,25 +168,6 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
 
   // Parse the stream
   const parsed = await parseStream(parserStream, callbacks);
-
-  // Write a normalized JSONL file (best-effort) after run completes
-  try {
-    const { promises: fsPromises } = await import('fs');
-    const normLines: string[] = [];
-    // Metadata event
-    normLines.push(JSON.stringify({ event: 'metadata', data: { engine: 'claude-cli' }, timestamp: new Date().toISOString() }));
-    // Tool calls
-    for (const t of parsed.toolCalls) {
-      normLines.push(JSON.stringify({ event: 'tool_call', data: { id: t.id, name: t.name, input: t.input, detail: t.detail }, timestamp: new Date().toISOString() }));
-    }
-    // Full text as a single text event (streamed chunking could be done in drivers later)
-    if (parsed.fullText) {
-      normLines.push(JSON.stringify({ event: 'text', data: { content: parsed.fullText }, timestamp: new Date().toISOString() }));
-    }
-    await fsPromises.writeFile(normPath, normLines.join('\n') + '\n', 'utf-8');
-  } catch {
-    // ignore normalization failures
-  }
 
   // Wait for process to exit
   const exitCode = await new Promise<number | null>((resolve) => {
@@ -168,10 +182,16 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
   const durationMs = Date.now() - startTime;
 
   // Close streams
-  await new Promise<void>((resolve) => {
-    jsonlStream.on('finish', resolve);
-    if (jsonlStream.writableFinished) resolve();
-  });
+  await Promise.all([
+    new Promise<void>((resolve) => {
+      jsonlStream.on('finish', resolve);
+      if (jsonlStream.writableFinished) resolve();
+    }),
+    new Promise<void>((resolve) => {
+      normStream.on('finish', resolve);
+      if (normStream.writableFinished) resolve();
+    }),
+  ]);
 
     return {
       success: exitCode === 0 || exitCode === 141, // 141 = SIGPIPE, normal for piped output

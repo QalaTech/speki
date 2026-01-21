@@ -244,7 +244,7 @@
 /* Start review button */
 .start-review-button {
   padding: 0.75rem 1.5rem;
-  background: var(--color-accent);
+  background: var(--color-primary);
   color: white;
   border: none;
   border-radius: 6px;
@@ -255,7 +255,7 @@
 }
 
 .start-review-button:hover:not(:disabled) {
-  background: var(--color-accent-hover, #4a9eff);
+  background: var(--color-primary-hover);
 }
 
 .start-review-button:disabled {

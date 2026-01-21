@@ -27,6 +27,7 @@ import {
   updateSpecStatus,
   loadDecomposeStateForSpec,
   saveDecomposeStateForSpec,
+  detectSpecType,
 } from '../spec-review/spec-metadata.js';
 import type { PRDData, DecomposeState, ReviewFeedback } from '../../types/index.js';
 
@@ -54,6 +55,8 @@ export interface DecomposeOptions {
   /** Preferred engine name and model (overrides settings/env) */
   engineName?: string;
   model?: string;
+  /** Stream callbacks for real-time log output */
+  streamCallbacks?: import('../claude/types.js').StreamCallbacks;
 }
 
 export interface DecomposeResult {
@@ -135,6 +138,152 @@ Output ONLY valid JSON in this exact format:
 3. Include specific testCases for every story
 4. Set all passes to false
 5. Output ONLY the JSON, no explanations
+`;
+}
+
+/**
+ * Get the decompose prompt for a tech spec.
+ * Tech specs generate implementation tasks (what needs to be built),
+ * not user stories (what the user wants).
+ */
+function getTechSpecDecomposePrompt(): string {
+  return `# Tech Spec Decomposition Task
+
+You are a senior software engineer breaking down a Technical Specification into highly detailed, self-contained implementation tasks.
+
+## Your Goal
+
+Create tasks that an AI coding agent can execute **independently** without needing to discover or explore the codebase. Each task must contain ALL the information needed to implement it.
+
+## What Makes a Good Tech Spec Task
+
+Each task should include:
+- **Exact file paths** to create or modify
+- **Complete schemas/interfaces** copied from the tech spec
+- **Method signatures** with parameter types and return types
+- **Code patterns** to follow (copied from tech spec examples)
+- **Integration points** - exactly how this connects to other components
+- **Edge cases** and error handling requirements
+- **Test scenarios** with specific inputs and expected outputs
+
+## BAD vs GOOD Task Examples
+
+**BAD** (too vague, requires discovery):
+\`\`\`
+"title": "Implement user service",
+"description": "Create a service to handle user operations"
+\`\`\`
+
+**GOOD** (complete, executable):
+\`\`\`
+"title": "Implement UserService.CreateUser method",
+"description": "Create src/services/UserService.ts with CreateUser method.
+
+Schema (from tech spec):
+interface CreateUserRequest {
+  email: string;
+  name: string;
+  role: 'admin' | 'user';
+}
+
+interface CreateUserResponse {
+  id: string;
+  createdAt: Date;
+}
+
+Method signature:
+async createUser(request: CreateUserRequest): Promise<CreateUserResponse>
+
+Implementation:
+1. Validate email format using existing EmailValidator
+2. Check for duplicate email in UserRepository.findByEmail()
+3. Hash password using bcrypt (12 rounds)
+4. Insert via UserRepository.create()
+5. Return response with generated UUID
+
+Error handling:
+- Throw DuplicateEmailError if email exists
+- Throw ValidationError if email format invalid
+
+File: src/services/UserService.ts
+Imports: UserRepository from '../repositories', EmailValidator from '../utils'"
+\`\`\`
+
+## Output Format
+
+Output ONLY valid JSON:
+
+\`\`\`json
+{
+  "projectName": "Project name",
+  "branchName": "BRANCH_NAME",
+  "language": "dotnet|python|nodejs|go",
+  "standardsFile": ".ralph/standards/{language}.md",
+  "description": "What this tech spec implements",
+  "userStories": [
+    {
+      "id": "TS-001",
+      "title": "Implement [Component.Method] in [file path]",
+      "description": "DETAILED implementation guide including:\\n- Exact file path\\n- Complete schema/interface definitions\\n- Method signatures\\n- Step-by-step implementation logic\\n- Error handling requirements\\n- Import statements needed",
+      "acceptanceCriteria": [
+        "File src/path/file.ts exists with Component class",
+        "Method handles [specific scenario] correctly",
+        "Throws [ErrorType] when [condition]",
+        "Existing unit tests updated to cover new behavior",
+        "New test cases added to existing test file (if test project exists)",
+        "Build succeeds with no warnings"
+      ],
+      "testCases": [
+        "Component_Method_ValidInput_ReturnsExpected",
+        "Component_Method_InvalidInput_ThrowsValidationError",
+        "Component_Method_DuplicateData_ThrowsConflictError"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Edge cases: [list]. Dependencies: [list]",
+      "dependencies": [],
+      "achievesUserStories": ["US-XXX"]
+    }
+  ]
+}
+\`\`\`
+
+## Rules
+
+1. **Self-contained**: Each task has ALL info needed - no "see tech spec" references
+2. **Copy schemas**: Include complete interface/type definitions in the description
+3. **Exact paths**: Specify exact file paths, not "create a service"
+4. **Method-level**: One task = one method or one small component
+5. **Include code patterns**: Copy relevant code examples from the tech spec
+6. **Specific tests**: Test cases with exact method names and scenarios
+7. Each task completable in ONE coding session (max 3 files, excluding tests)
+8. Use TS-XXX IDs (Technical Story)
+9. Link to parent user stories via achievesUserStories when identifiable
+10. Set all passes to false
+11. Output ONLY JSON, no explanations
+
+## CRITICAL: Compilable After Each Task
+
+**Every task MUST leave the codebase in a compilable, working state.**
+
+- Never create a task that breaks compilation (e.g., changing a method signature without updating callers)
+- If a change affects multiple files, include ALL affected files in the same task
+- If the task would be too large, find a different decomposition that maintains compilability
+- Use these strategies when changes span many files:
+  - **Add new alongside old**: Create new method/class, migrate callers one by one, then remove old
+  - **Feature flags**: Add new behavior behind a flag, enable after all pieces are ready
+  - **Interface extraction**: Add an interface first, then swap implementations
+  - **Backwards compatible changes**: Add optional parameters instead of changing signatures
+
+**BAD**: "TS-001: Change ConsoleInput.Read() signature" → leaves callers broken
+**GOOD**: "TS-001: Add ConsoleInput.ReadWithOptions() alongside existing Read()" → both work
+
+## Testing Requirements
+
+- **Update existing tests**: If unit tests or integration tests already exist for modified code, update them
+- **Add new tests**: Only add new test files if a test project/directory already exists in the codebase
+- **Don't create test infrastructure**: Never create new test projects or testing frameworks from scratch
+- **Test acceptance criteria**: Include specific test updates in acceptance criteria when applicable
 `;
 }
 
@@ -273,14 +422,16 @@ async function runClaudeDecompose(
 }
 
 /**
- * Revise tasks based on peer review feedback
+ * Revise tasks based on peer review feedback using the engine abstraction
  */
 async function reviseTasksWithFeedback(
   prdContent: string,
   currentTasks: PRDData,
   feedback: ReviewFeedback,
   project: Project,
-  attempt: number
+  attempt: number,
+  engineName?: string,
+  model?: string
 ): Promise<PRDData | null> {
   const revisionPrompt = `You are revising a task decomposition based on peer review feedback.
 
@@ -334,16 +485,22 @@ Output ONLY valid JSON in the same format as the input tasks.
 NO MARKDOWN, NO EXPLANATIONS.`;
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const logPath = join(project.logsDir, `revision_attempt_${attempt}_${timestamp}.log`);
+  const promptPath = join(project.logsDir, `revision_prompt_${attempt}_${timestamp}.md`);
+  const logDir = project.logsDir;
 
-  console.log(`  ${chalk.cyan('Revision log:')} ${logPath}`);
+  console.log(`  ${chalk.cyan('Revision log:')} ${logDir}`);
 
-  const result = await runClaudeWithPrompt({
-    prompt: revisionPrompt,
+  // Write prompt to file for engine consumption
+  await fs.writeFile(promptPath, revisionPrompt, 'utf-8');
+
+  // Use engine abstraction with decompose purpose
+  const sel = await selectEngine({ engineName, model, purpose: 'decompose' });
+  const result = await sel.engine.runStream({
+    promptPath,
     cwd: project.projectPath,
-    logPath,
-    echoOutput: false,
-    showToolCalls: false,
+    logDir,
+    iteration: attempt,
+    model: sel.model,
   });
 
   return extractJson(result.output);
@@ -452,9 +609,9 @@ export async function runDecompose(
   const prdSize = Buffer.byteLength(prdContent);
   const prdLines = prdContent.split('\n').length;
 
-  logSection('Qala PRD Decomposer');
-  logInfo('PRD File', prdFile);
-  logInfo('PRD Size', `${prdSize} bytes, ${prdLines} lines`);
+  logSection('Qala Spec Decomposer');
+  logInfo('Spec File', prdFile);
+  logInfo('Spec Size', `${prdSize} bytes, ${prdLines} lines`);
   logInfo('Branch', branchName);
   logInfo('Output', outputPath);
   if (language) {
@@ -510,13 +667,25 @@ export async function runDecompose(
       draftFile: outputPath,
     }, onProgress);
   } else {
-    // Get decompose prompt template
-    const promptTemplate = await getDecomposePrompt(project);
+    // Detect spec type to use appropriate prompt
+    const specTypeInfo = await detectSpecType(prdFile, prdContent);
+    const isTechSpec = specTypeInfo.type === 'tech-spec';
 
-    // Get next US number
+    // Get decompose prompt template based on spec type
+    let promptTemplate: string;
+    if (isTechSpec) {
+      promptTemplate = getTechSpecDecomposePrompt();
+      console.log(chalk.cyan('  Detected: Tech Spec - generating implementation tasks'));
+    } else {
+      promptTemplate = await getDecomposePrompt(project);
+      console.log(chalk.cyan('  Detected: PRD - generating user stories'));
+    }
+
+    // Get next task number (US for PRD, TS for tech spec)
+    const taskPrefix = isTechSpec ? 'TS' : 'US';
     const nextUSNumber = await getNextUSNumber(project, freshStart);
     if (nextUSNumber > 1) {
-      console.log(`  ${chalk.cyan('Continuing from:')} US-${String(nextUSNumber).padStart(3, '0')}`);
+      console.log(`  ${chalk.cyan('Continuing from:')} ${taskPrefix}-${String(nextUSNumber).padStart(3, '0')}`);
     }
 
     // Build full prompt
@@ -524,14 +693,16 @@ export async function runDecompose(
     fullPrompt += `\n\n## Branch Name\n${branchName}`;
 
     if (nextUSNumber > 1) {
-      fullPrompt += `\n\n## IMPORTANT: Story Numbering\nStart story IDs from US-${String(nextUSNumber).padStart(3, '0')} (continuing from existing stories).\nDo NOT start from US-001.`;
+      fullPrompt += `\n\n## IMPORTANT: Task Numbering\nStart task IDs from ${taskPrefix}-${String(nextUSNumber).padStart(3, '0')} (continuing from existing tasks).\nDo NOT start from ${taskPrefix}-001.`;
     }
 
     if (language) {
       fullPrompt += `\n\n## Language\n${language}\n\nUse this for the \`language\` and \`standardsFile\` fields in the JSON output.`;
     }
 
-    fullPrompt += `\n\n## PRD Content\n\n<prd>\n${prdContent}\n</prd>`;
+    // Use appropriate content tag based on spec type
+    const contentTag = isTechSpec ? 'tech-spec' : 'prd';
+    fullPrompt += `\n\n## ${isTechSpec ? 'Tech Spec' : 'PRD'} Content\n\n<${contentTag}>\n${prdContent}\n</${contentTag}>`;
 
     // Create log file in spec logs directory
     const specLogsDir = getSpecLogsDir(project.projectPath, specId);
@@ -548,7 +719,7 @@ export async function runDecompose(
 
     await updateState(project.projectPath, specId, {
       status: 'DECOMPOSING',
-      message: 'Engine is generating tasks from PRD',
+      message: isTechSpec ? 'Engine is generating implementation tasks from tech spec' : 'Engine is generating user stories from PRD',
     }, onProgress);
 
     // Write full prompt to a temp file used by the engine
@@ -556,13 +727,14 @@ export async function runDecompose(
     await fs.writeFile(promptPath, fullPrompt, 'utf-8');
 
     const startTime = Date.now();
-    const sel = await selectEngine({ engineName: options.engineName, model: options.model });
+    const sel = await selectEngine({ engineName: options.engineName, model: options.model, purpose: 'decompose' });
     const result = await sel.engine.runStream({
       promptPath,
       cwd: project.projectPath,
       logDir: specLogsDir,
       iteration: 0,
       model: sel.model,
+      callbacks: options.streamCallbacks,
     });
     const elapsed = Math.round((Date.now() - startTime) / 1000);
 
@@ -675,7 +847,9 @@ export async function runDecompose(
           prd,
           feedback,
           project,
-          reviewAttempt
+          reviewAttempt,
+          options.engineName,
+          options.model
         );
 
         if (revisedPrd) {

@@ -25,6 +25,8 @@ interface SpecHeaderProps {
   onCreateTechSpec?: () => void;
   onQuickExecute?: () => void;
   onNavigateToSpec?: (specId: string) => void;
+  /** Whether tech spec generation is in progress */
+  isGeneratingTechSpec?: boolean;
 }
 
 /**
@@ -80,6 +82,7 @@ export function SpecHeader({
   onCreateTechSpec,
   onQuickExecute,
   onNavigateToSpec,
+  isGeneratingTechSpec,
 }: SpecHeaderProps) {
   // Detect type from filename if not provided
   const effectiveType = specType || detectSpecTypeFromFilename(fileName);
@@ -112,13 +115,18 @@ export function SpecHeader({
         {/* PRD actions */}
         {effectiveType === 'prd' && (onCreateTechSpec || onQuickExecute) && (
           <div className="spec-header-actions">
-            {!linkedTechSpec && onCreateTechSpec && (
+            {!linkedTechSpec && onCreateTechSpec && progress && progress.total > 0 && !isGeneratingTechSpec && (
               <button
                 className="spec-header-action-btn spec-header-action-btn--primary"
                 onClick={onCreateTechSpec}
               >
-                🔧 Create Tech Spec
+                🤖 Generate Tech Spec
               </button>
+            )}
+            {isGeneratingTechSpec && (
+              <span className="spec-header-generating">
+                ⏳ Generating Tech Spec...
+              </span>
             )}
             {linkedTechSpec && onNavigateToSpec && (
               <button

@@ -1,0 +1,43 @@
+.code-block-container {
+  position: relative;
+  margin: 0.5em 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1e1e1e;
+}
+
+.code-block-header {
+  padding: 0.3em 0.6em;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.code-block-lang {
+  font-size: 0.7em;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.code-block-copy {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 0.2em 0.6em;
+  color: #e0e0e0;
+  font-size: 0.7em;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.code-block-copy:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.code-block-copy:active {
+  transform: translateY(0);
+}

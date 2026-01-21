@@ -7,7 +7,7 @@
 import { Router } from 'express';
 import { loadGlobalSettings, saveGlobalSettings } from '../../core/settings.js';
 import { detectAllClis } from '../../core/cli-detect.js';
-import type { CliType, GlobalSettings } from '../../types/index.js';
+import type { CliType, GlobalSettings, ReasoningEffort } from '../../types/index.js';
 
 const router = Router();
 
@@ -17,10 +17,22 @@ const router = Router();
 const VALID_CLI_TYPES: CliType[] = ['codex', 'claude'];
 
 /**
+ * Valid reasoning effort levels for Codex
+ */
+const VALID_REASONING_EFFORTS: ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
+
+/**
  * Type guard to check if a value is a valid CliType
  */
 function isValidCliType(value: unknown): value is CliType {
   return typeof value === 'string' && VALID_CLI_TYPES.includes(value as CliType);
+}
+
+/**
+ * Type guard to check if a value is a valid ReasoningEffort
+ */
+function isValidReasoningEffort(value: unknown): value is ReasoningEffort {
+  return typeof value === 'string' && VALID_REASONING_EFFORTS.includes(value as ReasoningEffort);
 }
 
 /**
@@ -64,54 +76,65 @@ router.put('/', async (req, res) => {
     // Load current settings to merge with updates
     const currentSettings = await loadGlobalSettings();
 
-    // Validate and update reviewer if provided
-    let reviewerCli = currentSettings.reviewer.cli;
-    if (body.reviewer && typeof body.reviewer === 'object') {
-      const { cli } = body.reviewer;
-      if (cli !== undefined) {
-        if (!isValidCliType(cli)) {
-          return res.status(400).json({
-            error: 'Invalid CLI value',
-            details: `cli must be one of: ${VALID_CLI_TYPES.join(', ')}`,
-          });
-        }
-        reviewerCli = cli;
-      }
-    }
-
-    // Validate and update execution if provided
-    let keepAwake = currentSettings.execution.keepAwake;
-    if (body.execution && typeof body.execution === 'object') {
-      if (typeof body.execution.keepAwake === 'boolean') {
-        keepAwake = body.execution.keepAwake;
-      }
-    }
-
-    // Validate and update LLM if provided
-    const llm = { ...(currentSettings.llm || {}) } as NonNullable<GlobalSettings['llm']>;
-    if (body.llm && typeof body.llm === 'object') {
-      const llmBody = body.llm as { defaultEngine?: string; defaultModel?: string; engines?: Record<string, { command?: string; args?: string[]; model?: string }>; };
-      if (typeof llmBody.defaultEngine === 'string') {
-        llm.defaultEngine = llmBody.defaultEngine;
-      }
-      if (typeof llmBody.defaultModel === 'string') {
-        llm.defaultModel = llmBody.defaultModel;
-      }
-      if (llmBody.engines && typeof llmBody.engines === 'object') {
-        llm.engines = llmBody.engines;
-      }
-    }
-
-    // Build and save settings
+    // Build new settings by merging current with updates
     const settings: GlobalSettings = {
-      reviewer: {
-        cli: reviewerCli,
+      decompose: {
+        reviewer: {
+          agent: body.decompose?.reviewer?.agent ?? currentSettings.decompose.reviewer.agent,
+          model: body.decompose?.reviewer?.model ?? currentSettings.decompose.reviewer.model,
+          reasoningEffort: body.decompose?.reviewer?.reasoningEffort ?? currentSettings.decompose.reviewer.reasoningEffort,
+        },
+      },
+      condenser: {
+        agent: body.condenser?.agent ?? currentSettings.condenser.agent,
+        model: body.condenser?.model ?? currentSettings.condenser.model,
+        reasoningEffort: body.condenser?.reasoningEffort ?? currentSettings.condenser.reasoningEffort,
+      },
+      specGenerator: {
+        agent: body.specGenerator?.agent ?? currentSettings.specGenerator.agent,
+        model: body.specGenerator?.model ?? currentSettings.specGenerator.model,
+        reasoningEffort: body.specGenerator?.reasoningEffort ?? currentSettings.specGenerator.reasoningEffort,
+      },
+      taskRunner: {
+        agent: body.taskRunner?.agent ?? currentSettings.taskRunner.agent,
+        model: body.taskRunner?.model ?? currentSettings.taskRunner.model,
+        reasoningEffort: body.taskRunner?.reasoningEffort ?? currentSettings.taskRunner.reasoningEffort,
+      },
+      specChat: {
+        agent: body.specChat?.agent ?? currentSettings.specChat.agent,
+        model: body.specChat?.model ?? currentSettings.specChat.model,
+        reasoningEffort: body.specChat?.reasoningEffort ?? currentSettings.specChat.reasoningEffort,
       },
       execution: {
-        keepAwake,
+        keepAwake: body.execution?.keepAwake ?? currentSettings.execution.keepAwake,
       },
-      llm,
     };
+
+    // Validate agent types (allow 'auto' for engine)
+    const agentChecks = [
+      { agent: settings.decompose.reviewer.agent, name: 'decompose.reviewer.agent' },
+      { agent: settings.condenser.agent, name: 'condenser.agent' },
+      { agent: settings.specGenerator.agent, name: 'specGenerator.agent' },
+      { agent: settings.specChat.agent, name: 'specChat.agent' },
+    ];
+
+    for (const check of agentChecks) {
+      if (!isValidCliType(check.agent)) {
+        return res.status(400).json({
+          error: `Invalid ${check.name} value`,
+          details: `agent must be one of: ${VALID_CLI_TYPES.join(', ')}`,
+        });
+      }
+    }
+
+    // Task runner agent can be 'auto' or a valid CLI type
+    const taskRunnerAgent: string = settings.taskRunner.agent;
+    if (taskRunnerAgent !== 'auto' && !isValidCliType(taskRunnerAgent as any)) {
+      return res.status(400).json({
+        error: 'Invalid taskRunner.agent value',
+        details: `agent must be one of: ${VALID_CLI_TYPES.join(', ')}, or 'auto'`,
+      });
+    }
 
     await saveGlobalSettings(settings);
 
@@ -140,6 +163,25 @@ router.get('/cli/detect', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: 'Failed to detect CLI tools',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/settings/models/detect
+ * Detects available models for all CLI tools
+ *
+ * Response: { codex: { available, models }, claude: { available, models } }
+ */
+router.get('/models/detect', async (req, res) => {
+  try {
+    const { detectAllModels } = await import('../../core/cli-detect.js');
+    const results = await detectAllModels();
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to detect models',
       details: error instanceof Error ? error.message : String(error),
     });
   }

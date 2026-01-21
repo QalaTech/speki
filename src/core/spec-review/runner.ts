@@ -28,12 +28,15 @@ export interface SpecReviewOptions {
   goldenStandardPath?: string;
   /** Directory for log files */
   logDir?: string;
-  /** CLI to use for review (claude or codex) */
-  cli?: CliType;
+  /** Preferred engine name and model (overrides settings/env) */
+  engineName?: string;
+  model?: string;
   /** Callback for progress updates */
   onProgress?: (message: string) => void;
   /** Spec type (auto-detected from file if not provided) */
   specType?: SpecType;
+  /** Stream callbacks for real-time log output */
+  streamCallbacks?: import('../claude/types.js').StreamCallbacks;
 }
 
 // Re-export TimeoutInfo for convenience
@@ -155,7 +158,10 @@ function createErrorResult(
 
 interface RunPromptOptions {
   disableTools?: boolean;
-  cli?: CliType;
+  engineName?: string;
+  model?: string;
+  streamCallbacks?: import('../claude/types.js').StreamCallbacks;
+  logDir?: string;
 }
 
 const SIGKILL_DELAY_MS = 5000;
@@ -169,19 +175,24 @@ async function runPrompt(
 ): Promise<FocusedPromptResult> {
   const startTime = Date.now();
   try {
-    // Ensure a logs directory exists
-    const logsDir = join(cwd, '.ralph', 'logs');
+    // Use provided logDir or fallback to .ralph/logs
+    const logsDir = options.logDir ?? join(cwd, '.ralph', 'logs');
     try { await fs.mkdir(logsDir, { recursive: true }); } catch {}
     const promptPath = join(logsDir, `spec_review_${promptDef.name}_${Date.now()}.md`);
     await fs.writeFile(promptPath, fullPrompt, 'utf-8');
 
-    const sel = await selectEngine();
+    const sel = await selectEngine({
+      engineName: options.engineName,
+      model: options.model,
+      purpose: 'specReview',
+    });
     const result = await sel.engine.runStream({
       promptPath,
       cwd,
       logDir: logsDir,
       iteration: 0,
       model: sel.model,
+      callbacks: options.streamCallbacks,
     });
 
     const durationMs = Date.now() - startTime;
@@ -292,8 +303,11 @@ async function runAggregationAgent(
   results: FocusedPromptResult[],
   cwd: string,
   timeoutMs: number,
-  cli?: CliType,
-  onProgress?: (message: string) => void
+  logDir: string,
+  engineName?: string,
+  model?: string,
+  onProgress?: (message: string) => void,
+  streamCallbacks?: import('../claude/types.js').StreamCallbacks
 ): Promise<{
   verdict: SpecReviewVerdict;
   executiveSummary: string;
@@ -327,7 +341,7 @@ async function runAggregationAgent(
     aggregationPrompt,
     cwd,
     timeoutMs,
-    { cli, disableTools: false }
+    { engineName, model, disableTools: false, streamCallbacks, logDir }
   );
 
   if (isTimeoutResult(aggregationResult)) {
@@ -411,25 +425,21 @@ export async function runSpecReview(
   }
 
   onProgress(`Loaded spec: ${specBasename} (type: ${specType})`);
-  onProgress(`Running ${reviewPrompts.length} review prompts...`);
+  onProgress(`Running ${reviewPrompts.length} review prompts in parallel...`);
 
-  const promptTimeoutMs = Math.floor(timeoutMs / reviewPrompts.length);
-  const results: FocusedPromptResult[] = [];
+  // Per-reviewer timeout (60 seconds per PRD constraint C4)
+  const perReviewerTimeoutMs = Math.min(60000, timeoutMs);
   const prompts: Array<{ name: string; fullPrompt: string }> = [];
-  const completedPromptNames: string[] = [];
-  let didTimeout = false;
 
-  for (const promptDef of reviewPrompts) {
-    onProgress(`Running ${promptDef.name}...`);
-
+  // Build all prompts first
+  const promptTasks = reviewPrompts.map(async (promptDef): Promise<FocusedPromptResult | null> => {
     let fullPrompt: string;
 
     // Special handling for story alignment prompt
     if (promptDef.name === 'tech_spec_story_alignment') {
       if (!parentUserStories || parentUserStories.length === 0) {
-        // Skip story alignment if no parent stories available
         onProgress(`${promptDef.name}: SKIPPED (no parent user stories)`);
-        continue;
+        return null;
       }
       fullPrompt = buildStoryAlignmentPrompt(
         TECH_SPEC_STORY_ALIGNMENT_PROMPT,
@@ -442,31 +452,47 @@ export async function runSpecReview(
     }
 
     prompts.push({ name: promptDef.name, fullPrompt });
-    // Tools must be enabled so AI can read the spec file with line numbers
-    const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, { cli: options.cli, disableTools: false });
+    onProgress(`Starting ${promptDef.name}...`);
+
+    // Run prompt with per-reviewer timeout
+    const result = await runPrompt(promptDef, fullPrompt, cwd, perReviewerTimeoutMs, {
+      engineName: options.engineName,
+      model: options.model,
+      disableTools: false,
+      streamCallbacks: options.streamCallbacks,
+      logDir,
+    });
 
     if (isTimeoutResult(result)) {
-      didTimeout = true;
       onProgress(`${promptDef.name}: TIMEOUT (${result.durationMs}ms)`);
-      results.push(result);
-      break; // Stop processing - remaining prompts would also likely timeout
+    } else {
+      onProgress(`${promptDef.name}: ${result.verdict} (${result.durationMs}ms)`);
     }
 
-    onProgress(`${promptDef.name}: ${result.verdict} (${result.durationMs}ms)`);
-    completedPromptNames.push(promptDef.name);
-    results.push(result);
-  }
+    return result;
+  });
+
+  // Run all prompts in parallel (C3: Reviews run in parallel for performance)
+  const rawResults = await Promise.all(promptTasks);
+
+  // Filter out null results (skipped prompts) and collect results
+  const results: FocusedPromptResult[] = rawResults.filter((r): r is FocusedPromptResult => r !== null);
+  const completedPromptNames = results.filter(r => !isTimeoutResult(r)).map(r => r.promptName);
+  const didTimeout = results.some(r => isTimeoutResult(r));
 
   // Run aggregation agent to deduplicate and synthesize findings
-  // Give it 2 minutes for aggregation (or remaining time if timeout already occurred)
+  // Give it 2 minutes for aggregation (or 30s if any reviewer timed out)
   const aggregationTimeoutMs = didTimeout ? 30000 : 120000;
   const aggregationAgentResult = await runAggregationAgent(
     specPath,
     results,
     cwd,
     aggregationTimeoutMs,
-    options.cli,
-    onProgress
+    logDir,
+    options.engineName,
+    options.model,
+    onProgress,
+    options.streamCallbacks
   );
 
   let aggregatedResult: SpecReviewResult;

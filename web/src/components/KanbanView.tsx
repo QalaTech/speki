@@ -13,11 +13,11 @@ interface KanbanViewProps {
   isRunning: boolean;
 }
 
-type Column = 'blocked' | 'ready' | 'running' | 'done';
+type Column = 'todo' | 'running' | 'done';
 
 export function KanbanView({ stories, currentStory, logContent, iterationLog, currentIteration, isRunning }: KanbanViewProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [selectedStory, setSelectedStory] = useState<UserStory | null>(null);
+  const [selectedTask, setSelectedTask] = useState<UserStory | null>(null);
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -41,58 +41,39 @@ export function KanbanView({ stories, currentStory, logContent, iterationLog, cu
     }
   }, [iterationLog, logDrawerOpen]);
 
-  const completedIds = new Set(stories.filter(s => s.passes).map(s => s.id));
-  const storyMap = new Map(stories.map(s => [s.id, s]));
-
-  // Build reverse dependency map: storyId -> stories that depend on it
-  const blocksMap = new Map<string, string[]>();
-  for (const story of stories) {
-    for (const dep of story.dependencies) {
-      if (!blocksMap.has(dep)) blocksMap.set(dep, []);
-      blocksMap.get(dep)!.push(story.id);
-    }
-  }
-
+  // Map story to column based on passes and currentStory
   const getColumn = (story: UserStory): Column => {
     if (story.passes) return 'done';
-    if (currentStory?.startsWith(story.id)) return 'running';
-    const depsOk = story.dependencies.every(dep => completedIds.has(dep));
-    return depsOk ? 'ready' : 'blocked';
+    // Check if this is the currently running story
+    if (currentStory === story.id) return 'running';
+    // not completed and not running -> todo
+    return 'todo';
   };
 
   const columns: { key: Column; label: string; color: string }[] = [
-    { key: 'blocked', label: 'Blocked', color: 'var(--color-blocked)' },
-    { key: 'ready', label: 'Ready', color: 'var(--color-ready)' },
+    { key: 'todo', label: 'To Do', color: 'var(--color-ready)' },
     { key: 'running', label: 'In Progress', color: 'var(--color-running)' },
     { key: 'done', label: 'Done', color: 'var(--color-completed)' },
   ];
 
-  const storiesByColumn = columns.reduce((acc, col) => {
+  const tasksByColumn = columns.reduce((acc, col) => {
     acc[col.key] = stories.filter(s => getColumn(s) === col.key);
     return acc;
   }, {} as Record<Column, UserStory[]>);
 
-  // Get highlight state for a card based on hover
-  const getHighlightClass = (storyId: string): string => {
-    if (!hoveredId || hoveredId === storyId) return '';
+  const completedIds = new Set(stories.filter(s => s.passes).map(s => s.id));
 
-    const hoveredStory = storyMap.get(hoveredId);
-    if (!hoveredStory) return '';
-
-    // This card is a dependency of the hovered card (upstream)
-    if (hoveredStory.dependencies.includes(storyId)) {
-      return 'highlight-upstream';
-    }
-
-    // This card depends on the hovered card (downstream/blocked by)
-    const blocks = blocksMap.get(hoveredId) || [];
-    if (blocks.includes(storyId)) {
-      return 'highlight-downstream';
-    }
-
-    // Dim cards that are unrelated
-    return 'dimmed';
-  };
+  if (stories.length === 0) {
+    return (
+      <div className="kanban-container">
+        <div className="kanban-empty-state">
+          <div className="kanban-empty-icon">📋</div>
+          <h3>No tasks found</h3>
+          <p>Decompose a spec to generate tasks.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`kanban-container ${logDrawerOpen ? 'with-log-drawer' : ''}`}>
@@ -106,45 +87,33 @@ export function KanbanView({ stories, currentStory, logContent, iterationLog, cu
                 <span className="column-title">{col.label}</span>
               </div>
               <span className="column-count" style={{ color: col.color }}>
-                {storiesByColumn[col.key].length}
+                {tasksByColumn[col.key].length}
               </span>
             </div>
             <div className="kanban-column-body">
-              {storiesByColumn[col.key].map(story => {
-                const blocks = blocksMap.get(story.id) || [];
-                const missingDeps = story.dependencies.filter(d => !completedIds.has(d));
-
-                return (
-                  <div
-                    key={story.id}
-                    className={`kanban-card ${col.key} ${hoveredId === story.id ? 'hovered' : ''} ${getHighlightClass(story.id)}`}
-                    onMouseEnter={() => setHoveredId(story.id)}
-                    onMouseLeave={() => setHoveredId(null)}
-                    onClick={() => setSelectedStory(story)}
-                  >
-                    <div className="kanban-card-header">
-                      <span className="kanban-card-id">{story.id}</span>
-                      <span className="kanban-card-priority">P{story.priority}</span>
-                    </div>
-                    <div className="kanban-card-title">{story.title}</div>
-
-                    {/* Quick dependency indicators */}
-                    <div className="kanban-card-footer">
-                      {story.dependencies.length > 0 && (
-                        <span className={`kanban-indicator ${missingDeps.length > 0 ? 'waiting' : 'done'}`}>
-                          ↑ {story.dependencies.length - missingDeps.length}/{story.dependencies.length}
-                        </span>
-                      )}
-                      {blocks.length > 0 && (
-                        <span className="kanban-indicator blocks">
-                          ↓ {blocks.length}
-                        </span>
-                      )}
-                    </div>
+              {tasksByColumn[col.key].map((story) => (
+                <div
+                  key={story.id}
+                  className={`kanban-card ${col.key} ${hoveredId === story.id ? 'hovered' : ''}`}
+                  onMouseEnter={() => setHoveredId(story.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  onClick={() => setSelectedTask(story)}
+                >
+                  <div className="kanban-card-header">
+                    <span className="kanban-card-id">{story.id}</span>
+                    <span className="kanban-card-priority">P{story.priority}</span>
                   </div>
-                );
-              })}
-              {storiesByColumn[col.key].length === 0 && (
+                  <div className="kanban-card-title">
+                    {story.title}
+                  </div>
+                  <div className="kanban-card-footer">
+                    {!story.passes && story.dependencies.length > 0 && !story.dependencies.every(d => completedIds.has(d)) && (
+                      <span className="kanban-status-badge blocked">Blocked</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {tasksByColumn[col.key].length === 0 && (
                 <div className="kanban-empty">No tasks</div>
               )}
             </div>
@@ -154,11 +123,11 @@ export function KanbanView({ stories, currentStory, logContent, iterationLog, cu
 
       {/* Side drawer for task details */}
       <TaskDrawer
-        story={selectedStory}
+        story={selectedTask}
         completedIds={completedIds}
-        blocksMap={blocksMap}
+        blocksMap={new Map()}
         logContent={logContent}
-        onClose={() => setSelectedStory(null)}
+        onClose={() => setSelectedTask(null)}
       />
 
       {/* Live log drawer on the right */}
@@ -198,7 +167,6 @@ export function KanbanView({ stories, currentStory, logContent, iterationLog, cu
         >
           <span className="toggle-icon">&#9776;</span>
           <span className="toggle-label">Log</span>
-          {isRunning && <span className="toggle-live-dot" />}
         </button>
       )}
     </div>

@@ -21,6 +21,7 @@ import sessionsRouter from './routes/sessions.js';
 import specsRouter from './routes/specs.js';
 import queueRouter from './routes/queue.js';
 import eventsRouter from './routes/events.js';
+import openaiCompatRouter from './routes/openai-compat.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -61,6 +62,9 @@ export async function createServer(options: ServerOptions = {}) {
   app.use('/api/specs', specsRouter);
   app.use('/api/queue', queueRouter);
   app.use('/api/events', eventsRouter);
+
+  // OpenAI-compatible API (for LobeChat integration)
+  app.use('/v1', openaiCompatRouter);
 
   // Health check
   app.get('/api/health', function (_req, res) {

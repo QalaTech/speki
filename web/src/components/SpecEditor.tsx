@@ -3,7 +3,7 @@
  * Provides WYSIWYG markdown editing with programmatic ref access.
  */
 
-import { forwardRef, useCallback, useImperativeHandle, useRef, useMemo, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useMemo, useState } from 'react';
 import {
   MDXEditor,
   type MDXEditorMethods,
@@ -166,6 +166,64 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
     console.warn('[SpecEditor] Parse error:', payload);
     setParseError(payload.error);
   }, []);
+
+  // Hide code block controls in readonly mode (JavaScript fallback for CSS)
+  useEffect(() => {
+    if (!readOnly || !containerRef.current) return;
+
+    const hideCodeBlockControls = () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      // Find and hide code block headers/toolbars
+      const selectors = [
+        '[class*="_codeBlockHeader_"]',
+        '[class*="_codeBlockToolbar_"]',
+        '[class*="CodeBlockToolbar"]',
+      ];
+
+      selectors.forEach(selector => {
+        const elements = container.querySelectorAll(selector);
+        elements.forEach(el => {
+          (el as HTMLElement).style.display = 'none';
+        });
+      });
+
+      // Also hide individual select and button elements in code blocks
+      const codeBlocks = container.querySelectorAll('[class*="codeBlock"], [class*="CodeBlock"], pre');
+      codeBlocks.forEach(block => {
+        const selects = block.querySelectorAll('select');
+        const buttons = block.querySelectorAll('button');
+        
+        selects.forEach(el => {
+          (el as HTMLElement).style.display = 'none';
+        });
+        
+        buttons.forEach(el => {
+          // Don't hide CodeMirror buttons
+          if (!(el as HTMLElement).closest('.cm-editor')) {
+            (el as HTMLElement).style.display = 'none';
+          }
+        });
+      });
+    };
+
+    // Run immediately and also after a small delay (in case MDXEditor renders controls async)
+    hideCodeBlockControls();
+    const timer = setTimeout(hideCodeBlockControls, 100);
+
+    // Set up a mutation observer to catch dynamically added controls
+    const observer = new MutationObserver(hideCodeBlockControls);
+    observer.observe(containerRef.current, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [readOnly, content]); // Re-run when content changes (new code blocks might be added)
 
   useImperativeHandle(
     ref,

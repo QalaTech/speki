@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { UserStory, PRDData, DecomposeState, QueuedTaskReference } from '../../types';
+import { ChatMarkdown } from '../ChatMarkdown';
 import './SpecDecomposeTab.css';
 
 type SpecType = 'prd' | 'tech-spec' | 'bug';
@@ -14,6 +15,8 @@ interface SpecDecomposeTabProps {
   onCreateTechSpec?: () => void;
   /** Callback when quick execute is requested */
   onQuickExecute?: () => void;
+  /** Whether a tech spec is currently being generated */
+  isGeneratingTechSpec?: boolean;
 }
 
 function detectSpecTypeFromFilename(filename: string): SpecType {
@@ -57,7 +60,7 @@ function getComplexityBadge(complexity?: string) {
   );
 }
 
-export function SpecDecomposeTab({ specPath, projectPath, specType: propSpecType, onCreateTechSpec, onQuickExecute }: SpecDecomposeTabProps) {
+export function SpecDecomposeTab({ specPath, projectPath, specType: propSpecType, onCreateTechSpec, onQuickExecute, isGeneratingTechSpec }: SpecDecomposeTabProps) {
   const [decomposeState, setDecomposeState] = useState<DecomposeState>({ status: 'IDLE', message: '' });
   const [draft, setDraft] = useState<PRDData | null>(null);
   const [draftPath, setDraftPath] = useState<string | null>(null);
@@ -126,9 +129,10 @@ export function SpecDecomposeTab({ specPath, projectPath, specType: propSpecType
       }
 
       // Update queue state
+      // API returns { queue: TaskQueue } where TaskQueue.queue is the array
       if (queueRes.ok) {
         const queueData = await queueRes.json();
-        setQueuedTasks(queueData.queue || []);
+        setQueuedTasks(queueData.queue?.queue || []);
       }
 
       // Check if decompose is in progress
@@ -473,7 +477,7 @@ export function SpecDecomposeTab({ specPath, projectPath, specType: propSpecType
           {/* PRD-specific actions */}
           {specType === 'prd' && hasBeenDecomposed && (
             <>
-              {onCreateTechSpec && (
+              {onCreateTechSpec && !isGeneratingTechSpec && (
                 <button
                   className="decompose-btn decompose-btn--primary"
                   onClick={onCreateTechSpec}
@@ -554,8 +558,19 @@ export function SpecDecomposeTab({ specPath, projectPath, specType: propSpecType
       {/* Progress indicator */}
       {isLoading && (
         <div className="decompose-progress">
-          <div className="progress-spinner" />
-          <span className="progress-message">{decomposeState.message || 'Processing...'}</span>
+          <div>
+            <div className="progress-spinner" />
+            <span className="progress-message">
+              {decomposeState.message || (specType === 'prd' ? 'Generating user stories...' : 'Generating tasks...')}
+            </span>
+          </div>
+          {!hasBeenDecomposed && (
+            <div className="progress-hint">
+              {specType === 'prd'
+                ? '📝 Stories will appear here once generation and review complete'
+                : '🔧 Tasks will appear here once generation completes'}
+            </div>
+          )}
         </div>
       )}
 
@@ -625,7 +640,9 @@ export function SpecDecomposeTab({ specPath, projectPath, specType: propSpecType
 
                 {isExpanded && (
                   <div className="task-details">
-                    <p className="task-description">{story.description}</p>
+                    <div className="task-description">
+                      <ChatMarkdown content={story.description} />
+                    </div>
 
                     {story.acceptanceCriteria.length > 0 && (
                       <div className="task-section">
@@ -657,7 +674,9 @@ export function SpecDecomposeTab({ specPath, projectPath, specType: propSpecType
                     {story.notes && (
                       <div className="task-section">
                         <h4 className="task-section-title">Notes</h4>
-                        <p className="task-notes">{story.notes}</p>
+                        <div className="task-notes">
+                          <ChatMarkdown content={story.notes} />
+                        </div>
                       </div>
                     )}
 
@@ -710,9 +729,13 @@ export function SpecDecomposeTab({ specPath, projectPath, specType: propSpecType
       {!hasBeenDecomposed && !isLoading && (
         <div className="decompose-empty">
           <div className="empty-icon">📋</div>
-          <h3 className="empty-title">No tasks yet</h3>
+          <h3 className="empty-title">
+            {specType === 'prd' ? 'No stories yet' : 'No tasks yet'}
+          </h3>
           <p className="empty-description">
-            Decompose this spec to generate user stories and tasks
+            {specType === 'prd'
+              ? 'Decompose this PRD to generate user stories'
+              : 'Decompose this spec to generate tasks'}
           </p>
         </div>
       )}

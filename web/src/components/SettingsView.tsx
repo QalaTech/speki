@@ -1,32 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import './SettingsView.css';
+import type {
+  AllCliDetectionResults,
+  AllModelDetectionResults,
+  GlobalSettings,
+  CliType,
+  ReasoningEffort
+} from '../types.js';
 
-interface CliDetectionResult {
-  available: boolean;
-  version: string;
-  command: string;
-}
-
-interface AllCliDetectionResults {
-  codex: CliDetectionResult;
-  claude: CliDetectionResult;
-}
-
-interface GlobalSettings {
-  reviewer: {
-    cli: 'codex' | 'claude';
-  };
-  execution: {
-    keepAwake: boolean;
-  };
-  llm?: {
-    defaultEngine?: string; // 'auto' | 'claude-cli' | 'codex-cli' | 'custom-cli'
-    defaultModel?: string;
-    engines?: Record<string, { command?: string; args?: string[]; model?: string }>;
-  };
-}
-
-type CliType = 'codex' | 'claude';
+/** Valid reasoning effort levels for Codex */
+const REASONING_EFFORTS: ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
 
 // Session storage key for CLI detection caching
 const CLI_DETECTION_CACHE_KEY = 'qala_cli_detection_cache';
@@ -59,13 +42,37 @@ function setCachedCliDetection(detection: AllCliDetectionResults): void {
 
 export function SettingsView() {
   const [cliDetection, setCliDetection] = useState<AllCliDetectionResults | null>(null);
+  const [modelDetection, setModelDetection] = useState<AllModelDetectionResults | null>(null);
   const [_settings, setSettings] = useState<GlobalSettings | null>(null);
-  const [selectedCli, setSelectedCli] = useState<CliType>('codex');
-  const [keepAwake, setKeepAwake] = useState<boolean>(true);
-  const [engineName, setEngineName] = useState<string>('auto');
-  const [modelName, setModelName] = useState<string>('');
 
-  // _settings is intentionally unused - we track selectedCli/keepAwake locally but persist via setSettings
+  // Decompose reviewer settings
+  const [decomposeAgent, setDecomposeAgent] = useState<CliType>('claude');
+  const [decomposeModel, setDecomposeModel] = useState<string>('');
+  const [decomposeReasoningEffort, setDecomposeReasoningEffort] = useState<ReasoningEffort>('medium');
+
+  // Condenser settings
+  const [condenserAgent, setCondenserAgent] = useState<CliType>('claude');
+  const [condenserModel, setCondenserModel] = useState<string>('');
+  const [condenserReasoningEffort, setCondenserReasoningEffort] = useState<ReasoningEffort>('medium');
+
+  // Spec generator settings
+  const [specGenAgent, setSpecGenAgent] = useState<CliType>('claude');
+  const [specGenModel, setSpecGenModel] = useState<string>('');
+  const [specGenReasoningEffort, setSpecGenReasoningEffort] = useState<ReasoningEffort>('medium');
+
+  // Task runner settings
+  const [taskRunnerAgent, setTaskRunnerAgent] = useState<'auto' | CliType>('auto');
+  const [taskRunnerModel, setTaskRunnerModel] = useState<string>('');
+  const [taskRunnerReasoningEffort, setTaskRunnerReasoningEffort] = useState<ReasoningEffort>('medium');
+
+  // Spec chat settings
+  const [specChatAgent, setSpecChatAgent] = useState<CliType>('claude');
+  const [specChatModel, setSpecChatModel] = useState<string>('');
+  const [specChatReasoningEffort, setSpecChatReasoningEffort] = useState<ReasoningEffort>('medium');
+
+  // Execution settings
+  const [keepAwake, setKeepAwake] = useState<boolean>(true);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +104,19 @@ export function SettingsView() {
     }
   }, []);
 
+  const fetchModelDetection = useCallback(async (): Promise<AllModelDetectionResults | null> => {
+    try {
+      const res = await fetch('/api/settings/models/detect');
+      if (!res.ok) {
+        throw new Error('Failed to fetch model detection');
+      }
+      return await res.json();
+    } catch (err) {
+      console.error('Failed to fetch model detection:', err);
+      return null;
+    }
+  }, []);
+
   const fetchSettings = useCallback(async (): Promise<GlobalSettings | null> => {
     try {
       const res = await fetch('/api/settings');
@@ -115,24 +135,45 @@ export function SettingsView() {
       setLoading(true);
       setError(null);
 
-      const [detection, currentSettings] = await Promise.all([
+      const [detection, models, currentSettings] = await Promise.all([
         fetchCliDetection(),
+        fetchModelDetection(),
         fetchSettings()
       ]);
 
       setCliDetection(detection);
+      setModelDetection(models);
       setSettings(currentSettings);
 
-      if (currentSettings?.reviewer?.cli) {
-        setSelectedCli(currentSettings.reviewer.cli);
+      if (currentSettings) {
+        // Load decompose settings
+        setDecomposeAgent(currentSettings.decompose.reviewer.agent as CliType);
+        setDecomposeModel(currentSettings.decompose.reviewer.model || '');
+        setDecomposeReasoningEffort(currentSettings.decompose.reviewer.reasoningEffort || 'medium');
+
+        // Load condenser settings
+        setCondenserAgent(currentSettings.condenser.agent as CliType);
+        setCondenserModel(currentSettings.condenser.model || '');
+        setCondenserReasoningEffort(currentSettings.condenser.reasoningEffort || 'medium');
+
+        // Load spec generator settings
+        setSpecGenAgent(currentSettings.specGenerator.agent as CliType);
+        setSpecGenModel(currentSettings.specGenerator.model || '');
+        setSpecGenReasoningEffort(currentSettings.specGenerator.reasoningEffort || 'medium');
+
+        // Load task runner settings
+        setTaskRunnerAgent(currentSettings.taskRunner.agent);
+        setTaskRunnerModel(currentSettings.taskRunner.model || '');
+        setTaskRunnerReasoningEffort(currentSettings.taskRunner.reasoningEffort || 'medium');
+
+        // Load spec chat settings
+        setSpecChatAgent(currentSettings.specChat?.agent || 'claude');
+        setSpecChatModel(currentSettings.specChat?.model || '');
+        setSpecChatReasoningEffort(currentSettings.specChat?.reasoningEffort || 'medium');
+
+        // Load execution settings
+        setKeepAwake(currentSettings.execution?.keepAwake ?? true);
       }
-
-      // keepAwake defaults to true if not set
-      setKeepAwake(currentSettings?.execution?.keepAwake ?? true);
-
-      // llm defaults
-      setEngineName(currentSettings?.llm?.defaultEngine || 'auto');
-      setModelName(currentSettings?.llm?.defaultModel || '');
 
       // Check if no CLIs are available
       if (detection && !detection.codex.available && !detection.claude.available) {
@@ -143,7 +184,7 @@ export function SettingsView() {
     };
 
     loadData();
-  }, [fetchCliDetection, fetchSettings]);
+  }, [fetchCliDetection, fetchModelDetection, fetchSettings]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -155,9 +196,34 @@ export function SettingsView() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          reviewer: { cli: selectedCli },
+          decompose: {
+            reviewer: {
+              agent: decomposeAgent,
+              model: decomposeModel || undefined,
+              reasoningEffort: decomposeAgent === 'codex' ? decomposeReasoningEffort : undefined,
+            },
+          },
+          condenser: {
+            agent: condenserAgent,
+            model: condenserModel || undefined,
+            reasoningEffort: condenserAgent === 'codex' ? condenserReasoningEffort : undefined,
+          },
+          specGenerator: {
+            agent: specGenAgent,
+            model: specGenModel || undefined,
+            reasoningEffort: specGenAgent === 'codex' ? specGenReasoningEffort : undefined,
+          },
+          taskRunner: {
+            agent: taskRunnerAgent,
+            model: taskRunnerModel || undefined,
+            reasoningEffort: taskRunnerAgent === 'codex' ? taskRunnerReasoningEffort : undefined,
+          },
+          specChat: {
+            agent: specChatAgent,
+            model: specChatModel || undefined,
+            reasoningEffort: specChatAgent === 'codex' ? specChatReasoningEffort : undefined,
+          },
           execution: { keepAwake },
-          llm: { defaultEngine: engineName, defaultModel: modelName || undefined },
         })
       });
 
@@ -190,15 +256,6 @@ export function SettingsView() {
 
   const availableClis = getAvailableClis();
 
-  // Check if currently selected CLI is unavailable
-  const isSelectedCliUnavailable = (): boolean => {
-    if (!cliDetection) return false;
-    const detection = cliDetection[selectedCli];
-    return !detection.available;
-  };
-
-  const selectedCliUnavailable = isSelectedCliUnavailable();
-
   if (loading) {
     return (
       <div className="settings-page">
@@ -213,7 +270,7 @@ export function SettingsView() {
     <div className="settings-page">
       <div className="settings-header">
         <h2>Settings</h2>
-        <p>Configure global Qala settings</p>
+        <p>Configure agent and model variants for different task stages</p>
       </div>
 
       {error && (
@@ -223,54 +280,391 @@ export function SettingsView() {
         </div>
       )}
 
+      {/* Decompose Reviewer Section */}
       <div className="settings-section">
         <div className="section-header">
-          <h3>Decomposition Reviewer</h3>
-          <p>Select which CLI tool to use for peer review during PRD decomposition</p>
+          <h3>Decompose Reviewer</h3>
+          <p>Agent and model used for peer review during PRD decomposition</p>
         </div>
 
         <div className="section-content">
           <div className="config-field">
-            <label>Reviewer CLI</label>
+            <label>Agent</label>
             <div className="select-wrapper">
               <select
-                value={selectedCli}
-                onChange={(e) => setSelectedCli(e.target.value as CliType)}
+                value={decomposeAgent}
+                onChange={(e) => setDecomposeAgent(e.target.value as CliType)}
                 disabled={availableClis.length === 0 || saving}
-                className={selectedCliUnavailable ? 'has-warning' : ''}
               >
                 {availableClis.length === 0 ? (
-                  <option value="">No CLIs available</option>
+                  <option value="">No agents available</option>
                 ) : (
-                  <>
-                    {/* Include unavailable selected CLI so user can see current selection */}
-                    {selectedCliUnavailable && (
-                      <option value={selectedCli}>
-                        {selectedCli.charAt(0).toUpperCase() + selectedCli.slice(1)} (unavailable)
-                      </option>
-                    )}
-                    {availableClis.map((cli) => (
-                      <option key={cli} value={cli}>
-                        {cli.charAt(0).toUpperCase() + cli.slice(1)}
-                      </option>
-                    ))}
-                  </>
+                  availableClis.map((cli) => (
+                    <option key={cli} value={cli}>
+                      {cli.charAt(0).toUpperCase() + cli.slice(1)}
+                    </option>
+                  ))
                 )}
               </select>
-              {selectedCliUnavailable && (
-                <span className="select-warning-indicator" title="Selected CLI is unavailable">⚠</span>
-              )}
             </div>
-            {selectedCliUnavailable && (
-              <div className="cli-warning-message">
-                The selected CLI ({selectedCli.charAt(0).toUpperCase() + selectedCli.slice(1)}) is currently unavailable.
-                Please select a different CLI or reinstall the missing tool.
-              </div>
-            )}
           </div>
 
+          <div className="config-field">
+            <label>Model</label>
+            <input
+              type="text"
+              value={decomposeModel}
+              onChange={(e) => setDecomposeModel(e.target.value)}
+              placeholder={decomposeAgent === 'codex' ? 'e.g., gpt-5, gpt-5-codex' : 'e.g., sonnet, opus'}
+              disabled={saving}
+              list="decompose-models"
+            />
+            {modelDetection && modelDetection[decomposeAgent]?.models.length > 0 && (
+              <datalist id="decompose-models">
+                {modelDetection[decomposeAgent].models.map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+            )}
+            <p className="field-description">
+              Optional model identifier. Leave empty for default.
+            </p>
+          </div>
+
+          {decomposeAgent === 'codex' && (
+            <div className="config-field">
+              <label>Reasoning Effort</label>
+              <div className="select-wrapper">
+                <select
+                  value={decomposeReasoningEffort}
+                  onChange={(e) => setDecomposeReasoningEffort(e.target.value as ReasoningEffort)}
+                  disabled={saving}
+                >
+                  {REASONING_EFFORTS.map((effort) => (
+                    <option key={effort} value={effort}>
+                      {effort.charAt(0).toUpperCase() + effort.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="field-description">
+                Controls reasoning depth for Codex models. Higher = more thorough but slower.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Spec Condenser Section */}
+      <div className="settings-section">
+        <div className="section-header">
+          <h3>Spec Condenser</h3>
+          <p>Agent and model for optimizing PRD for LLM consumption (reducing tokens)</p>
+        </div>
+
+        <div className="section-content">
+          <div className="config-field">
+            <label>Agent</label>
+            <div className="select-wrapper">
+              <select
+                value={condenserAgent}
+                onChange={(e) => setCondenserAgent(e.target.value as CliType)}
+                disabled={availableClis.length === 0 || saving}
+              >
+                {availableClis.length === 0 ? (
+                  <option value="">No agents available</option>
+                ) : (
+                  availableClis.map((cli) => (
+                    <option key={cli} value={cli}>
+                      {cli.charAt(0).toUpperCase() + cli.slice(1)}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          </div>
+
+          <div className="config-field">
+            <label>Model</label>
+            <input
+              type="text"
+              value={condenserModel}
+              onChange={(e) => setCondenserModel(e.target.value)}
+              placeholder={condenserAgent === 'codex' ? 'e.g., gpt-5, gpt-5-codex' : 'e.g., haiku, sonnet'}
+              disabled={saving}
+              list="condenser-models"
+            />
+            {modelDetection && modelDetection[condenserAgent]?.models.length > 0 && (
+              <datalist id="condenser-models">
+                {modelDetection[condenserAgent].models.map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+            )}
+            <p className="field-description">
+              Optional model identifier. Leave empty for default.
+            </p>
+          </div>
+
+          {condenserAgent === 'codex' && (
+            <div className="config-field">
+              <label>Reasoning Effort</label>
+              <div className="select-wrapper">
+                <select
+                  value={condenserReasoningEffort}
+                  onChange={(e) => setCondenserReasoningEffort(e.target.value as ReasoningEffort)}
+                  disabled={saving}
+                >
+                  {REASONING_EFFORTS.map((effort) => (
+                    <option key={effort} value={effort}>
+                      {effort.charAt(0).toUpperCase() + effort.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="field-description">
+                Controls reasoning depth for Codex models. Higher = more thorough but slower.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Spec Generator Section */}
+      <div className="settings-section">
+        <div className="section-header">
+          <h3>Spec Generator</h3>
+          <p>Agent and model used to draft PRDs or technical specs</p>
+        </div>
+
+        <div className="section-content">
+          <div className="config-field">
+            <label>Agent</label>
+            <div className="select-wrapper">
+              <select
+                value={specGenAgent}
+                onChange={(e) => setSpecGenAgent(e.target.value as CliType)}
+                disabled={availableClis.length === 0 || saving}
+              >
+                {availableClis.length === 0 ? (
+                  <option value="">No agents available</option>
+                ) : (
+                  availableClis.map((cli) => (
+                    <option key={cli} value={cli}>
+                      {cli.charAt(0).toUpperCase() + cli.slice(1)}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          </div>
+
+          <div className="config-field">
+            <label>Model</label>
+            <input
+              type="text"
+              value={specGenModel}
+              onChange={(e) => setSpecGenModel(e.target.value)}
+              placeholder={specGenAgent === 'codex' ? 'e.g., gpt-5, gpt-5-codex' : 'e.g., sonnet, haiku'}
+              disabled={saving}
+              list="specgen-models"
+            />
+            {modelDetection && modelDetection[specGenAgent]?.models.length > 0 && (
+              <datalist id="specgen-models">
+                {modelDetection[specGenAgent].models.map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+            )}
+            <p className="field-description">
+              Optional model identifier. Leave empty for default.
+            </p>
+          </div>
+
+          {specGenAgent === 'codex' && (
+            <div className="config-field">
+              <label>Reasoning Effort</label>
+              <div className="select-wrapper">
+                <select
+                  value={specGenReasoningEffort}
+                  onChange={(e) => setSpecGenReasoningEffort(e.target.value as ReasoningEffort)}
+                  disabled={saving}
+                >
+                  {REASONING_EFFORTS.map((effort) => (
+                    <option key={effort} value={effort}>
+                      {effort.charAt(0).toUpperCase() + effort.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="field-description">
+                Controls reasoning depth for Codex models. Higher = more thorough but slower.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Task Runner Section */}
+      <div className="settings-section">
+        <div className="section-header">
+          <h3>Task Runner</h3>
+          <p>Agent and model for executing user stories</p>
+        </div>
+
+        <div className="section-content">
+          <div className="config-field">
+            <label>Agent</label>
+            <div className="select-wrapper">
+              <select
+                value={taskRunnerAgent}
+                onChange={(e) => setTaskRunnerAgent(e.target.value as 'auto' | CliType)}
+                disabled={saving}
+              >
+                <option value="auto">Auto (detect first available)</option>
+                {cliDetection?.claude.available && (
+                  <option value="claude">Claude</option>
+                )}
+                {cliDetection?.codex.available && (
+                  <option value="codex">Codex</option>
+                )}
+              </select>
+            </div>
+            <p className="field-description">
+              Auto selects the first available agent. You can override per-run using --engine/--model flags.
+            </p>
+          </div>
+
+          <div className="config-field">
+            <label>Model</label>
+            <input
+              type="text"
+              value={taskRunnerModel}
+              onChange={(e) => setTaskRunnerModel(e.target.value)}
+              placeholder={taskRunnerAgent === 'codex' ? 'e.g., gpt-5, gpt-5-codex' : 'e.g., sonnet, opus'}
+              disabled={saving}
+              list="taskrunner-models"
+            />
+            {modelDetection && taskRunnerAgent !== 'auto' && modelDetection[taskRunnerAgent as CliType]?.models.length > 0 && (
+              <datalist id="taskrunner-models">
+                {modelDetection[taskRunnerAgent as CliType].models.map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+            )}
+            <p className="field-description">
+              Optional model identifier. Leave empty for default.
+            </p>
+          </div>
+
+          {taskRunnerAgent === 'codex' && (
+            <div className="config-field">
+              <label>Reasoning Effort</label>
+              <div className="select-wrapper">
+                <select
+                  value={taskRunnerReasoningEffort}
+                  onChange={(e) => setTaskRunnerReasoningEffort(e.target.value as ReasoningEffort)}
+                  disabled={saving}
+                >
+                  {REASONING_EFFORTS.map((effort) => (
+                    <option key={effort} value={effort}>
+                      {effort.charAt(0).toUpperCase() + effort.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="field-description">
+                Controls reasoning depth for Codex models. Higher = more thorough but slower.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Spec Chat Section */}
+      <div className="settings-section">
+        <div className="section-header">
+          <h3>Spec Chat</h3>
+          <p>Agent and model for interactive chat during spec review</p>
+        </div>
+
+        <div className="section-content">
+          <div className="config-field">
+            <label>Agent</label>
+            <div className="select-wrapper">
+              <select
+                value={specChatAgent}
+                onChange={(e) => setSpecChatAgent(e.target.value as CliType)}
+                disabled={availableClis.length === 0 || saving}
+              >
+                {availableClis.length === 0 ? (
+                  <option value="">No agents available</option>
+                ) : (
+                  availableClis.map((cli) => (
+                    <option key={cli} value={cli}>
+                      {cli.charAt(0).toUpperCase() + cli.slice(1)}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          </div>
+
+          <div className="config-field">
+            <label>Model</label>
+            <input
+              type="text"
+              value={specChatModel}
+              onChange={(e) => setSpecChatModel(e.target.value)}
+              placeholder={specChatAgent === 'codex' ? 'e.g., gpt-5, gpt-5-codex' : 'e.g., sonnet, opus'}
+              disabled={saving}
+              list="specchat-models"
+            />
+            {modelDetection && modelDetection[specChatAgent]?.models.length > 0 && (
+              <datalist id="specchat-models">
+                {modelDetection[specChatAgent].models.map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+            )}
+            <p className="field-description">
+              Optional model identifier. Leave empty for default.
+            </p>
+          </div>
+
+          {specChatAgent === 'codex' && (
+            <div className="config-field">
+              <label>Reasoning Effort</label>
+              <div className="select-wrapper">
+                <select
+                  value={specChatReasoningEffort}
+                  onChange={(e) => setSpecChatReasoningEffort(e.target.value as ReasoningEffort)}
+                  disabled={saving}
+                >
+                  {REASONING_EFFORTS.map((effort) => (
+                    <option key={effort} value={effort}>
+                      {effort.charAt(0).toUpperCase() + effort.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="field-description">
+                Controls reasoning depth for Codex models. Higher = more thorough but slower.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* CLI Status Display */}
+      <div className="settings-section">
+        <div className="section-header">
+          <h3>CLI Availability</h3>
+          <p>Detected CLI tools and their versions</p>
+        </div>
+
+        <div className="section-content">
           <div className="cli-status-list">
-            <div className="status-list-header">CLI Availability</div>
             {cliDetection && (
               <>
                 <div className={`cli-status-item ${cliDetection.codex.available ? 'available' : 'unavailable'}`}>
@@ -297,56 +691,11 @@ export function SettingsView() {
         </div>
       </div>
 
-      <div className="settings-section">
-        <div className="section-header">
-          <h3>LLM Engine</h3>
-          <p>Select the default engine and model for execution</p>
-        </div>
-
-        <div className="section-content">
-          <div className="config-field">
-            <label>Default Engine</label>
-            <div className="select-wrapper">
-              <select
-                value={engineName}
-                onChange={(e) => setEngineName(e.target.value)}
-                disabled={saving}
-              >
-                <option value="auto">Auto</option>
-                {/* Map detection to engine names */}
-                {cliDetection?.claude.available && (
-                  <option value="claude-cli">Claude CLI</option>
-                )}
-                {cliDetection?.codex.available && (
-                  <option value="codex-cli">Codex CLI</option>
-                )}
-              </select>
-            </div>
-            <p className="field-description">
-              Auto selects the first available driver. You can override per-run using --engine/--model flags.
-            </p>
-          </div>
-
-          <div className="config-field">
-            <label>Default Model</label>
-            <input
-              type="text"
-              value={modelName}
-              onChange={(e) => setModelName(e.target.value)}
-              placeholder="e.g., claude-3.5-sonnet"
-              disabled={saving}
-            />
-            <p className="field-description">
-              Optional model identifier passed to the selected engine.
-            </p>
-          </div>
-        </div>
-      </div>
-
+      {/* Execution Settings */}
       <div className="settings-section">
         <div className="section-header">
           <h3>Execution</h3>
-          <p>Configure how Ralph executes tasks</p>
+          <p>Configure how tasks are executed</p>
         </div>
 
         <div className="section-content">
@@ -367,7 +716,7 @@ export function SettingsView() {
             </div>
             <p className="field-description">
               Prevents your computer from sleeping during long-running tasks.
-              Recommended for overnight runs. Uses caffeinate (macOS), PowerShell (Windows), or systemd-inhibit (Linux).
+              Recommended for overnight runs.
             </p>
           </div>
         </div>

@@ -50,9 +50,8 @@ export function TopNav({
   const currentPath = location.pathname;
 
   const isSpecsPage = currentPath.startsWith("/specs") || currentPath.startsWith("/spec-review");
-  const isQueuePage = currentPath === "/queue";
   const isSettingsPage = currentPath === "/settings";
-  const isExecutionPage = !isSpecsPage && !isQueuePage && !isSettingsPage;
+  const isExecutionPage = !isSpecsPage && !isSettingsPage;
 
   return (
     <nav className="topnav">
@@ -91,19 +90,13 @@ export function TopNav({
             onClick={() => onNavigate('/spec-review')}
           />
           <NavItem
-            icon="📋"
-            label="Queue"
-            active={isQueuePage}
-            onClick={() => onNavigate('/queue')}
-          />
-          <NavItem
             icon="▶"
             label="Execution"
             active={isExecutionPage}
             badge={
               isRalphRunning ? { text: 'Running', type: 'running' } : undefined
             }
-            onClick={() => onNavigate('/execution/live')}
+            onClick={() => onNavigate('/execution/kanban')}
           />
         </div>
 

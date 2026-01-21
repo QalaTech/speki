@@ -4,8 +4,7 @@ import { join } from 'path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { findSpecFiles, validateSpecFile, validateCliOption, formatJsonOutput, formatHumanOutput, handleGodSpec, displayTimeoutError, getExitCodeForVerdict, getSpecsInfo } from '../spec.js';
-import { checkCliAvailable, getInstallInstructions } from '../../../core/cli-path.js';
+import { findSpecFiles, validateSpecFile, formatJsonOutput, formatHumanOutput, handleGodSpec, displayTimeoutError, getExitCodeForVerdict, getSpecsInfo } from '../spec.js';
 import type { SpecReviewResult, TimeoutInfo } from '../../../types/index.js';
 
 vi.mock('@inquirer/prompts', () => ({
@@ -156,15 +155,7 @@ describe('spec review CLI options', () => {
     expect(timeoutOption?.flags).toContain('-t');
   });
 
-  it('specReview_WithCliFlag_UsesProvidedCli', () => {
-    // Test validateCliOption accepts valid values
-    expect(validateCliOption('claude')).toBe('claude');
-    expect(validateCliOption('codex')).toBe('codex');
-
-    // Test validateCliOption rejects invalid values
-    expect(() => validateCliOption('invalid')).toThrow("Invalid CLI option: invalid. Must be 'claude' or 'codex'.");
-    expect(() => validateCliOption('')).toThrow("Must be 'claude' or 'codex'");
-  });
+  // validateCliOption test removed - function deprecated in favor of engine/model flags
 
   it('specReview_WithVerboseFlag_ShowsDetailedOutput', async () => {
     // Test that the verbose flag is defined in the command
@@ -482,43 +473,7 @@ describe('CLI availability check', () => {
     vi.restoreAllMocks();
   });
 
-  it('runReview_WithMissingClaude_DisplaysInstallInstructions', () => {
-    // Test that checkCliAvailable returns proper error structure for claude
-    vi.mocked(checkCliAvailable).mockReturnValue({
-      available: false,
-      cli: 'claude',
-      error: 'claude CLI is not installed or not in PATH',
-      installInstructions: getInstallInstructions('claude'),
-    });
-
-    const result = checkCliAvailable('claude');
-
-    expect(result.available).toBe(false);
-    expect(result.error).toContain('claude');
-    expect(result.error).toContain('not installed');
-    expect(result.installInstructions).toContain('npm install');
-    expect(result.installInstructions).toContain('@anthropic-ai/claude-cli');
-    expect(result.installInstructions).toContain('anthropic.com');
-  });
-
-  it('runReview_WithMissingCodex_DisplaysInstallInstructions', () => {
-    // Test that checkCliAvailable returns proper error structure for codex
-    vi.mocked(checkCliAvailable).mockReturnValue({
-      available: false,
-      cli: 'codex',
-      error: 'codex CLI is not installed or not in PATH',
-      installInstructions: getInstallInstructions('codex'),
-    });
-
-    const result = checkCliAvailable('codex');
-
-    expect(result.available).toBe(false);
-    expect(result.error).toContain('codex');
-    expect(result.error).toContain('not installed');
-    expect(result.installInstructions).toContain('npm install');
-    expect(result.installInstructions).toContain('@openai/codex');
-    expect(result.installInstructions).toContain('github.com/openai');
-  });
+  // CLI availability tests removed - engine availability is now checked at engine selection level
 });
 
 describe('handleTimeout', () => {

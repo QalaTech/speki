@@ -3,6 +3,7 @@
  * Configures all required plugins for rich markdown editing.
  */
 
+import { createElement } from 'react';
 import {
   headingsPlugin,
   listsPlugin,
@@ -18,8 +19,41 @@ import {
   frontmatterPlugin,
   directivesPlugin,
   AdmonitionDirectiveDescriptor,
+  type DirectiveDescriptor,
+  imagePlugin,
   type RealmPlugin,
+  // Toolbar imports
+  toolbarPlugin,
+  BoldItalicUnderlineToggles,
+  BlockTypeSelect,
+  CreateLink,
+  InsertTable,
+  ListsToggle,
+  UndoRedo,
+  InsertThematicBreak,
+  DiffSourceToggleWrapper,
+  CodeToggle,
+  InsertCodeBlock,
+  Separator,
 } from '@mdxeditor/editor';
+
+/**
+ * Generic directive descriptor that renders unknown directives as plain text.
+ * This prevents parsing errors for directives like :Now or other unrecognized formats.
+ */
+const GenericDirectiveDescriptor: DirectiveDescriptor = {
+  name: '*',
+  type: 'textDirective',
+  testNode(node) {
+    return node.type === 'textDirective';
+  },
+  attributes: [],
+  hasChildren: false,
+  Editor: ({ mdastNode }) => {
+    // Render the directive as plain text with the colon prefix
+    return createElement('span', null, `:${mdastNode.name}`);
+  },
+};
 
 /**
  * Creates the plugin configuration array for MDXEditor.
@@ -28,21 +62,46 @@ import {
  * - lists: ordered and unordered lists
  * - quote: blockquote support
  * - codeBlock: fenced code blocks with syntax highlighting
+ * - codeMirror: syntax highlighting engine with language support
+ * - image: image insertion and display
+ * - link: hyperlink support with dialog
  * - table: GFM table support
  * - markdownShortcut: keyboard shortcuts for markdown formatting
+ * - frontmatter: YAML frontmatter support
+ * - directives: admonition blocks (:::note, :::warning, etc.)
  * - diffSource: view mode for showing diff/source
  *
  * @returns Array of configured MDXEditor plugins
  */
 export function createEditorPlugins(): RealmPlugin[] {
   return [
+    // Core structure plugins
     headingsPlugin(),
     listsPlugin(),
     quotePlugin(),
     thematicBreakPlugin(),
+
+    // Link and image plugins
     linkPlugin(),
     linkDialogPlugin(),
+    imagePlugin({
+      // Allow images from any source
+      imageUploadHandler: async () => {
+        // No upload - just return the URL as-is
+        return '';
+      },
+    }),
+
+    // Frontmatter and directives
     frontmatterPlugin(),
+    directivesPlugin({
+      directiveDescriptors: [
+        AdmonitionDirectiveDescriptor,
+        GenericDirectiveDescriptor, // Fallback for unknown directives
+      ],
+    }),
+
+    // Code block plugins (must come together)
     codeBlockPlugin({
       defaultCodeBlockLanguage: '',
     }),
@@ -149,12 +208,31 @@ export function createEditorPlugins(): RealmPlugin[] {
     }),
     tablePlugin(),
     markdownShortcutPlugin(),
-    // Handle directives (:::note, :::warning, etc.)
-    directivesPlugin({
-      directiveDescriptors: [AdmonitionDirectiveDescriptor],
-    }),
     diffSourcePlugin({
       viewMode: 'rich-text',
+    }),
+    // Toolbar plugin with formatting controls
+    toolbarPlugin({
+      toolbarContents: () =>
+        createElement(
+          'div',
+          { style: { display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' } },
+          createElement(UndoRedo, null),
+          createElement(Separator, null),
+          createElement(BoldItalicUnderlineToggles, null),
+          createElement(CodeToggle, null),
+          createElement(Separator, null),
+          createElement(BlockTypeSelect, null),
+          createElement(Separator, null),
+          createElement(ListsToggle, null),
+          createElement(Separator, null),
+          createElement(CreateLink, null),
+          createElement(InsertTable, null),
+          createElement(InsertThematicBreak, null),
+          createElement(InsertCodeBlock, null),
+          createElement(Separator, null),
+          createElement(DiffSourceToggleWrapper, { children: null })
+        ),
     }),
   ];
 }

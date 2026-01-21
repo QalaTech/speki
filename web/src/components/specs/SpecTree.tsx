@@ -16,6 +16,8 @@ export interface SpecFileNode {
   linkedSpecs?: SpecFileNode[];
   /** Parent spec ID (for tech specs linked to PRDs) */
   parentSpecId?: string;
+  /** Whether this is a placeholder for a generating spec */
+  isGenerating?: boolean;
 }
 
 /**
@@ -35,6 +37,11 @@ interface SpecTreeProps {
   selectedPath: string | null;
   onSelect: (path: string) => void;
   onCreateNew?: () => void;
+  /** Placeholder for a spec currently being generated */
+  generatingSpec?: {
+    parentPath: string;
+    name: string;
+  };
 }
 
 interface TreeNodeProps {
@@ -123,6 +130,8 @@ function TreeNode({
     }
   };
 
+  const isGenerating = node.isGenerating;
+
   return (
     <div className="tree-node-container">
       <div
@@ -130,13 +139,14 @@ function TreeNode({
           if (el) nodeRefs.current.set(node.path, el);
           else nodeRefs.current.delete(node.path);
         }}
-        className={`tree-node ${isSelected ? 'tree-node--selected' : ''} ${isFocused ? 'tree-node--focused' : ''} ${isDirectory ? 'tree-node--directory' : ''}`}
+        className={`tree-node ${isSelected ? 'tree-node--selected' : ''} ${isFocused ? 'tree-node--focused' : ''} ${isDirectory ? 'tree-node--directory' : ''} ${isGenerating ? 'tree-node--generating' : ''}`}
         style={{ paddingLeft: `${12 + depth * 16}px` }}
-        onClick={handleClick}
+        onClick={isGenerating ? undefined : handleClick}
         role="treeitem"
-        tabIndex={isFocused ? 0 : -1}
+        tabIndex={isGenerating ? -1 : (isFocused ? 0 : -1)}
         aria-selected={isSelected}
         aria-expanded={isDirectory ? isExpanded : undefined}
+        aria-busy={isGenerating}
         data-path={node.path}
       >
         {isDirectory && (
@@ -171,7 +181,32 @@ function TreeNode({
             {getStatusIcon(node.reviewStatus)}
           </span>
         )}
+        {node.isGenerating && (
+          <span className="tree-node-generating" title="Generating...">
+            ⏳
+          </span>
+        )}
       </div>
+
+      {/* Render linked specs (tech specs under PRDs) */}
+      {!isDirectory && node.linkedSpecs && node.linkedSpecs.length > 0 && (
+        <div className="tree-node-children tree-node-linked" role="group">
+          {node.linkedSpecs.map((child) => (
+            <TreeNode
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              selectedPath={selectedPath}
+              focusedPath={focusedPath}
+              expandedPaths={expandedPaths}
+              onSelect={onSelect}
+              onToggle={onToggle}
+              onFocus={onFocus}
+              nodeRefs={nodeRefs}
+            />
+          ))}
+        </div>
+      )}
 
       {isDirectory && isExpanded && node.children && (
         <div className="tree-node-children" role="group">
@@ -195,12 +230,46 @@ function TreeNode({
   );
 }
 
-export function SpecTree({ files, selectedPath, onSelect, onCreateNew }: SpecTreeProps) {
+export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatingSpec }: SpecTreeProps) {
   const [filter, setFilter] = useState('');
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const treeRef = useRef<HTMLDivElement>(null);
+
+  // Inject generating spec placeholder into tree
+  const filesWithGenerating = useMemo(() => {
+    if (!generatingSpec) return files;
+
+    // Capture for closure
+    const genSpec = generatingSpec;
+
+    // Deep clone and inject the generating placeholder
+    function injectGenerating(nodes: SpecFileNode[]): SpecFileNode[] {
+      return nodes.map(node => {
+        if (node.path === genSpec.parentPath) {
+          // This is the parent PRD - add generating spec to linkedSpecs
+          const generatingNode: SpecFileNode = {
+            name: genSpec.name,
+            path: `${genSpec.parentPath}/__generating__`,
+            type: 'file',
+            specType: 'tech-spec',
+            isGenerating: true,
+          };
+          return {
+            ...node,
+            linkedSpecs: [...(node.linkedSpecs || []), generatingNode],
+          };
+        }
+        if (node.children) {
+          return { ...node, children: injectGenerating(node.children) };
+        }
+        return node;
+      });
+    }
+
+    return injectGenerating(files);
+  }, [files, generatingSpec]);
 
   const handleToggle = (path: string) => {
     setExpandedPaths((prev) => {
@@ -216,7 +285,7 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew }: SpecTre
 
   // Filter files recursively
   const filteredFiles = useMemo(() => {
-    if (!filter.trim()) return files;
+    if (!filter.trim()) return filesWithGenerating;
 
     const filterLower = filter.toLowerCase();
 
@@ -242,8 +311,8 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew }: SpecTre
       return null;
     }
 
-    return files.map(filterNode).filter((n): n is SpecFileNode => n !== null);
-  }, [files, filter]);
+    return filesWithGenerating.map(filterNode).filter((n): n is SpecFileNode => n !== null);
+  }, [filesWithGenerating, filter]);
 
   // Auto-expand when filtering
   useMemo(() => {

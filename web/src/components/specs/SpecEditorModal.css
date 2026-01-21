@@ -98,13 +98,13 @@
 }
 
 .editor-modal-btn--save {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
   color: white;
 }
 
 .editor-modal-btn--save:hover:not(:disabled) {
-  background: #4a9eff;
+  background: var(--color-primary-hover);
 }
 
 /* Content - Monaco editor container */

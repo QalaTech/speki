@@ -6,6 +6,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
+import { CodeBlock } from './CodeBlock';
 import './ChatMarkdown.css';
 
 export interface ChatMarkdownProps {
@@ -23,7 +24,7 @@ const chatComponents: Components = {
   // Compact paragraphs - no extra margin
   p: ({ children }) => <p className="chat-md-p">{children}</p>,
 
-  // Code blocks with syntax highlighting placeholder
+  // Code blocks with syntax highlighting
   code: ({ className, children, ...props }) => {
     const isInline = !className;
     if (isInline) {
@@ -33,17 +34,11 @@ const chatComponents: Components = {
         </code>
       );
     }
-    // Block code
-    const language = className?.replace('language-', '') || '';
+    // Block code with syntax highlighting
     return (
-      <div className="chat-md-code-block">
-        {language && <span className="chat-md-code-lang">{language}</span>}
-        <pre>
-          <code className={className} {...props}>
-            {children}
-          </code>
-        </pre>
-      </div>
+      <CodeBlock className={className}>
+        {String(children).replace(/\n$/, '')}
+      </CodeBlock>
     );
   },
 

@@ -2,14 +2,15 @@ import { Router } from 'express';
 import { projectContext } from '../middleware/project-context.js';
 import type { Request, Response } from 'express';
 import type { RalphStatus, DecomposeState } from '../../types/index.js';
-import { subscribeRalph, subscribeDecompose, subscribeTasks, subscribePeerFeedback, subscribeProjects, publishTasks, publishPeerFeedback, publishProjects, subscribeSpecReview } from '../sse.js';
+import { subscribeRalph, subscribeDecompose, subscribeTasks, subscribePeerFeedback, subscribeProjects, publishTasks, publishPeerFeedback, publishProjects, subscribeSpecReview, subscribeUnified, publishUnified } from '../sse.js';
 import { Registry } from '../../core/registry.js';
 
 const router = Router();
 
 // SSE: Ralph loop events
 router.get('/ralph', projectContext(true), async (req: Request, res: Response) => {
-  subscribeRalph(req.projectPath!, res);
+  const lastEventId = req.headers['last-event-id'] as string | undefined;
+  subscribeRalph(req.projectPath!, res, lastEventId);
   try {
     const status: RalphStatus = await req.project!.loadStatus();
     // initial snapshot
@@ -24,7 +25,8 @@ router.get('/ralph', projectContext(true), async (req: Request, res: Response) =
 
 // SSE: Decompose progress events
 router.get('/decompose', projectContext(true), async (req: Request, res: Response) => {
-  subscribeDecompose(req.projectPath!, res);
+  const lastEventId = req.headers['last-event-id'] as string | undefined;
+  subscribeDecompose(req.projectPath!, res, lastEventId);
   try {
     const state: DecomposeState = await req.project!.loadDecomposeState();
     const { publishDecompose } = await import('../sse.js');
@@ -36,7 +38,8 @@ router.get('/decompose', projectContext(true), async (req: Request, res: Respons
 
 // SSE: Tasks (PRD) events
 router.get('/tasks', projectContext(true), async (req: Request, res: Response) => {
-  subscribeTasks(req.projectPath!, res);
+  const lastEventId = req.headers['last-event-id'] as string | undefined;
+  subscribeTasks(req.projectPath!, res, lastEventId);
   try {
     const prd = await req.project!.loadPRD();
     if (prd) publishTasks(req.projectPath!, 'tasks/snapshot', prd);
@@ -45,7 +48,8 @@ router.get('/tasks', projectContext(true), async (req: Request, res: Response) =
 
 // SSE: Peer feedback events
 router.get('/peer-feedback', projectContext(true), async (req: Request, res: Response) => {
-  subscribePeerFeedback(req.projectPath!, res);
+  const lastEventId = req.headers['last-event-id'] as string | undefined;
+  subscribePeerFeedback(req.projectPath!, res, lastEventId);
   try {
     const pf = await req.project!.loadPeerFeedback();
     publishPeerFeedback(req.projectPath!, 'peer-feedback/snapshot', pf);
@@ -53,8 +57,9 @@ router.get('/peer-feedback', projectContext(true), async (req: Request, res: Res
 });
 
 // SSE: Projects registry (global)
-router.get('/projects', async (_req: Request, res: Response) => {
-  subscribeProjects(res);
+router.get('/projects', async (req: Request, res: Response) => {
+  const lastEventId = req.headers['last-event-id'] as string | undefined;
+  subscribeProjects(res, lastEventId);
   try {
     const projects = await Registry.list();
     publishProjects('projects/snapshot', projects);
@@ -63,7 +68,31 @@ router.get('/projects', async (_req: Request, res: Response) => {
 
 // SSE: Spec review events
 router.get('/spec-review', projectContext(true), async (req: Request, res: Response) => {
-  subscribeSpecReview(req.projectPath!, res);
+  const lastEventId = req.headers['last-event-id'] as string | undefined;
+  subscribeSpecReview(req.projectPath!, res, lastEventId);
+});
+
+// SSE: Unified events (all per-project event types multiplexed)
+router.get('/all', projectContext(true), async (req: Request, res: Response) => {
+  const lastEventId = req.headers['last-event-id'] as string | undefined;
+  subscribeUnified(req.projectPath!, res, lastEventId);
+
+  try {
+    // Send initial snapshots for all channels
+    const [ralphStatus, decomposeState, prdData, peerFeedback] = await Promise.all([
+      req.project!.loadStatus().catch(() => null),
+      req.project!.loadDecomposeState().catch(() => null),
+      req.project!.loadPRD().catch(() => null),
+      req.project!.loadPeerFeedback().catch(() => null),
+    ]);
+
+    if (ralphStatus) publishUnified(req.projectPath!, 'ralph/status', { status: ralphStatus });
+    if (decomposeState) publishUnified(req.projectPath!, 'decompose/state', decomposeState);
+    if (prdData) publishUnified(req.projectPath!, 'tasks/snapshot', prdData);
+    if (peerFeedback) publishUnified(req.projectPath!, 'peer-feedback/snapshot', peerFeedback);
+  } catch {
+    // Ignore snapshot errors - subscribers will get updates as they occur
+  }
 });
 
 export default router;

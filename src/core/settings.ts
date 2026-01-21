@@ -25,18 +25,40 @@ export function getSettingsFilePath(): string {
 
 /**
  * Default global settings
- * - Claude as the default reviewer CLI (more widely available and capable)
+ * - Claude as the default reviewer for all stages
  * - Keep awake enabled by default for overnight runs
+ * - Medium reasoning effort as default for Codex
  */
 const DEFAULT_SETTINGS: GlobalSettings = {
-  reviewer: {
-    cli: 'claude',
+  decompose: {
+    reviewer: {
+      agent: 'claude',
+      model: undefined,
+      reasoningEffort: 'medium',
+    },
+  },
+  condenser: {
+    agent: 'claude',
+    model: undefined,
+    reasoningEffort: 'medium',
+  },
+  specGenerator: {
+    agent: 'claude',
+    model: undefined,
+    reasoningEffort: 'medium',
+  },
+  taskRunner: {
+    agent: 'auto',
+    model: undefined,
+    reasoningEffort: 'medium',
+  },
+  specChat: {
+    agent: 'claude',
+    model: undefined,
+    reasoningEffort: 'medium',
   },
   execution: {
     keepAwake: true,
-  },
-  llm: {
-    defaultEngine: 'auto',
   },
 };
 
@@ -53,16 +75,35 @@ export async function loadGlobalSettings(): Promise<GlobalSettings> {
     if (parsed && typeof parsed === 'object') {
       // Return merged settings with defaults for any missing properties
       return {
-        reviewer: {
-          cli: parsed.reviewer?.cli ?? DEFAULT_SETTINGS.reviewer.cli,
+        decompose: {
+          reviewer: {
+            agent: parsed.decompose?.reviewer?.agent ?? DEFAULT_SETTINGS.decompose.reviewer.agent,
+            model: parsed.decompose?.reviewer?.model ?? DEFAULT_SETTINGS.decompose.reviewer.model,
+            reasoningEffort: parsed.decompose?.reviewer?.reasoningEffort ?? DEFAULT_SETTINGS.decompose.reviewer.reasoningEffort,
+          },
+        },
+        condenser: {
+          agent: parsed.condenser?.agent ?? DEFAULT_SETTINGS.condenser.agent,
+          model: parsed.condenser?.model ?? DEFAULT_SETTINGS.condenser.model,
+          reasoningEffort: parsed.condenser?.reasoningEffort ?? DEFAULT_SETTINGS.condenser.reasoningEffort,
+        },
+        specGenerator: {
+          agent: parsed.specGenerator?.agent ?? DEFAULT_SETTINGS.specGenerator.agent,
+          model: parsed.specGenerator?.model ?? DEFAULT_SETTINGS.specGenerator.model,
+          reasoningEffort: parsed.specGenerator?.reasoningEffort ?? DEFAULT_SETTINGS.specGenerator.reasoningEffort,
+        },
+        taskRunner: {
+          agent: parsed.taskRunner?.agent ?? DEFAULT_SETTINGS.taskRunner.agent,
+          model: parsed.taskRunner?.model ?? DEFAULT_SETTINGS.taskRunner.model,
+          reasoningEffort: parsed.taskRunner?.reasoningEffort ?? DEFAULT_SETTINGS.taskRunner.reasoningEffort,
+        },
+        specChat: {
+          agent: parsed.specChat?.agent ?? DEFAULT_SETTINGS.specChat.agent,
+          model: parsed.specChat?.model ?? DEFAULT_SETTINGS.specChat.model,
+          reasoningEffort: parsed.specChat?.reasoningEffort ?? DEFAULT_SETTINGS.specChat.reasoningEffort,
         },
         execution: {
           keepAwake: parsed.execution?.keepAwake ?? DEFAULT_SETTINGS.execution.keepAwake,
-        },
-        llm: {
-          defaultEngine: parsed.llm?.defaultEngine ?? DEFAULT_SETTINGS.llm?.defaultEngine,
-          defaultModel: parsed.llm?.defaultModel ?? undefined,
-          engines: parsed.llm?.engines ?? undefined,
         },
       };
     }

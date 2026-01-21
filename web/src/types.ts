@@ -294,3 +294,110 @@ export interface QueueStats {
 export interface QueuedTaskWithData extends QueuedTaskReference {
   task?: UserStory;
 }
+
+// =============================================================================
+// Settings and Configuration Types
+// =============================================================================
+
+/**
+ * CLI type for agent selection
+ */
+export type CliType = 'codex' | 'claude';
+
+/**
+ * Reasoning effort levels for Codex models
+ */
+export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
+
+/**
+ * CLI detection result for a single CLI tool
+ */
+export interface CliDetectionResult {
+  available: boolean;
+  version: string;
+  command: string;
+}
+
+/**
+ * Detection results for all CLI tools
+ */
+export interface AllCliDetectionResults {
+  codex: CliDetectionResult;
+  claude: CliDetectionResult;
+}
+
+/**
+ * Model detection result for a single CLI tool
+ */
+export interface ModelDetectionResult {
+  available: boolean;
+  models: string[];
+  error?: string;
+}
+
+/**
+ * Model detection results for all CLI tools
+ */
+export interface AllModelDetectionResults {
+  codex: ModelDetectionResult;
+  claude: ModelDetectionResult;
+}
+
+/**
+ * Configuration for a processing stage (decompose reviewer, condenser, spec generator)
+ */
+export interface StageConfig {
+  /** CLI agent to use */
+  agent: CliType;
+  /** Optional model identifier */
+  model?: string;
+  /** Reasoning effort for Codex models */
+  reasoningEffort?: ReasoningEffort;
+}
+
+/**
+ * Configuration for the task runner
+ */
+export interface TaskRunnerConfig {
+  /** CLI agent to use ('auto' for auto-detection) */
+  agent: CliType | 'auto';
+  /** Optional model identifier */
+  model?: string;
+  /** Reasoning effort for Codex models */
+  reasoningEffort?: ReasoningEffort;
+}
+
+/**
+ * Configuration for spec chat
+ */
+export interface SpecChatConfig {
+  /** CLI agent to use */
+  agent: CliType;
+  /** Optional model identifier */
+  model?: string;
+  /** Reasoning effort for Codex models */
+  reasoningEffort?: ReasoningEffort;
+}
+
+/**
+ * Global settings stored in ~/.qala/config.json
+ */
+export interface GlobalSettings {
+  /** Decompose reviewer - peer review during PRD decomposition */
+  decompose: {
+    reviewer: StageConfig;
+  };
+  /** Spec condenser - optimizes PRD for LLM (token reduction) */
+  condenser: StageConfig;
+  /** Spec generator - drafts PRDs/tech specs from inputs */
+  specGenerator: StageConfig;
+  /** Task runner - executes user stories */
+  taskRunner: TaskRunnerConfig;
+  /** Spec chat - interactive chat for spec review */
+  specChat: SpecChatConfig;
+  /** Execution settings */
+  execution: {
+    /** Prevent system sleep during execution (default: true) */
+    keepAwake: boolean;
+  };
+}

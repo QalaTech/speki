@@ -291,12 +291,12 @@
 }
 
 .modal-btn--primary {
-  background: var(--color-accent);
+  background: var(--color-primary);
   color: white;
 }
 
 .modal-btn--primary:hover:not(:disabled) {
-  background: #4a9eff;
+  background: var(--color-primary-hover);
 }
 
 /* Scrollbar */

@@ -178,4 +178,58 @@ router.put('/:encodedPath/status', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/project/config
+ * Get project configuration (including LLM overrides)
+ */
+router.get('/config', async (req, res) => {
+  try {
+    const projectPath = req.query.project as string;
+    if (!projectPath) {
+      return res.status(400).json({ error: 'Project path is required' });
+    }
+
+    const project = new Project(projectPath);
+    if (!(await project.exists())) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const config = await project.loadConfig();
+    res.json(config);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to load project config',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * PUT /api/project/config
+ * Update project configuration (including LLM overrides)
+ */
+router.put('/config', async (req, res) => {
+  try {
+    const projectPath = req.query.project as string;
+    if (!projectPath) {
+      return res.status(400).json({ error: 'Project path is required' });
+    }
+
+    const project = new Project(projectPath);
+    if (!(await project.exists())) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const updatedConfig = req.body;
+    await project.saveConfig(updatedConfig);
+
+    res.json(updatedConfig);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to save project config',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 export default router;

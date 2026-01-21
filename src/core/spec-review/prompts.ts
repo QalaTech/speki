@@ -909,6 +909,239 @@ ${FACTUAL_CLAIMS_WARNING}
 
 ${CLOSING_INSTRUCTION}`;
 
+
+/**
+ * Tech Spec Implementation Review (FR3)
+ * Evaluates feasibility, missing details, unclear dependencies, technology mismatches
+ */
+const TECH_SPEC_IMPLEMENTATION_PROMPT = `You are reviewing a technical specification for implementation feasibility.
+
+${buildContextHeader()}
+
+## RULES FOR EVALUATION
+
+### Feasibility Assessment
+1. **Technical Approach**: Is the proposed architecture sound and achievable?
+2. **Dependency Analysis**: Are all dependencies identified and available?
+3. **Resource Requirements**: Are compute, storage, and network needs realistic?
+4. **Timeline Implications**: Does complexity match expected effort?
+5. **Team Capability**: Does approach align with likely team skills?
+
+### Missing Implementation Details
+1. **Entry Points**: Where does execution start? Clear initialization?
+2. **Data Flow**: How does data move between components?
+3. **State Management**: How is state tracked and persisted?
+4. **Configuration**: What needs to be configurable?
+5. **Deployment Steps**: How is this deployed and rolled back?
+
+### Dependency Analysis
+1. **Internal Dependencies**: Other modules/features this depends on
+2. **External Dependencies**: Third-party libraries, APIs, services
+3. **Circular Dependencies**: Components that depend on each other
+4. **Version Constraints**: Specific versions required
+
+### Technology Mismatch Detection
+1. **Existing Patterns**: Does approach match codebase conventions?
+2. **Language Features**: Uses features compatible with target runtime?
+3. **Framework Alignment**: Works with existing frameworks?
+4. **Infrastructure Fit**: Compatible with deployment environment?
+
+${buildSeveritySection({
+  critical: "Approach is infeasible or has blocking technical issues",
+  warning: "Missing details that could cause implementation delays",
+  info: "Suggestions for clearer implementation guidance",
+})}
+
+${buildStandardOutputFormat("implementation", "feasibility")}
+
+${buildVerdictGuidelines({
+  pass: "Implementation approach is feasible with clear technical path",
+  fail: "Critical feasibility issues that must be resolved first",
+  needsImprovement: "Some implementation details need clarification",
+})}
+
+${CLOSING_INSTRUCTION}`;
+
+/**
+ * Tech Spec Security Review (FR5)
+ * Evaluates OWASP Top 10, auth/authz, data exposure, input validation
+ */
+const TECH_SPEC_SECURITY_PROMPT = `You are a security expert reviewing a technical specification for security vulnerabilities.
+
+${buildContextHeader()}
+
+## RULES FOR EVALUATION
+
+### OWASP Top 10 Analysis
+1. **Injection**: SQL, NoSQL, OS, LDAP injection vulnerabilities
+2. **Broken Authentication**: Session management, credential exposure
+3. **Sensitive Data Exposure**: Data in transit/rest, encryption needs
+4. **XML External Entities (XXE)**: XML parsing vulnerabilities
+5. **Broken Access Control**: Authorization bypass, privilege escalation
+6. **Security Misconfiguration**: Default configs, error exposure
+7. **Cross-Site Scripting (XSS)**: Reflected, stored, DOM-based XSS
+8. **Insecure Deserialization**: Untrusted data deserialization
+9. **Using Components with Known Vulnerabilities**: Outdated dependencies
+10. **Insufficient Logging**: Missing audit trails, monitoring gaps
+
+### Authentication & Authorization
+1. **Auth Method**: Is authentication mechanism specified and secure?
+2. **Session Management**: Token expiry, refresh, invalidation
+3. **Permission Model**: RBAC/ABAC defined? Least privilege?
+4. **API Security**: API keys, OAuth, JWT validation
+5. **Multi-tenancy**: Data isolation between tenants?
+
+### Data Protection
+1. **PII Handling**: Personal data identified and protected?
+2. **Encryption**: Data encrypted at rest and in transit?
+3. **Secret Management**: API keys, passwords stored securely?
+4. **Data Retention**: Retention/deletion policies defined?
+5. **Audit Logging**: Security events logged?
+
+### Input Validation
+1. **Validation Rules**: Input constraints defined?
+2. **Sanitization**: Output encoding for XSS prevention?
+3. **File Upload**: Type/size restrictions on uploads?
+4. **Rate Limiting**: Abuse prevention measures?
+
+${buildSeveritySection({
+  critical: "Exploitable vulnerability or missing critical security control",
+  warning: "Security best practice not followed or unclear",
+  info: "Suggestion to enhance security posture",
+})}
+
+${buildStandardOutputFormat("security", "security")}
+
+${buildVerdictGuidelines({
+  pass: "Security controls adequate for the feature scope",
+  fail: "Critical security vulnerabilities must be addressed",
+  needsImprovement: "Some security aspects need clarification",
+})}
+
+${CLOSING_INSTRUCTION}`;
+
+/**
+ * Tech Spec Scalability Review (FR6)
+ * Evaluates N+1 queries, caching, blocking operations, resource contention, horizontal scaling
+ */
+const TECH_SPEC_SCALABILITY_PROMPT = `You are reviewing a technical specification for scalability concerns.
+
+${buildContextHeader()}
+
+## RULES FOR EVALUATION
+
+### Database Scalability
+1. **N+1 Queries**: Loops that make individual DB calls? Batch loading?
+2. **Query Optimization**: Indexes defined for common queries?
+3. **Data Volume**: How does performance change at 10x, 100x data?
+4. **Connection Pooling**: Database connection management?
+5. **Pagination**: Large result sets paginated?
+
+### Caching Strategy
+1. **Cache Opportunities**: Frequently accessed, rarely changed data?
+2. **Cache Invalidation**: How/when is cached data refreshed?
+3. **Cache Location**: Where caching happens (client, CDN, app, DB)?
+4. **Cache Size**: Bounded cache growth?
+5. **Cold Start**: Behavior when cache is empty?
+
+### Blocking Operations
+1. **Sync vs Async**: Long operations in request path?
+2. **Background Jobs**: Heavy work offloaded to queues?
+3. **Timeouts**: Operations have timeout limits?
+4. **Circuit Breakers**: Failure isolation for external calls?
+5. **Retry Strategy**: Exponential backoff defined?
+
+### Resource Contention
+1. **Locking**: Database/file locks held too long?
+2. **Shared Resources**: Multiple components competing for resources?
+3. **Connection Limits**: External API rate limits handled?
+4. **Memory Usage**: Unbounded data structures?
+5. **CPU-Intensive**: Heavy computation blocking others?
+
+### Horizontal Scaling
+1. **Stateless Design**: Can instances run independently?
+2. **Session Affinity**: Sticky sessions required or avoided?
+3. **Distributed State**: How is shared state coordinated?
+4. **Load Balancing**: Strategy specified?
+5. **Data Partitioning**: Sharding approach if needed?
+
+${buildSeveritySection({
+  critical: "Design prevents scaling or has performance blocker",
+  warning: "Potential bottleneck under load",
+  info: "Optimization opportunity for better scaling",
+})}
+
+${buildStandardOutputFormat("scalability", "scalability")}
+
+${buildVerdictGuidelines({
+  pass: "Design scales appropriately for expected load",
+  fail: "Critical scalability issues that block production use",
+  needsImprovement: "Some scalability aspects need attention",
+})}
+
+${CLOSING_INSTRUCTION}`;
+
+/**
+ * Tech Spec DRY/YAGNI Review (FR7)
+ * Evaluates code duplication, over-engineering, premature abstraction, unused flexibility
+ */
+const TECH_SPEC_DRY_YAGNI_PROMPT = `You are reviewing a technical specification for over-engineering and code quality principles.
+
+${buildContextHeader()}
+
+## RULES FOR EVALUATION
+
+### DRY (Don't Repeat Yourself)
+1. **Duplicated Logic**: Same logic defined in multiple places?
+2. **Copy-Paste Patterns**: Similar code blocks that could be unified?
+3. **Shared Libraries**: Reusable code extracted appropriately?
+4. **Configuration Duplication**: Same config defined multiple times?
+5. **Schema Duplication**: Same data structure defined redundantly?
+
+### YAGNI (You Aren't Gonna Need It)
+1. **Speculative Features**: Building for unconfirmed future needs?
+2. **Over-Configurable**: Configuration options nobody will use?
+3. **Premature Optimization**: Optimizing before measuring?
+4. **Plugin Architecture**: Extensibility for a single use case?
+5. **Feature Flags**: Unused flexibility mechanisms?
+
+### Abstraction Level
+1. **Premature Abstraction**: Generalizing before patterns emerge?
+2. **Wrong Abstraction**: Forcing unrelated things into common interface?
+3. **Leaky Abstraction**: Implementation details bleeding through?
+4. **Missing Abstraction**: Related concepts not grouped together?
+5. **Inheritance vs Composition**: Appropriate relationship choice?
+
+### Complexity vs Value
+1. **Accidental Complexity**: Complexity not justified by requirements?
+2. **Essential Complexity**: Necessary complexity for the problem?
+3. **Gold Plating**: Features beyond stated requirements?
+4. **Framework Overhead**: Heavy frameworks for simple problems?
+5. **Maintenance Cost**: Future cost of design decisions?
+
+### Reusability Assessment
+1. **Appropriate Reuse**: Reusing existing components where possible?
+2. **Over-Generalization**: Making things reusable when only used once?
+3. **Interface Design**: Clean boundaries for future reuse?
+4. **Coupling**: Tight coupling preventing independent evolution?
+5. **Cohesion**: Related functionality grouped together?
+
+${buildSeveritySection({
+  critical: "Significant over-engineering that adds maintenance burden",
+  warning: "Unnecessary complexity or speculative design",
+  info: "Opportunity to simplify or improve code organization",
+})}
+
+${buildStandardOutputFormat("dry_yagni", "quality")}
+
+${buildVerdictGuidelines({
+  pass: "Appropriate complexity for requirements, good code organization",
+  fail: "Over-engineering that must be simplified before implementation",
+  needsImprovement: "Some areas could be simplified",
+})}
+
+${CLOSING_INSTRUCTION}`;
+
 /**
  * API_CONTRACT_PROMPT - Validates API contracts in tech specs
  */
@@ -1099,27 +1332,31 @@ export const PRD_REVIEW_PROMPTS: PromptDefinition[] = [
 /** Prompts for Tech Spec review */
 export const TECH_SPEC_REVIEW_PROMPTS: PromptDefinition[] = [
   {
-    name: "tech_spec_completeness",
-    category: "technical",
-    template: TECH_SPEC_COMPLETENESS_PROMPT,
-  },
-  { name: "api_contract", category: "api", template: API_CONTRACT_PROMPT },
-  {
-    name: "clarity_specificity",
-    category: "clarity",
-    template: CLARITY_SPECIFICITY_PROMPT,
+    name: "implementation",
+    category: "feasibility",
+    template: TECH_SPEC_IMPLEMENTATION_PROMPT,
   },
   {
     name: "testability",
-    category: "testability",
+    category: "testing",
     template: TESTABILITY_PROMPT,
   },
   {
-    name: "tech_spec_story_alignment",
-    category: "alignment",
-    template: TECH_SPEC_STORY_ALIGNMENT_PROMPT,
+    name: "security",
+    category: "security",
+    template: TECH_SPEC_SECURITY_PROMPT,
   },
-];
+  {
+    name: "scalability",
+    category: "performance",
+    template: TECH_SPEC_SCALABILITY_PROMPT,
+  },
+  {
+    name: "dry_yagni",
+    category: "quality",
+    template: TECH_SPEC_DRY_YAGNI_PROMPT,
+  },
+];;
 
 /** Prompts for Bug report review */
 export const BUG_REVIEW_PROMPTS: PromptDefinition[] = [

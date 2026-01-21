@@ -10,6 +10,10 @@ interface CreateTechSpecModalProps {
   prdName: string;
   userStories: UserStory[];
   onCreated?: (techSpecPath: string) => void;
+  /** Callback when generation starts with spec name */
+  onGenerationStart?: (specName: string) => void;
+  /** Callback when generation ends (success or failure) */
+  onGenerationEnd?: () => void;
 }
 
 export function CreateTechSpecModal({
@@ -20,6 +24,8 @@ export function CreateTechSpecModal({
   prdName,
   userStories,
   onCreated,
+  onGenerationStart,
+  onGenerationEnd,
 }: CreateTechSpecModalProps) {
   const [techSpecName, setTechSpecName] = useState('');
   const [selectedStories, setSelectedStories] = useState<Set<string>>(new Set());
@@ -69,7 +75,7 @@ export function CreateTechSpecModal({
     setSelectedStories(new Set());
   };
 
-  // Create tech spec
+  // Create tech spec using AI generation
   const handleCreate = async () => {
     if (!techSpecName.trim()) {
       setError('Please enter a tech spec name');
@@ -84,27 +90,40 @@ export function CreateTechSpecModal({
     setCreating(true);
     setError(null);
 
+    // Notify parent that generation started with spec name, then close modal
+    const specName = techSpecName.trim();
+    onGenerationStart?.(specName);
+    onClose();
+
     try {
-      const res = await fetch(apiUrl('/api/decompose/create-tech-spec'), {
+      // Use AI-powered generation endpoint
+      const res = await fetch(apiUrl('/api/decompose/generate-tech-spec'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prdSpecId,
-          techSpecName: techSpecName.trim(),
-          userStoryIds: Array.from(selectedStories),
+          techSpecName: specName,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to create tech spec');
+        // Handle validation errors specially
+        if (data.validationErrors) {
+          const errorMessages = data.validationErrors
+            .map((e: { field: string; error: string }) => `${e.field}: ${e.error}`)
+            .join('\n');
+          throw new Error(`Validation failed:\n${errorMessages}`);
+        }
+        throw new Error(data.error || 'Failed to generate tech spec');
       }
 
-      onCreated?.(data.techSpecPath);
-      onClose();
+      onGenerationEnd?.();
+      onCreated?.(data.outputPath);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create tech spec');
+      console.error('Tech spec generation failed:', err);
+      onGenerationEnd?.();
     } finally {
       setCreating(false);
     }
@@ -214,7 +233,7 @@ export function CreateTechSpecModal({
             onClick={handleCreate}
             disabled={creating || !techSpecName.trim() || selectedStories.size === 0}
           >
-            {creating ? '⏳ Creating...' : '🔧 Create Tech Spec'}
+            {creating ? '⏳ Generating with AI...' : '🤖 Generate Tech Spec'}
           </button>
         </div>
       </div>

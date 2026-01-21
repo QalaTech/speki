@@ -7,14 +7,259 @@ import { runSpecReview } from '../../core/spec-review/runner.js';
 import { executeSplit, buildSplitContent } from '../../core/spec-review/splitter.js';
 import { generateSplitProposal, detectGodSpec } from '../../core/spec-review/god-spec-detector.js';
 import { loadSession, saveSession } from '../../core/spec-review/session-file.js';
-import { runChatMessage, loadSpecContent } from '../../core/spec-review/chat-runner.js';
-import { extractSpecId, getSpecLogsDir } from '../../core/spec-review/spec-metadata.js';
+import { loadSpecContent, isSessionInitialized } from '../../core/spec-review/chat-runner.js';
+import { selectEngine } from '../../core/llm/engine-factory.js';
+import {
+  extractSpecId,
+  getSpecLogsDir,
+  readSpecMetadata,
+  detectSpecType,
+  getChildSpecs,
+  loadPRDForSpec,
+} from '../../core/spec-review/spec-metadata.js';
 import { publishSpecReview } from '../sse.js';
 import type { SessionFile, SplitProposal, CodebaseContext, ChatMessage } from '../../types/index.js';
 
 const router = Router();
 
+// Apply project context middleware to all routes
 router.use(projectContext(true));
+
+/**
+ * POST /api/spec-review/chat/stream
+ * Send a chat message with SSE streaming for inner monologue (tool calls, thinking, etc.)
+ * This endpoint streams JSONL output from Claude CLI in real-time.
+ */
+router.post('/chat/stream', async (req, res) => {
+  console.log('[chat/stream] REQUEST START:', {
+    body: req.body,
+    projectPath: req.projectPath,
+    hasProjectPath: !!req.projectPath,
+  });
+
+  try {
+    const { sessionId, message, suggestionId, selectedText, specPath } = req.body;
+
+    if (!message) {
+      console.log('[chat/stream] ERROR: No message provided');
+      return res.status(400).json({ error: 'message is required' });
+    }
+
+    const projectPath = req.projectPath!;
+    console.log('[chat/stream] Using projectPath:', projectPath);
+    let session: SessionFile | null = null;
+
+    // Try to find existing session by ID
+    if (sessionId) {
+      session = await findSessionById(projectPath, sessionId);
+    }
+
+    // If no session and specPath provided, try to load by specPath or create new
+    if (!session && specPath) {
+      session = await loadSession(specPath, projectPath);
+
+      // Create a new chat-only session if none exists
+      if (!session) {
+        const newSessionId = randomUUID();
+        session = {
+          sessionId: newSessionId,
+          specFilePath: specPath,
+          status: 'completed', // Chat-only sessions are "completed" (no review pending)
+          startedAt: new Date().toISOString(),
+          lastUpdatedAt: new Date().toISOString(),
+          suggestions: [],
+          chatMessages: [],
+          changeHistory: [],
+        };
+        await saveSession(session, projectPath);
+        console.log('[chat/stream] Created new chat-only session:', { sessionId: newSessionId, specPath });
+      }
+    }
+
+    // TypeScript guard - session is guaranteed to exist at this point
+    if (!session) {
+      return res.status(400).json({ error: 'Either sessionId or specPath is required' });
+    }
+
+    // Build message content with context
+    let messageContent = message;
+
+    // Add suggestion context if discussing a specific suggestion
+    if (suggestionId) {
+      const suggestion = session.suggestions.find((s) => s.id === suggestionId);
+      if (suggestion) {
+        messageContent = `[Discussing Suggestion]
+Issue: ${suggestion.issue}
+Your previous suggestion: ${suggestion.suggestedFix}
+
+User's question: ${message}`;
+      }
+    }
+    // Add selection context if provided (and not discussing a suggestion)
+    else if (selectedText && typeof selectedText === 'string' && selectedText.trim()) {
+      messageContent = `[Selection: "${selectedText.trim()}"]\n\n${message}`;
+    }
+
+    // Create user message
+    const userMessage: ChatMessage = {
+      id: randomUUID(),
+      role: 'user',
+      content: messageContent,
+      timestamp: new Date().toISOString(),
+      suggestionId,
+    };
+
+    // Determine if this is truly the first message (no chat messages yet)
+    // vs. a resumed session after server restart (sessionId exists but not in memory)
+    const isFirstMessage = !session.chatMessages || session.chatMessages.length === 0;
+    const needsInitialization = isFirstMessage || !isSessionInitialized(session.sessionId);
+
+    // Compute full absolute path for the spec file
+    const fullSpecPath = session.specFilePath ? join(projectPath, session.specFilePath) : undefined;
+
+    // Load spec content for context on first message (not on resume)
+    let specContent: string | undefined;
+    if (isFirstMessage && fullSpecPath) {
+      console.log('[chat/stream] Loading spec content for first message:', { specFilePath: session.specFilePath, fullSpecPath });
+      specContent = await loadSpecContent(fullSpecPath);
+      console.log('[chat/stream] Spec content loaded:', { length: specContent?.length || 0, hasContent: !!specContent });
+    }
+
+    // Set up SSE headers
+    console.log('[chat/stream] Setting up SSE headers');
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.write(': connected\n\n');
+    console.log('[chat/stream] SSE headers sent, connection established');
+
+    // Stream callback - publishes each JSONL line via SSE
+    // Also detects file modifications and publishes file-changed events
+    const onStreamLine = (line: string) => {
+      console.log('[chat/stream] Streaming line:', line.substring(0, 100));
+      publishSpecReview(projectPath, 'spec-review/chat-stream', {
+        sessionId: session!.sessionId,
+        line,
+      });
+
+      // Detect file modifications from the stream (handles both Codex and Claude CLI formats)
+      try {
+        const parsed = JSON.parse(line);
+
+        // Codex format: {"type":"text","text":"{\"id\":\"0\",\"msg\":{\"type\":\"patch_apply_end\",...}}"}
+        if (parsed.type === 'text' && parsed.text) {
+          try {
+            const inner = JSON.parse(parsed.text);
+            if (inner.msg?.type === 'patch_apply_end' || inner.msg?.type === 'turn_diff') {
+              const filePath = inner.msg?.file_path || inner.msg?.path || session!.specFilePath;
+              if (filePath) {
+                console.log('[chat/stream] Codex file modification detected:', filePath);
+                publishSpecReview(projectPath, 'spec-review/file-changed', {
+                  filePath: filePath,
+                  changeType: 'change',
+                });
+              }
+            }
+          } catch {
+            // Inner text isn't JSON, ignore
+          }
+        }
+
+        // Claude format: tool_result after Edit/Write indicates file was modified
+        // {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"...","content":"..."}]}}
+        if (parsed.type === 'user' && parsed.message?.content) {
+          const content = parsed.message.content;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (block.type === 'tool_result' && !block.is_error) {
+                // A tool completed successfully - likely a file edit
+                // Use the spec file path since Claude doesn't include it in tool_result
+                const filePath = session!.specFilePath;
+                if (filePath) {
+                  console.log('[chat/stream] Claude tool_result - file may have changed:', filePath);
+                  publishSpecReview(projectPath, 'spec-review/file-changed', {
+                    filePath: filePath,
+                    changeType: 'change',
+                  });
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        // Not JSON or parsing failed - ignore, it's fine
+      }
+    };
+
+    // Run the streaming chat message via Engine abstraction
+    console.log('[chat/stream] Starting engine.runChat with streaming...');
+    const { engine } = await selectEngine({
+      engineName: req.body.engineName,
+      model: req.body.model,
+      projectPath,
+      purpose: 'specChat',
+    });
+    const chatResponse = await engine.runChat({
+      sessionId: session.sessionId,
+      message: messageContent,
+      isFirstMessage, // Only true if no sessionId exists yet
+      cwd: projectPath,
+      specContent,
+      specPath: fullSpecPath, // Use absolute path so agent doesn't confuse with .ralph/specs/ files
+      onStreamLine,
+    });
+    console.log('[chat/stream] runChatMessageStream completed:', {
+      hasError: !!chatResponse.error,
+      contentLength: chatResponse.content?.length,
+      durationMs: chatResponse.durationMs,
+    });
+
+    if (chatResponse.error) {
+      console.error('[chat/stream] Engine error:', chatResponse.error);
+    }
+
+    // Add user message to session
+    session.chatMessages.push(userMessage);
+
+    // Create and add assistant message
+    const assistantMessage: ChatMessage = {
+      id: randomUUID(),
+      role: 'assistant',
+      content: chatResponse.error
+        ? `Error: ${chatResponse.error}`
+        : chatResponse.content,
+      timestamp: new Date().toISOString(),
+    };
+    session.chatMessages.push(assistantMessage);
+
+    session.lastUpdatedAt = new Date().toISOString();
+    await saveSession(session, projectPath);
+
+    // Send final response as SSE event
+    console.log('[chat/stream] Sending complete event');
+    res.write(`event: complete\n`);
+    res.write(`data: ${JSON.stringify({
+      success: !chatResponse.error,
+      sessionId: session.sessionId,
+      userMessage,
+      assistantMessage,
+      durationMs: chatResponse.durationMs,
+      error: chatResponse.error || null,
+    })}\n\n`);
+
+    console.log('[chat/stream] Ending response');
+    res.end();
+    console.log('[chat/stream] REQUEST COMPLETE');
+  } catch (error) {
+    console.error('[chat/stream] ERROR:', error);
+    res.write(`event: error\n`);
+    res.write(`data: ${JSON.stringify({
+      error: 'Failed to send chat message',
+      details: error instanceof Error ? error.message : String(error),
+    })}\n\n`);
+    res.end();
+  }
+});
 
 const SPECS_DIRECTORY = 'specs';
 
@@ -24,6 +269,13 @@ interface SpecFileNode {
   type: 'file' | 'directory';
   children?: SpecFileNode[];
   reviewStatus?: 'reviewed' | 'pending' | 'god-spec' | 'in-progress' | 'none';
+  specType?: 'prd' | 'tech-spec' | 'bug';
+  /** Parent spec path (for tech specs linked to PRDs) */
+  parentSpecId?: string;
+  /** Linked child specs (tech specs under PRDs) */
+  linkedSpecs?: SpecFileNode[];
+  /** Progress for PRDs: completed user stories / total */
+  progress?: { completed: number; total: number };
 }
 
 /**
@@ -78,6 +330,135 @@ async function scanDirectory(dirPath: string, relativePath: string): Promise<Spe
 }
 
 /**
+ * Extract base name from spec filename (without type suffix and extension).
+ * e.g., "foo.prd.md" -> "foo", "foo.tech.md" -> "foo"
+ */
+function getSpecBaseName(filename: string): string {
+  return filename
+    .replace(/\.(prd|tech|bug)\.md$/i, '')
+    .replace(/\.md$/i, '');
+}
+
+/**
+ * Enrich tree nodes with metadata (specType, parent/child links, progress).
+ * Tech specs are moved under their parent PRDs as linkedSpecs.
+ */
+async function enrichTreeWithMetadata(
+  nodes: SpecFileNode[],
+  projectPath: string
+): Promise<SpecFileNode[]> {
+  // First pass: collect all file nodes and enrich with metadata
+  const fileNodeMap = new Map<string, SpecFileNode>();
+  const prdsByBaseName = new Map<string, SpecFileNode>();
+  const techSpecsWithParent: Array<{ node: SpecFileNode; parentPath: string }> = [];
+
+  async function collectAndEnrich(nodeList: SpecFileNode[]): Promise<void> {
+    for (const node of nodeList) {
+      if (node.type === 'file' && node.name.endsWith('.md')) {
+        const specId = extractSpecId(node.path);
+        fileNodeMap.set(node.path, node);
+
+        // Detect spec type
+        const fullPath = join(projectPath, node.path);
+        const detected = await detectSpecType(fullPath);
+        node.specType = detected.type;
+
+        // Track PRDs by base name for filename-based parent inference
+        if (detected.type === 'prd') {
+          const baseName = getSpecBaseName(node.name);
+          prdsByBaseName.set(baseName, node);
+        }
+
+        // Check for parent (tech specs linked to PRDs)
+        // First check frontmatter (from detectSpecType), then check metadata.json
+        let parentPath = detected.parent;
+
+        if (!parentPath) {
+          // Check metadata.json for parent link
+          try {
+            const metadata = await readSpecMetadata(projectPath, specId);
+            if (metadata?.parent) {
+              parentPath = metadata.parent;
+            }
+          } catch {
+            // No metadata file
+          }
+        }
+
+        if (parentPath) {
+          // Parent path is like "specs/foo.prd.md" - normalize to relative path
+          const normalizedParentPath = parentPath.startsWith('specs/')
+            ? parentPath
+            : `specs/${parentPath}`;
+          node.parentSpecId = normalizedParentPath;
+          techSpecsWithParent.push({ node, parentPath: normalizedParentPath });
+        }
+
+        // For PRDs, load progress
+        if (detected.type === 'prd') {
+          try {
+            const prdData = await loadPRDForSpec(projectPath, specId);
+            if (prdData?.userStories) {
+              const total = prdData.userStories.length;
+              const completed = prdData.userStories.filter(s => s.passes).length;
+              node.progress = { completed, total };
+            }
+          } catch {
+            // PRD data not available yet
+          }
+        }
+      }
+
+      if (node.children) {
+        await collectAndEnrich(node.children);
+      }
+    }
+  }
+
+  await collectAndEnrich(nodes);
+
+  // Fallback: infer parent from filename pattern for tech specs without explicit parent
+  // e.g., "foo.tech.md" links to "foo.prd.md" if both exist
+  for (const [path, node] of fileNodeMap) {
+    if (node.specType === 'tech-spec' && !node.parentSpecId) {
+      const baseName = getSpecBaseName(node.name);
+      const parentPrd = prdsByBaseName.get(baseName);
+      if (parentPrd) {
+        node.parentSpecId = parentPrd.path;
+        techSpecsWithParent.push({ node, parentPath: parentPrd.path });
+      }
+    }
+  }
+
+  // Second pass: move tech specs under their parent PRDs as linkedSpecs
+  const techSpecPaths = new Set(techSpecsWithParent.map(t => t.node.path));
+
+  for (const { node: techSpec, parentPath } of techSpecsWithParent) {
+    const parentNode = fileNodeMap.get(parentPath);
+    if (parentNode) {
+      if (!parentNode.linkedSpecs) {
+        parentNode.linkedSpecs = [];
+      }
+      parentNode.linkedSpecs.push(techSpec);
+    }
+  }
+
+  // Third pass: filter out tech specs from the main tree (they're now under parents)
+  function filterTechSpecs(nodeList: SpecFileNode[]): SpecFileNode[] {
+    return nodeList
+      .filter(node => !techSpecPaths.has(node.path))
+      .map(node => {
+        if (node.children) {
+          return { ...node, children: filterTechSpecs(node.children) };
+        }
+        return node;
+      });
+  }
+
+  return filterTechSpecs(nodes);
+}
+
+/**
  * GET /api/spec-review/files
  * List available spec files as a tree structure (specs/ folder only)
  */
@@ -88,7 +469,10 @@ router.get('/files', async (req, res) => {
 
     const files = await scanDirectory(specsDir, SPECS_DIRECTORY);
 
-    res.json({ files });
+    // Enrich with metadata and build parent/child links
+    const enrichedFiles = await enrichTreeWithMetadata(files, projectPath);
+
+    res.json({ files: enrichedFiles });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to list spec files',
@@ -240,8 +624,16 @@ router.post('/new', async (req, res) => {
  */
 router.get('/content/:encodedPath', async (req, res) => {
   try {
-    const relativePath = decodeURIComponent(req.params.encodedPath);
-    const fullPath = join(req.projectPath!, relativePath);
+    const decodedPath = decodeURIComponent(req.params.encodedPath);
+    // Handle both absolute and relative paths
+    const fullPath = decodedPath.startsWith('/')
+      ? decodedPath
+      : join(req.projectPath!, decodedPath);
+
+    // Security: ensure path is within project directory
+    if (!fullPath.startsWith(req.projectPath!)) {
+      return res.status(403).json({ error: 'Access denied: path outside project' });
+    }
 
     // Verify file exists
     try {
@@ -267,8 +659,17 @@ router.get('/content/:encodedPath', async (req, res) => {
  */
 router.put('/content/:encodedPath', async (req, res) => {
   try {
-    const relativePath = decodeURIComponent(req.params.encodedPath);
-    const fullPath = join(req.projectPath!, relativePath);
+    const decodedPath = decodeURIComponent(req.params.encodedPath);
+    // Handle both absolute and relative paths
+    const fullPath = decodedPath.startsWith('/')
+      ? decodedPath
+      : join(req.projectPath!, decodedPath);
+
+    // Security: ensure path is within project directory
+    if (!fullPath.startsWith(req.projectPath!)) {
+      return res.status(403).json({ error: 'Access denied: path outside project' });
+    }
+
     const { content } = req.body;
 
     if (content === undefined) {
@@ -299,8 +700,8 @@ router.put('/content/:encodedPath', async (req, res) => {
  */
 router.post('/start', async (req, res) => {
   try {
-    const { specFile, timeout, cli, sessionId: existingSessionId } = req.body;
-    console.log('[spec-review/start] Request received:', { specFile, existingSessionId, projectPath: req.projectPath });
+    const { specFile, timeout, engineName, model, sessionId: existingSessionId } = req.body;
+    console.log('[spec-review/start] Request received:', { specFile, existingSessionId, engineName, model, projectPath: req.projectPath });
 
     if (!specFile) {
       return res.status(400).json({ error: 'specFile is required' });
@@ -366,11 +767,26 @@ router.post('/start', async (req, res) => {
       const specId = extractSpecId(resolvedSpecFile);
       const specLogsDir = getSpecLogsDir(projectPath, specId);
 
+      // Create stream callbacks for real-time log output
+      const streamCallbacks = {
+        onText: (text: string) => {
+          publishSpecReview(projectPath, 'spec-review/log', { sessionId, line: text });
+        },
+        onToolCall: (name: string, detail: string) => {
+          publishSpecReview(projectPath, 'spec-review/log', { sessionId, line: `🔧 ${name}: ${detail}` });
+        },
+        onToolResult: (result: string) => {
+          publishSpecReview(projectPath, 'spec-review/log', { sessionId, line: result });
+        },
+      };
+
       const result = await runSpecReview(resolvedSpecFile, {
         cwd: projectPath,
         timeoutMs: timeout,
-        cli,
+        engineName,
+        model,
         logDir: specLogsDir,
+        streamCallbacks,
       });
 
       session.status = 'completed';
@@ -670,30 +1086,37 @@ User's question: ${message}`;
       suggestionId,
     };
 
-    // Check if this is the first chat message (need to initialize Claude session)
-    const isFirstMessage = session.chatMessages.length === 0;
+    // Determine if this is truly the first message (no sessionId in session file yet)
+    // vs. a resumed session after server restart (sessionId exists but not in memory)
+    const isFirstMessage = !session.sessionId;
 
-    // Load spec content for context on first message
+    // Compute full absolute path for the spec file
+    const fullSpecPath = session.specFilePath ? join(projectPath, session.specFilePath) : undefined;
+
+    // Load spec content for context on first message (not on resume)
     let specContent: string | undefined;
-    if (isFirstMessage && session.specFilePath) {
-      // Resolve the spec path relative to project root
-      const fullSpecPath = join(projectPath, session.specFilePath);
+    if (isFirstMessage && fullSpecPath) {
       console.log('[chat] Loading spec content for first message:', { specFilePath: session.specFilePath, fullSpecPath });
       specContent = await loadSpecContent(fullSpecPath);
       console.log('[chat] Spec content loaded:', { length: specContent?.length || 0, hasContent: !!specContent });
     }
 
-    // Run the chat message through Claude
-    const chatResponse = await runChatMessage(
-      session.sessionId, // Use session's ID (may be newly created)
-      messageContent,
-      isFirstMessage,
-      {
-        cwd: projectPath,
-        specContent,
-        specPath: session.specFilePath,
-      }
-    );
+    // Run the chat message via Engine abstraction
+    const { engine } = await selectEngine({
+      engineName: req.body.engineName,
+      model: req.body.model,
+      projectPath,
+      purpose: 'specChat',
+    });
+    const chatResponse = await engine.runChat({
+      sessionId: session.sessionId,
+      message: messageContent,
+      isFirstMessage, // Only true if no sessionId exists yet
+      cwd: projectPath,
+      specContent,
+      specPath: fullSpecPath, // Use absolute path so agent doesn't confuse with .ralph/specs/ files
+      // No onStreamLine callback for non-streaming endpoint
+    });
 
     // Add user message to session
     session.chatMessages.push(userMessage);
@@ -951,19 +1374,23 @@ router.post('/split/execute', async (req, res) => {
  * Helper function to find a session by its ID
  */
 async function findSessionById(projectPath: string, sessionId: string): Promise<SessionFile | null> {
-  const sessionsDir = join(projectPath, '.ralph', 'sessions');
+  const specsDir = join(projectPath, '.ralph', 'specs');
 
   try {
-    const sessionFiles = await fs.readdir(sessionsDir);
+    const specIds = await fs.readdir(specsDir);
 
-    for (const file of sessionFiles) {
-      if (!file.endsWith('.session.json')) continue;
+    for (const specId of specIds) {
+      try {
+        const sessionPath = join(specsDir, specId, 'session.json');
+        const content = await fs.readFile(sessionPath, 'utf-8');
+        const session = JSON.parse(content) as SessionFile;
 
-      const content = await fs.readFile(join(sessionsDir, file), 'utf-8');
-      const session = JSON.parse(content) as SessionFile;
-
-      if (session.sessionId === sessionId) {
-        return session;
+        if (session.sessionId === sessionId) {
+          return session;
+        }
+      } catch {
+        // Skip specs without session files
+        continue;
       }
     }
   } catch {

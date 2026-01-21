@@ -123,16 +123,22 @@ const VALID_TRANSITIONS: Record<SpecStatus, SpecStatus[]> = {
 };
 
 /**
- * Extracts the spec ID from a spec file path by removing the .md extension.
+ * Extracts a spec identifier from the spec file path.
+ * Uses only the basename (filename) without the .md extension.
+ * The spec ID is used to organize per-spec state files under .ralph/specs/<spec-id>/.
  *
  * @param specPath - The path to the spec file (absolute or relative)
  * @example
  * extractSpecId('specs/foo.md') // => 'foo'
+ * extractSpecId('specs/auth/login.md') // => 'login'
+ * extractSpecId('/absolute/path/to/test.md') // => 'test'
  * extractSpecId('specs/20260112-105832-spec-partitioning.md') // => '20260112-105832-spec-partitioning'
  */
 export function extractSpecId(specPath: string): string {
+  // Extract just the filename (basename) and remove .md extension
   const basename = path.basename(specPath);
-  return basename.replace(/\.md$/, '');
+  const withoutExtension = basename.replace(/\.md$/, '');
+  return withoutExtension;
 }
 
 /**

@@ -1,10 +1,13 @@
 /* ===== Spec Decompose Tab ===== */
 
 .spec-decompose-tab {
-  height: 100%;
-  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 24px;
   background: var(--color-bg);
+  min-height: 0;
 }
 
 /* Header */
@@ -67,12 +70,12 @@
 }
 
 .decompose-btn--primary {
-  background: var(--color-accent);
+  background: var(--color-primary);
   color: white;
 }
 
 .decompose-btn--primary:hover:not(:disabled) {
-  background: #4a9eff;
+  background: var(--color-primary-hover);
 }
 
 .decompose-btn--secondary {
@@ -198,13 +201,19 @@
 /* Progress */
 .decompose-progress {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 12px;
   padding: 16px;
   background: rgba(88, 166, 255, 0.1);
   border: 1px solid rgba(88, 166, 255, 0.2);
   border-radius: 8px;
   margin-bottom: 20px;
+}
+
+.decompose-progress > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .progress-spinner {
@@ -223,6 +232,13 @@
 .progress-message {
   font-size: 14px;
   color: var(--color-accent);
+}
+
+.progress-hint {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-style: italic;
+  margin-top: 4px;
 }
 
 /* Error */
@@ -247,10 +263,13 @@
 }
 
 /* Task list */
-.task-list {
+.spec-decompose-tab .task-list {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .task-card {
@@ -478,20 +497,20 @@
 }
 
 /* Scrollbar */
-.spec-decompose-tab::-webkit-scrollbar {
+.spec-decompose-tab .task-list::-webkit-scrollbar {
   width: 8px;
 }
 
-.spec-decompose-tab::-webkit-scrollbar-track {
+.spec-decompose-tab .task-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.spec-decompose-tab::-webkit-scrollbar-thumb {
+.spec-decompose-tab .task-list::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 4px;
 }
 
-.spec-decompose-tab::-webkit-scrollbar-thumb:hover {
+.spec-decompose-tab .task-list::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
 }
 
@@ -696,12 +715,12 @@
 }
 
 .drawer-btn--primary {
-  background: var(--color-accent);
+  background: var(--color-primary);
   color: white;
 }
 
 .drawer-btn--primary:hover:not(:disabled) {
-  background: #4a9eff;
+  background: var(--color-primary-hover);
 }
 
 .drawer-error {
@@ -889,14 +908,14 @@
 
 /* Queue action buttons */
 .task-action-btn--queue {
-  background: linear-gradient(135deg, var(--color-accent) 0%, #4a9eff 100%);
-  border-color: var(--color-accent);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
+  border-color: var(--color-primary);
   color: white;
 }
 
 .task-action-btn--queue:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4a9eff 0%, #58a6ff 100%);
-  border-color: #4a9eff;
+  background: linear-gradient(135deg, var(--color-primary-hover) 0%, var(--color-primary) 100%);
+  border-color: var(--color-primary-hover);
   color: white;
 }
 

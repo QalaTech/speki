@@ -1,0 +1,234 @@
+/**
+ * TextEffect - Animated text component styles
+ * Presets: blur, shake, scale, fade, slide, bounce, wave
+ */
+
+.text-effect {
+  display: inline;
+  white-space: pre-wrap;
+}
+
+.text-effect-space {
+  display: inline;
+}
+
+.text-effect-segment {
+  display: inline-block;
+  opacity: 0;
+  animation-fill-mode: forwards;
+  animation-duration: 0.4s;
+  animation-timing-function: ease-out;
+}
+
+.text-effect-segment--line {
+  display: block;
+}
+
+/* ========== FADE PRESET ========== */
+.text-effect-segment--fade {
+  animation-name: textEffectFade;
+}
+
+@keyframes textEffectFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ========== BLUR PRESET ========== */
+.text-effect-segment--blur {
+  animation-name: textEffectBlur;
+  animation-duration: 0.5s;
+}
+
+@keyframes textEffectBlur {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* ========== SCALE PRESET ========== */
+.text-effect-segment--scale {
+  animation-name: textEffectScale;
+  animation-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes textEffectScale {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ========== SLIDE PRESET ========== */
+.text-effect-segment--slide {
+  animation-name: textEffectSlide;
+}
+
+@keyframes textEffectSlide {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== SHAKE PRESET ========== */
+.text-effect-segment--shake {
+  animation-name: textEffectShake;
+  animation-duration: 0.6s;
+}
+
+@keyframes textEffectShake {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-5px);
+  }
+  80% {
+    transform: translateX(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ========== BOUNCE PRESET ========== */
+.text-effect-segment--bounce {
+  animation-name: textEffectBounce;
+  animation-duration: 0.6s;
+  animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes textEffectBounce {
+  0% {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(8px) scale(1.05);
+  }
+  70% {
+    transform: translateY(-4px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ========== WAVE PRESET ========== */
+.text-effect-segment--wave {
+  animation-name: textEffectWave;
+  animation-duration: 0.8s;
+  animation-timing-function: ease-in-out;
+}
+
+@keyframes textEffectWave {
+  0% {
+    opacity: 0;
+    transform: translateY(0) rotate(-10deg);
+  }
+  25% {
+    opacity: 0.5;
+    transform: translateY(-15px) rotate(5deg);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateY(5px) rotate(-3deg);
+  }
+  75% {
+    transform: translateY(-3px) rotate(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(0);
+  }
+}
+
+/* ========== CONTINUOUS ANIMATIONS (for looping effects) ========== */
+
+/* Continuous pulse for icon */
+.text-effect-icon-pulse {
+  animation: iconPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+/* Continuous bounce for icon */
+.text-effect-icon-bounce {
+  animation: iconBounce 1s ease-in-out infinite;
+}
+
+@keyframes iconBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* Continuous wiggle for icon */
+.text-effect-icon-wiggle {
+  animation: iconWiggle 0.5s ease-in-out infinite;
+}
+
+@keyframes iconWiggle {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-10deg);
+  }
+  75% {
+    transform: rotate(10deg);
+  }
+}
+
+/* Continuous spin for icon */
+.text-effect-icon-spin {
+  animation: iconSpin 2s linear infinite;
+}
+
+@keyframes iconSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

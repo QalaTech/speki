@@ -62,7 +62,7 @@ export async function loadSession(specFilePath: string, projectRoot?: string): P
 
 /**
  * Saves a session file to disk.
- * Creates the .ralph/sessions/ directory if it doesn't exist.
+ * Creates the .ralph/specs/{specId}/ directory if it doesn't exist.
  *
  * @param session - The session file to save
  * @param projectRoot - Optional project root directory
