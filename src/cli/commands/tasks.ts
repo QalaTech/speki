@@ -7,11 +7,47 @@ import {
   savePRDForSpec,
 } from '../../core/spec-review/spec-metadata.js';
 import { resolveSpecAndLoadPRD } from '../shared/spec-utils.js';
+import {
+  loadTaskQueue,
+  loadQueueWithTaskData,
+  markTaskCompleted,
+  markTaskRunning,
+  getNextQueuedTask,
+  loadTaskFromSpec,
+} from '../../core/task-queue/queue-manager.js';
 
 /**
- * Get next pending task (by priority, respecting dependencies)
+ * Get next pending task from queue (by queue order, respecting dependencies)
+ * Uses task-queue.json as source of truth for status
  */
-function getNextTask(stories: UserStory[]): UserStory | null {
+async function getNextTaskFromQueue(projectPath: string): Promise<{ task: UserStory; specId: string } | null> {
+  const queueWithTasks = await loadQueueWithTaskData(projectPath);
+  if (!queueWithTasks.length) return null;
+
+  // Get completed task IDs from queue status
+  const completedIds = new Set(
+    queueWithTasks
+      .filter(ref => ref.status === 'completed')
+      .map(ref => ref.taskId)
+  );
+
+  // Find first queued task whose dependencies are all complete
+  for (const ref of queueWithTasks) {
+    if (ref.status !== 'queued' || !ref.task) continue;
+
+    const depsComplete = ref.task.dependencies.every(dep => completedIds.has(dep));
+    if (depsComplete) {
+      return { task: ref.task, specId: ref.specId };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Legacy: Get next pending task from PRD (for non-queue workflows)
+ */
+function getNextTaskFromPRD(stories: UserStory[]): UserStory | null {
   const completedIds = new Set(stories.filter(s => s.passes).map(s => s.id));
 
   // Find pending tasks whose dependencies are all complete
@@ -83,8 +119,9 @@ tasksCommand
   .command('next')
   .description('Get the next pending task with full context (respects dependencies)')
   .option('-p, --project <path>', 'Project path (defaults to current directory)')
-  .option('-s, --spec <spec-id>', 'Spec ID to read tasks from')
+  .option('-s, --spec <spec-id>', 'Spec ID to read tasks from (legacy, ignored when queue exists)')
   .option('--task-only', 'Output only the task without context')
+  .option('--mark-running', 'Mark the task as running in the queue')
   .action(async (options) => {
     try {
       const projectPath = options.project || (await findProjectRoot()) || process.cwd();
@@ -95,18 +132,83 @@ tasksCommand
         process.exit(1);
       }
 
+      // Try queue-based workflow first (preferred)
+      const queue = await loadTaskQueue(projectPath);
+      if (queue && queue.queue.length > 0) {
+        const nextResult = await getNextTaskFromQueue(projectPath);
+
+        if (!nextResult) {
+          // Check if all tasks are completed or blocked
+          const queueWithTasks = await loadQueueWithTaskData(projectPath);
+          const allCompleted = queueWithTasks.every(ref => ref.status === 'completed');
+          if (allCompleted) {
+            console.log(JSON.stringify({ complete: true, message: 'All tasks completed' }, null, 2));
+          } else {
+            console.log(JSON.stringify({ blocked: true, message: 'Remaining tasks are blocked by dependencies' }, null, 2));
+          }
+          return;
+        }
+
+        const { task, specId } = nextResult;
+
+        // Mark as running if requested
+        if (options.markRunning) {
+          await markTaskRunning(projectPath, specId, task.id);
+        }
+
+        if (options.taskOnly) {
+          console.log(JSON.stringify(task, null, 2));
+          return;
+        }
+
+        // Build context from queue data
+        const queueWithTasks = await loadQueueWithTaskData(projectPath);
+        const completedIds = new Set(
+          queueWithTasks.filter(ref => ref.status === 'completed').map(ref => ref.taskId)
+        );
+        const taskById = new Map(
+          queueWithTasks.filter(ref => ref.task).map(ref => [ref.taskId, ref.task!])
+        );
+
+        const completedDependencies = task.dependencies
+          .filter(depId => completedIds.has(depId))
+          .map(depId => {
+            const dep = taskById.get(depId);
+            return { id: depId, title: dep?.title || 'Unknown' };
+          });
+
+        const blocks = queueWithTasks
+          .filter(ref => ref.task && ref.status === 'queued' && ref.task.dependencies.includes(task.id))
+          .map(ref => ({ id: ref.taskId, title: ref.task!.title }));
+
+        const config = await project.loadConfig();
+        const context = {
+          project: {
+            name: queue.projectName,
+            branch: queue.branchName || config.branchName,
+          },
+          currentTask: task,
+          specId,
+          completedDependencies,
+          blocks,
+        };
+
+        console.log(JSON.stringify(context, null, 2));
+        return;
+      }
+
+      // Fall back to legacy PRD-based workflow
       const result = await resolveSpecAndLoadPRD(projectPath, project, options.spec);
       if (!result) {
-        console.error(chalk.red('Error: No PRD found.'));
+        console.error(chalk.red('Error: No tasks found. Run `qala decompose` or add tasks to queue.'));
         process.exit(1);
       }
 
       const { prd } = result;
       const config = await project.loadConfig();
-      const nextTask = getNextTask(prd.userStories);
+      const nextTask = getNextTaskFromPRD(prd.userStories);
 
       if (!nextTask) {
-        // All tasks complete
         console.log(JSON.stringify({ complete: true, message: 'All tasks completed' }, null, 2));
         return;
       }
@@ -116,11 +218,9 @@ tasksCommand
         return;
       }
 
-      // Build full context (similar to generateCurrentTaskContext)
       const completedIds = new Set(prd.userStories.filter(s => s.passes).map(s => s.id));
       const storyById = new Map(prd.userStories.map(s => [s.id, s]));
 
-      // Completed dependencies with summary info
       const completedDependencies = nextTask.dependencies
         .filter(depId => completedIds.has(depId))
         .map(depId => {
@@ -128,7 +228,6 @@ tasksCommand
           return { id: depId, title: dep?.title || 'Unknown' };
         });
 
-      // Tasks blocked by this one
       const blocks = prd.userStories
         .filter(s => !s.passes && s.dependencies.includes(nextTask.id))
         .map(s => ({ id: s.id, title: s.title }));
@@ -191,7 +290,7 @@ tasksCommand
   .command('complete <id>')
   .description('Mark a task as complete')
   .option('-p, --project <path>', 'Project path (defaults to current directory)')
-  .option('-s, --spec <spec-id>', 'Spec ID to read tasks from')
+  .option('-s, --spec <spec-id>', 'Spec ID (auto-detected from queue if not provided)')
   .option('-n, --notes <notes>', 'Add notes to the task')
   .action(async (id, options) => {
     try {
@@ -203,9 +302,21 @@ tasksCommand
         process.exit(1);
       }
 
+      // Try queue-based workflow first (preferred)
+      const queueWithTasks = await loadQueueWithTaskData(projectPath);
+      const queueRef = queueWithTasks.find(ref => ref.taskId === id);
+
+      if (queueRef) {
+        // Mark completed in queue (source of truth for status)
+        await markTaskCompleted(projectPath, queueRef.specId, id);
+        console.log(chalk.green(`Task ${id} marked complete in queue`));
+        return;
+      }
+
+      // Fall back to legacy PRD-based workflow
       const result = await resolveSpecAndLoadPRD(projectPath, project, options.spec);
       if (!result) {
-        console.error(chalk.red('Error: No PRD found.'));
+        console.error(chalk.red(`Task not found: ${id}`));
         process.exit(1);
       }
 
@@ -222,7 +333,7 @@ tasksCommand
         task.notes = options.notes;
       }
 
-      // Save to appropriate location
+      // Save to appropriate location (legacy)
       if (specId) {
         await savePRDForSpec(projectPath, specId, prd);
       } else {
