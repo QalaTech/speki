@@ -1,8 +1,0 @@
-{
-  "status": "running",
-  "currentIteration": 1,
-  "maxIterations": 20,
-  "currentStory": "TS-001: Add thinking type to NormalizedEvent union in src/types/index.ts",
-  "startedAt": "2026-01-21T15:43:49.121Z",
-  "pid": 13455
-}

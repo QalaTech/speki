@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { RalphStatus, DecomposeState, PRDData, PeerFeedback } from '../types';
+import type { ParsedEntry } from '../utils/parseJsonl';
 
 interface UnifiedSSEState {
   ralphStatus: RalphStatus | null;
+  /** @deprecated Use logEntries instead */
   iterationLog: string;
+  /** Structured log entries from SSE events */
+  logEntries: ParsedEntry[];
   currentIteration: number | null;
   decomposeState: DecomposeState | null;
   prdData: PRDData | null;
@@ -16,6 +20,7 @@ export function useUnifiedSSE(projectPath: string | null): UnifiedSSEState {
   const [state, setState] = useState<UnifiedSSEState>({
     ralphStatus: null,
     iterationLog: '',
+    logEntries: [],
     currentIteration: null,
     decomposeState: null,
     prdData: null,
@@ -57,7 +62,8 @@ export function useUnifiedSSE(projectPath: string | null): UnifiedSSEState {
       setState(prev => ({
         ...prev,
         currentIteration: iteration,
-        iterationLog: '', // Clear log for new iteration
+        iterationLog: '', // Clear log for new iteration (deprecated)
+        logEntries: [], // Clear entries for new iteration
         // Also update ralphStatus with current iteration info
         ralphStatus: prev.ralphStatus ? {
           ...prev.ralphStatus,
@@ -71,10 +77,14 @@ export function useUnifiedSSE(projectPath: string | null): UnifiedSSEState {
 
     es.addEventListener('ralph/log', (e: MessageEvent) => {
       const payload = JSON.parse(e.data);
-      console.log('[SSE] ralph/log received:', payload.data.line?.substring(0, 50));
+      const entry = payload.data as ParsedEntry;
+      console.log('[SSE] ralph/log received:', entry.type, entry.content?.substring(0, 50));
       setState(prev => ({
         ...prev,
-        iterationLog: prev.iterationLog + payload.data.line
+        // Append to logEntries array (structured format)
+        logEntries: [...prev.logEntries, entry],
+        // Also append to iterationLog for backwards compatibility
+        iterationLog: prev.iterationLog + (entry.content || ''),
       }));
     });
 

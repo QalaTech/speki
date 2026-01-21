@@ -289,13 +289,21 @@ export interface SseEnvelope<TEvent extends string, TData> {
   timestamp: string;
 }
 
+// Ralph log entry (structured format for live execution view)
+export interface RalphLogEntry {
+  type: 'text' | 'tool' | 'tool_result' | 'error';
+  content: string;
+  toolName?: string;
+  status?: 'success' | 'error' | 'pending';
+}
+
 // Ralph SSE events
 export type RalphSseEvent =
   | SseEnvelope<'ralph/status', { status: RalphStatus }>
   | SseEnvelope<'ralph/iteration-start', { iteration: number; maxIterations: number; currentStory?: string | null }>
   | SseEnvelope<'ralph/iteration-end', { iteration: number; storyCompleted: boolean; allComplete: boolean }>
   | SseEnvelope<'ralph/complete', { iterationsRun: number; storiesCompleted: number }>
-  | SseEnvelope<'ralph/log', { line: string }>
+  | SseEnvelope<'ralph/log', RalphLogEntry>
   | SseEnvelope<'ralph/connected', { message: string }>;
 
 // Decompose SSE events

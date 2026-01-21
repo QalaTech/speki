@@ -1,14 +1,17 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import type { UserStory } from '../types';
+import type { ParsedEntry } from '../utils/parseJsonl';
 import { ChatLogView } from './ChatLogView';
 import { ContextSection } from './ContextSection';
-import { parseJsonlContent } from '../utils/parseJsonl';
 import './LiveExecutionView.css';
 
 interface LiveExecutionViewProps {
   stories: UserStory[];
   currentStory: string | null;
+  /** @deprecated Use logEntries instead */
   iterationLog: string;
+  /** Structured log entries from SSE events */
+  logEntries: ParsedEntry[];
   currentIteration: number | null;
   maxIterations: number;
   isRunning: boolean;
@@ -20,6 +23,7 @@ export function LiveExecutionView({
   stories,
   currentStory,
   iterationLog,
+  logEntries,
   currentIteration,
   maxIterations,
   isRunning,
@@ -28,14 +32,21 @@ export function LiveExecutionView({
   const [activeTab, setActiveTab] = useState<TabType>('chat');
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Parse JSONL for chat view
-  const chatEntries = useMemo(() => {
-    if (!iterationLog) return [];
-    return parseJsonlContent(iterationLog);
-  }, [iterationLog]);
+  // Use logEntries directly from SSE (no parsing needed)
+  const chatEntries = logEntries;
 
   // Get the currently running story ID
   const runningStoryId = currentStory?.split(':')[0]?.trim() || null;
+
+  // Debug: trace render condition values
+  console.log('[LiveExec] Render check:', {
+    isRunning,
+    currentStory,
+    runningStoryId,
+    selectedStoryId,
+    storyIds: stories.map(s => s.id),
+    iterationLogLength: iterationLog?.length || 0,
+  });
 
   // Order stories: done (top, scroll up to see), running (middle, visible), ready, blocked (bottom)
   const { orderedStories, firstActiveIndex } = useMemo(() => {

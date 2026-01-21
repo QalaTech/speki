@@ -5,13 +5,10 @@
  * Ralph-compatible task files using Claude.
  */
 
-import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import { join, basename } from 'path';
 import chalk from 'chalk';
 import { Project } from '../project.js';
-import { parseStream } from '../claude/stream-parser.js';
-import { PassThrough } from 'stream';
 import { runPeerReview } from './peer-review.js';
 import { loadGlobalSettings } from '../settings.js';
 import { resolveCliPath } from '../cli-path.js';
@@ -315,111 +312,6 @@ function extractJson(output: string): PRDData | null {
   return extractReviewJson<PRDData>(output);
 }
 
-/**
- * Run Claude for decomposition (no tools, just JSON output)
- */
-
-interface ClaudeStreamOptions {
-  prompt: string;
-  cwd: string;
-  logPath: string;
-  /** Echo output to stdout (default: false) */
-  echoOutput?: boolean;
-  /** Show tool calls (default: false) */
-  showToolCalls?: boolean;
-}
-
-interface ClaudeStreamResult {
-  output: string;
-  success: boolean;
-}
-
-/**
- * Execute Claude CLI with a prompt and stream output
- */
-async function runClaudeWithPrompt(options: ClaudeStreamOptions): Promise<ClaudeStreamResult> {
-  const { prompt, cwd, logPath, echoOutput = false, showToolCalls = false } = options;
-
-  return new Promise((resolve) => {
-    const claudePath = resolveCliPath('claude');
-
-    const claude = spawn(claudePath, [
-      '--dangerously-skip-permissions',
-      '-p',
-      '--verbose',
-      '--output-format', 'stream-json',
-      '--tools', '',
-    ], {
-      cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    const parserStream = new PassThrough();
-    let fullOutput = '';
-
-    claude.stdout.on('data', (chunk: Buffer) => {
-      parserStream.write(chunk);
-    });
-
-    claude.stdout.on('end', () => {
-      parserStream.end();
-    });
-
-    parseStream(parserStream, {
-      onText: (text) => {
-        fullOutput += text;
-        if (echoOutput) {
-          process.stdout.write(text);
-        }
-      },
-      onToolCall: showToolCalls
-        ? (name, detail) => console.log(`  ${name}: ${detail}`)
-        : undefined,
-    }).then(() => {
-      fs.writeFile(logPath, fullOutput).catch(() => {});
-    });
-
-    claude.stdin.write(prompt);
-    claude.stdin.end();
-
-    let stderr = '';
-    claude.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-
-    claude.on('close', (code) => {
-      if (echoOutput && code !== 0 && code !== 141) {
-        console.error(chalk.red(`Claude exited with code ${code}`));
-        if (stderr) console.error(stderr);
-      }
-      resolve({
-        output: fullOutput,
-        success: code === 0 || code === 141,
-      });
-    });
-
-    claude.on('error', () => {
-      resolve({
-        output: '',
-        success: false,
-      });
-    });
-  });
-}
-
-async function runClaudeDecompose(
-  prompt: string,
-  cwd: string,
-  logPath: string
-): Promise<ClaudeStreamResult> {
-  return runClaudeWithPrompt({
-    prompt,
-    cwd,
-    logPath,
-    echoOutput: true,
-    showToolCalls: true,
-  });
-}
 
 /**
  * Revise tasks based on peer review feedback using the engine abstraction

@@ -23,12 +23,15 @@ interface ProjectEntry {
   lastActivity: string;
 }
 
+import type { ParsedEntry } from './utils/parseJsonl';
+
 // ExecutionView as a separate component to prevent remounting on parent re-renders
 interface ExecutionViewProps {
   prdData: PRDData | null;
   error: string | null;
   ralphStatus: RalphStatus;
   iterationLog: string;
+  logEntries: ParsedEntry[];
   progress: string;
   currentIteration: number | null;
   executionTab: string;
@@ -44,6 +47,7 @@ function ExecutionView({
   error,
   ralphStatus,
   iterationLog,
+  logEntries,
   progress,
   currentIteration,
   executionTab,
@@ -137,6 +141,7 @@ function ExecutionView({
                 stories={prdData.userStories}
                 currentStory={ralphStatus.currentStory}
                 iterationLog={iterationLog}
+                logEntries={logEntries}
                 currentIteration={currentIteration}
                 maxIterations={ralphStatus.maxIterations}
                 isRunning={ralphStatus.running}
@@ -202,6 +207,7 @@ function App() {
   const prdData = unifiedSSE.prdData;
   const ralphStatus = unifiedSSE.ralphStatus || defaultStatus;
   const iterationLog = unifiedSSE.iterationLog;
+  const logEntries = unifiedSSE.logEntries;
   const currentIteration = unifiedSSE.currentIteration;
   const peerFeedback = unifiedSSE.peerFeedback;
 
@@ -377,6 +383,7 @@ function App() {
     error,
     ralphStatus,
     iterationLog,
+    logEntries,
     progress,
     currentIteration,
     executionTab,

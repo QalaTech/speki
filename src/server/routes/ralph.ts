@@ -182,15 +182,22 @@ router.post('/start', async (req, res) => {
         const streamCallbacks: StreamCallbacks = {
           onText: (text: string) => {
             console.log('[Ralph] onText callback:', text.substring(0, 50));
-            publishRalph(projectPath, 'ralph/log', { line: text });
+            publishRalph(projectPath, 'ralph/log', { type: 'text', content: text });
           },
           onToolCall: (name: string, detail: string) => {
             console.log('[Ralph] onToolCall callback:', name);
-            publishRalph(projectPath, 'ralph/log', { line: `🔧 ${name}: ${detail}` });
+            publishRalph(projectPath, 'ralph/log', { type: 'tool', toolName: name, content: detail });
           },
           onToolResult: (result: string) => {
             console.log('[Ralph] onToolResult callback:', result.substring(0, 50));
-            publishRalph(projectPath, 'ralph/log', { line: result });
+            // Parse the formatted result to determine success/error
+            const isError = result.includes('❌');
+            const cleanContent = result.replace(/^\s*[✓❌]\s*/, '').replace(/^\(result received\)$/, '');
+            publishRalph(projectPath, 'ralph/log', {
+              type: isError ? 'error' : 'tool_result',
+              content: cleanContent,
+              status: isError ? 'error' : 'success',
+            });
           },
         };
         const result = await runRalphLoop(project, {
