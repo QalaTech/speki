@@ -16,10 +16,12 @@ vi.mock('../../cli-detect.js', () => ({
   }),
 }));
 
-// Mock project module
+// Mock project module - will be customized per test
+const mockProjectLoadConfig = vi.fn();
 vi.mock('../../project.js', () => ({
   Project: class MockProject {
-    loadConfig = vi.fn().mockResolvedValue({});
+    constructor(public path: string) {}
+    loadConfig = mockProjectLoadConfig;
   },
 }));
 
@@ -38,6 +40,7 @@ vi.mock('../drivers/codex-cli.js', () => ({
 
 // Import after mocks
 import { selectEngine } from '../engine-factory.js';
+import { detectCli } from '../../cli-detect.js';
 
 function createDefaultSettings(): GlobalSettings {
   return {
@@ -51,6 +54,146 @@ function createDefaultSettings(): GlobalSettings {
     execution: { keepAwake: true },
   };
 }
+
+describe('selectEngine with project config', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...originalEnv };
+    delete process.env.QALA_ENGINE;
+    delete process.env.QALA_MODEL;
+    mockLoadGlobalSettings.mockResolvedValue(createDefaultSettings());
+    mockProjectLoadConfig.mockClear();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('selectEngine_ProjectConfigOverridesSettings', async () => {
+    // Arrange - global settings say claude, project config says codex
+    const settings = createDefaultSettings();
+    settings.taskRunner.agent = 'claude';
+    mockLoadGlobalSettings.mockResolvedValue(settings);
+
+    mockProjectLoadConfig.mockResolvedValue({
+      llm: { engine: 'codex', model: 'project-model' },
+    });
+
+    // Act
+    const result = await selectEngine({
+      projectPath: '/test/project',
+      purpose: 'taskRunner',
+    });
+
+    // Assert - project config should win over purpose settings
+    expect(result.engineName).toBe('codex');
+    expect(result.model).toBe('project-model');
+  });
+
+  it('selectEngine_CLIFlagsOverrideProjectConfig', async () => {
+    // Arrange - project config says codex, but CLI flags say claude
+    mockProjectLoadConfig.mockResolvedValue({
+      llm: { engine: 'codex', model: 'project-model' },
+    });
+
+    // Act - CLI flags should override project config
+    const result = await selectEngine({
+      projectPath: '/test/project',
+      engineName: 'claude',
+      model: 'cli-model',
+    });
+
+    // Assert
+    expect(result.engineName).toBe('claude');
+    expect(result.model).toBe('cli-model');
+  });
+});
+
+describe('selectEngine auto-detection', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...originalEnv };
+    delete process.env.QALA_ENGINE;
+    delete process.env.QALA_MODEL;
+    mockLoadGlobalSettings.mockResolvedValue(createDefaultSettings());
+    mockProjectLoadConfig.mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('selectEngine_AutoDetect_PrefersClaude_WhenBothAvailable', async () => {
+    // Arrange - taskRunner.agent is 'auto', both CLIs available
+    const settings = createDefaultSettings();
+    settings.taskRunner.agent = 'auto';
+    mockLoadGlobalSettings.mockResolvedValue(settings);
+
+    // Mock both CLIs as available (default mock behavior)
+    // detectCli already mocked to return both as available
+
+    // Act
+    const result = await selectEngine({
+      purpose: 'taskRunner',
+    });
+
+    // Assert - should prefer Claude when both available
+    expect(result.engineName).toBe('claude-cli');
+  });
+
+  it('selectEngine_AutoDetect_FallsBackToCodex_WhenClaudeUnavailable', async () => {
+    // Arrange - taskRunner.agent is 'auto', only Codex available
+    const settings = createDefaultSettings();
+    settings.taskRunner.agent = 'auto';
+    mockLoadGlobalSettings.mockResolvedValue(settings);
+
+    // Mock detectCli to return Claude unavailable, Codex available
+    vi.mocked(detectCli).mockImplementation((cli: string) => {
+      if (cli === 'claude') return Promise.resolve({ available: false, command: 'claude', version: '' });
+      if (cli === 'codex') return Promise.resolve({ available: true, command: 'codex', version: '1.0.0' });
+      return Promise.resolve({ available: false, command: cli, version: '' });
+    });
+
+    // Act
+    const result = await selectEngine({
+      purpose: 'taskRunner',
+    });
+
+    // Assert - should fall back to Codex
+    expect(result.engineName).toBe('codex-cli');
+  });
+
+  it('selectEngine_FullPrecedence_CLIFlags_EnvVars_Project_Purpose_Auto', async () => {
+    // Arrange - set all levels of precedence with different values
+    const settings = createDefaultSettings();
+    settings.taskRunner.agent = 'auto'; // 5th: auto-detect
+    settings.taskRunner.model = 'purpose-model';
+    mockLoadGlobalSettings.mockResolvedValue(settings);
+
+    mockProjectLoadConfig.mockResolvedValue({
+      llm: { engine: 'codex', model: 'project-model' }, // 3rd: project config
+    });
+
+    process.env.QALA_ENGINE = 'codex'; // 2nd: env var (would say codex)
+    process.env.QALA_MODEL = 'env-model';
+
+    // Act - CLI flags have highest priority
+    const result = await selectEngine({
+      projectPath: '/test/project',
+      engineName: 'claude', // 1st: CLI flag (highest priority)
+      model: 'cli-model',
+      purpose: 'taskRunner',
+    });
+
+    // Assert - CLI flag should win
+    expect(result.engineName).toBe('claude');
+    expect(result.model).toBe('cli-model');
+  });
+});
 
 describe('selectEngine with purpose parameter', () => {
   const originalEnv = process.env;
