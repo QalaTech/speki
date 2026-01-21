@@ -526,6 +526,7 @@ export interface ReviewResult {
  */
 export type NormalizedEvent =
   | { type: 'text'; content: string }
+  | { type: 'thinking'; content: string }
   | { type: 'tool_call'; id: string; name: string; input: Record<string, unknown>; detail?: string }
   | { type: 'tool_result'; tool_use_id: string; content?: string; is_error?: boolean }
   | { type: 'metadata'; data: Record<string, unknown> }
