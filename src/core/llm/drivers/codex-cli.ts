@@ -347,6 +347,7 @@ export class CodexCliEngine implements Engine {
 
     await fs.mkdir(codexDir, { recursive: true });
     const historyPath = join(codexDir, 'history.json');
+    const normJsonlPath = join(codexDir, `chat_${Date.now()}.norm.jsonl`);
 
     // Load conversation history
     interface ChatMessage {
@@ -422,6 +423,10 @@ export class CodexCliEngine implements Engine {
     // Completion checker - gets assigned inside the Promise once resolveOnce is available
     let onCompletionCheck: ((line: string) => void) | null = null;
 
+    // Normalizer and normalized events array for .norm.jsonl output
+    const normalizer = new CodexStreamNormalizer();
+    const normLines: string[] = [];
+
     codex.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
       response += text;
@@ -441,6 +446,12 @@ export class CodexCliEngine implements Engine {
               // Check if this line signals completion (e.g., turn_complete)
               if (onCompletionCheck) {
                 onCompletionCheck(jsonLine);
+              }
+
+              // Write normalized event to .norm.jsonl
+              const events = normalizer.normalize(line);
+              for (const event of events) {
+                normLines.push(JSON.stringify(event));
               }
             }
           }
@@ -482,6 +493,12 @@ export class CodexCliEngine implements Engine {
                 const parsedResponse = parseCodexChatResponse(response);
                 history.push({ role: 'assistant', content: parsedResponse });
                 await fs.writeFile(historyPath, JSON.stringify(history, null, 2), 'utf-8').catch(() => {});
+
+                // Write normalized JSONL file
+                if (normLines.length > 0) {
+                  await fs.writeFile(normJsonlPath, normLines.join('\n') + '\n', 'utf-8').catch(() => {});
+                }
+
                 resolveOnce({ content: parsedResponse, durationMs });
               }, 500);
             }
@@ -503,6 +520,12 @@ export class CodexCliEngine implements Engine {
           const jsonLine = convertCodexLineToJson(lineBuffer);
           if (jsonLine) {
             onStreamLine(jsonLine);
+
+            // Write normalized event from remaining buffer
+            const events = normalizer.normalize(lineBuffer);
+            for (const event of events) {
+              normLines.push(JSON.stringify(event));
+            }
           }
         }
 
@@ -517,6 +540,11 @@ export class CodexCliEngine implements Engine {
 
           // Save updated history
           await fs.writeFile(historyPath, JSON.stringify(history, null, 2), 'utf-8').catch(() => {});
+
+          // Write normalized JSONL file
+          if (normLines.length > 0) {
+            await fs.writeFile(normJsonlPath, normLines.join('\n') + '\n', 'utf-8').catch(() => {});
+          }
 
           resolve({
             content: parsedResponse,
