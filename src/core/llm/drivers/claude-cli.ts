@@ -8,6 +8,7 @@ import { resolveCliPath } from '../../cli-path.js';
 import * as logger from '../../logger.js';
 
 /** Timeout for Claude CLI execution in milliseconds (5 minutes) */
+import { ClaudeStreamNormalizer } from '../normalizers/claude-normalizer.js';
 const CLAUDE_TIMEOUT_MS = 300000;
 
 /**
@@ -133,9 +134,7 @@ This marker tells the UI to refresh the spec content. Always include it when you
 Be concise and actionable in your responses.`;
 
     if (specPath) {
-      systemPrompt += `
-
-## Spec File - EXACT PATH
+      systemPrompt += `\n\n## Spec File - EXACT PATH
 The spec file you are reviewing is at this EXACT path: ${specPath}
 
 **CRITICAL:**
@@ -146,10 +145,7 @@ The spec file you are reviewing is at this EXACT path: ${specPath}
     }
 
     if (specContent) {
-      systemPrompt += `
-
-## Specification Content
-${specContent}`;
+      systemPrompt += `\n\n## Specification Content\n${specContent}`;
     }
 
     // Build Claude CLI args
@@ -187,6 +183,10 @@ ${specContent}`;
       let stderr = '';
       let timedOut = false;
       let finalResponse = '';
+
+      // Normalizer and normalized events array for .norm.jsonl output
+      const normalizer = new ClaudeStreamNormalizer();
+      const normLines: string[] = [];
 
       const cliProcess = spawn(claudePath, args, {
         cwd,
@@ -228,6 +228,12 @@ ${specContent}`;
             // Stream to callback if provided
             if (onStreamLine) {
               onStreamLine(jsonLine);
+            }
+
+            // Normalize for .norm.jsonl
+            const events = normalizer.normalize(jsonLine);
+            for (const event of events) {
+              normLines.push(JSON.stringify(event));
             }
 
             // Track text blocks for final response extraction
@@ -273,13 +279,27 @@ ${specContent}`;
       cliProcess.stdin.write(message);
       cliProcess.stdin.end();
 
-      cliProcess.on('close', (code) => {
+      cliProcess.on('close', async (code) => {
         clearTimeout(timeoutId);
         const durationMs = Date.now() - startTime;
 
         // Process any remaining buffer
         if (buffer.trim() && onStreamLine) {
           onStreamLine(buffer.trim());
+          // Normalize remaining buffer
+          const events = normalizer.normalize(buffer.trim());
+          for (const event of events) {
+            normLines.push(JSON.stringify(event));
+          }
+        }
+
+        // Write normalized JSONL file
+        if (normLines.length > 0) {
+          const { join } = await import('path');
+          const { dirname } = await import('path');
+          const normPath = join(cwd, '.ralph', 'sessions', sessionId, 'chat.norm.jsonl');
+          await fs.mkdir(dirname(normPath), { recursive: true }).catch(() => {});
+          await fs.writeFile(normPath, normLines.join('\n') + '\n', 'utf-8').catch(() => {});
         }
 
         if (timedOut) {
