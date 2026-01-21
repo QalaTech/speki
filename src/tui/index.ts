@@ -6,9 +6,21 @@ import { fileURLToPath } from 'url';
 import { Registry } from '../core/registry.js';
 import { Project } from '../core/project.js';
 import { loadGlobalSettings, saveGlobalSettings } from '../core/settings.js';
+import type { CliType } from '../types/index.js';
 
 interface Ctx {
   projectPath: string | null;
+}
+
+// Valid agent types for task runner
+const VALID_AGENTS = ['auto', 'claude', 'codex'] as const;
+type ValidAgent = (typeof VALID_AGENTS)[number];
+
+/**
+ * Type guard to validate that a string is a valid agent type
+ */
+function isValidAgent(value: string): value is ValidAgent {
+  return VALID_AGENTS.includes(value as ValidAgent);
 }
 
 function getCliEntryPath(): string {
@@ -140,7 +152,7 @@ async function projectSettingsScreen(projectPath: string) {
   console.log(chalk.green('Project settings saved.'));
 }
 
-async function settingsScreen() {
+export async function settingsScreen() {
   const settings = await loadGlobalSettings();
   console.log('');
   console.log(chalk.bold('Global Settings'));
@@ -153,12 +165,23 @@ async function settingsScreen() {
   if (!change) return;
 
   console.log(chalk.bold('\nTask Runner Settings'));
-  const agent = await input({ message: 'Task runner agent (auto/claude/codex):', default: settings.taskRunner.agent });
-  const model = await input({ message: 'Task runner model (optional):', default: settings.taskRunner.model ?? '' });
+  const agentInput = await input({ 
+    message: 'Task runner agent (auto/claude/codex):', 
+    default: settings.taskRunner.agent 
+  });
+  const model = await input({ 
+    message: 'Task runner model (optional):', 
+    default: settings.taskRunner.model ?? '' 
+  });
+
+  if (!isValidAgent(agentInput)) {
+    console.log(chalk.red(`Invalid agent: ${agentInput}. Must be one of: ${VALID_AGENTS.join(', ')}`));
+    return;
+  }
 
   const newSettings = {
     ...settings,
-    taskRunner: { agent: agent as any, model: model || undefined }
+    taskRunner: { agent: agentInput, model: model || undefined }
   };
   await saveGlobalSettings(newSettings);
   console.log(chalk.green('Settings saved.'));
