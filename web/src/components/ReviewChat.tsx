@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "../../../src/types/index.js";
 import { ChatMarkdown } from "./ChatMarkdown";
 import "./ReviewChat.css";
+import "./ChatBubbles.css";
 import { TextEffect } from "./ui/TextEffect";
 
 type TextPreset =

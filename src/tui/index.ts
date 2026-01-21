@@ -190,6 +190,32 @@ async function mainMenu(ctx: Ctx) {
 
 export async function runTui(): Promise<void> {
   const ctx: Ctx = { projectPath: null };
-  await mainMenu(ctx);
+
+  // Ensure terminal is restored on exit
+  const cleanup = () => {
+    // Restore terminal settings
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(false);
+    }
+    process.stdout.write('\n');
+  };
+
+  process.on('SIGINT', () => {
+    cleanup();
+    process.exit(0);
+  });
+
+  process.on('exit', cleanup);
+
+  try {
+    await mainMenu(ctx);
+  } catch (error) {
+    // Inquirer throws on Ctrl+C - this is expected
+    if (error instanceof Error && error.message.includes('User force closed')) {
+      cleanup();
+      return;
+    }
+    throw error;
+  }
 }
 

@@ -21,6 +21,8 @@ export function isSessionInitialized(sessionId: string): boolean {
   return initializedSessions.has(sessionId);
 }
 
+import { convertCodexLineToJson } from '../llm/drivers/codex-cli.js';
+
 export interface ChatRunnerOptions {
   /** Working directory for CLI */
   cwd?: string;
@@ -429,31 +431,7 @@ export async function runChatMessageStream(
     let currentLineIndex = 0;
     const textBlocks: Array<{ index: number; text: string }> = [];
 
-    // Helper to convert Codex output line to JSON format
-    const convertCodexLineToJson = (line: string): string | null => {
-      const timestampPattern = /^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\]\s+/;
-      const match = line.match(timestampPattern);
-      if (match) {
-        const timestamp = match[1];
-        const content = line.slice(match[0].length);
-        const firstWord = content.split(/\s+/)[0];
-        const rest = content.slice(firstWord.length).trim();
-        if (firstWord === 'thinking') {
-          return JSON.stringify({ type: 'thinking', thinking: rest || '...', timestamp });
-        } else if (firstWord === 'codex' && rest) {
-          return JSON.stringify({ type: 'text', text: rest, timestamp });
-        } else if (firstWord === 'exec') {
-          return JSON.stringify({ type: 'tool_use', name: 'bash', input: { command: rest }, timestamp });
-        } else if (firstWord === 'tokens') {
-          return JSON.stringify({ type: 'usage', info: rest, timestamp });
-        } else {
-          return JSON.stringify({ type: 'system', subtype: firstWord, content: rest || firstWord, timestamp });
-        }
-      } else if (line.trim()) {
-        return JSON.stringify({ type: 'text', text: line });
-      }
-      return null;
-    };
+    // Use imported convertCodexLineToJson from codex-cli.ts
 
     cliProcess.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString();

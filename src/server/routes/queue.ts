@@ -24,17 +24,34 @@ import {
   clearCompletedTasks,
   isTaskInQueue,
   getTaskQueuePosition,
+  loadQueueAsPRDData,
 } from '../../core/task-queue/queue-manager.js';
 import {
   processTaskCompletion,
   calculatePrdProgress,
 } from '../../core/task-queue/completion-chain.js';
 import type { TaskQueue, QueuedTaskReference } from '../../types/index.js';
+import { publishUnified } from '../sse.js';
 
 const router = Router();
 
 // Apply project context middleware to all routes
 router.use(projectContext(true));
+
+/**
+ * Publish queue update to SSE subscribers.
+ * Loads queue as PRDData and publishes tasks/updated event.
+ */
+async function publishQueueUpdate(projectPath: string): Promise<void> {
+  try {
+    const prdData = await loadQueueAsPRDData(projectPath);
+    if (prdData) {
+      publishUnified(projectPath, 'tasks/updated', prdData);
+    }
+  } catch {
+    // Ignore publish errors
+  }
+}
 
 /**
  * GET /api/queue
@@ -160,6 +177,9 @@ router.post('/add', async (req, res) => {
       return res.json({ added: false, message: 'Task already in queue' });
     }
 
+    // Publish queue update to SSE subscribers
+    await publishQueueUpdate(req.projectPath!);
+
     res.json({ added: true, ref });
   } catch (error) {
     res.status(500).json({
@@ -192,6 +212,11 @@ router.post('/add-many', async (req, res) => {
     });
 
     const addedCount = await addTasksToQueue(req.projectPath!, tasks);
+
+    // Publish queue update to SSE subscribers
+    if (addedCount > 0) {
+      await publishQueueUpdate(req.projectPath!);
+    }
 
     res.json({ addedCount, totalTasks: tasks.length });
   } catch (error) {
@@ -259,6 +284,11 @@ router.post('/quick-start', async (req, res) => {
 
     const addedCount = await addTasksToQueue(req.projectPath!, tasks);
 
+    // Publish queue update to SSE subscribers
+    if (addedCount > 0) {
+      await publishQueueUpdate(req.projectPath!);
+    }
+
     res.json({
       success: true,
       addedCount,
@@ -282,6 +312,11 @@ router.delete('/:specId/:taskId', async (req, res) => {
     const { specId, taskId } = req.params;
 
     const removed = await removeTaskFromQueue(req.projectPath!, specId, taskId);
+
+    // Publish queue update to SSE subscribers
+    if (removed) {
+      await publishQueueUpdate(req.projectPath!);
+    }
 
     res.json({ removed });
   } catch (error) {

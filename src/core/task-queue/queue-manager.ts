@@ -507,3 +507,47 @@ export async function getTaskQueuePosition(
 
   return index === -1 ? null : index + 1;
 }
+
+/**
+ * Load queued tasks as PRDData format for the execution page.
+ * This converts task-queue.json references to full UserStory objects.
+ */
+export async function loadQueueAsPRDData(
+  projectRoot: string
+): Promise<PRDData | null> {
+  const queueWithTasks = await loadQueueWithTaskData(projectRoot);
+
+  if (queueWithTasks.length === 0) {
+    return null;
+  }
+
+  // Convert queue refs with task data to UserStory array
+  // Mark task status based on queue status
+  const userStories: UserStory[] = queueWithTasks
+    .filter(ref => ref.task) // Only include refs with resolved task data
+    .map(ref => {
+      const task = ref.task!;
+      // Map queue status to task.passes for KanbanView column placement
+      // - queued/running → not passed (todo/running columns)
+      // - completed → passed (done column)
+      return {
+        ...task,
+        passes: ref.status === 'completed',
+        // Add queue metadata for display
+        queueStatus: ref.status,
+        queuedAt: ref.queuedAt,
+      };
+    });
+
+  // Load queue metadata for project info
+  const queue = await loadTaskQueue(projectRoot);
+
+  return {
+    projectName: queue?.projectName || path.basename(projectRoot),
+    branchName: queue?.branchName || '',
+    language: queue?.language || '',
+    standardsFile: '',
+    description: '',
+    userStories,
+  };
+}

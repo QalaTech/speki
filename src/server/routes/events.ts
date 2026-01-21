@@ -3,6 +3,7 @@ import { projectContext } from '../middleware/project-context.js';
 import type { Request, Response } from 'express';
 import type { RalphStatus, DecomposeState } from '../../types/index.js';
 import { subscribeRalph, subscribeDecompose, subscribeTasks, subscribePeerFeedback, subscribeProjects, publishTasks, publishPeerFeedback, publishProjects, subscribeSpecReview, subscribeUnified, publishUnified } from '../sse.js';
+import { loadQueueAsPRDData } from '../../core/task-queue/queue-manager.js';
 import { Registry } from '../../core/registry.js';
 
 const router = Router();
@@ -82,7 +83,8 @@ router.get('/all', projectContext(true), async (req: Request, res: Response) => 
     const [ralphStatus, decomposeState, prdData, peerFeedback] = await Promise.all([
       req.project!.loadStatus().catch(() => null),
       req.project!.loadDecomposeState().catch(() => null),
-      req.project!.loadPRD().catch(() => null),
+      // Load from task queue instead of legacy prd.json
+      loadQueueAsPRDData(req.projectPath!).catch(() => null),
       req.project!.loadPeerFeedback().catch(() => null),
     ]);
 

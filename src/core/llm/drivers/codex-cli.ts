@@ -124,7 +124,7 @@ function parseCodexChatResponse(rawOutput: string): string {
  * Convert a Codex log line to JSON format for UI streaming.
  * Maps Codex output format to a structure similar to Claude's JSONL.
  */
-function convertCodexLineToJson(line: string): string | null {
+export function convertCodexLineToJson(line: string): string | null {
   const timestampPattern = /^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\]\s+/;
   const match = line.match(timestampPattern);
 

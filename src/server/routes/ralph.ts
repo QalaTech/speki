@@ -14,6 +14,7 @@ import { preventSleep, allowSleep } from '../../core/keep-awake.js';
 import type { RalphStatus } from '../../types/index.js';
 import type { StreamCallbacks } from '../../core/claude/types.js';
 import { publishRalph, publishTasks, publishPeerFeedback } from '../sse.js';
+import { loadQueueAsPRDData } from '../../core/task-queue/queue-manager.js';
 
 const router = Router();
 
@@ -116,10 +117,14 @@ router.post('/start', async (req, res) => {
       return res.status(400).json({ error: 'Ralph is already running' });
     }
 
-    // Load PRD to count tasks
-    const prd = await project.loadPRD();
+    // Load tasks from queue (or fall back to legacy prd.json)
+    let prd = await loadQueueAsPRDData(projectPath);
     if (!prd) {
-      return res.status(400).json({ error: 'No PRD loaded. Run decompose first.' });
+      // Fall back to legacy prd.json for backwards compatibility
+      prd = await project.loadPRD();
+    }
+    if (!prd || !prd.userStories?.length) {
+      return res.status(400).json({ error: 'No tasks in queue. Add tasks to the queue first.' });
     }
 
     // Check if keepAwake is enabled in global settings
@@ -176,17 +181,27 @@ router.post('/start', async (req, res) => {
       try {
         const streamCallbacks: StreamCallbacks = {
           onText: (text: string) => {
+            console.log('[Ralph] onText callback:', text.substring(0, 50));
             publishRalph(projectPath, 'ralph/log', { line: text });
           },
           onToolCall: (name: string, detail: string) => {
+            console.log('[Ralph] onToolCall callback:', name);
             publishRalph(projectPath, 'ralph/log', { line: `🔧 ${name}: ${detail}` });
           },
           onToolResult: (result: string) => {
+            console.log('[Ralph] onToolResult callback:', result.substring(0, 50));
             publishRalph(projectPath, 'ralph/log', { line: result });
           },
         };
         const result = await runRalphLoop(project, {
           maxIterations: getMaxIterations, // Pass getter for dynamic updates
+          // Load tasks from queue instead of legacy prd.json
+          loadPRD: async () => {
+            const queuePrd = await loadQueueAsPRDData(projectPath);
+            if (queuePrd) return queuePrd;
+            // Fall back to legacy prd.json
+            return project.loadPRD();
+          },
           onIterationStart: async (iteration, story) => {
             if (aborted) throw new Error('Aborted');
             console.log(`[Ralph] Iteration ${iteration} starting: ${story?.id || 'none'}`);
@@ -205,7 +220,8 @@ router.post('/start', async (req, res) => {
               allComplete,
             });
             try {
-              const prdNow = await project.loadPRD();
+              // Load tasks from queue for SSE update
+              const prdNow = await loadQueueAsPRDData(projectPath) || await project.loadPRD();
               if (prdNow) publishTasks(projectPath, 'tasks/updated', prdNow);
               const pf = await project.loadPeerFeedback();
               publishPeerFeedback(projectPath, 'peer-feedback/updated', pf);
