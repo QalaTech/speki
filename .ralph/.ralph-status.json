@@ -1,0 +1,8 @@
+{
+  "status": "running",
+  "currentIteration": 5,
+  "maxIterations": 20,
+  "currentStory": "TS-007: Refactor chat-runner.ts to delegate CLI spawning to Engine.runChat",
+  "startedAt": "2026-01-21T16:29:52.024Z",
+  "pid": 24267
+}

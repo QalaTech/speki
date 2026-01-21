@@ -499,3 +499,45 @@ describe('Decompose_UsesEngineRunStream_NotDirectClaude', () => {
     // (the old functions would have passed specific --output-format and --tools arguments)
   });
 });
+
+describe('Decompose_LogOutput_ShowsEngineNotClaude', () => {
+  beforeEach(setupTestEnvironment);
+  afterEach(cleanupTestEnvironment);
+
+  it('Decompose_LogOutput_ShowsEngineNotClaude', async () => {
+    // Arrange
+    const project = createMockProject();
+    vi.mocked(runDecomposeReview).mockResolvedValue(createPassFeedback());
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    // Capture console.log calls
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    // Act
+    const resultPromise = runDecompose(project, {
+      prdFile: '/test/my-feature.md',
+      enablePeerReview: false,
+    });
+
+    await simulateClaudeCompletion(mockChild);
+    const result = await resultPromise;
+
+    // Assert
+    // Verify that the output label shows "Engine Output:" not "Claude Output:"
+    expect(result.success).toBe(true);
+
+    // Check that console.log was called with "Engine Output:" label
+    const engineOutputCall = consoleLogSpy.mock.calls.find(
+      call => typeof call[0] === 'string' && call[0].includes('Engine Output:')
+    );
+    expect(engineOutputCall).toBeDefined();
+
+    // Verify that "Claude Output:" was NOT logged
+    const claudeOutputCall = consoleLogSpy.mock.calls.find(
+      call => typeof call[0] === 'string' && call[0].includes('Claude Output:')
+    );
+    expect(claudeOutputCall).toBeUndefined();
+  });
+});

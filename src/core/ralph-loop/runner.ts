@@ -53,7 +53,8 @@ type NextStoryResult =
   | { story: UserStory; status: 'blocked'; blockedBy: string[] };
 
 /**
- * Get the next story to work on (highest priority incomplete with satisfied dependencies)
+ * Get the next story to work on (first incomplete in queue order with satisfied dependencies)
+ * Note: Queue order takes precedence over priority to match CLI behavior
  */
 function getNextStory(prd: PRDData): NextStoryResult {
   const completedIds = new Set(
@@ -68,18 +69,20 @@ function getNextStory(prd: PRDData): NextStoryResult {
   const hasSatisfiedDependencies = (story: UserStory): boolean =>
     (story.dependencies ?? []).every((dep) => completedIds.has(dep));
 
-  const ready = incomplete.filter(hasSatisfiedDependencies);
-
-  if (ready.length === 0) {
-    const blocked = incomplete[0];
-    const blockedBy = (blocked.dependencies ?? []).filter(
-      (dep) => !completedIds.has(dep)
-    );
-    return { story: blocked, status: 'blocked', blockedBy };
+  // Find first task in queue order with satisfied dependencies
+  // (preserves queue order instead of sorting by priority)
+  for (const story of incomplete) {
+    if (hasSatisfiedDependencies(story)) {
+      return { story, status: 'ready' };
+    }
   }
 
-  ready.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
-  return { story: ready[0], status: 'ready' };
+  // All incomplete tasks are blocked
+  const blocked = incomplete[0];
+  const blockedBy = (blocked.dependencies ?? []).filter(
+    (dep) => !completedIds.has(dep)
+  );
+  return { story: blocked, status: 'blocked', blockedBy };
 }
 
 /**

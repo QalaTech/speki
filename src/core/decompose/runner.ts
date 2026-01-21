@@ -606,7 +606,7 @@ export async function runDecompose(
     console.log(chalk.blue('(This may take 1-3 minutes for large PRDs)'));
     console.log('');
     console.log(chalk.cyan('─────────────────────────────────────────────'));
-    console.log(chalk.cyan('Claude Output:'));
+    console.log(chalk.cyan('Engine Output:'));
     console.log(chalk.cyan('─────────────────────────────────────────────'));
 
     await updateState(project.projectPath, specId, {
@@ -726,11 +726,11 @@ export async function runDecompose(
 
         // Send feedback to Claude for revision
         console.log('');
-        console.log(chalk.yellow('Sending feedback to Claude for revision...'));
+        console.log(chalk.yellow('Sending feedback to Engine for revision...'));
 
         await updateState(project.projectPath, specId, {
           status: 'REVISING',
-          message: `Claude is revising tasks based on review feedback (attempt ${reviewAttempt})`,
+          message: `Engine is revising tasks based on review feedback (attempt ${reviewAttempt})`,
           draftFile: outputPath,
         }, onProgress);
 
