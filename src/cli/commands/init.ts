@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { execSync } from "child_process";
 import { Command } from "commander";
 import { basename, join } from "path";
+import { confirm } from "@inquirer/prompts";
 import { Project } from "../../core/project.js";
 import { Registry } from "../../core/registry.js";
 import { isCliAvailable, isExecutableAvailable } from "../../core/cli-path.js";
@@ -10,6 +11,22 @@ import { isCliAvailable, isExecutableAvailable } from "../../core/cli-path.js";
 /**
  * Install Serena MCP server for Claude Code integration
  */
+
+/**
+ * Prompt user for Serena MCP installation (only if Claude CLI is available)
+ */
+async function promptForSerenaInstall(): Promise<boolean> {
+  // Only relevant if Claude CLI is available
+  if (!isCliAvailable('claude')) {
+    return false; // Skip silently - Claude not installed
+  }
+
+  return confirm({
+    message: 'Install Serena MCP server for Claude Code integration?',
+    default: true,
+  });
+}
+
 async function installSerena(projectPath: string): Promise<void> {
   // Check if Claude CLI exists
   if (!isCliAvailable('claude')) {
@@ -81,6 +98,7 @@ export const initCommand = new Command("init")
     "nodejs"
   )
   .option("-f, --force", "Overwrite existing .ralph directory")
+  .option("--no-serena", "Skip Serena MCP server installation")
   .action(async (options) => {
     const projectPath = process.cwd();
     const project = new Project(projectPath);
@@ -121,7 +139,20 @@ export const initCommand = new Command("init")
       await Registry.register(projectPath, projectName);
 
       // Install Serena MCP server
-      await installSerena(projectPath);
+      // If --no-serena flag is provided, skip without prompting
+      // Otherwise, prompt user for confirmation
+      if (options.serena) {
+        // --no-serena was NOT provided, so prompt the user
+        const shouldInstallSerena = await promptForSerenaInstall();
+        if (shouldInstallSerena) {
+          await installSerena(projectPath);
+        } else {
+          console.log(chalk.yellow("  Skipping Serena installation"));
+        }
+      } else {
+        // --no-serena was provided, skip silently
+        console.log(chalk.yellow("  Serena installation skipped (--no-serena flag provided)"));
+      }
 
       console.log("");
       console.log(chalk.green("Successfully initialized Qala project!"));
