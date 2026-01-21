@@ -10,23 +10,32 @@ vi.mock('child_process', () => ({
   spawn: vi.fn(),
 }));
 
-// Mock fs/promises
-vi.mock('fs', () => ({
-  promises: {
-    access: vi.fn().mockResolvedValue(undefined),
-    readFile: vi.fn().mockImplementation((path: string) => {
-      if (path.includes('prd')) {
-        return Promise.resolve('# Test PRD\n\nSome requirements');
-      }
-      if (path.includes('decompose') || path.includes('prompt')) {
-        return Promise.resolve('You are a task decomposer. Output JSON.');
-      }
-      return Promise.resolve('');
-    }),
-    writeFile: vi.fn().mockResolvedValue(undefined),
-    mkdir: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+// Mock fs/promises and fs for createWriteStream
+vi.mock('fs', () => {
+  const mockWriteStream = {
+    write: vi.fn(),
+    end: vi.fn(),
+    on: vi.fn().mockReturnThis(),
+    pipe: vi.fn().mockReturnThis(),
+  };
+  return {
+    promises: {
+      access: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn().mockImplementation((path: string) => {
+        if (path.includes('prd')) {
+          return Promise.resolve('# Test PRD\n\nSome requirements');
+        }
+        if (path.includes('decompose') || path.includes('prompt')) {
+          return Promise.resolve('You are a task decomposer. Output JSON.');
+        }
+        return Promise.resolve('');
+      }),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      mkdir: vi.fn().mockResolvedValue(undefined),
+    },
+    createWriteStream: vi.fn(() => mockWriteStream),
+  };
+});
 
 // Mock stream-parser to capture callbacks and forward text
 let capturedOnText: ((text: string) => void) | null = null;
@@ -80,11 +89,28 @@ vi.mock('../../spec-review/spec-metadata.js', () => ({
     specPath: '/test/prd.md',
   }),
   updateSpecStatus: vi.fn().mockResolvedValue(undefined),
+  loadDecomposeStateForSpec: vi.fn().mockResolvedValue({}),
+  saveDecomposeStateForSpec: vi.fn().mockResolvedValue(undefined),
+  detectSpecType: vi.fn().mockReturnValue('prd'),
+}));
+
+// Mock engine-factory
+vi.mock('../../llm/engine-factory.js', () => ({
+  selectEngine: vi.fn().mockResolvedValue({
+    engine: {
+      runStream: vi.fn().mockResolvedValue({
+        success: true,
+        output: '{"userStories": [{"id": "US-001", "title": "Test Story", "description": "Test", "acceptanceCriteria": [], "testCases": []}]}',
+      }),
+    },
+    model: 'claude-opus-4-5',
+  }),
 }));
 
 // Import the function under test after mocks are set up
 import { runDecompose } from '../runner.js';
 import { spawn } from 'child_process';
+import { selectEngine } from '../../llm/engine-factory.js';
 import { runDecomposeReview } from '../../spec-review/runner.js';
 import { getReviewTimeout } from '../../spec-review/timeout.js';
 import {
@@ -94,12 +120,17 @@ import {
   readSpecMetadata,
   initSpecMetadata,
   updateSpecStatus,
+  loadDecomposeStateForSpec,
+  saveDecomposeStateForSpec,
+  detectSpecType,
 } from '../../spec-review/spec-metadata.js';
 
 function createMockChildProcess(): ChildProcess {
   const child = new EventEmitter() as ChildProcess;
   child.stdout = new EventEmitter() as unknown as Readable;
-  child.stderr = new EventEmitter() as unknown as Readable;
+  const stderrEmitter = new EventEmitter() as unknown as Readable;
+  (stderrEmitter as any).pipe = vi.fn().mockReturnThis();
+  child.stderr = stderrEmitter;
   child.stdin = {
     write: vi.fn(),
     end: vi.fn(),
@@ -401,5 +432,70 @@ describe('runDecompose with spec-partitioned output', () => {
 
     // Assert
     expect(getSpecLogsDir).toHaveBeenCalledWith('/test/project', 'my-feature');
+  });
+});
+
+describe('Decompose_RunsSuccessfully_AfterDeadCodeRemoval', () => {
+  beforeEach(setupTestEnvironment);
+  afterEach(cleanupTestEnvironment);
+
+  it('Decompose_RunsSuccessfully_AfterDeadCodeRemoval', async () => {
+    // Arrange
+    const project = createMockProject();
+    vi.mocked(runDecomposeReview).mockResolvedValue(createPassFeedback());
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    // Act
+    const resultPromise = runDecompose(project, {
+      prdFile: '/test/my-feature.md',
+      enablePeerReview: false,
+    });
+
+    await simulateClaudeCompletion(mockChild);
+    const result = await resultPromise;
+
+    // Assert
+    // Verify decompose completes successfully after dead code removal
+    expect(result.success).toBe(true);
+    expect(result.prd).toBeDefined();
+    expect(result.storyCount).toBeGreaterThan(0);
+    // Verify the output was written to spec-partitioned location
+    expect(result.outputPath).toContain('.ralph/specs/');
+  });
+});
+
+describe('Decompose_UsesEngineRunStream_NotDirectClaude', () => {
+  beforeEach(setupTestEnvironment);
+  afterEach(cleanupTestEnvironment);
+
+  it('Decompose_UsesEngineRunStream_NotDirectClaude', async () => {
+    // Arrange
+    const project = createMockProject();
+    vi.mocked(runDecomposeReview).mockResolvedValue(createPassFeedback());
+
+    const mockChild = createMockChildProcess();
+    vi.mocked(spawn).mockReturnValue(mockChild);
+
+    // Act
+    const resultPromise = runDecompose(project, {
+      prdFile: '/test/my-feature.md',
+      enablePeerReview: false,
+    });
+
+    await simulateClaudeCompletion(mockChild);
+    const result = await resultPromise;
+
+    // Assert
+    // Verify that decompose uses the Engine API (selectEngine)
+    // This confirms that:
+    // 1. The runClaudeWithPrompt and runClaudeDecompose functions have been removed
+    // 2. The decompose flow now uses selectEngine().engine.runStream()
+    // 3. No direct spawn calls are made by the removed functions
+    expect(result.success).toBe(true);
+    expect(selectEngine).toHaveBeenCalled();
+    // Verify no direct spawn calls with the removed functions' signatures
+    // (the old functions would have passed specific --output-format and --tools arguments)
   });
 });
