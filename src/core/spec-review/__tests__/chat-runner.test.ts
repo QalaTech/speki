@@ -1,12 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { spawn, ChildProcess } from 'child_process';
-import { EventEmitter } from 'events';
-import { Readable, Writable } from 'stream';
+import type { Engine } from '../../llm/engine.js';
 
-vi.mock('child_process', () => ({ spawn: vi.fn() }));
-
-vi.mock('../../cli-path.js', () => ({
-  resolveCliPath: vi.fn(() => 'claude'),
+// Mock selectEngine to avoid circular dependencies and spawning real processes
+vi.mock('../../llm/engine-factory.js', () => ({
+  selectEngine: vi.fn(),
 }));
 
 vi.mock('../../settings.js', () => ({
@@ -21,108 +18,208 @@ vi.mock('../../settings.js', () => ({
 }));
 
 import { runChatMessageStream } from '../chat-runner.js';
-import * as cliModule from '../../llm/drivers/codex-cli.js';
+import { selectEngine } from '../../llm/engine-factory.js';
 
-function createMockProcess(): ChildProcess {
-  const proc = new EventEmitter() as ChildProcess;
-  proc.stdin = {
-    write: vi.fn(),
-    end: vi.fn(),
-  } as unknown as Writable;
-  proc.stdout = new EventEmitter() as unknown as Readable;
-  proc.stderr = new EventEmitter() as unknown as Readable;
-  proc.kill = vi.fn();
-  return proc;
+// Helper to create a mock engine with all required methods
+function createMockEngine(overrides?: Partial<Engine>): Engine {
+  return {
+    name: 'mock-engine',
+    isAvailable: vi.fn().mockResolvedValue({ available: true }),
+    runStream: vi.fn(),
+    runChat: vi.fn(),
+    runReview: vi.fn(),
+    ...overrides,
+  };
 }
 
 describe('runChatMessageStream', () => {
-  let mockProcess: ChildProcess;
-  let spawnSpy: ReturnType<typeof vi.fn>;
-
   beforeEach(() => {
-    mockProcess = createMockProcess();
-    spawnSpy = vi.mocked(spawn);
-    spawnSpy.mockReturnValue(mockProcess);
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('ChatRunner_CodexStreaming_UsesImportedConverter', () => {
-    it('has convertCodexLineToJson exported from codex-cli module', () => {
-      expect(cliModule.convertCodexLineToJson).toBeDefined();
-      expect(typeof cliModule.convertCodexLineToJson).toBe('function');
-    });
-
-    it('imports convertCodexLineToJson for use in chat streaming', async () => {
-      const streamLines: string[] = [];
-      const onStreamLine = vi.fn((line: string) => {
-        streamLines.push(line);
+  describe('ChatRunner_Claude_DelegatesToClaudeEngine', () => {
+    it('selects Claude engine and delegates to runChat', async () => {
+      const mockEngine = createMockEngine({
+        runChat: vi.fn().mockResolvedValue({
+          content: 'Claude response',
+          durationMs: 100,
+        }),
       });
 
-      const promise = runChatMessageStream(
-        'test-session',
+      vi.mocked(selectEngine).mockResolvedValue({
+        engine: mockEngine,
+        engineName: 'claude-cli',
+        model: 'claude-3-5-sonnet-20241022',
+      });
+
+      const onStreamLine = vi.fn();
+      const result = await runChatMessageStream(
+        'session-123',
         'Hello Claude',
         true,
         onStreamLine,
         {
-          cwd: process.cwd(),
           agent: 'claude',
+          specContent: 'Test spec',
+          specPath: '/path/to/spec.md',
         }
       );
 
-      // Simulate process output
-      const jsonLine = JSON.stringify({
-        type: 'text',
-        text: 'Hello user',
+      // Verify selectEngine was called
+      expect(selectEngine).toHaveBeenCalledWith({
+        engineName: 'claude',
+        model: undefined,
+        purpose: 'specChat',
       });
 
-      (mockProcess.stdout as EventEmitter).emit('data', Buffer.from(jsonLine + '\n'));
-      (mockProcess.stdout as EventEmitter).emit('data', Buffer.from(''));
-      (mockProcess as EventEmitter).emit('close', 0);
+      // Verify engine.runChat was called with correct parameters
+      expect(mockEngine.runChat).toHaveBeenCalledWith({
+        sessionId: 'session-123',
+        message: 'Hello Claude',
+        isFirstMessage: true,
+        cwd: process.cwd(),
+        timeoutMs: 1_200_000,
+        model: 'claude-3-5-sonnet-20241022',
+        specContent: 'Test spec',
+        specPath: '/path/to/spec.md',
+        onStreamLine,
+      });
 
-      const result = await promise;
-
-      expect(result.content).toBe('Hello user');
-      expect(onStreamLine).toHaveBeenCalled();
+      expect(result.content).toBe('Claude response');
+      expect(result.durationMs).toBe(100);
     });
+  });
 
-    it('streams JSONL lines through callback without duplicating conversion logic', async () => {
-      const streamLines: string[] = [];
-      const onStreamLine = vi.fn((line: string) => {
-        streamLines.push(line);
+  describe('ChatRunner_Codex_DelegatesToCodexEngine', () => {
+    it('selects Codex engine and delegates to runChat', async () => {
+      const mockEngine = createMockEngine({
+        runChat: vi.fn().mockResolvedValue({
+          content: 'Codex response',
+          durationMs: 150,
+        }),
       });
 
-      const promise = runChatMessageStream(
-        'test-session',
-        'Test message',
-        true,
+      vi.mocked(selectEngine).mockResolvedValue({
+        engine: mockEngine,
+        engineName: 'codex-cli',
+        model: 'gpt-4-turbo',
+      });
+
+      const onStreamLine = vi.fn();
+      const result = await runChatMessageStream(
+        'session-456',
+        'Hello Codex',
+        false,
         onStreamLine,
         {
-          cwd: process.cwd(),
-          agent: 'claude',
+          agent: 'codex',
+          model: 'gpt-4-turbo',
+          specContent: 'Another spec',
         }
       );
 
-      const jsonLine1 = JSON.stringify({
-        type: 'text',
-        text: 'First response',
-      });
-      const jsonLine2 = JSON.stringify({
-        type: 'text',
-        text: 'Second response',
+      // Verify selectEngine was called with codex
+      expect(selectEngine).toHaveBeenCalledWith({
+        engineName: 'codex',
+        model: 'gpt-4-turbo',
+        purpose: 'specChat',
       });
 
-      (mockProcess.stdout as EventEmitter).emit('data', Buffer.from(jsonLine1 + '\n' + jsonLine2 + '\n'));
-      (mockProcess as EventEmitter).emit('close', 0);
+      // Verify engine.runChat was called with Codex options
+      expect(mockEngine.runChat).toHaveBeenCalledWith({
+        sessionId: 'session-456',
+        message: 'Hello Codex',
+        isFirstMessage: false,
+        cwd: process.cwd(),
+        timeoutMs: 1_200_000,
+        model: 'gpt-4-turbo',
+        specContent: 'Another spec',
+        specPath: undefined,
+        onStreamLine,
+      });
 
-      const result = await promise;
+      expect(result.content).toBe('Codex response');
+      expect(result.durationMs).toBe(150);
+    });
+  });
 
-      expect(streamLines.length).toBe(2);
-      expect(streamLines[0]).toEqual(jsonLine1);
-      expect(streamLines[1]).toEqual(jsonLine2);
-      expect(result.content).toContain('First response');
+  describe('ChatRunner_StreamCallback_InvokedByEngine', () => {
+    it('passes streaming callback to engine and forwards response', async () => {
+      const streamedLines: string[] = [];
+      const onStreamLine = vi.fn((line: string) => {
+        streamedLines.push(line);
+      });
+
+      const mockEngine = createMockEngine({
+        runChat: vi.fn(async (options) => {
+          // Simulate engine calling the callback
+          if (options.onStreamLine) {
+            options.onStreamLine('{"type":"text","text":"Line 1"}');
+            options.onStreamLine('{"type":"text","text":"Line 2"}');
+          }
+          return {
+            content: 'Streamed response',
+            durationMs: 200,
+          };
+        }),
+      });
+
+      vi.mocked(selectEngine).mockResolvedValue({
+        engine: mockEngine,
+        engineName: 'claude-cli',
+        model: 'claude-3-5-sonnet',
+      });
+
+      const result = await runChatMessageStream(
+        'session-789',
+        'Stream test',
+        true,
+        onStreamLine
+      );
+
+      // Verify callback was invoked by engine
+      expect(onStreamLine).toHaveBeenCalledTimes(2);
+      expect(streamedLines).toContain('{"type":"text","text":"Line 1"}');
+      expect(streamedLines).toContain('{"type":"text","text":"Line 2"}');
+
+      expect(result.content).toBe('Streamed response');
+    });
+  });
+
+  describe('ChatRunner_Timeout_HandledByEngine', () => {
+    it('engine timeout errors are passed through', async () => {
+      const mockEngine = createMockEngine({
+        runChat: vi.fn().mockResolvedValue({
+          content: '',
+          durationMs: 120000,
+          error: 'Chat timed out',
+        }),
+      });
+
+      vi.mocked(selectEngine).mockResolvedValue({
+        engine: mockEngine,
+        engineName: 'claude-cli',
+        model: 'claude-3-5-sonnet',
+      });
+
+      const result = await runChatMessageStream(
+        'session-timeout',
+        'Slow message',
+        true,
+        vi.fn(),
+        {
+          timeoutMs: 120000,
+        }
+      );
+
+      // Verify timeout error is passed through from engine
+      expect(result.error).toBe('Chat timed out');
+      expect(result.durationMs).toBe(120000);
+      expect(result.content).toBe('');
     });
   });
 });

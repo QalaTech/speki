@@ -4,7 +4,6 @@ import { Engine, EngineAvailability, RunStreamOptions, RunStreamResult, RunChatO
 import type { ReviewOptions, ReviewResult, ReviewFeedback } from '../../../types/index.js';
 import { detectCli } from '../../cli-detect.js';
 import { runClaude } from '../../claude/runner.js';
-import { runChatMessage, runChatMessageStream } from '../../spec-review/chat-runner.js';
 import { resolveCliPath } from '../../cli-path.js';
 import * as logger from '../../logger.js';
 
@@ -53,30 +52,282 @@ export class ClaudeCliEngine implements Engine {
   }
 
   async runChat(options: RunChatOptions): Promise<RunChatResult> {
-    // Use streaming version if callback provided, otherwise non-streaming
-    if (options.onStreamLine) {
-      const res = await runChatMessageStream(
-        options.sessionId,
-        options.message,
-        options.isFirstMessage,
-        options.onStreamLine,
-        {
-          cwd: options.cwd,
-          timeoutMs: options.timeoutMs,
-          specContent: options.specContent,
-          specPath: options.specPath,
-        }
-      );
-      return res;
-    } else {
-      const res = await runChatMessage(options.sessionId, options.message, options.isFirstMessage, {
-        cwd: options.cwd,
-        timeoutMs: options.timeoutMs,
-        specContent: options.specContent,
-        specPath: options.specPath,
-      });
-      return res;
+    const {
+      sessionId,
+      message,
+      isFirstMessage,
+      onStreamLine,
+      cwd = process.cwd(),
+      timeoutMs = 1_200_000, // 20 minutes default
+      specContent,
+      specPath,
+      model,
+    } = options;
+
+    // Track which sessions have been initialized
+    const initializedSessions = new Set<string>();
+
+    // Build system prompt
+    let systemPrompt = `You are a helpful assistant reviewing a software specification document.
+Your role is to help the user improve their spec by:
+- Answering questions about best practices for PRDs/specs
+- Suggesting improvements to specific sections
+- Clarifying requirements
+- Identifying potential issues or ambiguities
+- Making edits to the spec file when the user asks you to
+
+## CRITICAL: Your Scope is SPEC REFINEMENT ONLY
+You are a spec reviewer, NOT an implementer. Your job is ONLY to help refine and improve the specification document.
+
+**NEVER offer to:**
+- Implement the feature or write code
+- Update application code, tests, or non-spec files
+- Execute commands or run the implementation
+- Ask "Want me to update the code?" or similar
+
+**ALWAYS defer implementation:**
+- Say "Implementation will be handled by the task runner when this spec is decomposed."
+- Focus ONLY on making the spec clearer, more complete, and better structured
+- Your edits are limited to THIS spec/PRD file only
+
+If the user asks about implementation, respond: "My role is to help refine this spec. Once finalized, use Decompose to generate implementation tasks."
+
+## Fast Mode
+Answer from prior context only; do not read files unless absolutely necessary to answer a question.
+Do not run tools or open files unless explicitly requested.
+For simple greetings ("hi", "thanks") or quick questions, respond immediately without tools.
+
+## Response Format - CRITICAL
+Your responses are displayed in a chat bubble UI. The LAST text you output becomes the chat message the user sees.
+
+**DO NOT narrate your thinking process.** Never write things like:
+- "**Considering the options**" or "**Planning my response**"
+- "I'm thinking about..." or "Let me analyze..."
+- Headers describing your mental process
+
+**DO** give the answer directly:
+- Output ONLY the final answer - no preamble about your thought process
+- Keep it concise and conversational
+- Use simple formatting (short paragraphs, basic lists)
+- Plain text with occasional bold for emphasis
+
+**IMPORTANT: Last message matters**
+The user only sees your FINAL text output in the chat window. If you have:
+- Questions to ask the user
+- Feedback or suggestions
+- A summary of what you did
+These MUST be in your last/final message, not scattered throughout your output.
+
+**WRONG:** "**Analyzing the spec** I'm looking at... **Proposing changes** Here's what I suggest..."
+**RIGHT:** "Here's what I suggest: [the actual suggestion]"
+
+Keep your internal reasoning internal. Only output what the user needs to see.
+
+## IMPORTANT: Spec File Updates
+When the user asks you to update, edit, or modify the spec file, you MUST:
+1. Use your file editing tools to make the requested changes to the spec file
+2. Include the exact marker **[SPEC_UPDATED]** at the END of your response (after your normal message)
+
+This marker tells the UI to refresh the spec content. Always include it when you've modified the file, never include it if you haven't.
+
+Be concise and actionable in your responses.`;
+
+    if (specPath) {
+      systemPrompt += `
+
+## Spec File - EXACT PATH
+The spec file you are reviewing is at this EXACT path: ${specPath}
+
+**CRITICAL:**
+- Use this EXACT file path. Do NOT search for files or use similar paths.
+- Do NOT read files from .ralph/ directory - those are internal state files.
+- The spec file is in the specs/ folder, not .ralph/specs/.
+- Read this file ONLY when needed to answer the user's question.`;
     }
+
+    if (specContent) {
+      systemPrompt += `
+
+## Specification Content
+${specContent}`;
+    }
+
+    // Build Claude CLI args
+    const args = [
+      '--print',
+      '--output-format', 'stream-json',
+      '--verbose',
+      '--dangerously-skip-permissions',
+    ];
+
+    // Use the isFirstMessage parameter to determine initialization vs resume
+    if (isFirstMessage) {
+      args.push('--session-id', sessionId);
+      args.push('--system-prompt', systemPrompt);
+      initializedSessions.add(sessionId);
+      logger.debug(
+        `Initializing new Claude session with spec: ${sessionId} (hasContent=${!!specContent}) path=${specPath}`,
+        'claude-cli'
+      );
+    } else {
+      args.push('--resume', sessionId);
+      initializedSessions.add(sessionId);
+      logger.debug(`Resuming existing Claude session: ${sessionId}`, 'claude-cli');
+    }
+
+    if (model) {
+      args.push('--model', model);
+    }
+
+    const startTime = Date.now();
+    const claudePath = resolveCliPath('claude');
+
+    return new Promise((resolve) => {
+      let stdout = '';
+      let stderr = '';
+      let timedOut = false;
+      let finalResponse = '';
+
+      const cliProcess = spawn(claudePath, args, {
+        cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          NO_COLOR: '1',
+          FORCE_COLOR: '0',
+        },
+      });
+
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        cliProcess.kill('SIGTERM');
+        setTimeout(() => {
+          cliProcess.kill('SIGKILL');
+        }, 5000);
+      }, timeoutMs);
+
+      // Track streaming output
+      let buffer = '';
+      let lastToolResultIndex = -1;
+      let currentLineIndex = 0;
+      const textBlocks: Array<{ index: number; text: string }> = [];
+
+      cliProcess.stdout.on('data', (chunk: Buffer) => {
+        const text = chunk.toString();
+        stdout += text;
+        buffer += text;
+
+        // Process complete lines
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.trim()) {
+            const jsonLine = line.trim();
+
+            // Stream to callback if provided
+            if (onStreamLine) {
+              onStreamLine(jsonLine);
+            }
+
+            // Track text blocks for final response extraction
+            try {
+              const parsed = JSON.parse(jsonLine);
+
+              // Track when tool results appear
+              if (parsed.type === 'user' && parsed.message?.content) {
+                const content = parsed.message.content;
+                if (Array.isArray(content) && content.some(block => block.type === 'tool_result')) {
+                  lastToolResultIndex = currentLineIndex;
+                }
+              }
+
+              // Collect text blocks
+              if (parsed.type === 'text' && parsed.text) {
+                textBlocks.push({ index: currentLineIndex, text: parsed.text });
+              } else if (parsed.type === 'assistant' && parsed.message?.content) {
+                const content = parsed.message.content;
+                if (Array.isArray(content)) {
+                  for (const block of content) {
+                    if (block.type === 'text' && block.text) {
+                      textBlocks.push({ index: currentLineIndex, text: block.text });
+                    }
+                  }
+                }
+              }
+
+              currentLineIndex++;
+            } catch {
+              // Ignore parse errors
+              currentLineIndex++;
+            }
+          }
+        }
+      });
+
+      cliProcess.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+
+      // Send the message via stdin
+      cliProcess.stdin.write(message);
+      cliProcess.stdin.end();
+
+      cliProcess.on('close', (code) => {
+        clearTimeout(timeoutId);
+        const durationMs = Date.now() - startTime;
+
+        // Process any remaining buffer
+        if (buffer.trim() && onStreamLine) {
+          onStreamLine(buffer.trim());
+        }
+
+        if (timedOut) {
+          resolve({
+            content: '',
+            durationMs,
+            error: 'Chat response timed out',
+          });
+          return;
+        }
+
+        if (code !== 0 && !stdout.trim()) {
+          resolve({
+            content: '',
+            durationMs,
+            error: stderr || `Claude CLI exited with code ${code}`,
+          });
+          return;
+        }
+
+        // Build final response from text blocks that appear AFTER the last tool result
+        if (lastToolResultIndex >= 0) {
+          finalResponse = textBlocks
+            .filter(block => block.index > lastToolResultIndex)
+            .map(block => block.text)
+            .join('');
+        } else {
+          // No tool results - include all text blocks
+          finalResponse = textBlocks
+            .map(block => block.text)
+            .join('');
+        }
+
+        resolve({
+          content: finalResponse.trim() || stdout.trim(),
+          durationMs,
+        });
+      });
+
+      cliProcess.on('error', (err) => {
+        clearTimeout(timeoutId);
+        resolve({
+          content: '',
+          durationMs: Date.now() - startTime,
+          error: `Failed to spawn Claude CLI: ${err.message}`,
+        });
+      });
+    });
   }
 
   /**
