@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import './CodeBlock.css';
 
 interface CodeBlockProps {
   language?: string;
@@ -20,12 +19,12 @@ export function CodeBlock({ language, children, className }: CodeBlockProps) {
   };
 
   return (
-    <div className="code-block-container">
+    <div className="relative my-2 rounded-md overflow-hidden bg-[#1e1e1e]">
       {lang && lang !== 'text' && (
-        <div className="code-block-header">
-          <span className="code-block-lang">{lang}</span>
+        <div className="py-1 px-2.5 bg-black/30 border-b border-white/10 flex justify-between items-center">
+          <span className="text-[0.7em] text-[#888] uppercase tracking-wide">{lang}</span>
           <button
-            className="code-block-copy"
+            className="bg-white/10 border border-white/20 rounded px-2.5 py-0.5 text-[#e0e0e0] text-[0.7em] cursor-pointer transition-all duration-200 hover:bg-white/15 hover:-translate-y-px active:translate-y-0"
             onClick={handleCopy}
             aria-label="Copy code"
           >

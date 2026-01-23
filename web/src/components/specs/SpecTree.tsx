@@ -1,5 +1,4 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import './SpecTree.css';
 
 export type SpecType = 'prd' | 'tech-spec' | 'bug';
 
@@ -132,14 +131,34 @@ function TreeNode({
 
   const isGenerating = node.isGenerating;
 
+  // Base node classes
+  const nodeClasses = [
+    "flex items-center gap-1.5 py-1.5 px-3 cursor-pointer transition-colors duration-100",
+    "hover:bg-surface-hover focus:outline-none focus:bg-surface-hover",
+    isSelected ? "!bg-[rgba(88,166,255,0.15)]" : "",
+    isFocused ? "outline outline-2 outline-accent -outline-offset-2" : "",
+    isDirectory ? "font-medium" : "",
+    isGenerating ? "opacity-70 cursor-default pointer-events-none" : "",
+  ].filter(Boolean).join(" ");
+
+  // Type badge classes
+  const getTypeBadgeClasses = (specType: SpecType) => {
+    const base = "ml-auto py-px px-1.5 text-[9px] font-semibold uppercase tracking-[0.03em] rounded flex-shrink-0";
+    switch (specType) {
+      case 'prd': return `${base} bg-[rgba(59,130,246,0.15)] text-[#3b82f6]`;
+      case 'tech-spec': return `${base} bg-[rgba(168,85,247,0.15)] text-[#a855f7]`;
+      case 'bug': return `${base} bg-[rgba(239,68,68,0.15)] text-[#ef4444]`;
+    }
+  };
+
   return (
-    <div className="tree-node-container">
+    <div className="select-none">
       <div
         ref={(el) => {
           if (el) nodeRefs.current.set(node.path, el);
           else nodeRefs.current.delete(node.path);
         }}
-        className={`tree-node ${isSelected ? 'tree-node--selected' : ''} ${isFocused ? 'tree-node--focused' : ''} ${isDirectory ? 'tree-node--directory' : ''} ${isGenerating ? 'tree-node--generating' : ''}`}
+        className={nodeClasses}
         style={{ paddingLeft: `${12 + depth * 16}px` }}
         onClick={isGenerating ? undefined : handleClick}
         role="treeitem"
@@ -150,39 +169,41 @@ function TreeNode({
         data-path={node.path}
       >
         {isDirectory && (
-          <span className={`tree-node-chevron ${isExpanded ? 'tree-node-chevron--expanded' : ''}`}>
+          <span className={`inline-flex items-center justify-center w-4 h-4 text-xs text-text-muted transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`}>
             ›
           </span>
         )}
-        <span className="tree-node-icon">
+        <span className="flex-shrink-0 text-sm leading-none">
           {getFileIcon(node, isExpanded)}
         </span>
-        <span className="tree-node-name">{node.name}</span>
+        <span className={`flex-1 text-[13px] text-text whitespace-nowrap overflow-hidden text-ellipsis ${isSelected ? '!text-accent' : ''} ${isGenerating ? 'italic !text-text-muted' : ''}`}>
+          {node.name}
+        </span>
         {!isDirectory && node.name.endsWith('.md') && (
-          <span className={`tree-node-type tree-node-type--${node.specType || detectSpecTypeFromFilename(node.name)}`}>
+          <span className={getTypeBadgeClasses(node.specType || detectSpecTypeFromFilename(node.name))}>
             {(node.specType || detectSpecTypeFromFilename(node.name)).replace('tech-spec', 'tech')}
           </span>
         )}
         {node.progress && node.progress.total > 0 && (
           <span
-            className="tree-node-progress"
+            className="flex items-center gap-1.5 ml-auto flex-shrink-0"
             title={`${node.progress.completed}/${node.progress.total} user stories achieved`}
           >
-            <span className="tree-node-progress-fraction">
+            <span className="text-[11px] font-medium text-text-muted tabular-nums">
               {node.progress.completed}/{node.progress.total}
             </span>
-            <span className="tree-node-progress-dots">
+            <span className="text-[8px] tracking-[1px] text-accent">
               {renderProgressDots(node.progress.completed, node.progress.total)}
             </span>
           </span>
         )}
         {node.reviewStatus && node.reviewStatus !== 'none' && (
-          <span className="tree-node-status" title={node.reviewStatus}>
+          <span className="flex-shrink-0 text-xs leading-none ml-auto" title={node.reviewStatus}>
             {getStatusIcon(node.reviewStatus)}
           </span>
         )}
         {node.isGenerating && (
-          <span className="tree-node-generating" title="Generating...">
+          <span className="flex-shrink-0 text-xs leading-none ml-auto animate-spin" title="Generating...">
             ⏳
           </span>
         )}
@@ -190,7 +211,7 @@ function TreeNode({
 
       {/* Render linked specs (tech specs under PRDs) */}
       {!isDirectory && node.linkedSpecs && node.linkedSpecs.length > 0 && (
-        <div className="tree-node-children tree-node-linked" role="group">
+        <div className="border-l border-dashed border-border ml-5" role="group">
           {node.linkedSpecs.map((child) => (
             <TreeNode
               key={child.path}
@@ -209,7 +230,7 @@ function TreeNode({
       )}
 
       {isDirectory && isExpanded && node.children && (
-        <div className="tree-node-children" role="group">
+        <div role="group">
           {node.children.map((child) => (
             <TreeNode
               key={child.path}
@@ -241,14 +262,11 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
   const filesWithGenerating = useMemo(() => {
     if (!generatingSpec) return files;
 
-    // Capture for closure
     const genSpec = generatingSpec;
 
-    // Deep clone and inject the generating placeholder
     function injectGenerating(nodes: SpecFileNode[]): SpecFileNode[] {
       return nodes.map(node => {
         if (node.path === genSpec.parentPath) {
-          // This is the parent PRD - add generating spec to linkedSpecs
           const generatingNode: SpecFileNode = {
             name: genSpec.name,
             path: `${genSpec.parentPath}/__generating__`,
@@ -283,7 +301,6 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     });
   };
 
-  // Filter files recursively
   const filteredFiles = useMemo(() => {
     if (!filter.trim()) return filesWithGenerating;
 
@@ -294,7 +311,6 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
         return node.name.toLowerCase().includes(filterLower) ? node : null;
       }
 
-      // Directory: filter children
       const filteredChildren = node.children
         ?.map(filterNode)
         .filter((n): n is SpecFileNode => n !== null);
@@ -303,7 +319,6 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
         return { ...node, children: filteredChildren };
       }
 
-      // Also match directory name itself
       if (node.name.toLowerCase().includes(filterLower)) {
         return node;
       }
@@ -314,7 +329,6 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     return filesWithGenerating.map(filterNode).filter((n): n is SpecFileNode => n !== null);
   }, [filesWithGenerating, filter]);
 
-  // Auto-expand when filtering
   useMemo(() => {
     if (filter.trim()) {
       const allDirPaths = new Set<string>();
@@ -331,7 +345,6 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     }
   }, [filter, filteredFiles]);
 
-  // Build flat list of visible paths for navigation
   const visiblePaths = useMemo(() => {
     const paths: string[] = [];
 
@@ -348,7 +361,6 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     return paths;
   }, [filteredFiles, expandedPaths]);
 
-  // Build a map of path -> parent path
   const parentMap = useMemo(() => {
     const map = new Map<string, string>();
 
@@ -367,7 +379,6 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     return map;
   }, [filteredFiles]);
 
-  // Build a map of path -> node
   const nodeMap = useMemo(() => {
     const map = new Map<string, SpecFileNode>();
 
@@ -384,7 +395,6 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     return map;
   }, [filteredFiles]);
 
-  // Focus the node element when focusedPath changes
   useEffect(() => {
     if (focusedPath) {
       const el = nodeRefs.current.get(focusedPath);
@@ -392,7 +402,6 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     }
   }, [focusedPath]);
 
-  // Handle keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!focusedPath || visiblePaths.length === 0) return;
 
@@ -420,10 +429,8 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
         e.preventDefault();
         if (currentNode?.type === 'directory') {
           if (!expandedPaths.has(focusedPath)) {
-            // Expand
             handleToggle(focusedPath);
           } else if (currentNode.children?.length) {
-            // Move to first child
             setFocusedPath(currentNode.children[0].path);
           }
         }
@@ -433,10 +440,8 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
       case 'ArrowLeft': {
         e.preventDefault();
         if (currentNode?.type === 'directory' && expandedPaths.has(focusedPath)) {
-          // Collapse
           handleToggle(focusedPath);
         } else {
-          // Move to parent
           const parentPath = parentMap.get(focusedPath);
           if (parentPath) {
             setFocusedPath(parentPath);
@@ -474,7 +479,6 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     }
   }, [focusedPath, visiblePaths, nodeMap, expandedPaths, parentMap, onSelect]);
 
-  // Set initial focus on first item
   useEffect(() => {
     if (!focusedPath && visiblePaths.length > 0) {
       setFocusedPath(visiblePaths[0]);
@@ -482,73 +486,99 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
   }, [visiblePaths, focusedPath]);
 
   return (
-    <div className="spec-tree">
-      <div className="spec-tree-header">
-        <span className="spec-tree-title">📂 Specs</span>
-        {onCreateNew && (
-          <button
-            className="spec-tree-add-btn"
-            onClick={onCreateNew}
-            title="Create new spec"
-          >
-            +
-          </button>
-        )}
-      </div>
+    <>
+      <style>{`
+        .spec-tree-scrollbar::-webkit-scrollbar { width: 8px; }
+        .spec-tree-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .spec-tree-scrollbar::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
+        .spec-tree-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+      `}</style>
+      <div className="flex flex-col h-full bg-surface border-r border-border">
+        <div className="flex items-center justify-between py-3 px-4 border-b border-border">
+          <span className="text-[13px] font-semibold text-text uppercase tracking-[0.03em]">📂 Specs</span>
+          {onCreateNew && (
+            <button
+              className="flex items-center justify-center w-6 h-6 p-0 bg-transparent border border-border rounded-md text-text-muted text-base font-medium cursor-pointer transition-all duration-150 hover:bg-surface-hover hover:border-accent hover:text-accent"
+              onClick={onCreateNew}
+              title="Create new spec"
+            >
+              +
+            </button>
+          )}
+        </div>
 
-      <div className="spec-tree-filter">
-        <input
-          type="text"
-          className="spec-tree-filter-input"
-          placeholder="Filter specs..."
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
-        {filter && (
-          <button
-            className="spec-tree-filter-clear"
-            onClick={() => setFilter('')}
-            title="Clear filter"
-          >
-            ×
-          </button>
-        )}
-      </div>
+        <div className="relative py-2 px-3 border-b border-border">
+          <input
+            type="text"
+            className="w-full py-2 pl-3 pr-8 bg-bg border border-border rounded-md text-text text-[13px] outline-none transition-all duration-150 placeholder:text-text-muted focus:border-accent focus:shadow-[0_0_0_2px_rgba(88,166,255,0.15)]"
+            placeholder="Filter specs..."
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+          {filter && (
+            <button
+              className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 p-0 bg-transparent border-none rounded text-text-muted text-base cursor-pointer transition-all duration-150 hover:bg-surface-hover hover:text-text"
+              onClick={() => setFilter('')}
+              title="Clear filter"
+            >
+              ×
+            </button>
+          )}
+        </div>
 
-      <div
-        ref={treeRef}
-        className="spec-tree-content"
-        role="tree"
-        onKeyDown={handleKeyDown}
-        aria-label="Spec files"
-      >
-        {filteredFiles.length === 0 ? (
-          <div className="spec-tree-empty">
-            {filter ? 'No specs match filter' : 'No specs found'}
-          </div>
-        ) : (
-          filteredFiles.map((node) => (
-            <TreeNode
-              key={node.path}
-              node={node}
-              depth={0}
-              selectedPath={selectedPath}
-              focusedPath={focusedPath}
-              expandedPaths={expandedPaths}
-              onSelect={onSelect}
-              onToggle={handleToggle}
-              onFocus={setFocusedPath}
-              nodeRefs={nodeRefs}
-            />
-          ))
-        )}
-      </div>
+        <div
+          ref={treeRef}
+          className="flex-1 overflow-y-auto overflow-x-hidden py-2 spec-tree-scrollbar"
+          role="tree"
+          onKeyDown={handleKeyDown}
+          aria-label="Spec files"
+        >
+          {filteredFiles.length === 0 ? (
+            filter ? (
+              <div className="flex items-center justify-center h-[100px] text-text-muted text-[13px]">
+                No specs match filter
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 px-4 text-center gap-2">
+                <div className="text-[32px] mb-2 opacity-80">📄</div>
+                <h3 className="m-0 text-[15px] font-semibold text-text">No Specs Yet</h3>
+                <p className="m-0 text-[13px] text-text-muted max-w-[200px] leading-[1.4]">
+                  Create your first spec to get started with Ralph.
+                </p>
+                {onCreateNew && (
+                  <button
+                    className="mt-3 py-2.5 px-4 bg-primary border-none rounded-lg text-white text-[13px] font-medium cursor-pointer transition-all duration-150 hover:bg-primary-hover hover:-translate-y-px active:translate-y-0"
+                    onClick={onCreateNew}
+                  >
+                    + Create First Spec
+                  </button>
+                )}
+              </div>
+            )
+          ) : (
+            filteredFiles.map((node) => (
+              <TreeNode
+                key={node.path}
+                node={node}
+                depth={0}
+                selectedPath={selectedPath}
+                focusedPath={focusedPath}
+                expandedPaths={expandedPaths}
+                onSelect={onSelect}
+                onToggle={handleToggle}
+                onFocus={setFocusedPath}
+                nodeRefs={nodeRefs}
+              />
+            ))
+          )}
+        </div>
 
-      <div className="spec-tree-footer">
-        <span className="spec-tree-hint">
-          ↑↓ Navigate • ←→ Collapse/Expand • Enter Select
-        </span>
+        <div className="py-2 px-3 border-t border-border bg-bg">
+          <span className="text-[11px] text-text-muted tracking-[0.01em]">
+            ↑↓ Navigate • ←→ Collapse/Expand • Enter Select
+          </span>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -88,6 +88,7 @@ export interface SpecEditorRef {
  * Sanitize markdown content for MDXEditor.
  * Escapes angle brackets that look like JSX/HTML tags but aren't valid HTML.
  * This prevents MDXEditor from trying to parse things like <string> or <T> as components.
+ * Also removes HTML comments which cause "name: N/A" parsing errors.
  */
 function sanitizeForMdx(content: string): string {
   // Don't process if content is empty
@@ -116,6 +117,10 @@ function sanitizeForMdx(content: string): string {
 
     let result = part;
 
+    // 0. Remove HTML comments (causes "name: N/A" errors in MDXEditor)
+    // This includes <!-- comment --> style comments
+    result = result.replace(/<!--[\s\S]*?-->/g, '');
+
     // 1. Escape incomplete tags (opening < without closing >)
     // Match < followed by word characters but no > before end of line or next <
     result = result.replace(/<([a-zA-Z][a-zA-Z0-9_-]*)(?![^<]*>)/g, '\\<$1');
@@ -134,6 +139,10 @@ function sanitizeForMdx(content: string): string {
       // Escape the angle brackets
       return `\\<${tagName}${rest}\\>`;
     });
+
+    // 4. Remove any remaining raw HTML blocks that MDXEditor can't handle
+    // This catches things like <!DOCTYPE>, <?xml?>, etc.
+    result = result.replace(/<[!?][^>]*>/g, '');
 
     return result;
   }).join('');

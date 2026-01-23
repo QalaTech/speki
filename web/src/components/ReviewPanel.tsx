@@ -3,7 +3,6 @@ import type {
   SpecReviewVerdict,
   GodSpecIndicators,
 } from '../../../src/types/index.js';
-import './ReviewPanel.css';
 
 export interface ReviewPanelProps {
   /** Review result to display */
@@ -67,84 +66,95 @@ export function ReviewPanel({
     }
   };
 
-  return (
-    <div className="review-panel" data-testid="review-panel">
-      {/* Verdict Section */}
-      <section className="review-verdict-section" data-testid="verdict-section">
-        {isReviewing ? (
-          <div className="review-status">
-            <span className="review-spinner" aria-hidden="true" />
-            <span>Reviewing...</span>
-          </div>
-        ) : hasResult ? (
-          <div
-            className={`review-verdict ${getVerdictClass(reviewResult.verdict)}`}
-            data-testid="verdict-display"
-          >
-            <span className="verdict-label">Verdict:</span>
-            <span className="verdict-value">{getVerdictLabel(reviewResult.verdict)}</span>
-          </div>
-        ) : (
-          <div className="review-empty" data-testid="verdict-empty">
-            <span>No review results yet</span>
-          </div>
-        )}
-      </section>
+  const verdictStyles: Record<string, { container: string; badge: string }> = {
+    'verdict-pass': { container: '', badge: 'bg-[#d4edda] text-[#155724]' },
+    'verdict-fail': { container: '', badge: 'bg-[#f8d7da] text-[#721c24]' },
+    'verdict-warning': { container: '', badge: 'bg-[#fff3cd] text-[#856404]' },
+    'verdict-split': { container: '', badge: 'bg-[#cce5ff] text-[#004085]' },
+    'verdict-unknown': { container: '', badge: 'bg-[#e0e0e0] text-[#666]' },
+  };
 
-      {/* God Spec Warning Section */}
-      {showGodSpecWarning && (
-        <section className="god-spec-warning-section" data-testid="god-spec-warning">
-          <div className="god-spec-warning">
-            <h3>God Spec Detected</h3>
-            <p>This spec may be too large. Consider splitting it.</p>
-            {godSpecIndicators?.estimatedStories !== undefined && (
-              <p className="god-spec-estimate">
-                Estimated stories: {godSpecIndicators.estimatedStories}
+  const verdictClass = hasResult ? getVerdictClass(reviewResult.verdict) : '';
+  const verdictStyle = verdictStyles[verdictClass] || verdictStyles['verdict-unknown'];
+
+  return (
+    <>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+      <div className="flex flex-col h-full overflow-y-auto p-4 gap-4" data-testid="review-panel">
+        {/* Verdict Section */}
+        <section className="shrink-0 p-4 bg-bg rounded-lg" data-testid="verdict-section">
+          {isReviewing ? (
+            <div className="flex items-center gap-2 text-text-muted">
+              <span className="w-4 h-4 border-2 border-border border-t-accent rounded-full animate-[spin_1s_linear_infinite]" aria-hidden="true" />
+              <span>Reviewing...</span>
+            </div>
+          ) : hasResult ? (
+            <div className="flex items-center gap-2 text-lg font-semibold" data-testid="verdict-display">
+              <span className="text-text-muted">Verdict:</span>
+              <span className={`py-1 px-3 rounded ${verdictStyle.badge}`}>{getVerdictLabel(reviewResult.verdict)}</span>
+            </div>
+          ) : (
+            <div className="text-text-muted italic" data-testid="verdict-empty">
+              <span>No review results yet</span>
+            </div>
+          )}
+        </section>
+
+        {/* God Spec Warning Section */}
+        {showGodSpecWarning && (
+          <section className="shrink-0" data-testid="god-spec-warning">
+            <div className="p-4 bg-[#fff3cd] border border-[#ffc107] rounded-lg text-[#856404]">
+              <h3 className="m-0 mb-2 text-base">God Spec Detected</h3>
+              <p className="m-0 mb-2">This spec may be too large. Consider splitting it.</p>
+              {godSpecIndicators?.estimatedStories !== undefined && (
+                <p className="m-0 mb-2 font-semibold">
+                  Estimated stories: {godSpecIndicators.estimatedStories}
+                </p>
+              )}
+              {godSpecIndicators?.indicators && godSpecIndicators.indicators.length > 0 && (
+                <ul className="mt-2 mb-0 pl-5">
+                  {godSpecIndicators.indicators.map((indicator, idx) => (
+                    <li key={idx} className="my-1">{indicator}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Suggestions Section */}
+        <section className="flex-1 min-h-[150px] flex flex-col" data-testid="suggestions-area">
+          <h3 className="m-0 mb-3 text-sm text-text uppercase tracking-wide">Suggestions</h3>
+          {hasResult && reviewResult.suggestions.length > 0 ? (
+            <div className="flex-1 overflow-y-auto" data-testid="suggestions-list">
+              <p className="text-text-muted text-sm">
+                {reviewResult.suggestions.length} suggestion(s) available
               </p>
-            )}
-            {godSpecIndicators?.indicators && godSpecIndicators.indicators.length > 0 && (
-              <ul className="god-spec-indicators">
-                {godSpecIndicators.indicators.map((indicator, idx) => (
-                  <li key={idx}>{indicator}</li>
-                ))}
-              </ul>
-            )}
+            </div>
+          ) : (
+            <p className="text-text-muted italic text-sm">No suggestions available</p>
+          )}
+        </section>
+
+        {/* Chat Section */}
+        <section className="shrink-0 flex flex-col min-h-[200px]" data-testid="chat-area">
+          <h3 className="m-0 mb-3 text-sm text-text uppercase tracking-wide">Chat</h3>
+          <div className="flex-1 min-h-[100px] max-h-[200px] overflow-y-auto p-3 bg-bg rounded-lg mb-2" data-testid="chat-messages">
+            <p className="text-text-muted italic text-sm m-0">Chat messages will appear here</p>
+          </div>
+          <div className="shrink-0">
+            <textarea
+              className="w-full p-3 border border-border rounded-lg text-sm resize-none min-h-[60px] bg-surface text-text focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-text-muted"
+              placeholder="Ask a question about the review..."
+              onKeyDown={handleChatKeyDown}
+              data-testid="chat-input"
+              aria-label="Chat input"
+            />
           </div>
         </section>
-      )}
-
-      {/* Suggestions Section */}
-      <section className="suggestions-section" data-testid="suggestions-area">
-        <h3>Suggestions</h3>
-        {hasResult && reviewResult.suggestions.length > 0 ? (
-          <div className="suggestions-list" data-testid="suggestions-list">
-            {/* Suggestion cards will be rendered by SuggestionCard component */}
-            <p className="suggestions-placeholder">
-              {reviewResult.suggestions.length} suggestion(s) available
-            </p>
-          </div>
-        ) : (
-          <p className="no-suggestions">No suggestions available</p>
-        )}
-      </section>
-
-      {/* Chat Section */}
-      <section className="chat-section" data-testid="chat-area">
-        <h3>Chat</h3>
-        <div className="chat-messages" data-testid="chat-messages">
-          {/* Chat messages will be rendered by ReviewChat component */}
-          <p className="chat-placeholder">Chat messages will appear here</p>
-        </div>
-        <div className="chat-input-container">
-          <textarea
-            className="chat-input"
-            placeholder="Ask a question about the review..."
-            onKeyDown={handleChatKeyDown}
-            data-testid="chat-input"
-            aria-label="Chat input"
-          />
-        </div>
-      </section>
-    </div>
+      </div>
+    </>
   );
 }

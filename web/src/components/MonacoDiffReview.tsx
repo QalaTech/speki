@@ -5,7 +5,6 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import * as monaco from 'monaco-editor';
-import './MonacoDiffReview.css';
 
 type Hunk = monaco.editor.ILineChange;
 
@@ -329,8 +328,22 @@ export function MonacoDiffReview({
   }, [originalText, modifiedText]);
 
   return (
-    <div className="monaco-diff-review" data-testid="monaco-diff-review">
-      <div ref={containerRef} className="monaco-diff-container" />
-    </div>
+    <>
+      <style>{`
+        .monaco-hunk-widget { display: inline-flex; gap: 6px; align-items: center; padding: 4px 8px; border-radius: 6px; background: var(--color-surface); border: 1px solid var(--color-border); box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-size: 12px; user-select: none; z-index: 100; }
+        .hunk-label { color: var(--color-text-muted); font-weight: 500; margin-right: 4px; }
+        .hunk-btn { cursor: pointer; border: 1px solid var(--color-border); border-radius: 4px; padding: 2px 8px; background: var(--color-surface-hover); color: var(--color-text); font-size: 11px; font-weight: 500; transition: all 0.15s ease; }
+        .hunk-btn:hover { border-color: var(--color-accent); }
+        .hunk-btn-accept { background: rgba(34,197,94,0.2); border-color: #22c55e; color: #22c55e; }
+        .hunk-btn-accept:hover { background: rgba(34,197,94,0.3); }
+        .hunk-btn-reject { background: rgba(239,68,68,0.2); border-color: #ef4444; color: #ef4444; }
+        .hunk-btn-reject:hover { background: rgba(239,68,68,0.3); }
+        .hunk-btn-comment { background: rgba(59,130,246,0.2); border-color: #3b82f6; color: #3b82f6; }
+        .hunk-btn-comment:hover { background: rgba(59,130,246,0.3); }
+      `}</style>
+      <div className="flex flex-col h-full w-full bg-surface rounded-lg overflow-hidden" data-testid="monaco-diff-review">
+        <div ref={containerRef} className="flex-1 min-h-[400px]" />
+      </div>
+    </>
   );
 }

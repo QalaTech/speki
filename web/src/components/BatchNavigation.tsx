@@ -1,6 +1,5 @@
 import React from 'react';
 import type { SuggestionCard } from '../../../src/types/index.js';
-import './BatchNavigation.css';
 
 export interface BatchNavigationProps {
   /** List of pending suggestions to navigate */
@@ -31,7 +30,6 @@ export function BatchNavigation({
 }: BatchNavigationProps): React.ReactElement | null {
   const total = suggestions.length;
 
-  // Don't render if no suggestions
   if (total === 0) {
     return null;
   }
@@ -51,11 +49,14 @@ export function BatchNavigation({
     }
   };
 
+  const navBtnClass = "py-1.5 px-3 text-sm font-medium text-text bg-surface border border-border rounded cursor-pointer transition-all duration-150 hover:bg-surface-hover hover:border-text-muted disabled:opacity-50 disabled:cursor-not-allowed";
+  const actionBtnClass = "py-1.5 px-4 text-sm font-medium border border-transparent rounded cursor-pointer transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed";
+
   return (
-    <div className="batch-navigation" data-testid="batch-navigation">
-      <div className="batch-nav-left">
+    <div className="flex justify-between items-center py-3 px-4 bg-surface border border-border rounded-md mb-4" data-testid="batch-navigation">
+      <div className="flex items-center gap-3">
         <button
-          className="batch-nav-btn"
+          className={navBtnClass}
           onClick={handlePrevious}
           disabled={!hasPrevious || disabled}
           data-testid="prev-btn"
@@ -64,12 +65,12 @@ export function BatchNavigation({
           Previous
         </button>
 
-        <span className="batch-nav-counter" data-testid="nav-counter">
+        <span className="text-sm font-medium text-text min-w-[140px] text-center" data-testid="nav-counter">
           Suggestion {currentIndex + 1} of {total}
         </span>
 
         <button
-          className="batch-nav-btn"
+          className={navBtnClass}
           onClick={handleNext}
           disabled={!hasNext || disabled}
           data-testid="next-btn"
@@ -79,9 +80,9 @@ export function BatchNavigation({
         </button>
       </div>
 
-      <div className="batch-nav-right">
+      <div className="flex items-center gap-2">
         <button
-          className="batch-action-btn reject-all-btn"
+          className={`${actionBtnClass} bg-red-600 border-red-600 text-white hover:bg-red-700`}
           onClick={onRejectAll}
           disabled={disabled}
           data-testid="reject-all-btn"
@@ -90,7 +91,7 @@ export function BatchNavigation({
         </button>
 
         <button
-          className="batch-action-btn approve-all-btn"
+          className={`${actionBtnClass} bg-green-600 border-green-600 text-white hover:bg-green-700`}
           onClick={onApproveAll}
           disabled={disabled}
           data-testid="approve-all-btn"

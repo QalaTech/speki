@@ -12,7 +12,6 @@ import { DecomposeView } from './components/DecomposeView';
 import { SettingsView } from './components/SettingsView';
 import { KnowledgeView } from './components/KnowledgeView';
 import { SpecExplorer, SpecDashboard } from './components/specs';
-// QueueView removed - queue is now integrated into KanbanView
 import { TopNav } from './components/TopNav';
 import './App.css';
 
@@ -29,6 +28,7 @@ import type { ParsedEntry } from './utils/parseJsonl';
 interface ExecutionViewProps {
   prdData: PRDData | null;
   error: string | null;
+  sseStatus: 'connecting' | 'connected' | 'error' | 'disconnected';
   ralphStatus: RalphStatus;
   iterationLog: string;
   logEntries: ParsedEntry[];
@@ -44,7 +44,8 @@ interface ExecutionViewProps {
 
 function ExecutionView({
   prdData,
-  error,
+  error: _error,
+  sseStatus,
   ralphStatus,
   iterationLog,
   logEntries,
@@ -63,20 +64,29 @@ function ExecutionView({
     <>
       {/* Stats Header */}
       {prdData && (
-        <header className="execution-header">
-          <StatsBar
-            stats={stats}
-            projectName={prdData.projectName || projectName}
-            branchName={prdData.branchName}
-            ralphStatus={ralphStatus}
-          />
-          <div className="header-actions">
+        <header className="bg-surface border-b border-border py-5 px-8 flex justify-between items-start gap-8">
+          <div className="flex-1">
+            <StatsBar
+              stats={stats}
+              projectName={prdData.projectName || projectName}
+              branchName={prdData.branchName}
+              ralphStatus={ralphStatus}
+            />
+          </div>
+          <div className="flex gap-3 items-center shrink-0">
             {!ralphStatus.running ? (
-              <button className="btn-primary" onClick={onStartRalph} disabled={stats.ready === 0}>
+              <button
+                className="px-6 py-2.5 bg-gradient-to-br from-primary to-[#8b5cf6] border-none rounded-xl text-white text-sm font-semibold cursor-pointer transition-all duration-200 shadow-[0_2px_8px_rgba(163,113,247,0.25)] hover:from-primary-hover hover:to-primary hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(163,113,247,0.35)] disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:transform-none"
+                onClick={onStartRalph}
+                disabled={stats.ready === 0}
+              >
                 Start Ralph
               </button>
             ) : (
-              <button className="btn-danger" onClick={onStopRalph}>
+              <button
+                className="px-6 py-2.5 bg-gradient-to-br from-blocked to-[#c93c37] border-none rounded-xl text-white text-sm font-semibold cursor-pointer transition-all duration-200 shadow-[0_2px_8px_rgba(218,54,51,0.25)] hover:from-[#f85149] hover:to-blocked hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(218,54,51,0.35)]"
+                onClick={onStopRalph}
+              >
                 Stop Ralph
               </button>
             )}
@@ -84,58 +94,112 @@ function ExecutionView({
         </header>
       )}
 
-      {error && !prdData && (
-        <div className="no-data">
-          <h2>No prd.json found</h2>
-          <p>Use the Decompose tab to generate tasks from a PRD file.</p>
-          <button className="btn-secondary" onClick={() => onNavigate('/decompose')}>
-            Go to Decompose
-          </button>
+      {!prdData && sseStatus === 'connecting' && (
+        <div className="flex flex-col items-center justify-center text-center py-16 px-6 min-h-[400px] gap-3">
+          <div className="text-5xl mb-2">⏳</div>
+          <h2 className="m-0 text-2xl font-semibold text-text">Loading...</h2>
+          <p className="m-0 text-sm text-text-muted max-w-[400px] leading-relaxed">Connecting to project...</p>
+        </div>
+      )}
+
+      {!prdData && sseStatus === 'connected' && (
+        <div className="flex flex-col items-center justify-center text-center py-16 px-6 min-h-[400px] gap-3">
+          <div className="text-5xl mb-2">📋</div>
+          <h2 className="m-0 text-2xl font-semibold text-text">No Tasks Yet</h2>
+          <p className="m-0 text-sm text-text-muted max-w-[400px] leading-relaxed">
+            No tasks have been generated for this project yet. Create a spec and decompose it into tasks to get started.
+          </p>
+          <div className="flex gap-3 mt-4">
+            <button
+              className="px-6 py-3 bg-primary border-none rounded-lg text-white text-sm font-medium cursor-pointer transition-all duration-150 hover:bg-primary-hover hover:-translate-y-0.5"
+              onClick={() => onNavigate('/spec-review')}
+            >
+              Create a Spec
+            </button>
+            <button
+              className="px-6 py-3 bg-transparent border border-border rounded-lg text-text text-sm font-medium cursor-pointer transition-all duration-150 hover:bg-surface-hover hover:border-text-muted"
+              onClick={() => onNavigate('/decompose')}
+            >
+              Go to Decompose
+            </button>
+          </div>
         </div>
       )}
 
       {prdData && (
         <>
           {/* Execution Tabs */}
-          <nav className="tab-nav">
+          <nav className="flex gap-0 bg-surface border-b border-border px-8">
             <button
-              className={`tab-btn ${executionTab === 'live' ? 'active' : ''}`}
+              className={`px-5 py-3 bg-transparent border-none border-b-2 cursor-pointer text-[15px] transition-all duration-200 ${
+                executionTab === 'live'
+                  ? 'text-accent border-b-accent'
+                  : 'text-text-muted border-transparent hover:text-text'
+              }`}
               onClick={() => onNavigate('/execution/live')}
             >
               Live
-              {ralphStatus.running && <span className="tab-live-indicator" />}
+              {ralphStatus.running && (
+                <span className="inline-block w-2 h-2 bg-running rounded-full ml-1.5 animate-pulse" />
+              )}
             </button>
             <button
-              className={`tab-btn ${executionTab === 'kanban' ? 'active' : ''}`}
+              className={`px-5 py-3 bg-transparent border-none border-b-2 cursor-pointer text-[15px] transition-all duration-200 ${
+                executionTab === 'kanban'
+                  ? 'text-accent border-b-accent'
+                  : 'text-text-muted border-transparent hover:text-text'
+              }`}
               onClick={() => onNavigate('/execution/kanban')}
             >
               Board
             </button>
             <button
-              className={`tab-btn ${executionTab === 'list' ? 'active' : ''}`}
+              className={`px-5 py-3 bg-transparent border-none border-b-2 cursor-pointer text-[15px] transition-all duration-200 ${
+                executionTab === 'list'
+                  ? 'text-accent border-b-accent'
+                  : 'text-text-muted border-transparent hover:text-text'
+              }`}
               onClick={() => onNavigate('/execution/list')}
             >
               List ({prdData?.userStories?.length || 0})
             </button>
             <button
-              className={`tab-btn ${executionTab === 'log' ? 'active' : ''}`}
+              className={`px-5 py-3 bg-transparent border-none border-b-2 cursor-pointer text-[15px] transition-all duration-200 ${
+                executionTab === 'log'
+                  ? 'text-accent border-b-accent'
+                  : 'text-text-muted border-transparent hover:text-text'
+              }`}
               onClick={() => onNavigate('/execution/log')}
             >
               Log
             </button>
             <button
-              className={`tab-btn ${executionTab === 'knowledge' ? 'active' : ''}`}
+              className={`px-5 py-3 bg-transparent border-none border-b-2 cursor-pointer text-[15px] transition-all duration-200 ${
+                executionTab === 'knowledge'
+                  ? 'text-accent border-b-accent'
+                  : 'text-text-muted border-transparent hover:text-text'
+              }`}
               onClick={() => onNavigate('/execution/knowledge')}
             >
               Knowledge
               {peerFeedback && peerFeedback.lessonsLearned.length > 0 && (
-                <span className="tab-count">{peerFeedback.lessonsLearned.length}</span>
+                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-[5px] ml-1.5 text-[10px] font-semibold rounded-full ${
+                  executionTab === 'knowledge'
+                    ? 'bg-accent/20 text-accent'
+                    : 'bg-surface-hover text-text-muted'
+                }`}>
+                  {peerFeedback.lessonsLearned.length}
+                </span>
               )}
             </button>
           </nav>
 
           {/* Tab Content */}
-          <div className={`tab-content ${executionTab === 'kanban' || executionTab === 'live' ? 'kanban-active' : ''}`}>
+          <div className={`flex-1 min-h-0 flex flex-col ${
+            executionTab === 'kanban' || executionTab === 'live'
+              ? 'p-0 overflow-hidden'
+              : 'p-6 overflow-auto'
+          }`}>
             {executionTab === 'live' && prdData?.userStories && (
               <LiveExecutionView
                 stories={prdData.userStories}
@@ -195,7 +259,6 @@ function App() {
   const [progress] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Removed navCollapsed state - using top nav now
 
   // Get selected project from URL params
   const selectedProject = searchParams.get('project');
@@ -246,8 +309,7 @@ function App() {
     const es = new EventSource('/api/events/projects');
     const apply = (list: any[]) => {
       setProjects(list);
-      setLoading(false); // Clear loading state once projects are loaded
-      // Only auto-select if we're on a route that needs a project and none is selected
+      setLoading(false);
       if (!selectedProject && list.length > 0 && location.pathname !== '/') {
         setSearchParams({ project: list[0].path });
       }
@@ -284,16 +346,11 @@ function App() {
     }
 
     try {
-      // Most data now comes from unified SSE - only fetch on initial load or user actions
-      // SSE provides: ralphStatus, prdData, peerFeedback, iterationLog, currentIteration
-      // This function is kept for explicit user actions (start/stop Ralph) that need immediate feedback
-
       if (signal?.aborted) return;
-
       setLoading(false);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        return; // Request was cancelled, ignore
+        return;
       }
       setError(err instanceof Error ? err.message : 'Failed to fetch data');
     } finally {
@@ -312,18 +369,10 @@ function App() {
 
     return () => {
       abortController.abort();
-      setLoading(false); // Clear loading immediately when switching projects
+      setLoading(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject]);
-
-  // All per-project SSE events now handled by useUnifiedSSE hook (single connection)
-  // This replaced 4 separate SSE connections:
-  // - /api/events/ralph (status, iteration-start, log, iteration-end, complete)
-  // - /api/events/decompose (state, log)
-  // - /api/events/tasks (snapshot, updated)
-  // - /api/events/peer-feedback (snapshot, updated)
-  // Now all flow through /api/events/all
 
   const handleTasksActivated = () => {
     fetchData();
@@ -332,7 +381,6 @@ function App() {
 
   const handleStartRalph = async () => {
     try {
-      // Don't pass maxIterations - let server calculate based on remaining tasks + 20% buffer
       const res = await fetch(apiUrl('/api/ralph/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -358,10 +406,12 @@ function App() {
   // Show project selector if no projects
   if (projects.length === 0 && !loading) {
     return (
-      <div className="app loading">
-        <div className="no-projects">
-          <h2>No Projects Found</h2>
-          <p>Initialize a project with: <code>qala init</code></p>
+      <div className="flex h-screen max-h-screen overflow-hidden items-center justify-center">
+        <div className="text-center p-12">
+          <h2 className="text-text mb-4">No Projects Found</h2>
+          <p className="text-text-muted">
+            Initialize a project with: <code className="bg-surface-hover px-2 py-1 rounded font-mono">qala init</code>
+          </p>
         </div>
       </div>
     );
@@ -369,8 +419,8 @@ function App() {
 
   if (loading && !selectedProject) {
     return (
-      <div className="app loading">
-        <div className="loader">Loading Projects...</div>
+      <div className="flex h-screen max-h-screen overflow-hidden items-center justify-center">
+        <div className="text-xl text-text-muted">Loading Projects...</div>
       </div>
     );
   }
@@ -381,6 +431,7 @@ function App() {
   const executionViewProps: ExecutionViewProps = {
     prdData,
     error,
+    sseStatus: unifiedSSE.connectionStatus,
     ralphStatus,
     iterationLog,
     logEntries,
@@ -395,7 +446,7 @@ function App() {
   };
 
   return (
-    <div className="app-layout app-layout--top-nav">
+    <div className="flex flex-col h-screen max-h-screen overflow-hidden">
       {/* Top Navigation */}
       <TopNav
         projects={projects}
@@ -406,10 +457,10 @@ function App() {
       />
 
       {/* Main Content */}
-      <main className="main-content main-content--full">
+      <main className="flex-1 w-full max-h-[calc(100vh-56px)] overflow-hidden flex flex-col relative">
         {loading && (
-          <div className="loading-overlay">
-            <div className="loader">Loading...</div>
+          <div className="absolute inset-0 bg-bg/80 flex items-center justify-center z-[100]">
+            <div className="text-xl text-text-muted">Loading...</div>
           </div>
         )}
 
@@ -443,7 +494,6 @@ function App() {
               ) : null
             }
           />
-          {/* Queue route removed - queue integrated into KanbanView at /execution/kanban */}
           <Route path="/execution" element={<Navigate to="/execution/live" replace />} />
           <Route path="/execution/live" element={<ExecutionView {...executionViewProps} />} />
           <Route path="/execution/kanban" element={<ExecutionView {...executionViewProps} />} />

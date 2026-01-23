@@ -1,9 +1,11 @@
 import { useLocation } from "react-router-dom";
-import "./TopNav.css";
+import { ProjectSelector } from "./ProjectSelector";
 
 interface Project {
   name: string;
   path: string;
+  status: string;
+  lastActivity: string;
 }
 
 interface TopNavProps {
@@ -25,13 +27,23 @@ interface NavItemProps {
 function NavItem({ icon, label, active, badge, onClick }: NavItemProps) {
   return (
     <button
-      className={`topnav-item ${active ? "topnav-item--active" : ""}`}
+      className={`flex items-center gap-2 px-4 py-2.5 bg-transparent border-none rounded-lg text-sm font-medium cursor-pointer transition-all duration-200 whitespace-nowrap ${
+        active
+          ? "bg-accent/12 text-accent hover:bg-accent/18"
+          : "text-text-muted hover:bg-white/6 hover:text-text"
+      }`}
       onClick={onClick}
     >
-      <span className="topnav-item-icon">{icon}</span>
-      <span className="topnav-item-label">{label}</span>
+      <span className="text-sm leading-none">{icon}</span>
+      <span className="font-medium">{label}</span>
       {badge && (
-        <span className={`topnav-badge topnav-badge--${badge.type}`}>
+        <span
+          className={`px-2 py-0.5 text-[10px] font-semibold uppercase rounded-xl tracking-wide ${
+            badge.type === 'running'
+              ? "bg-accent/20 text-accent animate-pulse"
+              : "bg-completed/20 text-completed"
+          }`}
+        >
           {badge.text}
         </span>
       )}
@@ -54,35 +66,26 @@ export function TopNav({
   const isExecutionPage = !isSpecsPage && !isSettingsPage;
 
   return (
-    <nav className="topnav">
-      <div className="topnav-content">
+    <nav className="sticky top-0 z-[1000] bg-gradient-to-b from-surface/98 to-surface/95 backdrop-blur-sm border-b border-white/6 shadow-lg">
+      <div className="flex items-center justify-between h-14 px-6 max-w-full">
         {/* Left: Logo and Project Selector */}
-        <div className="topnav-left">
-          <div className="topnav-logo">
-            <span className="topnav-logo-icon">◈</span>
-            <span className="topnav-logo-text">Qala</span>
+        <div className="flex items-center gap-5 min-w-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xl text-accent drop-shadow-[0_0_8px_rgba(88,166,255,0.4)]">◈</span>
+            <span className="text-lg font-bold text-text tracking-tight hidden md:inline">Qala</span>
           </div>
 
           {projects.length > 0 && (
-            <div className="topnav-project">
-              <select
-                className="topnav-project-select"
-                value={selectedProject || ""}
-                onChange={(e) => onProjectChange(e.target.value)}
-              >
-                {projects.map((p) => (
-                  <option key={p.path} value={p.path}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <span className="topnav-project-chevron">▾</span>
-            </div>
+            <ProjectSelector
+              projects={projects}
+              selectedProject={selectedProject}
+              onProjectChange={onProjectChange}
+            />
           )}
         </div>
 
         {/* Center: Navigation Items */}
-        <div className="topnav-center">
+        <div className="flex items-center gap-1">
           <NavItem
             icon="📄"
             label="Specs"
@@ -101,15 +104,17 @@ export function TopNav({
         </div>
 
         {/* Right: Settings */}
-        <div className="topnav-right">
+        <div className="flex items-center gap-2">
           <button
-            className={`topnav-settings ${
-              isSettingsPage ? "topnav-settings--active" : ""
+            className={`flex items-center justify-center w-9 h-9 bg-transparent border border-transparent rounded-lg cursor-pointer transition-all duration-200 ${
+              isSettingsPage
+                ? "bg-accent/12 border-accent/20 text-accent"
+                : "text-text-muted hover:bg-white/6 hover:border-white/8 hover:text-text"
             }`}
             onClick={() => onNavigate("/settings")}
             title="Settings"
           >
-            <span className="topnav-settings-icon">⚙</span>
+            <span className="text-base">⚙</span>
           </button>
         </div>
       </div>

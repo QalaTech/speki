@@ -1,7 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import * as monaco from 'monaco-editor';
 import { HunkControlPill } from './HunkControlPill';
-import './DiffOverlay.css';
 
 interface DiffOverlayProps {
   title: string;
@@ -189,64 +188,76 @@ export function DiffOverlay({
     }
   };
 
+  const btnBase = "flex items-center gap-1.5 py-2 px-3.5 bg-surface-hover border border-border rounded-lg text-text text-[13px] font-medium cursor-pointer transition-all duration-150 hover:bg-bg hover:border-text-muted";
+
   return (
-    <div className="diff-overlay">
-      <div className="diff-overlay-backdrop" onClick={onCancel} />
+    <>
+      <style>{`
+        .diff-editor-container .monaco-editor, .diff-editor-container .monaco-diff-editor { background-color: var(--color-bg) !important; }
+        .diff-editor-container .monaco-editor .margin { background-color: var(--color-bg) !important; }
+        .diff-editor-container .monaco-editor .line-insert, .diff-editor-container .monaco-diff-editor .line-insert { background-color: rgba(35, 134, 54, 0.12) !important; }
+        .diff-editor-container .monaco-editor .line-delete, .diff-editor-container .monaco-diff-editor .line-delete { background-color: rgba(218, 54, 51, 0.12) !important; }
+        .diff-editor-container .monaco-editor .char-insert { background-color: rgba(35, 134, 54, 0.35) !important; border-radius: 2px; }
+        .diff-editor-container .monaco-editor .char-delete { background-color: rgba(218, 54, 51, 0.35) !important; border-radius: 2px; }
+      `}</style>
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/75 backdrop-blur-[4px]" onClick={onCancel} />
 
-      <div className="diff-overlay-container">
-        <header className="diff-overlay-header">
-          <h2 className="diff-overlay-title">{title}</h2>
-          <div className="diff-overlay-actions">
-            <button
-              className={`diff-overlay-btn diff-overlay-btn--edit ${isEditing ? 'diff-overlay-btn--active' : ''}`}
-              onClick={handleToggleEdit}
-            >
-              {isEditing ? '📝 Editing' : '✏️ Edit'}
-            </button>
-            <button className="diff-overlay-btn diff-overlay-btn--cancel" onClick={onCancel}>
-              Cancel
-            </button>
-            <button className="diff-overlay-btn diff-overlay-btn--reject" onClick={onReject}>
-              ✗ Reject All
-            </button>
-            <button className="diff-overlay-btn diff-overlay-btn--approve" onClick={handleApprove}>
-              ✓ Apply Changes
-            </button>
+        <div className="relative flex flex-col w-[calc(100vw-80px)] h-[calc(100vh-80px)] max-w-[1600px] bg-bg border border-border rounded-xl shadow-[0_24px_48px_rgba(0,0,0,0.5)] overflow-hidden">
+          <header className="flex items-center justify-between py-4 px-5 bg-surface border-b border-border">
+            <h2 className="m-0 text-[15px] font-semibold text-text">{title}</h2>
+            <div className="flex gap-2">
+              <button
+                className={`${btnBase} ${isEditing ? 'bg-[rgba(163,113,247,0.15)] border-[#a371f7] text-[#a371f7]' : ''}`}
+                onClick={handleToggleEdit}
+              >
+                {isEditing ? '📝 Editing' : '✏️ Edit'}
+              </button>
+              <button className={`${btnBase} text-text-muted hover:text-text`} onClick={onCancel}>
+                Cancel
+              </button>
+              <button className={`${btnBase} bg-[rgba(218,54,51,0.1)] border-[rgba(218,54,51,0.3)] text-[#f85149] hover:bg-[rgba(218,54,51,0.2)] hover:border-[#f85149]`} onClick={onReject}>
+                ✗ Reject All
+              </button>
+              <button className={`${btnBase} bg-[rgba(35,134,54,0.15)] border-[rgba(35,134,54,0.3)] text-[#3fb950] hover:bg-[rgba(35,134,54,0.25)] hover:border-[#3fb950]`} onClick={handleApprove}>
+                ✓ Apply Changes
+              </button>
+            </div>
+          </header>
+
+          <div className="relative flex-1 overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 flex z-10 pointer-events-none">
+              <span className="flex-1 py-2 px-4 text-[11px] font-semibold uppercase tracking-[0.05em] bg-[rgba(22,27,34,0.9)] backdrop-blur-[4px] text-[#f85149] border-b-2 border-[rgba(218,54,51,0.3)]">Original</span>
+              <span className="flex-1 py-2 px-4 text-[11px] font-semibold uppercase tracking-[0.05em] bg-[rgba(22,27,34,0.9)] backdrop-blur-[4px] text-[#3fb950] border-b-2 border-[rgba(35,134,54,0.3)]">
+                {isEditing ? 'Editing...' : 'Proposed'}
+              </span>
+            </div>
+
+            <div className="diff-editor-container h-full pt-9" ref={containerRef} />
+
+            {/* Render hunk controls */}
+            {hunks.map((hunk) => (
+              <HunkControlPill
+                key={createHunkId(hunk)}
+                hunk={hunk}
+                onAccept={() => handleAcceptHunk(hunk)}
+                onReject={() => handleRejectHunk(hunk)}
+                onComment={() => handleCommentHunk(hunk)}
+                editorRef={diffEditorRef}
+              />
+            ))}
           </div>
-        </header>
 
-        <div className="diff-overlay-content">
-          <div className="diff-overlay-labels">
-            <span className="diff-overlay-label diff-overlay-label--original">Original</span>
-            <span className="diff-overlay-label diff-overlay-label--proposed">
-              {isEditing ? 'Editing...' : 'Proposed'}
-            </span>
-          </div>
-
-          <div className="diff-overlay-editor" ref={containerRef} />
-
-          {/* Render hunk controls */}
-          {hunks.map((hunk) => (
-            <HunkControlPill
-              key={createHunkId(hunk)}
-              hunk={hunk}
-              onAccept={() => handleAcceptHunk(hunk)}
-              onReject={() => handleRejectHunk(hunk)}
-              onComment={() => handleCommentHunk(hunk)}
-              editorRef={diffEditorRef}
-            />
-          ))}
+          <footer className="flex items-center justify-between py-3 px-5 bg-surface border-t border-border">
+            <div className="flex gap-4">
+              <span className="text-xs text-accent">{hunks.length} changes</span>
+            </div>
+            <div className="text-xs text-text-muted">
+              Press <kbd className="inline-block py-0.5 px-1.5 bg-surface-hover border border-border rounded text-[11px] text-text">Esc</kbd> to cancel • <kbd className="inline-block py-0.5 px-1.5 bg-surface-hover border border-border rounded text-[11px] text-text">A</kbd> accept hunk • <kbd className="inline-block py-0.5 px-1.5 bg-surface-hover border border-border rounded text-[11px] text-text">R</kbd> reject hunk
+            </div>
+          </footer>
         </div>
-
-        <footer className="diff-overlay-footer">
-          <div className="diff-overlay-stats">
-            <span className="diff-stat diff-stat--hunks">{hunks.length} changes</span>
-          </div>
-          <div className="diff-overlay-hint">
-            Press <kbd>Esc</kbd> to cancel • <kbd>A</kbd> accept hunk • <kbd>R</kbd> reject hunk
-          </div>
-        </footer>
       </div>
-    </div>
+    </>
   );
 }

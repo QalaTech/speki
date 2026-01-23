@@ -1,6 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
 import type { ParsedEntry } from '../utils/parseJsonl';
-import './ChatLogView.css';
 
 interface ChatLogViewProps {
   entries: ParsedEntry[];
@@ -46,24 +45,25 @@ function formatToolContent(toolName: string, content: string): { title: string; 
   }
 }
 
+// Shared style constants for chat bubbles
+const avatarBase = "w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 shadow-sm";
+const bubbleBase = "py-2.5 px-3.5 rounded-2xl text-[13px] leading-relaxed shadow-sm break-words";
+
 export function ChatLogView({ entries, isRunning }: ChatLogViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wasNearBottomRef = useRef(true);
 
-  // Check if user is near the bottom of the scroll
   const isNearBottom = useCallback(() => {
     const container = containerRef.current;
     if (!container) return true;
-    const threshold = 100; // pixels from bottom
+    const threshold = 100;
     return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
   }, []);
 
-  // Track scroll position to determine if we should auto-scroll
   const handleScroll = useCallback(() => {
     wasNearBottomRef.current = isNearBottom();
   }, [isNearBottom]);
 
-  // Auto-scroll only if user was near the bottom
   useEffect(() => {
     const container = containerRef.current;
     if (container && wasNearBottomRef.current) {
@@ -73,104 +73,141 @@ export function ChatLogView({ entries, isRunning }: ChatLogViewProps) {
 
   if (entries.length === 0) {
     return (
-      <div className="chat-log-empty">
-        <div className="chat-log-empty-icon">💬</div>
-        <p>Waiting for activity...</p>
+      <div className="flex flex-col items-center justify-center h-full text-text-muted gap-2">
+        <div className="text-[32px] opacity-50">💬</div>
+        <p className="m-0 text-sm">Waiting for activity...</p>
       </div>
     );
   }
 
   return (
-    <div className="chat-log" ref={containerRef} onScroll={handleScroll}>
-      {entries.map((entry, idx) => {
-        // Determine if this is a "left" (Claude text) message
-        const isLeft = entry.type === 'text' || entry.type === 'result';
-        const isError = entry.type === 'error';
-
-        if (isLeft) {
-          // Claude's text response - left side
-          return (
-            <div key={idx} className="chat-message chat-left">
-              <div className="chat-avatar">🤖</div>
-              <div className="chat-bubble chat-bubble-claude">
-                <div className="chat-bubble-content">{entry.content}</div>
-              </div>
-            </div>
-          );
+    <>
+      <style>{`
+        @keyframes chatFadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes typingBounce {
+          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+          30% { transform: translateY(-4px); opacity: 1; }
+        }
+        .chat-scrollbar::-webkit-scrollbar { width: 6px; }
+        .chat-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .chat-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .chat-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+      `}</style>
+      <div
+        className="flex flex-col gap-3 p-4 overflow-y-auto h-full chat-scrollbar"
+        ref={containerRef}
+        onScroll={handleScroll}
+      >
+        {entries.map((entry, idx) => {
+          const isLeft = entry.type === 'text' || entry.type === 'result';
+          const isError = entry.type === 'error';
 
-        if (entry.type === 'tool') {
-          // Tool call - right side
-          const { title, detail } = formatToolContent(entry.toolName || 'Tool', entry.content);
-          const icon = getToolIcon(entry.toolName);
-
-          return (
-            <div key={idx} className="chat-message chat-right">
-              <div className="chat-bubble chat-bubble-tool">
-                <div className="chat-tool-header">
-                  <span className="chat-tool-icon">{icon}</span>
-                  <span className="chat-tool-name">{title}</span>
+          if (isLeft) {
+            return (
+              <div
+                key={idx}
+                className="flex items-start gap-2 max-w-[95%] self-start"
+                style={{ animation: 'chatFadeIn 0.2s ease-out' }}
+              >
+                <div className={`${avatarBase} bg-gradient-to-br from-[#667eea] to-[#764ba2]`}>🤖</div>
+                <div className={`${bubbleBase} bg-gradient-to-br from-[#2d2d3a] to-[#1e1e28] text-[#e0e0e0] rounded-bl border border-white/5`}>
+                  <div className="whitespace-pre-wrap">{entry.content}</div>
                 </div>
-                <div className="chat-tool-detail">{detail}</div>
               </div>
-              <div className="chat-avatar chat-avatar-tool">⚡</div>
-            </div>
-          );
-        }
+            );
+          }
 
-        if (entry.type === 'tool_result') {
-          // Tool result - right side, different style
-          const isSuccess = entry.status === 'success';
-          const statusIcon = isSuccess ? '✓' : '…';
+          if (entry.type === 'tool') {
+            const { title, detail } = formatToolContent(entry.toolName || 'Tool', entry.content);
+            const icon = getToolIcon(entry.toolName);
 
-          return (
-            <div key={idx} className="chat-message chat-right">
-              <div className={`chat-bubble chat-bubble-result ${isSuccess ? 'success' : ''}`}>
-                <div className="chat-result-header">
-                  <span className="chat-result-icon">{statusIcon}</span>
-                  <span className="chat-result-label">Result</span>
+            return (
+              <div
+                key={idx}
+                className="flex items-start gap-2 max-w-[95%] self-end flex-row-reverse"
+                style={{ animation: 'chatFadeIn 0.2s ease-out' }}
+              >
+                <div className={`${bubbleBase} bg-gradient-to-br from-[#3a2d4a] to-[#2d1e38] text-[#e0e0e0] rounded-br border border-white/[0.08] min-w-[120px]`}>
+                  <div className="flex items-center gap-1.5 mb-1 pb-1.5 border-b border-white/10">
+                    <span className="text-sm">{icon}</span>
+                    <span className="font-semibold text-xs uppercase tracking-wide text-[#c9a0dc]">{title}</span>
+                  </div>
+                  <div className="font-mono text-[11px] text-[#b0b0b0] break-all">{detail}</div>
                 </div>
-                {entry.content && (
-                  <div className="chat-result-content">{truncateMiddle(entry.content, 100)}</div>
-                )}
+                <div className={`${avatarBase} bg-gradient-to-br from-[#f093fb] to-[#f5576c]`}>⚡</div>
               </div>
-              <div className="chat-avatar chat-avatar-result">📋</div>
-            </div>
-          );
-        }
+            );
+          }
 
-        if (isError) {
-          // Error - centered, red
+          if (entry.type === 'tool_result') {
+            const isSuccess = entry.status === 'success';
+            const statusIcon = isSuccess ? '✓' : '…';
+
+            return (
+              <div
+                key={idx}
+                className="flex items-start gap-2 max-w-[95%] self-end flex-row-reverse"
+                style={{ animation: 'chatFadeIn 0.2s ease-out' }}
+              >
+                <div className={`${bubbleBase} bg-gradient-to-br from-[#1a2a3a] to-[#0d1a28] text-[#a0a0a0] rounded-br text-xs ${isSuccess ? 'border border-green-500/30' : 'border border-white/5'}`}>
+                  <div className="flex items-center gap-1 text-[11px] text-[#888] mb-1">
+                    <span className="text-green-500">{statusIcon}</span>
+                    <span>Result</span>
+                  </div>
+                  {entry.content && (
+                    <div className="font-mono text-[10px] text-[#808080] opacity-80">{truncateMiddle(entry.content, 100)}</div>
+                  )}
+                </div>
+                <div className={`${avatarBase} bg-gradient-to-br from-[#4facfe] to-[#00f2fe]`}>📋</div>
+              </div>
+            );
+          }
+
+          if (isError) {
+            return (
+              <div
+                key={idx}
+                className="flex items-start gap-2 max-w-[90%] self-center"
+                style={{ animation: 'chatFadeIn 0.2s ease-out' }}
+              >
+                <div className={`${bubbleBase} bg-gradient-to-br from-[#4a1a1a] to-[#2d0d0d] text-red-400 border border-red-400/30 flex items-center gap-2 py-2 px-3.5`}>
+                  <span className="text-sm">❌</span>
+                  <span className="text-xs">{entry.content}</span>
+                </div>
+              </div>
+            );
+          }
+
           return (
-            <div key={idx} className="chat-message chat-center">
-              <div className="chat-bubble chat-bubble-error">
-                <span className="chat-error-icon">❌</span>
-                <span className="chat-error-text">{entry.content}</span>
-              </div>
+            <div
+              key={idx}
+              className="flex items-start gap-2 max-w-[95%] self-start"
+              style={{ animation: 'chatFadeIn 0.2s ease-out' }}
+            >
+              <div className={bubbleBase}>{entry.content}</div>
             </div>
           );
-        }
+        })}
 
-        // Fallback
-        return (
-          <div key={idx} className="chat-message chat-left">
-            <div className="chat-bubble">{entry.content}</div>
-          </div>
-        );
-      })}
-
-      {isRunning && (
-        <div className="chat-message chat-left">
-          <div className="chat-avatar">🤖</div>
-          <div className="chat-bubble chat-bubble-typing">
-            <div className="typing-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
+        {isRunning && (
+          <div
+            className="flex items-start gap-2 max-w-[95%] self-start"
+            style={{ animation: 'chatFadeIn 0.2s ease-out' }}
+          >
+            <div className={`${avatarBase} bg-gradient-to-br from-[#667eea] to-[#764ba2]`}>🤖</div>
+            <div className={`${bubbleBase} bg-gradient-to-br from-[#2d2d3a] to-[#1e1e28] rounded-bl py-3 px-4`}>
+              <div className="flex gap-1">
+                <span className="w-2 h-2 bg-[#667eea] rounded-full" style={{ animation: 'typingBounce 1.4s infinite' }}></span>
+                <span className="w-2 h-2 bg-[#667eea] rounded-full" style={{ animation: 'typingBounce 1.4s infinite 0.2s' }}></span>
+                <span className="w-2 h-2 bg-[#667eea] rounded-full" style={{ animation: 'typingBounce 1.4s infinite 0.4s' }}></span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }

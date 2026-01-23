@@ -128,6 +128,15 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   const [newSpecType, setNewSpecType] = useState<'prd' | 'tech-spec' | 'bug'>('prd');
   const [isCreatingSpec, setIsCreatingSpec] = useState(false);
 
+  // Resizable tree panel state
+  const [treeWidth, setTreeWidth] = useState(() => {
+    const saved = localStorage.getItem('specExplorerTreeWidth');
+    return saved ? parseInt(saved, 10) : 260;
+  });
+  const isResizingRef = useRef(false);
+  const MIN_TREE_WIDTH = 180;
+  const MAX_TREE_WIDTH = 500;
+
   // Create Tech Spec modal state
   const [isCreateTechSpecModalOpen, setIsCreateTechSpecModalOpen] = useState(false);
   const [prdUserStories, setPrdUserStories] = useState<UserStory[]>([]);
@@ -142,6 +151,57 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     const separator = endpoint.includes('?') ? '&' : '?';
     return `${endpoint}${separator}project=${encodeURIComponent(projectPath)}`;
   }, [projectPath]);
+
+  // Reset content state when project changes (files will be refetched by the fetch effect)
+  useEffect(() => {
+    // Clear content-related state when switching projects
+    // Don't clear files - the fetch effect will update them
+    setSelectedPathState(null);
+    setContent('');
+    setOriginalContent('');
+    setSession(null);
+    setHasUnsavedChanges(false);
+    setIsEditing(false);
+    setActiveTab('preview');
+    setSelectedTagFilters(new Set());
+    setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' });
+    setIsChatOpen(false);
+    setDiscussingContext(null);
+  }, [projectPath]);
+
+  // Resize handlers for the tree panel
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const newWidth = Math.min(MAX_TREE_WIDTH, Math.max(MIN_TREE_WIDTH, e.clientX));
+      setTreeWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (isResizingRef.current) {
+        isResizingRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        // Persist width to localStorage
+        localStorage.setItem('specExplorerTreeWidth', String(treeWidth));
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [treeWidth]);
 
   // Merge review statuses into tree
   function mergeStatusesIntoTree(
@@ -996,12 +1056,31 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   // Render content based on active tab
   const renderTabContent = () => {
     if (isLoadingContent) {
-      return <div className="spec-explorer-loading">Loading...</div>;
+      return <div className="flex items-center justify-center h-full text-text-muted text-sm">Loading...</div>;
     }
 
     if (!selectedPath) {
+      // Show different message if there are no specs at all
+      if (files.length === 0) {
+        return (
+          <div className="flex flex-col items-center justify-center h-full text-text-muted text-sm text-center p-10 gap-3 max-w-[400px] mx-auto">
+            <div className="text-5xl mb-2">🚀</div>
+            <h2 className="m-0 text-2xl font-semibold text-text">Welcome to Ralph!</h2>
+            <p className="m-0 text-sm text-text-muted leading-relaxed">
+              Create your first spec to start building with iterative AI development.
+              Specs define what you want to build - Ralph will help you refine and implement them.
+            </p>
+            <button
+              className="mt-4 py-3 px-6 bg-primary border-none rounded-lg text-white text-[15px] font-medium cursor-pointer transition-all duration-150 hover:bg-primary-hover hover:-translate-y-px hover:shadow-lg active:translate-y-0 active:shadow-none"
+              onClick={handleOpenNewSpecModal}
+            >
+              + Create Your First Spec
+            </button>
+          </div>
+        );
+      }
       return (
-        <div className="spec-explorer-empty">
+        <div className="flex flex-col items-center justify-center h-full text-text-muted text-sm text-center p-10">
           <p>Select a spec from the tree to view it</p>
         </div>
       );
@@ -1010,10 +1089,10 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     switch (activeTab) {
       case 'preview':
         return (
-          <div className="spec-preview-layout">
+          <div className="flex h-full overflow-hidden">
             {/* Editor Panel (Left) */}
-            <div className="spec-editor-panel">
-              <div className="spec-editor-container">
+            <div className="flex-1 min-w-0 overflow-hidden border-r border-border">
+              <div className="flex flex-col h-full relative">
                 {/* Edit mode toolbar - top right */}
                 <div className="spec-editor-header">
                   {!isEditing ? (
@@ -1284,9 +1363,36 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   };
 
   return (
-    <div className="spec-explorer">
+    <>
+      <style>{`
+        @keyframes spec-review-spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes chat-pulse {
+          0%, 100% { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
+          50% { box-shadow: 0 4px 20px rgba(88, 166, 255, 0.4); }
+        }
+        @keyframes chat-popup-enter {
+          from { opacity: 0; transform: translateY(20px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes modal-overlay-enter {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes modal-enter {
+          from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-spin-slow { animation: spec-review-spin 1s linear infinite; }
+        .animate-chat-pulse { animation: chat-pulse 2s infinite; }
+        .animate-chat-popup { animation: chat-popup-enter 0.2s ease; }
+        .animate-modal-overlay { animation: modal-overlay-enter 0.15s ease; }
+        .animate-modal { animation: modal-enter 0.2s ease; }
+      `}</style>
+      <div className="flex h-full bg-bg">
       {/* Tree Panel (Left) */}
-      <div className="spec-explorer-tree">
+      <div className="flex-shrink-0 min-w-[180px] max-w-[500px] h-full overflow-hidden" style={{ width: treeWidth }}>
         <SpecTree
           files={files}
           selectedPath={selectedPath}
@@ -1296,8 +1402,15 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
         />
       </div>
 
+      {/* Resize Handle */}
+      <div
+        className="flex-shrink-0 w-1 h-full bg-transparent cursor-col-resize relative z-10 transition-colors duration-150 hover:bg-accent before:content-[''] before:absolute before:left-px before:top-0 before:bottom-0 before:w-0.5 before:bg-border before:transition-colors hover:before:bg-accent"
+        onMouseDown={handleResizeStart}
+        title="Drag to resize"
+      />
+
       {/* Main Content Area (Right) */}
-      <div className="spec-explorer-main">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {selectedPath && (
           <SpecHeader
             fileName={selectedFileName}
@@ -1313,7 +1426,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
           />
         )}
 
-        <div className="spec-explorer-content">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {renderTabContent()}
         </div>
       </div>
@@ -1492,5 +1605,6 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
         />
       )}
     </div>
+    </>
   );
 }

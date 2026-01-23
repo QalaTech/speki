@@ -1,5 +1,4 @@
 import type { SplitSpecRef } from '../../../src/types/index.js';
-import './SplitNavigation.css';
 
 export interface SplitNavigationProps {
   /** Child specs if this is a parent that was split */
@@ -28,24 +27,24 @@ export function SplitNavigation({
   }
 
   return (
-    <div className="split-navigation" data-testid="split-navigation">
+    <div className="mb-4" data-testid="split-navigation">
       {hasChildren && (
         <div
-          className="split-navigation-banner split-navigation-parent"
+          className="flex flex-wrap items-center gap-2 py-3 px-4 rounded-md text-sm mb-2 last:mb-0 bg-blue-50 border border-blue-500 text-blue-800"
           data-testid="split-parent-banner"
         >
-          <span className="split-navigation-icon" aria-hidden="true">
+          <span className="text-base" aria-hidden="true">
             &#x1F4C4;
           </span>
-          <span className="split-navigation-text">
+          <span className="font-medium">
             Split into {splitSpecs.length} spec{splitSpecs.length !== 1 ? 's' : ''}:
           </span>
-          <div className="split-navigation-links">
+          <div className="flex flex-wrap gap-2">
             {splitSpecs.map((spec) => (
               <button
                 key={spec.filename}
                 type="button"
-                className="split-navigation-link"
+                className="bg-transparent border-none text-blue-600 cursor-pointer py-1 px-2 rounded text-sm font-medium underline transition-colors duration-200 hover:bg-black/[0.08] focus:outline-2 focus:outline-current focus:outline-offset-2"
                 onClick={() => onNavigate(spec.filename)}
                 title={spec.description || spec.filename}
                 data-testid={`split-child-link-${spec.filename}`}
@@ -59,16 +58,16 @@ export function SplitNavigation({
 
       {hasParent && parentSpecPath && (
         <div
-          className="split-navigation-banner split-navigation-child"
+          className="flex flex-wrap items-center gap-2 py-3 px-4 rounded-md text-sm mb-2 last:mb-0 bg-orange-50 border border-orange-500 text-orange-800"
           data-testid="split-child-banner"
         >
-          <span className="split-navigation-icon" aria-hidden="true">
+          <span className="text-base" aria-hidden="true">
             &#x2B06;
           </span>
-          <span className="split-navigation-text">Split from:</span>
+          <span className="font-medium">Split from:</span>
           <button
             type="button"
-            className="split-navigation-link"
+            className="bg-transparent border-none text-orange-600 cursor-pointer py-1 px-2 rounded text-sm font-medium underline transition-colors duration-200 hover:bg-black/[0.08] focus:outline-2 focus:outline-current focus:outline-offset-2"
             onClick={() => onNavigate(parentSpecPath)}
             data-testid="split-parent-link"
           >

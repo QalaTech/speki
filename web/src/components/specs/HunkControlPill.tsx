@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef, type RefObject } from 'react';
 import * as monaco from 'monaco-editor';
-import './HunkControlPill.css';
 
 export interface HunkAction {
   hunk: Hunk;
@@ -88,60 +87,70 @@ export function HunkControlPill({
     hunk.modifiedEndLineNumber - hunk.modifiedStartLineNumber + 1
   );
 
+  const actionBase = "flex items-center gap-[5px] py-1.5 px-2.5 bg-transparent border-none rounded-[14px] text-text-muted text-[11px] font-medium cursor-pointer transition-all duration-150 whitespace-nowrap hover:bg-surface-hover hover:text-text active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40";
+
   return (
-    <div
-      ref={pillRef}
-      className="hunk-control-pill"
-      style={{
-        position: 'absolute',
-        top: `${position.top}px`,
-        left: `${position.left}px`,
-      }}
-    >
-      <span className="hunk-control-info">
-        {linesChanged} {linesChanged === 1 ? 'line' : 'lines'}
-      </span>
-
-      <div className="hunk-control-divider" />
-
-      <button
-        className="hunk-control-action hunk-control-action--accept"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onAccept();
+    <>
+      <style>{`
+        @keyframes hunkPillFadeIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+      <div
+        ref={pillRef}
+        className="inline-flex items-center gap-1 py-1 px-1.5 bg-[rgba(22,27,34,0.92)] backdrop-blur-[12px] border border-[rgba(48,54,61,0.8)] rounded-[20px] shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_0_0_1px_rgba(255,255,255,0.05)] text-[11px] z-[100] select-none animate-[hunkPillFadeIn_0.2s_ease-out] hover:border-[rgba(88,166,255,0.3)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(88,166,255,0.1)]"
+        style={{
+          position: 'absolute',
+          top: `${position.top}px`,
+          left: `${position.left}px`,
         }}
-        title="Accept this change (A)"
       >
-        <span className="hunk-control-icon">✓</span>
-        <span className="hunk-control-label">Accept</span>
-      </button>
+        <span className="py-1 px-2 text-text-muted font-medium text-[10px] uppercase tracking-[0.03em] max-lg:hidden">
+          {linesChanged} {linesChanged === 1 ? 'line' : 'lines'}
+        </span>
 
-      <button
-        className="hunk-control-action hunk-control-action--reject"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onReject();
-        }}
-        title="Reject this change (R)"
-      >
-        <span className="hunk-control-icon">✗</span>
-        <span className="hunk-control-label">Reject</span>
-      </button>
+        <div className="w-px h-4 bg-border mx-0.5 max-lg:hidden" />
 
-      <button
-        className="hunk-control-action hunk-control-action--comment"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onComment();
-        }}
-        title="Comment on this change (C)"
-      >
-        <span className="hunk-control-icon">💬</span>
-        <span className="hunk-control-label">Comment</span>
-      </button>
-    </div>
+        <button
+          className={`${actionBase} hover:bg-[rgba(35,134,54,0.2)] hover:text-[#3fb950] active:bg-[rgba(35,134,54,0.3)]`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onAccept();
+          }}
+          title="Accept this change (A)"
+        >
+          <span className="text-xs leading-none">✓</span>
+          <span className="text-[11px] font-medium tracking-[0.01em] max-lg:hidden">Accept</span>
+        </button>
+
+        <button
+          className={`${actionBase} hover:bg-[rgba(218,54,51,0.2)] hover:text-[#f85149] active:bg-[rgba(218,54,51,0.3)]`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onReject();
+          }}
+          title="Reject this change (R)"
+        >
+          <span className="text-xs leading-none">✗</span>
+          <span className="text-[11px] font-medium tracking-[0.01em] max-lg:hidden">Reject</span>
+        </button>
+
+        <button
+          className={`${actionBase} hover:bg-[rgba(88,166,255,0.2)] hover:text-[#58a6ff] active:bg-[rgba(88,166,255,0.3)]`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onComment();
+          }}
+          title="Comment on this change (C)"
+        >
+          <span className="text-xs leading-none">💬</span>
+          <span className="text-[11px] font-medium tracking-[0.01em] max-lg:hidden">Comment</span>
+        </button>
+      </div>
+    </>
   );
 }

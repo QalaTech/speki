@@ -3,9 +3,52 @@
  * Each prompt has a single responsibility and outputs structured JSON.
  */
 
-// Common instruction appended to all prompts
-const CLOSING_INSTRUCTION =
-  "Analyze the spec and return ONLY the JSON response, no additional commentary.";
+// File output instruction - agents write their verdict to a JSON file
+// This is appended at runtime by buildPrompt with the actual output path
+export function buildFileOutputInstruction(outputPath: string, promptName: string, category: string): string {
+  return `
+
+## CRITICAL - OUTPUT REQUIREMENTS
+
+You MUST write your review result to a JSON file. Do NOT output JSON in your response.
+
+**Output file path:** \`${outputPath}\`
+
+Use your file write tool to create this file with the following structure:
+
+\`\`\`json
+{
+  "verdict": "PASS",
+  "promptName": "${promptName}",
+  "category": "${category}",
+  "issues": ["issue description here"],
+  "suggestions": []
+}
+\`\`\`
+
+**Verdict values:** Use exactly one of: \`"PASS"\`, \`"FAIL"\`, or \`"NEEDS_IMPROVEMENT"\`
+
+**Verdict guidelines:**
+- PASS: No significant issues found
+- FAIL: Critical issues that must be resolved
+- NEEDS_IMPROVEMENT: Issues that should be addressed but are not blockers
+
+**Suggestions format** (include when there are issues):
+\`\`\`json
+{
+  "id": "issue-1",
+  "severity": "warning",
+  "issue": "Description",
+  "suggestedFix": "How to fix"
+}
+\`\`\`
+
+After writing the file, confirm: "Verdict written to ${outputPath}"
+`;
+}
+
+// Legacy constant for backwards compatibility (will be removed)
+const JSON_CLOSING_INSTRUCTION = `Analyze the spec and return your response in JSON format.`;
 
 /**
  * Critical guidance about factual claims - appended to prompts that might
@@ -206,7 +249,7 @@ Return a JSON object with this exact structure:
 - Feature names should be kebab-case, 1-3 words
 - Each proposed spec should target 5-15 stories
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * REQUIREMENTS_COMPLETENESS_PROMPT - Checks for missing requirements
@@ -248,7 +291,7 @@ ${buildVerdictGuidelines({
 })}
 ${FACTUAL_CLAIMS_WARNING}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * CLARITY_SPECIFICITY_PROMPT - Checks for ambiguous or vague requirements
@@ -290,7 +333,7 @@ ${buildVerdictGuidelines({
 })}
 ${FACTUAL_CLAIMS_WARNING}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * TESTABILITY_PROMPT - Checks whether requirements can be verified
@@ -337,7 +380,7 @@ ${buildVerdictGuidelines({
   needsImprovement: "Some requirements need clearer success criteria",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * SCOPE_VALIDATION_PROMPT - Validates scope against codebase context
@@ -388,7 +431,7 @@ ${buildVerdictGuidelines({
 })}
 ${FACTUAL_CLAIMS_WARNING}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 // =============================================================================
 // ENHANCED PRD REVIEW PROMPTS
@@ -453,7 +496,7 @@ ${buildVerdictGuidelines({
   needsImprovement: "Some flows need error handling or edge case coverage",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * PRD_BEST_PRACTICES_PROMPT - Validates PRD against industry best practices
@@ -522,7 +565,7 @@ ${buildVerdictGuidelines({
   needsImprovement: "PRD has most elements but needs strengthening",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 // =============================================================================
 // TECH SPEC STORY ALIGNMENT PROMPT
@@ -610,7 +653,7 @@ Return a JSON object:
 
 Focus on ensuring every user story has clear technical implementation details.
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 // =============================================================================
 // DECOMPOSE REVIEW PROMPTS (FR-6)
@@ -723,7 +766,7 @@ ${buildDecomposeVerdictGuidelines({
   fail: "One or more requirements lack task coverage",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * CONTRADICTIONS_PROMPT - Detects contradictions between spec and tasks
@@ -764,7 +807,7 @@ ${buildDecomposeVerdictGuidelines({
   fail: "One or more contradictions detected that need resolution",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * DEPENDENCY_VALIDATION_PROMPT - Validates task dependencies are correct
@@ -810,7 +853,7 @@ ${buildDecomposeVerdictGuidelines({
   fail: "Dependency issues found that need correction",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * DUPLICATE_DETECTION_PROMPT - Detects duplicate or overlapping tasks
@@ -861,7 +904,7 @@ ${buildDecomposeVerdictGuidelines({
   fail: "Duplicate or overlapping tasks detected that need resolution",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 // =============================================================================
 // TYPE-SPECIFIC REVIEW PROMPTS
@@ -907,7 +950,7 @@ ${buildVerdictGuidelines({
 })}
 ${FACTUAL_CLAIMS_WARNING}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 
 /**
@@ -960,7 +1003,7 @@ ${buildVerdictGuidelines({
   needsImprovement: "Some implementation details need clarification",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * Tech Spec Security Review (FR5)
@@ -1018,7 +1061,7 @@ ${buildVerdictGuidelines({
   needsImprovement: "Some security aspects need clarification",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * Tech Spec Scalability Review (FR6)
@@ -1079,7 +1122,7 @@ ${buildVerdictGuidelines({
   needsImprovement: "Some scalability aspects need attention",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * Tech Spec DRY/YAGNI Review (FR7)
@@ -1140,7 +1183,7 @@ ${buildVerdictGuidelines({
   needsImprovement: "Some areas could be simplified",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * API_CONTRACT_PROMPT - Validates API contracts in tech specs
@@ -1186,7 +1229,7 @@ ${buildVerdictGuidelines({
   needsImprovement: "Some API details need refinement",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * BUG_REPORT_COMPLETENESS_PROMPT - For bug reports
@@ -1231,7 +1274,7 @@ ${buildVerdictGuidelines({
   needsImprovement: "Some details need clarification for effective fixing",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 /**
  * BUG_REPRODUCTION_PROMPT - Validates bug reproduction steps
@@ -1275,7 +1318,7 @@ ${buildVerdictGuidelines({
   needsImprovement: "Steps need more detail or clarification",
 })}
 
-${CLOSING_INSTRUCTION}`;
+`;
 
 // =============================================================================
 // TYPE-SPECIFIC PROMPT SETS

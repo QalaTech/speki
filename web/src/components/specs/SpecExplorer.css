@@ -14,9 +14,45 @@
 /* Tree panel (left) - for side nav layout */
 .spec-explorer-tree {
   flex-shrink: 0;
-  width: 260px;
+  width: 260px; /* Default width, overridden by inline style */
+  min-width: 180px;
+  max-width: 500px;
   height: 100%;
   overflow: hidden;
+}
+
+/* Resize handle between tree and main */
+.spec-explorer-resize-handle {
+  flex-shrink: 0;
+  width: 4px;
+  height: 100%;
+  background: transparent;
+  cursor: col-resize;
+  position: relative;
+  z-index: 10;
+  transition: background-color 0.15s ease;
+}
+
+.spec-explorer-resize-handle:hover,
+.spec-explorer-resize-handle:active {
+  background: var(--color-accent);
+}
+
+/* Visual indicator line */
+.spec-explorer-resize-handle::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-border);
+  transition: background-color 0.15s ease;
+}
+
+.spec-explorer-resize-handle:hover::before,
+.spec-explorer-resize-handle:active::before {
+  background: var(--color-accent);
 }
 
 /* Main content area */
@@ -57,6 +93,56 @@
   font-size: 14px;
   text-align: center;
   padding: 40px;
+}
+
+/* Welcome empty state (no specs) */
+.spec-explorer-empty--welcome {
+  gap: 12px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.spec-explorer-empty-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.spec-explorer-empty-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.spec-explorer-empty-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.spec-explorer-empty-btn {
+  margin-top: 16px;
+  padding: 12px 24px;
+  background: var(--color-primary);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.spec-explorer-empty-btn:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.spec-explorer-empty-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 /* Placeholder for upcoming tabs */

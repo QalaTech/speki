@@ -32,6 +32,19 @@ export function useUnifiedSSE(projectPath: string | null): UnifiedSSEState {
   useEffect(() => {
     if (!projectPath) return;
 
+    // Reset state when project changes to avoid showing stale data
+    setState({
+      ralphStatus: null,
+      iterationLog: '',
+      logEntries: [],
+      currentIteration: null,
+      decomposeState: null,
+      prdData: null,
+      peerFeedback: null,
+      connectionStatus: 'connecting',
+      error: null,
+    });
+
     const url = `/api/events/all?project=${encodeURIComponent(projectPath)}`;
     const es = new EventSource(url);
 

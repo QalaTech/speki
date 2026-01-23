@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import type { SplitProposal, ProposedSpec } from '../../../src/types/index.js';
-import './SplitPreviewModal.css';
 
 export interface SplitPreviewFile {
   /** Proposed filename */
@@ -70,33 +69,33 @@ export function SplitPreviewModal({
   if (!isOpen) return null;
 
   return (
-    <div className="split-preview-overlay" data-testid="split-preview-modal">
-      <div className="split-preview-modal" role="dialog" aria-modal="true">
-        <header className="split-preview-header">
-          <h2>Review Split Files</h2>
-          <p className="split-preview-subtitle">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]" data-testid="split-preview-modal">
+      <div className="bg-surface rounded-lg shadow-[0_4px_24px_rgba(0,0,0,0.15)] flex flex-col max-w-[1200px] max-h-[90vh] w-[95%] h-[80vh]" role="dialog" aria-modal="true">
+        <header className="py-4 px-6 border-b border-border">
+          <h2 className="m-0 text-xl font-semibold text-text">Review Split Files</h2>
+          <p className="mt-1 mb-0 text-sm text-text-muted">
             Review and edit the proposed split files before saving.
           </p>
         </header>
 
-        <div className="split-preview-body">
+        <div className="flex flex-1 overflow-hidden">
           {/* File list sidebar */}
-          <nav className="split-preview-file-list" data-testid="file-list">
-            <h3>Files to Create ({files.length})</h3>
-            <ul>
+          <nav className="w-[280px] min-w-[200px] border-r border-border overflow-y-auto bg-bg" data-testid="file-list">
+            <h3 className="m-0 py-3 px-4 text-sm font-semibold text-text-muted border-b border-border">Files to Create ({files.length})</h3>
+            <ul className="list-none m-0 p-0">
               {files.map((file, index) => (
                 <li
                   key={file.filename}
-                  className={index === selectedFileIndex ? 'selected' : ''}
+                  className={`border-b border-border ${index === selectedFileIndex ? 'bg-surface' : ''}`}
                 >
                   <button
                     type="button"
                     onClick={() => handleFileSelect(index)}
-                    className="file-list-item"
+                    className="flex flex-col items-start w-full py-3 px-4 border-none bg-transparent cursor-pointer text-left hover:bg-surface-hover"
                     data-testid={`file-item-${index}`}
                   >
-                    <span className="file-name">{file.filename}</span>
-                    <span className="file-description">{file.description}</span>
+                    <span className="text-sm font-medium text-text">{file.filename}</span>
+                    <span className="text-xs text-text-muted mt-0.5">{file.description}</span>
                   </button>
                 </li>
               ))}
@@ -104,16 +103,16 @@ export function SplitPreviewModal({
           </nav>
 
           {/* Content editor */}
-          <div className="split-preview-editor" data-testid="file-editor">
+          <div className="flex-1 flex flex-col overflow-hidden" data-testid="file-editor">
             {selectedFile && (
               <>
-                <div className="editor-header">
-                  <span className="editor-filename">{selectedFile.filename}</span>
+                <div className="py-3 px-4 border-b border-border bg-bg">
+                  <span className="text-sm font-semibold text-text">{selectedFile.filename}</span>
                 </div>
                 <textarea
                   value={selectedFile.content}
                   onChange={handleContentChange}
-                  className="editor-textarea"
+                  className="flex-1 w-full p-4 border-none resize-none font-mono text-sm leading-relaxed bg-surface text-text focus:outline-none disabled:bg-surface-hover disabled:text-text-muted"
                   data-testid="file-content-editor"
                   disabled={isSaving}
                 />
@@ -123,19 +122,19 @@ export function SplitPreviewModal({
         </div>
 
         {error && (
-          <div className="split-preview-error" data-testid="save-error">
+          <div className="py-3 px-6 bg-[#fee2e2] text-[#dc2626] text-sm" data-testid="save-error">
             {error}
           </div>
         )}
 
-        <footer className="split-preview-footer">
-          <div className="split-preview-info">
+        <footer className="flex justify-between items-center py-4 px-6 border-t border-border bg-bg">
+          <div className="text-sm text-text-muted">
             <span>Original file: {proposal.originalFile}</span>
           </div>
-          <div className="split-preview-actions">
+          <div className="flex gap-3">
             <button
               type="button"
-              className="cancel-button"
+              className="py-2 px-4 rounded border border-border bg-surface text-text text-sm font-medium cursor-pointer transition-all duration-150 hover:bg-surface-hover disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={onCancel}
               disabled={isSaving}
               data-testid="cancel-button"
@@ -144,7 +143,7 @@ export function SplitPreviewModal({
             </button>
             <button
               type="button"
-              className="save-all-button"
+              className="py-2 px-4 rounded border-none bg-primary text-white text-sm font-medium cursor-pointer transition-all duration-150 hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={handleSaveAll}
               disabled={isSaving}
               data-testid="save-all-button"

@@ -7,7 +7,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 import { CodeBlock } from './CodeBlock';
-import './ChatMarkdown.css';
 
 export interface ChatMarkdownProps {
   /** The markdown content to render */
@@ -22,14 +21,14 @@ export interface ChatMarkdownProps {
  */
 const chatComponents: Components = {
   // Compact paragraphs - no extra margin
-  p: ({ children }) => <p className="chat-md-p">{children}</p>,
+  p: ({ children }) => <p className="m-0 mb-2 last:mb-0">{children}</p>,
 
   // Code blocks with syntax highlighting
   code: ({ className, children, ...props }) => {
     const isInline = !className;
     if (isInline) {
       return (
-        <code className="chat-md-inline-code" {...props}>
+        <code className="bg-black/10 py-0.5 px-1.5 rounded font-mono text-[0.85em] text-accent" {...props}>
           {children}
         </code>
       );
@@ -43,44 +42,44 @@ const chatComponents: Components = {
   },
 
   // Compact lists
-  ul: ({ children }) => <ul className="chat-md-ul">{children}</ul>,
-  ol: ({ children }) => <ol className="chat-md-ol">{children}</ol>,
-  li: ({ children }) => <li className="chat-md-li">{children}</li>,
+  ul: ({ children }) => <ul className="my-2 pl-6">{children}</ul>,
+  ol: ({ children }) => <ol className="my-2 pl-6">{children}</ol>,
+  li: ({ children }) => <li className="my-1">{children}</li>,
 
   // Headings - scaled down for chat
-  h1: ({ children }) => <h4 className="chat-md-h1">{children}</h4>,
-  h2: ({ children }) => <h5 className="chat-md-h2">{children}</h5>,
-  h3: ({ children }) => <h6 className="chat-md-h3">{children}</h6>,
-  h4: ({ children }) => <h6 className="chat-md-h4">{children}</h6>,
-  h5: ({ children }) => <h6 className="chat-md-h5">{children}</h6>,
-  h6: ({ children }) => <h6 className="chat-md-h6">{children}</h6>,
+  h1: ({ children }) => <h4 className="my-2 mb-1 font-semibold leading-tight text-[1.1em]">{children}</h4>,
+  h2: ({ children }) => <h5 className="my-2 mb-1 font-semibold leading-tight text-[1.05em]">{children}</h5>,
+  h3: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1em]">{children}</h6>,
+  h4: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1em]">{children}</h6>,
+  h5: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1em]">{children}</h6>,
+  h6: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1em]">{children}</h6>,
 
   // Links - open in new tab
   a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="chat-md-link">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent no-underline border-b border-dotted border-current hover:underline">
       {children}
     </a>
   ),
 
   // Blockquotes
   blockquote: ({ children }) => (
-    <blockquote className="chat-md-blockquote">{children}</blockquote>
+    <blockquote className="my-2 py-2 px-3 border-l-[3px] border-border bg-black/10 rounded-r italic text-text-muted">{children}</blockquote>
   ),
 
   // Tables (GFM)
   table: ({ children }) => (
-    <div className="chat-md-table-wrapper">
-      <table className="chat-md-table">{children}</table>
+    <div className="my-2 overflow-x-auto rounded">
+      <table className="w-full border-collapse text-[0.85em]">{children}</table>
     </div>
   ),
 
   // Horizontal rule
-  hr: () => <hr className="chat-md-hr" />,
+  hr: () => <hr className="my-3 border-none border-t border-border" />,
 
   // Strong/emphasis
-  strong: ({ children }) => <strong className="chat-md-strong">{children}</strong>,
-  em: ({ children }) => <em className="chat-md-em">{children}</em>,
-};
+  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+}
 
 /**
  * Renders markdown content optimized for chat bubbles.
@@ -88,7 +87,7 @@ const chatComponents: Components = {
  */
 export function ChatMarkdown({ content, className }: ChatMarkdownProps): React.ReactElement {
   return (
-    <div className={`chat-markdown ${className ?? ''}`}>
+    <div className={`text-[0.9rem] leading-relaxed break-words ${className ?? ''}`}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={chatComponents}>
         {content}
       </ReactMarkdown>

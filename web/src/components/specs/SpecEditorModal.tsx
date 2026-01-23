@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
-import './SpecEditorModal.css';
 
 interface SpecEditorModalProps {
   isOpen: boolean;
@@ -139,28 +138,30 @@ export function SpecEditorModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="editor-modal">
-      <div className="editor-modal-backdrop" onClick={handleClose} />
+  const btnBase = "py-2 px-4 border border-border rounded-md text-[13px] font-medium cursor-pointer transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed";
 
-      <div className="editor-modal-container">
-        <header className="editor-modal-header">
-          <div className="editor-modal-title">
-            <span className="editor-modal-icon">✏️</span>
-            <span className="editor-modal-filename">{fileName}</span>
-            {isDirty && <span className="editor-modal-dirty">●</span>}
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-[4px]" onClick={handleClose} />
+
+      <div className="relative flex flex-col w-[calc(100vw-80px)] h-[calc(100vh-80px)] max-w-[1200px] bg-bg border border-border rounded-xl shadow-[0_24px_48px_rgba(0,0,0,0.5)] overflow-hidden">
+        <header className="flex items-center justify-between py-3 px-5 bg-surface border-b border-border">
+          <div className="flex items-center gap-2">
+            <span className="text-base">✏️</span>
+            <span className="text-sm font-semibold text-text">{fileName}</span>
+            {isDirty && <span className="text-warning text-xs">●</span>}
           </div>
 
-          <div className="editor-modal-actions">
-            {error && <span className="editor-modal-error">{error}</span>}
+          <div className="flex items-center gap-3">
+            {error && <span className="text-xs text-[#f85149]">{error}</span>}
             <button
-              className="editor-modal-btn editor-modal-btn--cancel"
+              className={`${btnBase} bg-transparent text-text-muted hover:bg-surface-hover hover:text-text`}
               onClick={handleClose}
             >
               Cancel
             </button>
             <button
-              className="editor-modal-btn editor-modal-btn--save"
+              className={`${btnBase} bg-primary border-primary text-white hover:bg-primary-hover`}
               onClick={handleSave}
               disabled={!isDirty || isSaving}
             >
@@ -169,13 +170,14 @@ export function SpecEditorModal({
           </div>
         </header>
 
-        <div className="editor-modal-content" ref={containerRef} />
+        <div className="flex-1 overflow-hidden" ref={containerRef} />
 
-        <footer className="editor-modal-footer">
-          <span className="editor-modal-hint">
-            <kbd>⌘S</kbd> Save • <kbd>Esc</kbd> Close
+        <footer className="flex items-center justify-between py-2 px-5 bg-surface border-t border-border">
+          <span className="text-xs text-text-muted">
+            <kbd className="inline-block py-0.5 px-1.5 bg-surface-hover border border-border rounded text-[11px] text-text mr-1">⌘S</kbd> Save • 
+            <kbd className="inline-block py-0.5 px-1.5 bg-surface-hover border border-border rounded text-[11px] text-text mx-1">Esc</kbd> Close
           </span>
-          <span className="editor-modal-path">{filePath}</span>
+          <span className="font-mono text-[11px] text-text-muted">{filePath}</span>
         </footer>
       </div>
     </div>

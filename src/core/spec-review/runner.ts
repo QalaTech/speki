@@ -15,6 +15,7 @@ import {
   getReviewPromptsForType,
   TECH_SPEC_STORY_ALIGNMENT_PROMPT,
   buildAggregationPrompt,
+  buildFileOutputInstruction,
 } from './prompts.js';
 import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SuggestionType, SpecReviewVerdict, ReviewFeedback, CliType, TimeoutInfo, SpecType, UserStory } from '../../types/index.js';
 import { detectSpecType, getParentSpec, loadPRDForSpec, extractSpecId } from './spec-metadata.js';
@@ -69,7 +70,10 @@ function buildPrompt(
   template: string,
   specPath: string,
   codebaseContext: CodebaseContext,
-  goldenStandard: string
+  goldenStandard: string,
+  verdictOutputPath?: string,
+  promptName?: string,
+  category?: string
 ): string {
   const contextString = JSON.stringify(codebaseContext, null, 2);
 
@@ -79,6 +83,11 @@ function buildPrompt(
 
   if (goldenStandard) {
     prompt = `## GOLDEN STANDARD REFERENCE\n${goldenStandard}\n\n${prompt}`;
+  }
+
+  // Append file output instruction if output path is provided
+  if (verdictOutputPath && promptName && category) {
+    prompt += buildFileOutputInstruction(verdictOutputPath, promptName, category);
   }
 
   return prompt;
@@ -203,6 +212,95 @@ async function runPrompt(
   }
 }
 
+/**
+ * Runs a prompt and expects the agent to write its verdict to a file.
+ * Does not parse the response stream - the verdict is read from the file separately.
+ */
+async function runPromptWithFileOutput(
+  promptDef: PromptDefinition,
+  fullPrompt: string,
+  cwd: string,
+  timeoutMs: number,
+  options: RunPromptOptions = {}
+): Promise<void> {
+  try {
+    const logsDir = options.logDir ?? join(cwd, '.ralph', 'logs');
+    try { await fs.mkdir(logsDir, { recursive: true }); } catch {}
+    const promptPath = join(logsDir, `spec_review_${promptDef.name}_${Date.now()}.md`);
+    await fs.writeFile(promptPath, fullPrompt, 'utf-8');
+
+    const sel = await selectEngine({
+      engineName: options.engineName,
+      model: options.model,
+      purpose: 'specReview',
+    });
+
+    // Run the agent - it will write its verdict to the specified file
+    await sel.engine.runStream({
+      promptPath,
+      cwd,
+      logDir: logsDir,
+      iteration: 0,
+      model: sel.model,
+      callbacks: options.streamCallbacks,
+    });
+  } catch (err) {
+    // Log error but don't throw - verdict file read will handle missing file
+    console.error(`Agent execution error for ${promptDef.name}: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Reads a verdict JSON file written by an agent.
+ * Returns a FocusedPromptResult parsed from the file contents.
+ */
+async function readVerdictFile(
+  verdictPath: string,
+  promptDef: PromptDefinition,
+  durationMs: number
+): Promise<FocusedPromptResult> {
+  try {
+    const content = await fs.readFile(verdictPath, 'utf-8');
+    const parsed = JSON.parse(content);
+
+    // Validate required fields
+    if (!parsed.verdict) {
+      return createParseFailureResult(
+        promptDef,
+        `Verdict file missing 'verdict' field: ${verdictPath}`,
+        content,
+        durationMs
+      );
+    }
+
+    return {
+      promptName: promptDef.name,
+      category: promptDef.category,
+      verdict: parsed.verdict as SpecReviewVerdict,
+      issues: parsed.issues ?? [],
+      suggestions: parseSuggestions(parsed.suggestions ?? [], promptDef.category),
+      rawResponse: content,
+      durationMs,
+    };
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return createParseFailureResult(
+        promptDef,
+        `Agent did not write verdict file: ${verdictPath}`,
+        '',
+        durationMs
+      );
+    }
+    return createParseFailureResult(
+      promptDef,
+      `Failed to read verdict file: ${errorMsg}`,
+      '',
+      durationMs
+    );
+  }
+}
+
 function createParseFailureResult(
   promptDef: PromptDefinition,
   errorMessage: string,
@@ -225,27 +323,35 @@ function parsePromptResponse(
   response: string,
   durationMs: number
 ): FocusedPromptResult {
-  const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
+  // Find ALL json code blocks and search from the end (model response is last)
+  const allMatches = [...response.matchAll(/```json\s*([\s\S]*?)\s*```/g)];
 
-  if (!jsonMatch) {
+  if (allMatches.length === 0) {
     return createParseFailureResult(promptDef, 'Could not parse structured response', response, durationMs);
   }
 
-  try {
-    const parsed = JSON.parse(jsonMatch[1]);
-
-    return {
-      promptName: promptDef.name,
-      category: promptDef.category,
-      verdict: (parsed.verdict ?? 'PASS') as SpecReviewVerdict,
-      issues: parsed.issues ?? [],
-      suggestions: parseSuggestions(parsed.suggestions ?? [], promptDef.category),
-      rawResponse: response,
-      durationMs,
-    };
-  } catch {
-    return createParseFailureResult(promptDef, 'Failed to parse JSON response', response, durationMs);
+  // Search from the end for a valid JSON with verdict field
+  for (let i = allMatches.length - 1; i >= 0; i--) {
+    try {
+      const parsed = JSON.parse(allMatches[i][1]);
+      // Must have verdict field to be a valid review response
+      if (parsed.verdict) {
+        return {
+          promptName: promptDef.name,
+          category: promptDef.category,
+          verdict: parsed.verdict as SpecReviewVerdict,
+          issues: parsed.issues ?? [],
+          suggestions: parseSuggestions(parsed.suggestions ?? [], promptDef.category),
+          rawResponse: response,
+          durationMs,
+        };
+      }
+    } catch {
+      // Continue to previous match
+    }
   }
+
+  return createParseFailureResult(promptDef, 'No valid review JSON found (missing verdict field)', response, durationMs);
 }
 
 function parseSuggestions(rawSuggestions: unknown[], category: string): SuggestionCard[] {
@@ -395,9 +501,16 @@ export async function runSpecReview(
 ): Promise<SpecReviewResult> {
   const cwd = options.cwd ?? process.cwd();
   const timeoutMs = options.timeoutMs ?? getReviewTimeout();
-  const logDir = options.logDir ?? join(cwd, '.ralph', 'logs');
   const onProgress = options.onProgress ?? (() => {});
 
+  // Extract spec ID and set up directories
+  const specId = extractSpecId(specPath);
+  const specStateDir = join(cwd, '.ralph', 'specs', specId);
+  const verdictsDir = join(specStateDir, 'verdicts');
+  const logDir = options.logDir ?? join(specStateDir, 'logs');
+
+  // Create directories
+  await fs.mkdir(verdictsDir, { recursive: true });
   await fs.mkdir(logDir, { recursive: true });
 
   const specContent = await fs.readFile(specPath, 'utf-8');
@@ -426,13 +539,15 @@ export async function runSpecReview(
 
   onProgress(`Loaded spec: ${specBasename} (type: ${specType})`);
   onProgress(`Running ${reviewPrompts.length} review prompts in parallel...`);
+  onProgress(`Verdicts will be written to: ${verdictsDir}`);
 
   // Per-reviewer timeout (60 seconds per PRD constraint C4)
   const perReviewerTimeoutMs = Math.min(60000, timeoutMs);
   const prompts: Array<{ name: string; fullPrompt: string }> = [];
 
-  // Build all prompts first
+  // Build all prompts and run in parallel - agents write verdicts to files
   const promptTasks = reviewPrompts.map(async (promptDef): Promise<FocusedPromptResult | null> => {
+    const verdictPath = join(verdictsDir, `${promptDef.name}.json`);
     let fullPrompt: string;
 
     // Special handling for story alignment prompt
@@ -447,21 +562,36 @@ export async function runSpecReview(
         parentUserStories,
         codebaseContext
       );
+      // Append file output instruction
+      fullPrompt += buildFileOutputInstruction(verdictPath, promptDef.name, promptDef.category);
     } else {
-      fullPrompt = buildPrompt(promptDef.template, specPath, codebaseContext, goldenStandard);
+      fullPrompt = buildPrompt(
+        promptDef.template,
+        specPath,
+        codebaseContext,
+        goldenStandard,
+        verdictPath,
+        promptDef.name,
+        promptDef.category
+      );
     }
 
     prompts.push({ name: promptDef.name, fullPrompt });
     onProgress(`Starting ${promptDef.name}...`);
 
     // Run prompt with per-reviewer timeout
-    const result = await runPrompt(promptDef, fullPrompt, cwd, perReviewerTimeoutMs, {
+    const startTime = Date.now();
+    await runPromptWithFileOutput(promptDef, fullPrompt, cwd, perReviewerTimeoutMs, {
       engineName: options.engineName,
       model: options.model,
       disableTools: false,
       streamCallbacks: options.streamCallbacks,
       logDir,
     });
+    const durationMs = Date.now() - startTime;
+
+    // Read the verdict from the file the agent wrote
+    const result = await readVerdictFile(verdictPath, promptDef, durationMs);
 
     if (isTimeoutResult(result)) {
       onProgress(`${promptDef.name}: TIMEOUT (${result.durationMs}ms)`);
