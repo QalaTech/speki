@@ -128,8 +128,8 @@ Valid transitions:
 - `qala tasks next` - Show next pending task (by priority, respecting dependencies)
 
 ### Execution
-- `qala start` - Run Ralph loop
-- `qala stop` - Stop Ralph
+- `qala start` - Run execution loop
+- `qala stop` - Stop execution
 - `qala dashboard` - Launch multi-project web dashboard
 
 ## Development

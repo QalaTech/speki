@@ -207,10 +207,10 @@ qala start --iterations 25
 
 ### Dashboard Execution
 
-- Click "Start Ralph" button
+- Click "Start Run" button
 - Runs in background
 - Progress visible in real-time
-- "Stop Ralph" button to abort
+- "Stop Run" button to abort
 
 ## Best Practices
 

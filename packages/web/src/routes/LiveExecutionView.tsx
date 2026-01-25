@@ -274,7 +274,7 @@ export function LiveExecutionView({
                       <p className="text-sm text-base-content/60">
                         {getStoryStatus(selectedStory) === 'done'
                           ? 'This task has been completed.'
-                          : 'Start Ralph to see live execution logs.'}
+                          : 'Start a run to see live execution logs.'}
                       </p>
                     </div>
                   )}

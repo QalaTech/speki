@@ -846,7 +846,7 @@ export async function runDecompose(
   console.log(chalk.yellow('Next steps:'));
   console.log(`  1. Review tasks: cat ${outputPath}`);
   console.log(`  2. Activate tasks: qala activate ${finalOutputName}`);
-  console.log(`  3. Start Ralph: qala start`);
+  console.log(`  3. Start execution: qala start`);
   console.log('');
 
   return {

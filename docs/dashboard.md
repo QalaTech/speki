@@ -107,7 +107,7 @@ Slide-out panel showing:
 ┌─────────────────────────────────────────────────────────────────┐
 │  My Project    ralph/feature                                    │
 │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━                       │
-│  12 Tasks   5 Complete   4 Ready   3 Blocked      [Start Ralph] │
+│  12 Tasks   5 Complete   4 Ready   3 Blocked      [Start Run] │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -192,9 +192,9 @@ Use the dropdown in the side nav to switch projects:
 
 1. Select project
 2. Go to Execution
-3. Click "Start Ralph"
+3. Click "Start Run"
 4. Monitor progress in Board or Log view
-5. Click "Stop Ralph" when needed
+5. Click "Stop Run" when needed
 
 ### Execute Single Task
 

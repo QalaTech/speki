@@ -91,8 +91,8 @@ async function projectDashboard(ctx: Ctx) {
     const action = await select({
       message: 'Choose an action',
       choices: [
-        { name: 'Start Ralph', value: 'start' },
-        { name: 'Stop Ralph', value: 'stop' },
+        { name: 'Start Run', value: 'start' },
+        { name: 'Stop Run', value: 'stop' },
         { name: 'Decompose PRD', value: 'decompose' },
         { name: 'Spec Review', value: 'spec' },
         { name: 'Open Dashboard', value: 'dashboard' },

@@ -301,7 +301,7 @@ qala status
 ### Start Execution
 
 **Via Dashboard:**
-- Click the green **Start Ralph** button
+- Click the green **Start Run** button
 
 **Via CLI:**
 ```bash
@@ -337,7 +337,7 @@ For each task, Claude will:
 ### Stop Execution
 
 **Via Dashboard:**
-- Click the red **Stop Ralph** button
+- Click the red **Stop Run** button
 
 **Via CLI:**
 ```bash

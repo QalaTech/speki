@@ -27,7 +27,7 @@ import type { PRDData } from '@speki/core';
 // Spec resolution DRY: pulled into ../shared/spec-utils
 
 export const startCommand = new Command('start')
-  .description('Start Ralph loop for current project')
+  .description('Start execution loop for current project')
   .option('-p, --project <path>', 'Project path (defaults to current directory)')
   .option('-s, --spec <spec-id>', 'Spec ID to run (prompts for selection if multiple specs exist)')
   .option('-i, --iterations <number>', 'Maximum iterations (default: auto-calculated based on task count)')
