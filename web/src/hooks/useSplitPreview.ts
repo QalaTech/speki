@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
+import { apiFetch } from '../components/ui/ErrorContext';
 import type { SplitProposal } from '../../../src/types/index.js';
-import type { SplitPreviewFile } from '../components/SplitPreviewModal';
+import type { SplitPreviewFile } from '../components/review/SplitPreviewModal';
 
 export interface UseSplitPreviewState {
   /** Whether the preview modal is open */
@@ -67,7 +68,7 @@ export function useSplitPreview(): UseSplitPreviewReturn {
       }));
 
       try {
-        const response = await fetch(buildApiUrl('/api/spec-review/split/preview-content', projectPath), {
+        const response = await apiFetch(buildApiUrl('/api/spec-review/split/preview-content', projectPath), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ specFile, proposal }),
@@ -109,7 +110,7 @@ export function useSplitPreview(): UseSplitPreviewReturn {
       }));
 
       try {
-        const response = await fetch(buildApiUrl('/api/spec-review/split/execute', projectPath), {
+        const response = await apiFetch(buildApiUrl('/api/spec-review/split/execute', projectPath), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

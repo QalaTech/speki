@@ -71,7 +71,7 @@ router.get('/:encodedPath', async (req, res) => {
 
     const project = new Project(projectPath);
     if (!(await project.exists())) {
-      return res.status(404).json({ error: 'Project .ralph folder not found' });
+      return res.status(404).json({ error: 'Project .speki folder not found' });
     }
 
     const [status, config, decomposeState, prd] = await Promise.all([
@@ -111,7 +111,7 @@ router.post('/register', async (req, res) => {
     const project = new Project(projectPath);
     if (!(await project.exists())) {
       return res.status(404).json({
-        error: 'Project .ralph folder not found. Run qala init first.',
+        error: 'Project .speki folder not found. Run qala init first.',
       });
     }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { UserStory } from '../../types';
+import { apiFetch } from '../ui/ErrorContext';
 
 interface CreateTechSpecModalProps {
   isOpen: boolean;
@@ -45,6 +46,18 @@ export function CreateTechSpecModal({
       setSelectedStories(new Set(userStories.map(s => s.id)));
     }
   }, [isOpen, userStories, selectedStories.size]);
+
+  // Handle escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
 
   // API helper
   const apiUrl = useCallback((endpoint: string) => {
@@ -96,7 +109,7 @@ export function CreateTechSpecModal({
 
     try {
       // Use AI-powered generation endpoint
-      const res = await fetch(apiUrl('/api/decompose/generate-tech-spec'), {
+      const res = await apiFetch(apiUrl('/api/decompose/generate-tech-spec'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -122,133 +135,140 @@ export function CreateTechSpecModal({
       onCreated?.(data.outputPath);
     } catch (err) {
       console.error('Tech spec generation failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate tech spec');
       onGenerationEnd?.();
     } finally {
       setCreating(false);
     }
   };
 
-  // Handle backdrop click
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
-  // Handle escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
   if (!isOpen) return null;
 
   return (
-    <>
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
-      <div 
-        className="fixed inset-0 bg-black/60 z-[1000] flex items-center justify-center animate-[fadeIn_0.15s_ease-out]" 
-        onClick={handleBackdropClick}
-      >
-        <div 
-          className="w-[560px] max-w-[90vw] max-h-[80vh] bg-bg border border-border rounded-xl flex flex-col animate-[slideUp_0.2s_ease-out] shadow-[0_20px_40px_rgba(0,0,0,0.3)]" 
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between py-5 px-6 border-b border-border">
-            <h2 className="m-0 text-lg font-semibold text-text">Create Tech Spec</h2>
-            <button className="flex items-center justify-center w-8 h-8 bg-transparent border-none rounded-md text-2xl text-text-muted cursor-pointer transition-all duration-150 hover:bg-surface-hover hover:text-text" onClick={onClose}>×</button>
-          </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
-          <div className="flex-1 overflow-y-auto p-6">
-            {/* Tech spec name input */}
-            <div className="mb-5">
-              <label className="block mb-2 text-[13px] font-semibold text-text uppercase tracking-[0.02em]">Tech Spec Name</label>
-              <input
-                type="text"
-                className="w-full py-3 px-3.5 bg-surface border border-border rounded-lg font-mono text-sm text-text transition-all duration-150 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 disabled:opacity-60 disabled:cursor-not-allowed"
-                value={techSpecName}
-                onChange={(e) => setTechSpecName(e.target.value)}
-                placeholder="feature-name.tech.md"
-                disabled={creating}
-              />
-              <span className="block mt-1.5 text-xs text-text-muted">
-                Will be created in the specs/ directory with a link to {prdName}
-              </span>
-            </div>
+      {/* Modal */}
+      <div className="relative w-full max-w-lg bg-base-100 rounded-xl shadow-2xl border border-base-300 overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-base-300 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-base-content">Create Tech Spec</h3>
+          <button
+            className="btn btn-sm btn-circle btn-ghost"
+            onClick={onClose}
+          >
+            ✕
+          </button>
+        </div>
 
-            {/* User stories selection */}
-            <div className="mb-5 last:mb-0">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-[13px] font-semibold text-text uppercase tracking-[0.02em]">User Stories to Implement</label>
-                <div className="flex gap-2">
-                  <button className="py-1 px-2.5 bg-transparent border border-border rounded text-[11px] font-medium text-text-muted cursor-pointer transition-all duration-150 hover:bg-surface-hover hover:border-accent hover:text-accent" onClick={selectAll}>Select All</button>
-                  <button className="py-1 px-2.5 bg-transparent border border-border rounded text-[11px] font-medium text-text-muted cursor-pointer transition-all duration-150 hover:bg-surface-hover hover:border-accent hover:text-accent" onClick={selectNone}>Select None</button>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto p-1 bg-surface border border-border rounded-lg">
-                {userStories.map(story => (
-                  <label
-                    key={story.id}
-                    className={`flex items-center gap-2.5 py-2.5 px-3 bg-transparent rounded-md cursor-pointer transition-colors duration-150 hover:bg-surface-hover ${selectedStories.has(story.id) ? 'bg-accent/10' : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 accent-accent cursor-pointer"
-                      checked={selectedStories.has(story.id)}
-                      onChange={() => toggleStory(story.id)}
-                      disabled={creating}
-                    />
-                    <span className="font-mono text-[11px] font-semibold text-text-muted bg-bg py-0.5 px-1.5 rounded shrink-0">{story.id}</span>
-                    <span className="flex-1 text-[13px] text-text whitespace-nowrap overflow-hidden text-ellipsis">{story.title}</span>
-                    {story.passes && (
-                      <span className="text-xs text-[#3fb950] shrink-0">✓</span>
-                    )}
-                  </label>
-                ))}
-              </div>
-
-              <span className="block mt-1.5 text-xs text-text-muted">
-                {selectedStories.size} of {userStories.length} stories selected
-              </span>
-            </div>
-
-            {/* Error display */}
-            {error && (
-              <div className="flex items-center gap-2 py-3 px-3.5 bg-[rgba(218,54,51,0.1)] border border-[rgba(218,54,51,0.3)] rounded-lg text-[13px] text-[#f85149] mt-4">
-                <span className="text-sm">⚠</span>
-                {error}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-end gap-3 py-4 px-6 border-t border-border">
-            <button
-              className="inline-flex items-center gap-1.5 py-2.5 px-4.5 bg-surface-hover border border-border rounded-lg text-sm font-medium text-text cursor-pointer transition-all duration-150 hover:bg-surface hover:border-text-muted disabled:opacity-60 disabled:cursor-not-allowed"
-              onClick={onClose}
+        {/* Body */}
+        <div className="px-6 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
+          {/* Tech spec name input */}
+          <div>
+            <label className="block text-sm font-medium text-base-content mb-2">
+              Tech Spec Name
+            </label>
+            <input
+              type="text"
+              className="input input-bordered w-full font-mono"
+              value={techSpecName}
+              onChange={(e) => setTechSpecName(e.target.value)}
+              placeholder="feature-name.tech.md"
               disabled={creating}
-            >
-              Cancel
-            </button>
-            <button
-              className="inline-flex items-center gap-1.5 py-2.5 px-4.5 bg-primary border-none rounded-lg text-sm font-medium text-white cursor-pointer transition-all duration-150 hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed"
-              onClick={handleCreate}
-              disabled={creating || !techSpecName.trim() || selectedStories.size === 0}
-            >
-              {creating ? '⏳ Generating with AI...' : '🤖 Generate Tech Spec'}
-            </button>
+            />
+            <p className="mt-2 text-xs text-base-content/60">
+              Will be created in the specs/ directory with a link to {prdName}
+            </p>
           </div>
+
+          {/* User stories selection */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-base-content">
+                User Stories to Implement
+              </label>
+              <div className="flex gap-2">
+                <button
+                  className="btn btn-xs btn-ghost"
+                  onClick={selectAll}
+                >
+                  Select All
+                </button>
+                <button
+                  className="btn btn-xs btn-ghost"
+                  onClick={selectNone}
+                >
+                  Select None
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-base-200 rounded-lg border border-base-300 max-h-48 overflow-y-auto p-2">
+              {userStories.map(story => (
+                <label
+                  key={story.id}
+                  className={`flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-base-300 transition-colors ${
+                    selectedStories.has(story.id) ? 'bg-primary/10' : ''
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-sm checkbox-primary"
+                    checked={selectedStories.has(story.id)}
+                    onChange={() => toggleStory(story.id)}
+                    disabled={creating}
+                  />
+                  <span className="badge badge-ghost font-mono text-xs">{story.id}</span>
+                  <span className="flex-1 text-sm truncate">{story.title}</span>
+                  {story.passes && (
+                    <span className="text-success text-xs">✓</span>
+                  )}
+                </label>
+              ))}
+            </div>
+
+            <p className="mt-2 text-xs text-base-content/60">
+              {selectedStories.size} of {userStories.length} stories selected
+            </p>
+          </div>
+
+          {/* Error display */}
+          {error && (
+            <div className="alert alert-error">
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-base-300 flex justify-end gap-3">
+          <button
+            className="btn btn-ghost"
+            onClick={onClose}
+            disabled={creating}
+          >
+            Cancel
+          </button>
+          <button
+            className="btn btn-glass-primary"
+            onClick={handleCreate}
+            disabled={creating || !techSpecName.trim() || selectedStories.size === 0}
+          >
+            {creating ? (
+              <>
+                <span className="loading loading-spinner loading-sm"></span>
+                Generating...
+              </>
+            ) : (
+              'Generate Tech Spec'
+            )}
+          </button>
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -1,9 +1,25 @@
-import { useState, useEffect, useMemo } from 'react';
-import type { UserStory, QueuedTaskReference } from '../../types';
-import { ChatMarkdown } from '../ChatMarkdown';
-import { useUnifiedSSE } from '../../hooks/useUnifiedSSE';
+import {
+  ArrowPathIcon,
+  CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  LockClosedIcon,
+  PencilIcon,
+  PlayIcon,
+  PlusIcon,
+  QueueListIcon,
+  SparklesIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDecomposeSSE } from "../../hooks/useDecomposeSSE";
+import { apiFetch } from "../ui/ErrorContext";
+import type { QueuedTaskReference, UserStory } from "../../types";
+import { ChatMarkdown } from "../chat/ChatMarkdown";
+import { SpecEditor, type SpecEditorRef } from "../shared/SpecEditor";
 
-type SpecType = 'prd' | 'tech-spec' | 'bug';
+type SpecType = "prd" | "tech-spec" | "bug";
 
 interface Props {
   specPath: string;
@@ -14,40 +30,145 @@ interface Props {
   isGeneratingTechSpec?: boolean;
 }
 
-// Derive specId from specPath (filename without extension)
+// Derive specId from specPath (filename without .md extension, but keep .tech/.prd/.bug)
 function getSpecId(specPath: string): string {
-  const filename = specPath.split('/').pop() || specPath;
-  return filename.replace(/\.(prd|tech|bug)?\.md$/i, '');
+  const filename = specPath.split("/").pop() || specPath;
+  return filename.replace(/\.md$/i, "");
 }
 
-export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Props) {
+export function SpecDecomposeTab({
+  specPath,
+  projectPath,
+  specType = "prd",
+}: Props) {
   const specId = useMemo(() => getSpecId(specPath), [specPath]);
   const [stories, setStories] = useState<UserStory[]>([]);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [branch, setBranch] = useState('');
+  const [specStatus, setSpecStatus] = useState<
+    "pending" | "partial" | "completed" | null
+  >(null);
+  const [specStatusMessage, setSpecStatusMessage] = useState<string | null>(
+    null,
+  );
+  const [branch, setBranch] = useState("");
   const [activateLoading, setActivateLoading] = useState(false);
-  const [executeLoading, setExecuteLoading] = useState(false);
-  const [executeError, setExecuteError] = useState<string | null>(null);
 
-  // Drawer state
+  // Drawer/Editor state
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<UserStory | null>(null);
-  const [taskFeedback, setTaskFeedback] = useState('');
-  const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [feedbackError, setFeedbackError] = useState<string | null>(null);
-  const [feedbackSuccess, setFeedbackSuccess] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const editorRef = useRef<SpecEditorRef>(null);
+
+  // Convert task to markdown for editing
+  const taskToMarkdown = (task: UserStory): string => {
+    let md = `# ${task.title}\n\n`;
+    md += `## Description\n\n${task.description}\n\n`;
+
+    if (task.acceptanceCriteria.length > 0) {
+      md += `## Acceptance Criteria\n\n`;
+      task.acceptanceCriteria.forEach((ac) => {
+        md += `- ${ac}\n`;
+      });
+      md += "\n";
+    }
+
+    if (task.testCases && task.testCases.length > 0) {
+      md += `## Test Cases\n\n`;
+      task.testCases.forEach((tc) => {
+        md += `- \`${tc}\`\n`;
+      });
+      md += "\n";
+    }
+
+    if (task.dependencies.length > 0) {
+      md += `## Dependencies\n\n`;
+      task.dependencies.forEach((dep) => {
+        md += `- ${dep}\n`;
+      });
+      md += "\n";
+    }
+
+    if (task.notes) {
+      md += `## Notes\n\n${task.notes}\n`;
+    }
+
+    return md;
+  };
+
+  // Parse markdown back to task fields
+  const markdownToTask = (md: string): Partial<UserStory> => {
+    const lines = md.split("\n");
+    const updates: Partial<UserStory> = {};
+
+    let currentSection = "";
+    let title = "";
+    let description: string[] = [];
+    let acceptanceCriteria: string[] = [];
+    let testCases: string[] = [];
+    let dependencies: string[] = [];
+    let notes: string[] = [];
+
+    for (const line of lines) {
+      if (line.startsWith("# ")) {
+        title = line.replace("# ", "").trim();
+      } else if (line.startsWith("## Description")) {
+        currentSection = "description";
+      } else if (line.startsWith("## Acceptance Criteria")) {
+        currentSection = "acceptanceCriteria";
+      } else if (line.startsWith("## Test Cases")) {
+        currentSection = "testCases";
+      } else if (line.startsWith("## Dependencies")) {
+        currentSection = "dependencies";
+      } else if (line.startsWith("## Notes")) {
+        currentSection = "notes";
+      } else if (line.startsWith("## ")) {
+        currentSection = "unknown";
+      } else {
+        const trimmed = line.trim();
+        if (currentSection === "description" && trimmed) {
+          description.push(trimmed);
+        } else if (
+          currentSection === "acceptanceCriteria" &&
+          trimmed.startsWith("- ")
+        ) {
+          acceptanceCriteria.push(trimmed.replace(/^- /, ""));
+        } else if (currentSection === "testCases" && trimmed.startsWith("- ")) {
+          testCases.push(trimmed.replace(/^- `?|`$/g, ""));
+        } else if (
+          currentSection === "dependencies" &&
+          trimmed.startsWith("- ")
+        ) {
+          dependencies.push(trimmed.replace(/^- /, ""));
+        } else if (currentSection === "notes" && trimmed) {
+          notes.push(trimmed);
+        }
+      }
+    }
+
+    if (title) updates.title = title;
+    if (description.length > 0) updates.description = description.join("\n");
+    if (acceptanceCriteria.length > 0)
+      updates.acceptanceCriteria = acceptanceCriteria;
+    if (testCases.length > 0) updates.testCases = testCases;
+    if (dependencies.length > 0) updates.dependencies = dependencies;
+    if (notes.length > 0) updates.notes = notes.join("\n");
+
+    return updates;
+  };
 
   // Queue state
   const [queueTasks, setQueueTasks] = useState<QueuedTaskReference[]>([]);
   const [queueLoading, setQueueLoading] = useState<Set<string>>(new Set());
 
-  // Get decompose state from unified SSE
-  const { decomposeState } = useUnifiedSSE(projectPath);
+  // Get decompose state from SSE
+  const decomposeState = useDecomposeSSE(projectPath);
 
-  
   // Load initial state
   useEffect(() => {
     if (specId) {
@@ -56,72 +177,114 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
     }
   }, [specId]);
 
-  // Listen for SSE updates
+  // Listen for SSE updates - only for this spec
   useEffect(() => {
     if (!decomposeState) return;
+
+    // Only react to events for this spec (prdFile matches specPath)
+    const isForThisSpec =
+      decomposeState.prdFile === specPath ||
+      decomposeState.prdFile?.endsWith(specPath) ||
+      specPath.endsWith(decomposeState.prdFile || "");
+
+    if (!isForThisSpec) return;
 
     if (decomposeState.error) {
       setError(decomposeState.error);
       setIsLoading(false);
     }
-    const activeStatuses = ['STARTING', 'INITIALIZING', 'DECOMPOSING', 'REVIEWING', 'REVISING'];
+    const activeStatuses = [
+      "STARTING",
+      "INITIALIZING",
+      "DECOMPOSING",
+      "REVIEWING",
+      "REVISING",
+    ];
     if (activeStatuses.includes(decomposeState.status)) {
       setIsLoading(true);
-    } else if (decomposeState.status === 'COMPLETED' || decomposeState.status === 'DECOMPOSED') {
+    } else if (
+      decomposeState.status === "COMPLETED" ||
+      decomposeState.status === "DECOMPOSED"
+    ) {
       setIsLoading(false);
       // Reload data when decompose completes
       loadDecomposeState();
     }
-  }, [decomposeState]);
+  }, [decomposeState, specPath]);
 
   const loadDecomposeState = async () => {
     try {
-      const res = await fetch(`/api/spec/${specId}/decompose`);
+      const params = new URLSearchParams({
+        specPath: specPath,
+        project: projectPath,
+      });
+      const res = await apiFetch(`/api/decompose/draft?${params}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.stories && data.stories.length > 0) {
-          setStories(data.stories);
-          setCompletedIds(new Set(data.completedIds || []));
+        if (data.draft) {
+          setStories(data.draft.userStories || []);
+          setSpecStatus(data.draft.status || null);
+          setSpecStatusMessage(data.draft.statusMessage || null);
+          // completedIds is populated from queue tasks in loadQueueTasks
         }
       }
     } catch (err) {
-      console.error('Failed to load decompose state:', err);
+      console.error("Failed to load decompose state:", err);
     }
   };
 
   const loadQueueTasks = async () => {
     try {
-      const res = await fetch(`/api/spec/${specId}/queue/tasks`);
+      const params = new URLSearchParams({ project: projectPath });
+      const res = await apiFetch(`/api/queue/with-tasks?${params}`);
       if (res.ok) {
         const data = await res.json();
-        setQueueTasks(data.tasks || []);
+        // Filter tasks for this specific spec
+        const allTasks = data.queue || [];
+        const specTasks = allTasks.filter(
+          (t: QueuedTaskReference) => t.specId === specId,
+        );
+        setQueueTasks(specTasks);
+
+        // Update completedIds from queue status
+        const completed = new Set<string>(
+          specTasks
+            .filter((t: QueuedTaskReference) => t.status === "completed")
+            .map((t: QueuedTaskReference) => t.taskId),
+        );
+        setCompletedIds(completed);
       }
     } catch (err) {
-      console.error('Failed to load queue tasks:', err);
+      console.error("Failed to load queue tasks:", err);
     }
   };
 
   const handleDecompose = async (force: boolean = false) => {
-    if (!specId) return;
+    if (!specPath) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(`/api/spec/${specId}/decompose`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force, branch: branch || undefined }),
+      const params = new URLSearchParams({ project: projectPath });
+      const res = await apiFetch(`/api/decompose/start?${params}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prdFile: specPath,
+          forceRedecompose: force,
+          branchName: branch || undefined,
+        }),
       });
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Decompose failed');
+        throw new Error(data.error || "Decompose failed");
       }
 
       // SSE will update the state
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : "Unknown error");
       setIsLoading(false);
     }
   };
@@ -133,28 +296,21 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
     setError(null);
 
     try {
-      // Activate the spec first
-      const activateRes = await fetch(`/api/spec/${specId}/activate`, {
-        method: 'POST',
-      });
+      const params = new URLSearchParams({ project: projectPath });
 
-      if (!activateRes.ok) {
-        const data = await activateRes.json();
-        throw new Error(data.error || 'Activation failed');
-      }
+      // Activate the spec first
+      await apiFetch(`/api/decompose/activate?${params}`, {
+        method: "POST",
+      });
 
       // Then start the queue
-      const runRes = await fetch('/api/queue/run', {
-        method: 'POST',
+      await apiFetch(`/api/queue/quick-start?${params}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ specId }),
       });
-
-      if (!runRes.ok) {
-        const data = await runRes.json();
-        throw new Error(data.error || 'Failed to start queue');
-      }
-
-          } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setActivateLoading(false);
     }
@@ -163,26 +319,27 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
   const handleAddToQueue = async (taskId: string) => {
     if (!specId) return;
 
-    setQueueLoading(prev => new Set(prev).add(taskId));
+    setQueueLoading((prev) => new Set(prev).add(taskId));
 
     try {
-      const res = await fetch(`/api/spec/${specId}/queue/add`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId }),
+      const params = new URLSearchParams({ project: projectPath });
+      const res = await apiFetch(`/api/queue/add?${params}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ specId, taskId }),
       });
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Failed to add to queue');
+        throw new Error(data.error || "Failed to add to queue");
       }
 
       // Refresh queue tasks
       await loadQueueTasks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setQueueLoading(prev => {
+      setQueueLoading((prev) => {
         const next = new Set(prev);
         next.delete(taskId);
         return next;
@@ -193,26 +350,25 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
   const handleRemoveFromQueue = async (taskId: string) => {
     if (!specId) return;
 
-    setQueueLoading(prev => new Set(prev).add(taskId));
+    setQueueLoading((prev) => new Set(prev).add(taskId));
 
     try {
-      const res = await fetch(`/api/spec/${specId}/queue/remove`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId }),
+      const params = new URLSearchParams({ project: projectPath });
+      const res = await apiFetch(`/api/queue/${specId}/${taskId}?${params}`, {
+        method: "DELETE",
       });
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Failed to remove from queue');
+        throw new Error(data.error || "Failed to remove from queue");
       }
 
       // Refresh queue tasks
       await loadQueueTasks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setQueueLoading(prev => {
+      setQueueLoading((prev) => {
         const next = new Set(prev);
         next.delete(taskId);
         return next;
@@ -224,25 +380,71 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
     if (!specId) return;
 
     // Get all unqueued, incomplete tasks
-    const tasksToAdd = stories.filter(s => !s.passes && !isTaskQueued(s.id));
+    const tasksToAdd = stories.filter((s) => !s.passes && !isTaskQueued(s.id));
 
     for (const task of tasksToAdd) {
       await handleAddToQueue(task.id);
     }
   };
 
-  const openTaskDrawer = (task: UserStory) => {
+  const openTaskEditor = (task: UserStory) => {
     setSelectedTask(task);
+    setEditContent(taskToMarkdown(task));
     setDrawerOpen(true);
-    setTaskFeedback('');
-    setFeedbackError(null);
-    setFeedbackSuccess(false);
-    setExecuteError(null);
+    setSaveError(null);
+    setSaveSuccess(false);
   };
 
   const closeDrawer = () => {
     setDrawerOpen(false);
     setSelectedTask(null);
+    setEditContent("");
+  };
+
+  const handleSaveTask = async () => {
+    if (!specId || !selectedTask) return;
+
+    setSaveLoading(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    try {
+      // Get content from editor
+      const content = editorRef.current?.getMarkdown?.() || editContent;
+      const updates = markdownToTask(content);
+
+      // Merge updates with original task
+      const updatedTask = { ...selectedTask, ...updates };
+
+      // Call API to update task
+      const params = new URLSearchParams({ project: projectPath });
+      const res = await apiFetch(`/api/decompose/update-task?${params}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ specId, task: updatedTask }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to save task");
+      }
+
+      // Update in local state
+      setStories((prev) =>
+        prev.map((s) => (s.id === updatedTask.id ? updatedTask : s)),
+      );
+      setSelectedTask(updatedTask);
+      setSaveSuccess(true);
+
+      // Auto-close after success
+      setTimeout(() => {
+        closeDrawer();
+      }, 1000);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setSaveLoading(false);
+    }
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -251,167 +453,87 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
     }
   };
 
-  const handleExecuteTask = async () => {
-    if (!specId || !selectedTask) return;
-
-    setExecuteLoading(true);
-    setExecuteError(null);
-
-    try {
-      const res = await fetch(`/api/spec/${specId}/task/${selectedTask.id}/execute`, {
-        method: 'POST',
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Execute failed');
-      }
-
-      // Refresh state
-      await loadDecomposeState();
-      closeDrawer();
-    } catch (err) {
-      setExecuteError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setExecuteLoading(false);
-    }
-  };
-
-  const handleSubmitFeedback = async () => {
-    if (!specId || !selectedTask || !taskFeedback.trim()) return;
-
-    setFeedbackLoading(true);
-    setFeedbackError(null);
-    setFeedbackSuccess(false);
-
-    try {
-      const res = await fetch(`/api/spec/${specId}/task/${selectedTask.id}/feedback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedback: taskFeedback }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Feedback failed');
-      }
-
-      const data = await res.json();
-      // Update the selected task with new data
-      setSelectedTask(data.task);
-      // Update in the list
-      setStories(prev => prev.map(s => s.id === data.task.id ? data.task : s));
-      setFeedbackSuccess(true);
-      setTaskFeedback('');
-    } catch (err) {
-      setFeedbackError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setFeedbackLoading(false);
-    }
-  };
-
-  const isTaskQueued = (taskId: string) => queueTasks.some(t => t.taskId === taskId);
+  const isTaskQueued = (taskId: string) =>
+    queueTasks.some((t) => t.taskId === taskId);
   const getQueuePosition = (taskId: string) => {
-    const pending = queueTasks.filter(t => t.status === 'queued' || t.status === 'running');
-    const idx = pending.findIndex(t => t.taskId === taskId);
+    const pending = queueTasks.filter(
+      (t) => t.status === "queued" || t.status === "running",
+    );
+    const idx = pending.findIndex((t) => t.taskId === taskId);
     return idx >= 0 ? idx + 1 : null;
   };
-  const getQueuedTaskStatus = (taskId: string) => queueTasks.find(t => t.taskId === taskId)?.status || 'pending';
+  const getQueuedTaskStatus = (taskId: string) =>
+    queueTasks.find((t) => t.taskId === taskId)?.status || "pending";
 
   const hasBeenDecomposed = stories.length > 0;
-  const canActivate = specType === 'tech-spec' && hasBeenDecomposed && queueTasks.some(t => t.status === 'queued');
+  const canActivate =
+    specType === "tech-spec" &&
+    hasBeenDecomposed &&
+    queueTasks.some((t) => t.status === "queued");
 
   // Helper functions for styling
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed': return '✓';
-      case 'blocked': return '🔒';
-      case 'running': return '▶';
-      default: return '○';
+      case "completed":
+        return <CheckCircleIcon className="h-3 w-3" />;
+      case "blocked":
+        return <LockClosedIcon className="h-3 w-3" />;
+      case "running":
+        return <PlayIcon className="h-3 w-3" />;
+      default:
+        return <ClockIcon className="h-3 w-3" />;
     }
   };
 
   const getTaskStatus = (task: UserStory, completed: Set<string>): string => {
-    if (task.passes || completed.has(task.id)) return 'completed';
-    const depsBlocked = task.dependencies.some(d => !completed.has(d));
-    if (depsBlocked) return 'blocked';
-    return 'pending';
+    if (task.passes || completed.has(task.id)) return "completed";
+    const depsBlocked = task.dependencies.some((d) => !completed.has(d));
+    if (depsBlocked) return "blocked";
+    return "pending";
   };
 
   const getComplexityBadge = (complexity?: string) => {
     if (!complexity) return null;
     const complexityClasses: Record<string, string> = {
-      low: 'bg-[#1c3829] text-[#4ade80]',
-      medium: 'bg-[#422006] text-[#fbbf24]',
-      high: 'bg-[#450a0a] text-[#f87171]',
+      low: "badge-success",
+      medium: "badge-warning",
+      high: "badge-error",
     };
     return (
-      <span className={`ml-2 py-0.5 px-1.5 rounded text-[10px] font-medium uppercase tracking-wide ${complexityClasses[complexity] || ''}`}>
+      <span
+        className={`badge badge-xs ${complexityClasses[complexity] || "badge-ghost"}`}
+      >
         {complexity}
       </span>
     );
   };
 
-  // Task card status classes
-  const getTaskCardClasses = (status: string, isQueued: boolean) => {
-    const base = 'relative border border-border rounded-lg bg-surface overflow-hidden transition-all duration-200';
-    const statusClasses: Record<string, string> = {
-      completed: 'opacity-70 border-l-2 border-l-[#238636]',
-      blocked: 'opacity-60 border-l-2 border-l-[#6e7681]',
-      running: 'border-l-2 border-l-[#1f6feb] bg-[rgba(31,111,235,0.05)]',
-      pending: 'border-l-2 border-l-[#8b949e]',
-    };
-    const queuedClass = isQueued ? 'ring-1 ring-[#1f6feb]' : '';
-    return `${base} ${statusClasses[status] || ''} ${queuedClass}`;
-  };
-
-  // Task status classes
-  const getTaskStatusClasses = (status: string) => {
-    const base = 'flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold';
-    const statusClasses: Record<string, string> = {
-      completed: 'bg-[#238636] text-white',
-      blocked: 'bg-[#6e7681] text-white',
-      running: 'bg-[#1f6feb] text-white animate-pulse',
-      pending: 'bg-transparent border-2 border-[#8b949e] text-[#8b949e]',
-    };
-    return `${base} ${statusClasses[status] || ''}`;
-  };
-
   // Review status classes
   const getReviewStatusClasses = (reviewStatus: string) => {
-    const base = 'ml-2 py-0.5 px-2 rounded-full text-[10px] font-medium';
     const classes: Record<string, string> = {
-      passed: 'bg-[rgba(35,134,54,0.15)] text-[#3fb950]',
-      needs_improvement: 'bg-[rgba(210,153,34,0.15)] text-[#d29922]',
-      pending: 'bg-[rgba(139,148,158,0.15)] text-[#8b949e]',
+      passed: "badge badge-success badge-sm",
+      needs_improvement: "badge badge-warning badge-sm",
+      pending: "badge badge-ghost badge-sm",
     };
-    return `${base} ${classes[reviewStatus] || ''}`;
+    return classes[reviewStatus] || "badge badge-ghost badge-sm";
   };
 
   // Queue badge classes
   const getQueueBadgeClasses = (queueStatus: string) => {
-    const base = 'ml-2 py-0.5 px-2 rounded text-[10px] font-medium';
     const classes: Record<string, string> = {
-      running: 'bg-[#1f6feb] text-white animate-pulse',
-      completed: 'bg-[#238636] text-white',
-      pending: 'bg-[#30363d] text-[#8b949e]',
+      running: "badge badge-info badge-sm animate-pulse",
+      completed: "badge badge-success badge-sm",
+      queued: "badge badge-secondary badge-sm",
     };
-    return `${base} ${classes[queueStatus] || classes.pending}`;
+    return classes[queueStatus] || "badge badge-ghost badge-sm";
   };
 
-  // Button classes
-  const btnBase = 'inline-flex items-center gap-1.5 py-2.5 px-4 border-none rounded-lg text-[13px] font-medium cursor-pointer transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed';
-  const btnPrimary = `${btnBase} bg-[#238636] text-white hover:bg-[#2ea043] disabled:hover:bg-[#238636]`;
-  const btnSecondary = `${btnBase} bg-[#21262d] text-text border border-border hover:bg-[#30363d] hover:border-text-muted disabled:hover:bg-[#21262d]`;
-
-  // Drawer button classes
-  const drawerBtnBase = 'py-2 px-4 rounded-lg text-[13px] font-medium cursor-pointer transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed';
-  const drawerBtnPrimary = `${drawerBtnBase} bg-primary text-white hover:bg-primary-hover`;
-  const drawerBtnExecute = `${drawerBtnBase} bg-[#238636] text-white hover:bg-[#2ea043]`;
-  const drawerBtnRemove = `${drawerBtnBase} bg-[#21262d] text-[#f85149] border border-[#f85149] hover:bg-[rgba(248,81,73,0.1)]`;
+  // Button classes - using DaisyUI
+  const btnPrimary = "btn btn-glass-primary gap-2";
+  const btnSecondary = "btn btn-outline btn-secondary gap-2";
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden p-6">
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
@@ -442,32 +564,45 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
       `}</style>
 
       {/* Header */}
-      <div className="flex-shrink-0 flex items-start justify-between gap-4 pb-4 border-b border-border">
+      <div className="flex-shrink-0 flex items-start justify-between gap-4 pb-4 border-b border-base-300">
         <div className="flex flex-col gap-1">
-          <h2 className="m-0 text-lg font-semibold text-text">
-            {specType === 'prd' ? 'User Stories' : 'Tasks'}
+          <h2 className="m-0 text-lg font-semibold text-base-content">
+            {specType === "prd" ? "User Stories" : "Tasks"}
           </h2>
-          <p className="text-text-muted text-sm m-0">
-            {specType === 'prd'
-              ? 'Break down this PRD into user stories'
-              : 'Break down this spec into implementable tasks'}
+          <p className="text-base-content/60 text-sm m-0">
+            {specType === "prd"
+              ? "Break down this PRD into user stories"
+              : "Break down this spec into implementable tasks"}
           </p>
           {hasBeenDecomposed && (
-            <span className="text-text-muted text-xs mt-1">
-              {stories.filter(s => s.passes || completedIds.has(s.id)).length}/{stories.length} completed
+            <span className="text-base-content/60 text-xs mt-1">
+              {stories.filter((s) => s.passes || completedIds.has(s.id)).length}{" "}
+              / {stories.length} completed
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+        <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
           {/* Tech spec queue actions */}
-          {specType === 'tech-spec' && hasBeenDecomposed && (
+          {specType === "tech-spec" && hasBeenDecomposed && (
             <button
               className={btnPrimary}
               onClick={handleAddAllToQueue}
-              disabled={queueLoading.size > 0 || stories.every(s => s.passes || isTaskQueued(s.id))}
+              disabled={
+                queueLoading.size > 0 ||
+                stories.every((s) => s.passes || isTaskQueued(s.id))
+              }
             >
-              {queueLoading.size > 0 ? '⏳ Adding...' : '📋 Add All to Queue'}
+              {queueLoading.size > 0 ? (
+                <>
+                  <span className="loading loading-spinner loading-xs" />{" "}
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <QueueListIcon className="h-4 w-4" /> Add All to Queue
+                </>
+              )}
             </button>
           )}
 
@@ -477,7 +612,16 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
               onClick={handleActivateAndRun}
               disabled={activateLoading}
             >
-              {activateLoading ? '⏳ Starting...' : '▶ Run Queue'}
+              {activateLoading ? (
+                <>
+                  <span className="loading loading-spinner loading-xs" />{" "}
+                  Starting...
+                </>
+              ) : (
+                <>
+                  <PlayIcon className="h-4 w-4" /> Run Queue
+                </>
+              )}
             </button>
           )}
           {hasBeenDecomposed ? (
@@ -486,8 +630,19 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
               onClick={() => handleDecompose(true)}
               disabled={isLoading || activateLoading}
             >
-              {isLoading ? '⏳ Running...' :
-               specType === 'prd' ? '🔄 Regenerate Stories' : '🔄 Regenerate Tasks'}
+              {isLoading ? (
+                <>
+                  <span className="loading loading-spinner loading-xs" />{" "}
+                  Running...
+                </>
+              ) : (
+                <>
+                  <ArrowPathIcon className="h-4 w-4" />{" "}
+                  {specType === "prd"
+                    ? "Regenerate Stories"
+                    : "Regenerate Tasks"}
+                </>
+              )}
             </button>
           ) : (
             <button
@@ -495,8 +650,19 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
               onClick={() => handleDecompose(false)}
               disabled={isLoading}
             >
-              {isLoading ? '⏳ Running...' :
-               specType === 'prd' ? '📝 Generate User Stories' : '🔧 Generate Tasks'}
+              {isLoading ? (
+                <>
+                  <span className="loading loading-spinner loading-xs" />{" "}
+                  Running...
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="h-4 w-4" />{" "}
+                  {specType === "prd"
+                    ? "Generate User Stories"
+                    : "Generate Tasks"}
+                </>
+              )}
             </button>
           )}
         </div>
@@ -504,10 +670,12 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
 
       {/* Branch input */}
       <div className="flex items-center gap-3 py-3">
-        <label className="text-text-muted text-sm font-medium whitespace-nowrap">Branch:</label>
+        <label className="text-base-content/60 text-sm font-medium whitespace-nowrap">
+          Branch:
+        </label>
         <input
           type="text"
-          className="flex-1 max-w-xs py-2 px-3 bg-surface border border-border rounded-md text-text text-sm placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
+          className="input input-bordered input-sm flex-1 max-w-xs"
           value={branch}
           onChange={(e) => setBranch(e.target.value)}
           placeholder="ralph/feature"
@@ -517,164 +685,274 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
 
       {/* Progress indicator */}
       {isLoading && (
-        <div className="py-6 px-4 flex flex-col items-center gap-3 bg-[rgba(31,111,235,0.05)] rounded-lg border border-[rgba(31,111,235,0.2)] my-3">
-          <div className="flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-[#1f6feb] border-t-transparent rounded-full animate-spin-slow" />
-            <span className="text-text text-sm font-medium">
-              {decomposeState?.message || (specType === 'prd' ? 'Generating user stories...' : 'Generating tasks...')}
+        <div className="alert alert-info my-3">
+          <span className="loading loading-spinner loading-sm" />
+          <div className="flex flex-col">
+            <span className="font-medium">
+              {decomposeState?.message ||
+                (specType === "prd"
+                  ? "Generating user stories..."
+                  : "Generating tasks...")}
             </span>
+            {!hasBeenDecomposed && (
+              <span className="text-xs opacity-70">
+                {specType === "prd"
+                  ? "Stories will appear here once generation and review complete"
+                  : "Tasks will appear here once generation completes"}
+              </span>
+            )}
           </div>
-          {!hasBeenDecomposed && (
-            <div className="text-text-muted text-xs text-center">
-              {specType === 'prd'
-                ? '📝 Stories will appear here once generation and review complete'
-                : '🔧 Tasks will appear here once generation completes'}
-            </div>
-          )}
         </div>
       )}
 
       {/* Error display */}
       {error && (
-        <div className="flex items-center gap-2 py-3 px-4 bg-[rgba(248,81,73,0.1)] border border-[#f85149] rounded-lg my-3">
-          <span className="text-[#f85149] text-lg">⚠</span>
-          <span className="text-[#f85149] text-sm">{error}</span>
+        <div className="alert alert-error my-3">
+          <span>⚠</span>
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Spec already completed message */}
+      {specStatus === "completed" && stories.length === 0 && (
+        <div className="alert alert-success my-3">
+          <CheckCircleIcon className="h-5 w-5" />
+          <div className="flex flex-col">
+            <span className="font-medium">Spec Already Completed</span>
+            {specStatusMessage && (
+              <span className="text-sm opacity-80">{specStatusMessage}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Partial completion message */}
+      {specStatus === "partial" && (
+        <div className="alert alert-warning my-3">
+          <ClockIcon className="h-5 w-5" />
+          <div className="flex flex-col">
+            <span className="font-medium">Partially Completed</span>
+            {specStatusMessage && (
+              <span className="text-sm opacity-80">{specStatusMessage}</span>
+            )}
+          </div>
         </div>
       )}
 
       {/* Task list */}
+      {/* Task List */}
       {hasBeenDecomposed && (
-        <div className="flex-1 overflow-y-auto decompose-scrollbar flex flex-col gap-2 pt-3">
+        <div className="flex-1 overflow-y-auto decompose-scrollbar flex flex-col gap-4 pt-4">
           {stories.map((story) => {
             const status = getTaskStatus(story, completedIds);
             const isExpanded = expandedTask === story.id;
+            const isQueued = isTaskQueued(story.id);
 
             return (
               <div
                 key={story.id}
-                className={getTaskCardClasses(status, isTaskQueued(story.id))}
+                className={`card bg-base-200 shadow-sm ${
+                  status === "completed"
+                    ? "border-l-4 border-l-success opacity-75"
+                    : status === "blocked"
+                      ? "border-l-4 border-l-warning opacity-60"
+                      : status === "running"
+                        ? "border-l-4 border-l-info"
+                        : "border-l-4 border-l-primary/50"
+                } ${isQueued ? "ring-2 ring-info/50" : ""}`}
               >
+                {/* Card Header - Always visible */}
                 <div
-                  className="flex items-center gap-3 py-3 px-4 cursor-pointer transition-colors duration-150 hover:bg-surface-hover"
+                  className="card-body cursor-pointer hover:bg-base-300/50 transition-colors py-3 px-4"
                   onClick={() => setExpandedTask(isExpanded ? null : story.id)}
                 >
-                  <span className={getTaskStatusClasses(status)}>
-                    {getStatusIcon(status)}
-                  </span>
-                  <span className="text-text-muted text-xs font-mono flex-shrink-0">{story.id}</span>
-                  <span className="text-text text-sm font-medium flex-1 min-w-0 truncate">{story.title}</span>
-                  {/* Review status indicator */}
-                  {specType === 'prd' && story.reviewStatus && (
-                    <span className={getReviewStatusClasses(story.reviewStatus)}>
-                      {story.reviewStatus === 'passed' && '✓ Reviewed'}
-                      {story.reviewStatus === 'needs_improvement' && '⚠ Needs Review'}
-                      {story.reviewStatus === 'pending' && '○ Pending'}
-                    </span>
-                  )}
-                  {isTaskQueued(story.id) && (
-                    <span className={getQueueBadgeClasses(getQueuedTaskStatus(story.id))}>
-                      {getQueuedTaskStatus(story.id) === 'running' ? '▶ Running' :
-                       getQueuedTaskStatus(story.id) === 'completed' ? '✓ Done' :
-                       `#${getQueuePosition(story.id)} Queued`}
-                    </span>
-                  )}
-                  {getComplexityBadge(story.complexity)}
-                  {/* User story achievement indicator */}
-                  {specType === 'tech-spec' && story.achievesUserStories && story.achievesUserStories.length > 0 && (
-                    <span className="ml-2 text-[#8b949e] text-[11px]" title={`Achieves: ${story.achievesUserStories.join(', ')}`}>
-                      → {story.achievesUserStories.length} {story.achievesUserStories.length === 1 ? 'story' : 'stories'}
-                    </span>
-                  )}
-                  <button
-                    className="ml-2 p-1 text-text-muted hover:text-accent bg-transparent border-none cursor-pointer transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openTaskDrawer(story);
-                    }}
-                    title="Open task details"
-                  >
-                    ↗
-                  </button>
-                  <span className="text-text-muted text-xs ml-1">{isExpanded ? '▼' : '▶'}</span>
-                </div>
-
-                {isExpanded && (
-                  <div className="py-4 px-4 border-t border-border bg-[rgba(22,27,34,0.5)]">
-                    <div className="text-text text-sm leading-relaxed mb-4">
-                      <ChatMarkdown content={story.description} />
+                  <div className="flex items-center gap-3">
+                    {/* Status indicator */}
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        status === "completed"
+                          ? "bg-success text-success-content"
+                          : status === "blocked"
+                            ? "bg-warning text-warning-content"
+                            : status === "running"
+                              ? "bg-info text-info-content animate-pulse"
+                              : "bg-base-300 text-base-content/70"
+                      }`}
+                    >
+                      {status === "completed" ? (
+                        <CheckCircleIcon className="h-3.5 w-3.5" />
+                      ) : status === "blocked" ? (
+                        <LockClosedIcon className="h-3.5 w-3.5" />
+                      ) : status === "running" ? (
+                        <PlayIcon className="h-3.5 w-3.5" />
+                      ) : (
+                        <ClockIcon className="h-3.5 w-3.5" />
+                      )}
                     </div>
 
+                    {/* Main content */}
+                    <div className="flex-1 min-w-0 flex items-center gap-3">
+                      {/* Badges first */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="badge badge-outline badge-xs font-mono">
+                          {story.id}
+                        </span>
+                        {getComplexityBadge(story.complexity)}
+                        {specType === "prd" && story.reviewStatus && (
+                          <span
+                            className={getReviewStatusClasses(
+                              story.reviewStatus,
+                            )}
+                          >
+                            {story.reviewStatus === "passed"
+                              ? "✓"
+                              : story.reviewStatus === "needs_improvement"
+                                ? "⚠"
+                                : "○"}
+                          </span>
+                        )}
+                        {isQueued && (
+                          <span
+                            className={getQueueBadgeClasses(
+                              getQueuedTaskStatus(story.id),
+                            )}
+                          >
+                            {getQueuedTaskStatus(story.id) === "running"
+                              ? "▶"
+                              : getQueuedTaskStatus(story.id) === "completed"
+                                ? "✓"
+                                : `#${getQueuePosition(story.id)}`}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Title */}
+                      <h3 className="card-title text-sm m-0 leading-normal truncate">
+                        {story.title}
+                      </h3>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        className="btn btn-ghost btn-xs gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openTaskEditor(story);
+                        }}
+                        title="Edit task"
+                      >
+                        <PencilIcon className="h-3.5 w-3.5" />
+                        <span className="text-xs">Edit</span>
+                      </button>
+                      {isExpanded ? (
+                        <ChevronDownIcon className="h-4 w-4 text-base-content/50" />
+                      ) : (
+                        <ChevronRightIcon className="h-4 w-4 text-base-content/50" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expanded Content */}
+                {isExpanded && (
+                  <div className="border-t border-base-300 bg-base-300/30 p-6 space-y-6">
+                    {/* Description */}
+                    <section>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-base-content/50 mb-3">
+                        Description
+                      </h4>
+                      <div className="prose prose-sm max-w-none text-base-content">
+                        <ChatMarkdown content={story.description} />
+                      </div>
+                    </section>
+
+                    {/* Acceptance Criteria */}
                     {story.acceptanceCriteria.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-text-muted text-xs font-semibold uppercase tracking-wide mb-2">Acceptance Criteria</h4>
-                        <ul className="m-0 pl-5 text-text text-sm space-y-1">
+                      <section>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-base-content/50 mb-3">
+                          Acceptance Criteria
+                        </h4>
+                        <ul className="space-y-3">
                           {story.acceptanceCriteria.map((ac, i) => (
-                            <li key={i}>{ac}</li>
+                            <li key={i} className="flex gap-3 text-sm">
+                              <CheckCircleIcon className="h-5 w-5 text-success flex-shrink-0" />
+                              <span className="text-base-content">{ac}</span>
+                            </li>
                           ))}
                         </ul>
-                      </div>
+                      </section>
                     )}
 
+                    {/* Dependencies */}
                     {story.dependencies.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-text-muted text-xs font-semibold uppercase tracking-wide mb-2">Dependencies</h4>
-                        <div className="flex flex-wrap gap-1.5">
+                      <section>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-base-content/50 mb-3">
+                          Dependencies
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
                           {story.dependencies.map((dep) => (
                             <span
                               key={dep}
-                              className={`py-0.5 px-2 rounded text-xs font-mono ${completedIds.has(dep) ? 'bg-[rgba(35,134,54,0.15)] text-[#3fb950]' : 'bg-[rgba(139,148,158,0.15)] text-[#8b949e]'}`}
+                              className={`badge badge-lg font-mono ${completedIds.has(dep) ? "badge-success" : "badge-outline"}`}
                             >
-                              {dep}
+                              {dep} {completedIds.has(dep) && "✓"}
                             </span>
                           ))}
                         </div>
-                      </div>
+                      </section>
                     )}
 
+                    {/* Notes */}
                     {story.notes && (
-                      <div className="mb-4">
-                        <h4 className="text-text-muted text-xs font-semibold uppercase tracking-wide mb-2">Notes</h4>
-                        <div className="text-text-muted text-sm italic">
+                      <section>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-base-content/50 mb-3">
+                          Notes
+                        </h4>
+                        <div className="text-sm text-base-content/70 italic">
                           <ChatMarkdown content={story.notes} />
                         </div>
-                      </div>
+                      </section>
                     )}
 
-                    <div className="flex items-center gap-2 pt-3 border-t border-border">
-                      {/* Queue actions for tech specs */}
-                      {specType === 'tech-spec' && !story.passes && (
-                        isTaskQueued(story.id) ? (
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-4 border-t border-base-300">
+                      {specType === "tech-spec" &&
+                        !story.passes &&
+                        (isQueued ? (
                           <button
-                            className="py-1.5 px-3 rounded text-xs font-medium bg-transparent text-[#f85149] border border-[#f85149] hover:bg-[rgba(248,81,73,0.1)] transition-colors disabled:opacity-50"
+                            className="btn btn-error btn-outline gap-2"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleRemoveFromQueue(story.id);
                             }}
-                            disabled={queueLoading.has(story.id) || getQueuedTaskStatus(story.id) === 'running'}
+                            disabled={
+                              queueLoading.has(story.id) ||
+                              getQueuedTaskStatus(story.id) === "running"
+                            }
                           >
-                            {queueLoading.has(story.id) ? '⏳ ...' : '✕ Remove from Queue'}
+                            <XMarkIcon className="h-5 w-5" /> Remove
                           </button>
                         ) : (
                           <button
-                            className="py-1.5 px-3 rounded text-xs font-medium bg-[#238636] text-white hover:bg-[#2ea043] transition-colors disabled:opacity-50"
+                            className="btn btn-glass-primary gap-2"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleAddToQueue(story.id);
                             }}
                             disabled={queueLoading.has(story.id)}
                           >
-                            {queueLoading.has(story.id) ? '⏳ ...' : '+ Add to Queue'}
+                            <PlusIcon className="h-5 w-5" /> Add to Queue
                           </button>
-                        )
-                      )}
+                        ))}
                       <button
-                        className="py-1.5 px-3 rounded text-xs font-medium bg-[#21262d] text-text hover:bg-[#30363d] transition-colors"
+                        className="btn btn-ghost gap-2"
                         onClick={(e) => {
                           e.stopPropagation();
-                          openTaskDrawer(story);
+                          openTaskEditor(story);
                         }}
                       >
-                        Edit / Discuss
+                        <PencilIcon className="h-5 w-5" /> Edit
                       </button>
                     </div>
                   </div>
@@ -688,197 +966,101 @@ export function SpecDecomposeTab({ specPath, projectPath, specType = 'prd' }: Pr
       {/* Empty state */}
       {!hasBeenDecomposed && !isLoading && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 py-12">
-          <div className="text-5xl">📋</div>
-          <h3 className="text-text text-lg font-medium m-0">
-            {specType === 'prd' ? 'No stories yet' : 'No tasks yet'}
+          <QueueListIcon className="h-16 w-16 text-base-content/20" />
+          <h3 className="text-base-content text-lg font-medium m-0">
+            {specType === "prd" ? "No User Stories Yet" : "No Tasks Yet"}
           </h3>
-          <p className="text-text-muted text-sm m-0 text-center max-w-xs">
-            {specType === 'prd'
-              ? 'Decompose this PRD to generate user stories'
-              : 'Decompose this spec to generate tasks'}
+          <p className="text-base-content/60 text-sm m-0 text-center max-w-xs">
+            {specType === "prd"
+              ? "Generate user stories from this PRD to track implementation progress"
+              : "Generate tasks from this spec to track implementation progress"}
           </p>
         </div>
       )}
 
-      {/* Task Drawer */}
+      {/* Task Editor Drawer */}
       {drawerOpen && selectedTask && (
         <div
           className="fixed inset-0 bg-black/60 z-[1000] flex justify-end"
           onClick={handleBackdropClick}
         >
           <div
-            className="w-full max-w-[520px] h-full bg-surface border-l border-border flex flex-col animate-slide-in"
+            className="w-full max-w-[900px] h-full bg-base-200 border-l-2 border-secondary/30 shadow-2xl flex flex-col animate-slide-in"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-3 py-4 px-5 border-b border-border flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <span className={getTaskStatusClasses(getTaskStatus(selectedTask, completedIds))}>
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 py-3 px-5 border-b border-base-300 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <span
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                    getTaskStatus(selectedTask, completedIds) === "completed"
+                      ? "bg-success text-success-content"
+                      : getTaskStatus(selectedTask, completedIds) === "blocked"
+                        ? "bg-warning text-warning-content"
+                        : getTaskStatus(selectedTask, completedIds) ===
+                            "running"
+                          ? "bg-info text-info-content animate-pulse"
+                          : "bg-base-300 text-base-content/70"
+                  }`}
+                >
                   {getStatusIcon(getTaskStatus(selectedTask, completedIds))}
                 </span>
-                <span className="text-text-muted text-sm font-mono">{selectedTask.id}</span>
-                {selectedTask.inPrd && <span className="py-0.5 px-2 bg-[#30363d] text-[#8b949e] rounded text-[10px]">In Queue</span>}
-                {getComplexityBadge(selectedTask.complexity)}
+                <div className="flex items-center gap-2">
+                  <span className="text-base-content font-medium">
+                    Edit Task
+                  </span>
+                  <span className="badge badge-outline font-mono text-xs">
+                    {selectedTask.id}
+                  </span>
+                  {getComplexityBadge(selectedTask.complexity)}
+                </div>
               </div>
-              <button
-                className="p-1 text-text-muted hover:text-text bg-transparent border-none cursor-pointer text-xl leading-none"
-                onClick={closeDrawer}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto decompose-scrollbar p-5">
-              <h2 className="text-text text-xl font-semibold m-0 mb-4">{selectedTask.title}</h2>
-
-              {/* Queue actions */}
-              {specType === 'tech-spec' && !selectedTask.passes && (
-                <div className="flex items-center gap-3 mb-6">
-                  {isTaskQueued(selectedTask.id) ? (
+              <div className="flex items-center gap-2">
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={closeDrawer}
+                  disabled={saveLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-glass-primary btn-sm"
+                  onClick={handleSaveTask}
+                  disabled={saveLoading}
+                >
+                  {saveLoading ? (
                     <>
-                      <span className={getQueueBadgeClasses(getQueuedTaskStatus(selectedTask.id))}>
-                        {getQueuedTaskStatus(selectedTask.id) === 'running' ? '▶ Running now' :
-                         getQueuedTaskStatus(selectedTask.id) === 'completed' ? '✓ Completed' :
-                         `#${getQueuePosition(selectedTask.id)} in queue`}
-                      </span>
-                      {getQueuedTaskStatus(selectedTask.id) !== 'running' && (
-                        <button
-                          className={drawerBtnRemove}
-                          onClick={() => handleRemoveFromQueue(selectedTask.id)}
-                          disabled={queueLoading.has(selectedTask.id)}
-                        >
-                          {queueLoading.has(selectedTask.id) ? 'Removing...' : '✕ Remove from Queue'}
-                        </button>
-                      )}
+                      <span className="loading loading-spinner loading-xs" />{" "}
+                      Saving...
                     </>
                   ) : (
-                    <button
-                      className={drawerBtnExecute}
-                      onClick={() => handleAddToQueue(selectedTask.id)}
-                      disabled={queueLoading.has(selectedTask.id)}
-                    >
-                      {queueLoading.has(selectedTask.id) ? 'Adding...' : '+ Add to Queue'}
-                    </button>
+                    "Save Changes"
                   )}
-                </div>
-              )}
-
-              {/* Legacy execute for non-tech-specs */}
-              {specType !== 'tech-spec' && (
-                <div className="flex items-center gap-3 mb-6">
-                  <button
-                    className={drawerBtnExecute}
-                    onClick={handleExecuteTask}
-                    disabled={executeLoading || selectedTask.inPrd}
-                  >
-                    {executeLoading ? 'Adding...' : selectedTask.inPrd ? 'Already Queued' : '▶ Execute This Task'}
-                  </button>
-                </div>
-              )}
-
-              {executeError && (
-                <div className="py-2 px-3 bg-[rgba(248,81,73,0.1)] border border-[#f85149] rounded text-[#f85149] text-sm mb-4">
-                  {executeError}
-                </div>
-              )}
-
-              {/* Show achievesUserStories */}
-              {specType === 'tech-spec' && selectedTask.achievesUserStories && selectedTask.achievesUserStories.length > 0 && (
-                <div className="mb-6 p-4 bg-[rgba(31,111,235,0.05)] rounded-lg border border-[rgba(31,111,235,0.2)]">
-                  <h4 className="text-text-muted text-xs font-semibold uppercase tracking-wide mb-2">Achieves User Stories</h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedTask.achievesUserStories.map(storyId => (
-                      <span key={storyId} className="py-1 px-2 bg-[#1f6feb] text-white rounded text-xs font-mono">
-                        {storyId}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="mb-6">
-                <h4 className="text-text-muted text-xs font-semibold uppercase tracking-wide mb-2">Description</h4>
-                <p className="text-text text-sm leading-relaxed m-0">{selectedTask.description}</p>
+                </button>
               </div>
+            </div>
 
-              {selectedTask.acceptanceCriteria.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-text-muted text-xs font-semibold uppercase tracking-wide mb-2">Acceptance Criteria</h4>
-                  <ul className="m-0 pl-5 text-text text-sm space-y-1">
-                    {selectedTask.acceptanceCriteria.map((ac, i) => (
-                      <li key={i}>{ac}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {selectedTask.testCases && selectedTask.testCases.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-text-muted text-xs font-semibold uppercase tracking-wide mb-2">Test Cases</h4>
-                  <ul className="m-0 pl-5 text-text text-sm space-y-1">
-                    {selectedTask.testCases.map((tc, i) => (
-                      <li key={i}><code className="py-0.5 px-1.5 bg-[#161b22] rounded text-xs font-mono">{tc}</code></li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {selectedTask.dependencies.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-text-muted text-xs font-semibold uppercase tracking-wide mb-2">Dependencies</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedTask.dependencies.map((dep) => (
-                      <span
-                        key={dep}
-                        className={`py-1 px-2 rounded text-xs ${completedIds.has(dep) ? 'bg-[rgba(35,134,54,0.15)] text-[#3fb950]' : 'bg-[rgba(139,148,158,0.15)] text-[#8b949e]'}`}
-                      >
-                        {completedIds.has(dep) ? '✓' : '○'} {dep}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedTask.notes && (
-                <div className="mb-6">
-                  <h4 className="text-text-muted text-xs font-semibold uppercase tracking-wide mb-2">Notes</h4>
-                  <p className="text-text-muted text-sm italic m-0">{selectedTask.notes}</p>
-                </div>
-              )}
-
-              {/* Feedback Section */}
-              <div className="pt-6 border-t border-border">
-                <h4 className="text-text text-sm font-semibold mb-2">Update Task</h4>
-                <p className="text-text-muted text-xs mb-3">
-                  Provide feedback to update this task. Claude will revise the task based on your comments.
-                </p>
-                <textarea
-                  className="w-full py-3 px-3 bg-bg border border-border rounded-lg text-text text-sm resize-y min-h-[100px] placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50"
-                  placeholder="e.g., Add a test case for error handling, clarify the acceptance criteria, change the description..."
-                  value={taskFeedback}
-                  onChange={(e) => setTaskFeedback(e.target.value)}
-                  disabled={feedbackLoading}
-                  rows={4}
-                />
-                {feedbackError && (
-                  <div className="py-2 px-3 bg-[rgba(248,81,73,0.1)] text-[#f85149] text-sm rounded mt-2">
-                    {feedbackError}
-                  </div>
-                )}
-                {feedbackSuccess && (
-                  <div className="py-2 px-3 bg-[rgba(35,134,54,0.1)] text-[#3fb950] text-sm rounded mt-2">
-                    Task updated successfully!
-                  </div>
-                )}
-                <div className="flex justify-end mt-3">
-                  <button
-                    className={drawerBtnPrimary}
-                    onClick={handleSubmitFeedback}
-                    disabled={feedbackLoading || !taskFeedback.trim()}
-                  >
-                    {feedbackLoading ? 'Updating...' : 'Submit Feedback'}
-                  </button>
-                </div>
+            {/* Status messages */}
+            {saveError && (
+              <div className="alert alert-error mx-5 mt-3 py-2">
+                <span>{saveError}</span>
               </div>
+            )}
+            {saveSuccess && (
+              <div className="alert alert-success mx-5 mt-3 py-2">
+                <span>Task saved successfully!</span>
+              </div>
+            )}
+
+            {/* Editor */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <SpecEditor
+                ref={editorRef}
+                content={editContent}
+                onChange={setEditContent}
+                readOnly={saveLoading}
+                className="h-full"
+              />
             </div>
           </div>
         </div>

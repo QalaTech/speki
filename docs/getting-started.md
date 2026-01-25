@@ -156,12 +156,12 @@ qala init --name "My Project" --language nodejs
 ### Step 3: Verify Initialization
 
 ```bash
-ls -la .ralph/
+ls -la .speki/
 ```
 
 You should see:
 ```
-.ralph/
+.speki/
 ├── config.json      # Project configuration
 ├── prompt.md        # Claude execution instructions
 ├── standards/       # Language-specific coding standards
@@ -205,7 +205,7 @@ your-project/                    # Your project root
 ├── package.json                 # Your project files
 ├── specs/                       # NEW: Create this folder
 │   └── hello-world.md           # NEW: Your PRD file
-└── .ralph/                      # Created by qala init
+└── .speki/                      # Created by qala init
     ├── config.json
     ├── prompt.md
     ├── standards/
@@ -268,7 +268,7 @@ qala decompose specs/hello-world.md --branch ralph/health-endpoint
    - All requirements are covered
    - No contradictions
    - Dependencies are correct
-4. **Output** - Tasks saved to `.ralph/tasks/<prd-name>.json`
+4. **Output** - Tasks saved to `.speki/tasks/<prd-name>.json`
 
 ## Review and Activate Tasks
 
@@ -370,7 +370,7 @@ go test ./...   # Go
 ### View Progress History
 
 ```bash
-cat .ralph/progress.txt
+cat .speki/progress.txt
 ```
 
 Or view in the dashboard's **Progress** tab.
@@ -378,7 +378,7 @@ Or view in the dashboard's **Progress** tab.
 ## Next Steps
 
 1. **Try a larger PRD** - Write a more complex feature specification
-2. **Customize standards** - Edit `.ralph/standards/<lang>.md` for your coding conventions
+2. **Customize standards** - Edit `.speki/standards/<lang>.md` for your coding conventions
 3. **Multiple projects** - Initialize Qala in other projects and manage from one dashboard
 4. **Explore CLI options** - Run `qala <command> --help` for each command
 

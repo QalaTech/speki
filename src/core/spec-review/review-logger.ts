@@ -29,11 +29,11 @@ export interface ReviewLogPaths {
 /**
  * Saves review results to log files.
  * Creates three outputs:
- * - .ralph/logs/spec_review_<timestamp>.log - human-readable log
- * - .ralph/logs/spec_review_<timestamp>.prompts/ - directory with prompt input/output
- * - .ralph/logs/spec_review_<timestamp>.json - JSON summary
+ * - .speki/logs/spec_review_<timestamp>.log - human-readable log
+ * - .speki/logs/spec_review_<timestamp>.prompts/ - directory with prompt input/output
+ * - .speki/logs/spec_review_<timestamp>.json - JSON summary
  *
- * @param logDir - Directory to save logs (e.g., .ralph/logs)
+ * @param logDir - Directory to save logs (e.g., .speki/logs)
  * @param input - Review results and metadata
  * @returns Paths to created log files
  */

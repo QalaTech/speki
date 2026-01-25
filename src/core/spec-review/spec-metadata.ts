@@ -125,7 +125,7 @@ const VALID_TRANSITIONS: Record<SpecStatus, SpecStatus[]> = {
 /**
  * Extracts a spec identifier from the spec file path.
  * Uses only the basename (filename) without the .md extension.
- * The spec ID is used to organize per-spec state files under .ralph/specs/<spec-id>/.
+ * The spec ID is used to organize per-spec state files under .speki/specs/<spec-id>/.
  *
  * @param specPath - The path to the spec file (absolute or relative)
  * @example
@@ -142,15 +142,15 @@ export function extractSpecId(specPath: string): string {
 }
 
 /**
- * Returns the path to the spec-specific directory under .ralph/specs/.
+ * Returns the path to the spec-specific directory under .speki/specs/.
  *
  * @param projectRoot - The project root directory
  * @param specId - The spec identifier
  * @example
- * getSpecDir('/project', 'my-spec') // => '/project/.ralph/specs/my-spec'
+ * getSpecDir('/project', 'my-spec') // => '/project/.speki/specs/my-spec'
  */
 export function getSpecDir(projectRoot: string, specId: string): string {
-  return path.join(projectRoot, '.ralph', 'specs', specId);
+  return path.join(projectRoot, '.speki', 'specs', specId);
 }
 
 /**
@@ -175,7 +175,7 @@ export async function ensureSpecDir(
  * @param projectRoot - The project root directory
  * @param specId - The spec identifier
  * @example
- * getSpecLogsDir('/project', 'my-spec') // => '/project/.ralph/specs/my-spec/logs'
+ * getSpecLogsDir('/project', 'my-spec') // => '/project/.speki/specs/my-spec/logs'
  */
 export function getSpecLogsDir(projectRoot: string, specId: string): string {
   return path.join(getSpecDir(projectRoot, specId), 'logs');
@@ -321,13 +321,13 @@ export async function updateSpecStatus(
 }
 
 /**
- * Lists all spec directories in .ralph/specs/.
+ * Lists all spec directories in .speki/specs/.
  *
  * @param projectRoot - The project root directory
  * @returns Array of spec IDs (directory names)
  */
 export async function listSpecs(projectRoot: string): Promise<string[]> {
-  const specsDir = path.join(projectRoot, '.ralph', 'specs');
+  const specsDir = path.join(projectRoot, '.speki', 'specs');
   try {
     const entries = await readdir(specsDir, { withFileTypes: true });
     return entries

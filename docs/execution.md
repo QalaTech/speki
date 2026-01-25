@@ -73,7 +73,7 @@ function findNextStory(stories: UserStory[]): UserStory | null {
 
 ## The Prompt Template
 
-Located at `.ralph/prompt.md`, this instructs Claude on:
+Located at `.speki/prompt.md`, this instructs Claude on:
 
 1. **Reading state** - prd.json, progress.txt, peer_feedback.json
 2. **Branch management** - Check/create correct branch
@@ -115,8 +115,8 @@ Standards include:
 ### JSONL Logs
 
 Each iteration produces:
-- `.ralph/logs/iteration_N.jsonl` - Raw Claude stream output
-- `.ralph/logs/iteration_N.err` - Stderr output
+- `.speki/logs/iteration_N.jsonl` - Raw Claude stream output
+- `.speki/logs/iteration_N.err` - Stderr output
 
 The JSONL contains:
 ```json
@@ -129,7 +129,7 @@ The JSONL contains:
 
 ### Progress File
 
-`.ralph/progress.txt` is managed BY Claude, not the loop:
+`.speki/progress.txt` is managed BY Claude, not the loop:
 - Contains codebase patterns at the top
 - Appends summary after each story completion
 - Persists learnings across iterations

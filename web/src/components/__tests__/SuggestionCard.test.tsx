@@ -13,6 +13,7 @@ function mockSuggestion(overrides: Partial<SuggestionCardType> = {}): Suggestion
     issue: 'Requirement is ambiguous',
     suggestedFix: 'Add specific metrics to clarify the requirement',
     status: 'pending',
+    type: 'change', // Default to change type so Review Diff button shows
     ...overrides,
   };
 }
@@ -46,27 +47,43 @@ describe('SuggestionCard', () => {
   });
 
   describe('SuggestionCard_ShowsSeverity', () => {
-    it.each([
-      ['critical', 'Critical'],
-      ['warning', 'Warning'],
-      ['info', 'Info'],
-    ] as const)('should display %s severity indicator', (severity, label) => {
-      render(<SuggestionCard suggestion={mockSuggestion({ severity })} />);
+    it('should display critical severity with DaisyUI badge-error class', () => {
+      render(<SuggestionCard suggestion={mockSuggestion({ severity: 'critical' })} />);
       const indicator = screen.getByTestId('severity-indicator');
-      expect(indicator).toHaveTextContent(label);
-      expect(indicator).toHaveClass(`severity-${severity}`);
+      expect(indicator).toHaveTextContent('Critical');
+      expect(indicator).toHaveClass('badge');
+      expect(indicator).toHaveClass('badge-error');
     });
 
-    it('should apply severity class to card', () => {
+    it('should display warning severity with DaisyUI badge-warning class', () => {
+      render(<SuggestionCard suggestion={mockSuggestion({ severity: 'warning' })} />);
+      const indicator = screen.getByTestId('severity-indicator');
+      expect(indicator).toHaveTextContent('Warning');
+      expect(indicator).toHaveClass('badge');
+      expect(indicator).toHaveClass('badge-warning');
+    });
+
+    it('should display info severity with DaisyUI badge-info class', () => {
+      render(<SuggestionCard suggestion={mockSuggestion({ severity: 'info' })} />);
+      const indicator = screen.getByTestId('severity-indicator');
+      expect(indicator).toHaveTextContent('Info');
+      expect(indicator).toHaveClass('badge');
+      expect(indicator).toHaveClass('badge-info');
+    });
+
+    it('should apply DaisyUI card class to card', () => {
       render(<SuggestionCard suggestion={mockSuggestion({ severity: 'critical' })} />);
-      expect(screen.getByTestId('suggestion-card')).toHaveClass('severity-critical');
+      expect(screen.getByTestId('suggestion-card')).toHaveClass('card');
     });
   });
 
   describe('SuggestionCard_ReviewDiffTriggersDiff', () => {
-    it('should render Review Diff button', () => {
+    it('should render Review Diff button with DaisyUI btn classes', () => {
       render(<SuggestionCard suggestion={mockSuggestion()} />);
-      expect(screen.getByText('Review Diff')).toBeInTheDocument();
+      const button = screen.getByText('Review Diff');
+      expect(button).toBeInTheDocument();
+      expect(button).toHaveClass('btn');
+      expect(button).toHaveClass('btn-glass-primary');
     });
 
     it('should call onReviewDiff with suggestion id when clicked', () => {
@@ -83,9 +100,12 @@ describe('SuggestionCard', () => {
   });
 
   describe('SuggestionCard_ShowInEditorScrolls', () => {
-    it('should render Show in Editor button', () => {
+    it('should render Show in Editor button with DaisyUI btn classes', () => {
       render(<SuggestionCard suggestion={mockSuggestion()} />);
-      expect(screen.getByText('Show in Editor')).toBeInTheDocument();
+      const button = screen.getByText('Show in Editor');
+      expect(button).toBeInTheDocument();
+      expect(button).toHaveClass('btn');
+      expect(button).toHaveClass('btn-ghost');
     });
 
     it('should call onShowInEditor with suggestion id when clicked', () => {
@@ -102,9 +122,13 @@ describe('SuggestionCard', () => {
   });
 
   describe('SuggestionCard_DismissRejects', () => {
-    it('should render Dismiss button', () => {
+    it('should render Dismiss button with DaisyUI btn classes', () => {
       render(<SuggestionCard suggestion={mockSuggestion()} />);
-      expect(screen.getByText('Dismiss')).toBeInTheDocument();
+      const button = screen.getByText('Dismiss');
+      expect(button).toBeInTheDocument();
+      expect(button).toHaveClass('btn');
+      expect(button).toHaveClass('btn-outline');
+      expect(button).toHaveClass('btn-error');
     });
 
     it('should call onDismiss with suggestion id when clicked', () => {
@@ -121,25 +145,28 @@ describe('SuggestionCard', () => {
   });
 
   describe('liveUpdate_UpdatesCardStatus', () => {
-    it('should display approved badge when status is approved', () => {
+    it('should display approved badge with DaisyUI badge-success class', () => {
       render(<SuggestionCard suggestion={mockSuggestion({ status: 'approved' })} />);
       const badge = screen.getByTestId('status-badge');
       expect(badge).toHaveTextContent('✓ Approved');
-      expect(badge).toHaveClass('status-approved');
+      expect(badge).toHaveClass('badge');
+      expect(badge).toHaveClass('badge-success');
     });
 
-    it('should display rejected badge when status is rejected', () => {
+    it('should display rejected badge with DaisyUI badge-error class', () => {
       render(<SuggestionCard suggestion={mockSuggestion({ status: 'rejected' })} />);
       const badge = screen.getByTestId('status-badge');
       expect(badge).toHaveTextContent('✗ Rejected');
-      expect(badge).toHaveClass('status-rejected');
+      expect(badge).toHaveClass('badge');
+      expect(badge).toHaveClass('badge-error');
     });
 
-    it('should display edited badge when status is edited', () => {
+    it('should display edited badge with DaisyUI badge-info class', () => {
       render(<SuggestionCard suggestion={mockSuggestion({ status: 'edited' })} />);
       const badge = screen.getByTestId('status-badge');
       expect(badge).toHaveTextContent('✎ Edited');
-      expect(badge).toHaveClass('status-edited');
+      expect(badge).toHaveClass('badge');
+      expect(badge).toHaveClass('badge-info');
     });
 
     it('should not display status badge when status is pending', () => {
@@ -159,9 +186,9 @@ describe('SuggestionCard', () => {
       expect(screen.getByTestId('review-diff-button')).toBeInTheDocument();
     });
 
-    it('should apply status class to card when not pending', () => {
+    it('should apply DaisyUI card class when not pending', () => {
       render(<SuggestionCard suggestion={mockSuggestion({ status: 'approved' })} />);
-      expect(screen.getByTestId('suggestion-card')).toHaveClass('status-approved');
+      expect(screen.getByTestId('suggestion-card')).toHaveClass('card');
     });
   });
 });

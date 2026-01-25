@@ -30,7 +30,7 @@ Output ONLY valid JSON in this exact format:
   "projectName": "Project name from PRD",
   "branchName": "BRANCH_NAME_HERE",
   "language": "dotnet|python|nodejs|go",
-  "standardsFile": ".ralph/standards/{language}.md",
+  "standardsFile": ".speki/standards/{language}.md",
   "description": "Brief description of the overall feature",
   "userStories": [
     {
@@ -72,7 +72,7 @@ Output ONLY valid JSON in this exact format:
 - `Node.js / TypeScript` → `"language": "nodejs"`
 - `Go` → `"language": "go"`
 
-The executing agent will read `.ralph/standards/{language}.md` for detailed coding standards.
+The executing agent will read `.speki/standards/{language}.md` for detailed coding standards.
 
 ---
 

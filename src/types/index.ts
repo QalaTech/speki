@@ -1,4 +1,4 @@
-// Project configuration stored in .ralph/config.json
+// Project configuration stored in .speki/config.json
 export interface ProjectConfig {
   name: string;
   path: string;
@@ -25,6 +25,15 @@ export interface ProjectEntry {
 }
 
 export type ProjectStatus = 'idle' | 'running' | 'decomposing' | 'error';
+
+// ID Registry types
+export type IdPrefix = 'US' | 'TS';
+
+export interface IdRegistryData {
+  version: number;
+  counters: Record<IdPrefix, number>;
+  allocated: Record<string, string>; // id -> specId
+}
 
 // Central registry structure
 export interface ProjectRegistry {
@@ -136,6 +145,10 @@ export interface PRDData {
   standardsFile: string;
   description: string;
   userStories: UserStory[];
+  /** Decompose verification status: pending (needs work), partial (some done), completed (all done) */
+  status?: 'pending' | 'partial' | 'completed';
+  /** Message explaining the status, e.g. "All requirements already implemented" */
+  statusMessage?: string;
 }
 
 // Decompose state (matching existing)
@@ -170,7 +183,7 @@ export interface DecomposeState {
   startedAt?: string;
 }
 
-// Ralph execution status (matching .ralph-status.json)
+// Ralph execution status (matching .speki-status.json)
 export interface RalphStatus {
   status: 'idle' | 'running' | 'paused' | 'completed' | 'error';
   currentIteration?: number;
@@ -379,7 +392,7 @@ export interface CurrentTaskContext {
   completedDependencies: TaskReference[];
   /** Tasks that are blocked by this task (downstream) */
   blocks: TaskReference[];
-  /** Available standards files in .ralph/standards/ */
+  /** Available standards files in .speki/standards/ */
   availableStandards: string[];
   /** Path to progress file */
   progressFile: string;
@@ -916,7 +929,7 @@ export interface QueuedTaskReference {
 }
 
 /**
- * Central task queue stored in .ralph/task-queue.json.
+ * Central task queue stored in .speki/task-queue.json.
  * Contains references to tasks across all specs for ordered execution.
  */
 export interface TaskQueue {

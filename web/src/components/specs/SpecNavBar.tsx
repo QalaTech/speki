@@ -105,12 +105,12 @@ export function SpecNavBar({ files, selectedPath, onSelect, onCreateNew }: SpecN
           {/* Left side: Breadcrumbs and file selector */}
           <div className="flex items-center gap-4 min-w-0 flex-1">
             {/* Breadcrumbs */}
-            <div className="hidden md:flex items-center gap-0.5 text-xs text-text-muted min-w-0 overflow-hidden">
+            <div className="hidden md:flex items-center gap-0.5 text-xs text-base-content/60 min-w-0 overflow-hidden">
               {breadcrumbs.map((crumb, index) => (
                 <span key={crumb.path} className="flex items-center whitespace-nowrap">
                   {index > 0 && <span className="mx-1.5 text-border font-light">/</span>}
                   <span
-                    className={`transition-colors duration-150 hover:text-text ${index === breadcrumbs.length - 1 ? 'text-accent font-medium' : ''}`}
+                    className={`transition-colors duration-150 hover:text-base-content ${index === breadcrumbs.length - 1 ? 'text-secondary font-medium' : ''}`}
                   >
                     {crumb.name}
                   </span>
@@ -121,7 +121,7 @@ export function SpecNavBar({ files, selectedPath, onSelect, onCreateNew }: SpecN
             {/* File selector button */}
             <button
               ref={buttonRef}
-              className={`flex items-center gap-2.5 py-2.5 px-4 bg-white/[0.03] border border-white/[0.08] rounded-[10px] cursor-pointer transition-all duration-200 min-w-[200px] max-w-[400px] max-md:min-w-[150px] max-md:max-w-none max-md:flex-1 hover:bg-white/[0.06] hover:border-white/[0.12] ${isDropdownOpen ? 'bg-accent/10 border-accent/30 shadow-[0_0_0_3px_rgba(88,166,255,0.1)]' : ''}`}
+              className={`flex items-center gap-2.5 py-2.5 px-4 bg-white/[0.03] border border-white/[0.08] rounded-[10px] cursor-pointer transition-all duration-200 min-w-[200px] max-w-[400px] max-md:min-w-[150px] max-md:max-w-none max-md:flex-1 hover:bg-white/[0.06] hover:border-white/[0.12] ${isDropdownOpen ? 'bg-accent/10 border-secondary/30 shadow-[0_0_0_3px_rgba(88,166,255,0.1)]' : ''}`}
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               aria-expanded={isDropdownOpen}
               aria-haspopup="true"
@@ -129,8 +129,8 @@ export function SpecNavBar({ files, selectedPath, onSelect, onCreateNew }: SpecN
               <span className="text-base shrink-0">
                 {selectedPath ? getFileIcon(selectedPath) : '📂'}
               </span>
-              <span className="flex-1 text-sm font-medium text-text text-left whitespace-nowrap overflow-hidden text-ellipsis">{fileName}</span>
-              <span className={`text-[10px] text-text-muted transition-transform duration-200 shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`}>
+              <span className="flex-1 text-sm font-medium text-base-content text-left whitespace-nowrap overflow-hidden text-ellipsis">{fileName}</span>
+              <span className={`text-[10px] text-base-content/60 transition-transform duration-200 shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`}>
                 ▾
               </span>
             </button>
@@ -140,7 +140,7 @@ export function SpecNavBar({ files, selectedPath, onSelect, onCreateNew }: SpecN
           <div className="flex items-center gap-2 shrink-0">
             {onCreateNew && (
               <button
-                className="flex items-center gap-1.5 py-2 px-3.5 bg-accent/10 border border-accent/20 rounded-lg text-accent text-[13px] font-medium cursor-pointer transition-all duration-200 hover:bg-accent/15 hover:border-accent/30 hover:-translate-y-px"
+                className="flex items-center gap-1.5 py-2 px-3.5 bg-accent/10 border border-secondary/20 rounded-lg text-secondary text-[13px] font-medium cursor-pointer transition-all duration-200 hover:bg-accent/15 hover:border-secondary/30 hover:-translate-y-px"
                 onClick={onCreateNew}
                 title="Create new spec"
               >

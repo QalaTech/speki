@@ -26,7 +26,7 @@ Place your PRD in a standard location:
 - `specs/` - Recommended
 - `docs/`
 - `prd/`
-- `.ralph/specs/`
+- `.speki/specs/`
 - Or root directory (must contain "prd", "spec", or "requirement" in filename)
 
 PRD should be a markdown file describing:
@@ -80,7 +80,7 @@ If review fails:
   "projectName": "Feature Name",
   "branchName": "ralph/feature-branch",
   "language": "nodejs",
-  "standardsFile": ".ralph/standards/nodejs.md",
+  "standardsFile": ".speki/standards/nodejs.md",
   "description": "Brief description of the overall feature",
   "userStories": [
     {

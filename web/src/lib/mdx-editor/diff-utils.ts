@@ -5,7 +5,7 @@
  */
 
 import { createTwoFilesPatch } from 'diff';
-import type { SpecEditorRef } from '../../components/SpecEditor';
+import type { SpecEditorRef } from '../../components/shared/SpecEditor';
 
 /**
  * Location information for scrolling to a specific section after entering diff mode.

@@ -30,7 +30,7 @@ qala init --name "My App" --language dotnet --branch ralph/auth-feature
 
 **What it creates:**
 ```
-.ralph/
+.speki/
 ├── config.json          # Project configuration
 ├── prompt.md            # Ralph agent instructions
 ├── standards/
@@ -83,9 +83,9 @@ qala decompose docs/feature.md --fresh --redecompose
 ```
 
 **Output:**
-- Task file saved to `.ralph/tasks/<output>.json`
-- Peer review feedback in `.ralph/decompose_feedback.json`
-- Logs in `.ralph/logs/decompose_*.log`
+- Task file saved to `.speki/tasks/<output>.json`
+- Peer review feedback in `.speki/decompose_feedback.json`
+- Logs in `.speki/logs/decompose_*.log`
 
 ---
 
@@ -112,7 +112,7 @@ qala start --iterations 10
 ```
 
 **What it does:**
-1. Loads `.ralph/prd.json`
+1. Loads `.speki/prd.json`
 2. Finds next incomplete story (highest priority, dependencies met)
 3. Executes via Claude Code
 4. Verifies tests pass
@@ -221,7 +221,7 @@ qala activate <filename>
 **Arguments:**
 | Argument | Description |
 |----------|-------------|
-| `<filename>` | Task file in `.ralph/tasks/` |
+| `<filename>` | Task file in `.speki/tasks/` |
 
 **Example:**
 ```bash
@@ -229,7 +229,7 @@ qala activate <filename>
 qala activate auth-feature.json
 ```
 
-This copies the task file to `.ralph/prd.json` for execution.
+This copies the task file to `.speki/prd.json` for execution.
 
 ---
 
@@ -247,7 +247,7 @@ cd my-project
 qala unregister
 ```
 
-This removes the project from `~/.qala/projects.json` but does not delete the `.ralph/` folder.
+This removes the project from `~/.qala/projects.json` but does not delete the `.speki/` folder.
 
 ---
 

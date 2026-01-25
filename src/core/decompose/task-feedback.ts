@@ -82,7 +82,7 @@ Update the task JSON based on the user's feedback. You may:
 Respond with ONLY the updated task as valid JSON. Do not include any explanation or markdown formatting - just the raw JSON object.`;
 
   // Write prompt to temp file
-  const promptPath = join(project.ralphDir, '.task_feedback_prompt.md');
+  const promptPath = join(project.spekiDir, '.task_feedback_prompt.md');
   await fs.writeFile(promptPath, prompt);
 
   try {

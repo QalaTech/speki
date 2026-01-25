@@ -134,7 +134,7 @@ describe('sessions routes', () => {
   describe('GET /api/sessions/spec/:specPath/exists', () => {
     it('should return true when session file exists', async () => {
       const specPath = '/path/to/my-spec.md';
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       const sessionFilePath = join(sessionsDir, 'my-spec.session.json');
       await fs.writeFile(sessionFilePath, JSON.stringify(createMockSession(specPath)));
@@ -150,7 +150,7 @@ describe('sessions routes', () => {
 
     it('should return false when session file does not exist', async () => {
       const specPath = '/path/to/nonexistent.md';
-      const nonexistentPath = join(testDir, '.ralph', 'sessions', 'nonexistent.session.json');
+      const nonexistentPath = join(testDir, '.speki', 'sessions', 'nonexistent.session.json');
       vi.mocked(sessionFileModule.getSessionPath).mockReturnValue(nonexistentPath);
 
       const response = await request(app).get(`/api/sessions/spec/${encodeURIComponent(specPath)}/exists`);

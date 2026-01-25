@@ -188,7 +188,7 @@ export function DiffOverlay({
     }
   };
 
-  const btnBase = "flex items-center gap-1.5 py-2 px-3.5 bg-surface-hover border border-border rounded-lg text-text text-[13px] font-medium cursor-pointer transition-all duration-150 hover:bg-bg hover:border-text-muted";
+  const btnBase = "flex items-center gap-1.5 py-2 px-3.5 bg-base-300 border border-base-300 rounded-lg text-base-content text-[13px] font-medium cursor-pointer transition-all duration-150 hover:bg-base-100 hover:border-text-muted";
 
   return (
     <>
@@ -203,9 +203,9 @@ export function DiffOverlay({
       <div className="fixed inset-0 z-[1000] flex items-center justify-center">
         <div className="absolute inset-0 bg-black/75 backdrop-blur-[4px]" onClick={onCancel} />
 
-        <div className="relative flex flex-col w-[calc(100vw-80px)] h-[calc(100vh-80px)] max-w-[1600px] bg-bg border border-border rounded-xl shadow-[0_24px_48px_rgba(0,0,0,0.5)] overflow-hidden">
-          <header className="flex items-center justify-between py-4 px-5 bg-surface border-b border-border">
-            <h2 className="m-0 text-[15px] font-semibold text-text">{title}</h2>
+        <div className="relative flex flex-col w-[calc(100vw-80px)] h-[calc(100vh-80px)] max-w-[1600px] bg-base-100 border border-base-300 rounded-xl shadow-[0_24px_48px_rgba(0,0,0,0.5)] overflow-hidden">
+          <header className="flex items-center justify-between py-4 px-5 bg-base-200 border-b border-base-300">
+            <h2 className="m-0 text-[15px] font-semibold text-base-content">{title}</h2>
             <div className="flex gap-2">
               <button
                 className={`${btnBase} ${isEditing ? 'bg-[rgba(163,113,247,0.15)] border-[#a371f7] text-[#a371f7]' : ''}`}
@@ -213,7 +213,7 @@ export function DiffOverlay({
               >
                 {isEditing ? '📝 Editing' : '✏️ Edit'}
               </button>
-              <button className={`${btnBase} text-text-muted hover:text-text`} onClick={onCancel}>
+              <button className={`${btnBase} text-base-content/60 hover:text-base-content`} onClick={onCancel}>
                 Cancel
               </button>
               <button className={`${btnBase} bg-[rgba(218,54,51,0.1)] border-[rgba(218,54,51,0.3)] text-[#f85149] hover:bg-[rgba(218,54,51,0.2)] hover:border-[#f85149]`} onClick={onReject}>
@@ -248,12 +248,12 @@ export function DiffOverlay({
             ))}
           </div>
 
-          <footer className="flex items-center justify-between py-3 px-5 bg-surface border-t border-border">
+          <footer className="flex items-center justify-between py-3 px-5 bg-base-200 border-t border-base-300">
             <div className="flex gap-4">
-              <span className="text-xs text-accent">{hunks.length} changes</span>
+              <span className="text-xs text-secondary">{hunks.length} changes</span>
             </div>
-            <div className="text-xs text-text-muted">
-              Press <kbd className="inline-block py-0.5 px-1.5 bg-surface-hover border border-border rounded text-[11px] text-text">Esc</kbd> to cancel • <kbd className="inline-block py-0.5 px-1.5 bg-surface-hover border border-border rounded text-[11px] text-text">A</kbd> accept hunk • <kbd className="inline-block py-0.5 px-1.5 bg-surface-hover border border-border rounded text-[11px] text-text">R</kbd> reject hunk
+            <div className="text-xs text-base-content/60">
+              Press <kbd className="inline-block py-0.5 px-1.5 bg-base-300 border border-base-300 rounded text-[11px] text-base-content">Esc</kbd> to cancel • <kbd className="inline-block py-0.5 px-1.5 bg-base-300 border border-base-300 rounded text-[11px] text-base-content">A</kbd> accept hunk • <kbd className="inline-block py-0.5 px-1.5 bg-base-300 border border-base-300 rounded text-[11px] text-base-content">R</kbd> reject hunk
             </div>
           </footer>
         </div>

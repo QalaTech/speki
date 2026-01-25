@@ -80,7 +80,7 @@ describe('review-logger', () => {
   describe('saveReviewLog', () => {
     it('saveReviewLog_CreatesLogFile', async () => {
       // Arrange
-      const logDir = path.join(testDir, '.ralph', 'logs');
+      const logDir = path.join(testDir, '.speki', 'logs');
       const input = createMockInput();
 
       // Act
@@ -98,7 +98,7 @@ describe('review-logger', () => {
 
     it('saveReviewLog_CreatesPromptsDirectory', async () => {
       // Arrange
-      const logDir = path.join(testDir, '.ralph', 'logs');
+      const logDir = path.join(testDir, '.speki', 'logs');
       const input = createMockInput({
         promptResults: [
           createMockPromptResult({ promptName: 'god_spec_detection' }),
@@ -129,7 +129,7 @@ describe('review-logger', () => {
 
     it('saveReviewLog_CreatesJsonSummary', async () => {
       // Arrange
-      const logDir = path.join(testDir, '.ralph', 'logs');
+      const logDir = path.join(testDir, '.speki', 'logs');
       const suggestions = [createMockSuggestion({ severity: 'critical', issue: 'Critical issue' })];
       const input = createMockInput({
         aggregatedResult: createMockAggregatedResult({
@@ -157,7 +157,7 @@ describe('review-logger', () => {
 
     it('saveReviewLog_LogsOnFailure', async () => {
       // Arrange
-      const logDir = path.join(testDir, '.ralph', 'logs');
+      const logDir = path.join(testDir, '.speki', 'logs');
       const input = createMockInput({
         promptResults: [
           createMockPromptResult({

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { apiFetch } from '../components/ui/ErrorContext';
 
 export type FeedbackStatus = 'idle' | 'pending' | 'sent' | 'error';
 
@@ -71,7 +72,7 @@ export function useAgentFeedback(): UseAgentFeedbackReturn {
       });
 
       try {
-        const response = await fetch(
+        const response = await apiFetch(
           buildApiUrl('/api/spec-review/feedback', projectPath),
           {
             method: 'POST',
@@ -80,17 +81,7 @@ export function useAgentFeedback(): UseAgentFeedbackReturn {
           }
         );
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          const errorMessage = data.error || 'Failed to send feedback';
-          setState({
-            status: 'error',
-            error: errorMessage,
-            lastSuggestionId: payload.suggestionId,
-          });
-          return { success: false, error: errorMessage };
-        }
+        await response.json();
 
         setState({
           status: 'sent',

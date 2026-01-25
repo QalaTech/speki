@@ -1,81 +1,80 @@
+/**
+ * SpecExplorer - Main component for browsing and editing spec files.
+ *
+ * Uses custom hooks for state management:
+ * - useResizablePanel: Panel resize logic
+ * - useSpecFileTree: File tree with status merging
+ * - useSpecContent: Content loading/saving
+ * - useSpecReview: Review workflow
+ * - useSpecChat: Chat functionality
+ * - useSpecCreation: New spec creation
+ */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { SpecTree, type SpecFileNode } from './SpecTree';
+import { SpecTree } from './SpecTree';
 import { SpecHeader, type SpecTab } from './SpecHeader';
-import { SpecEditor, type SpecEditorRef } from '../SpecEditor';
+import { type SpecEditorRef } from '../shared/SpecEditor';
 import { SpecDecomposeTab } from './SpecDecomposeTab';
 import { DiffOverlay } from './DiffOverlay';
-import { ReviewChat, type DiscussingContext } from '../ReviewChat';
+import { ReviewChat } from '../review/ReviewChat';
 import { CreateTechSpecModal } from './CreateTechSpecModal';
-import { useFileVersion } from '../../hooks/useFileWatcher';
-import type { UserStory } from '../../types';
-import './SpecExplorer.css';
+import { SpecExplorerPreviewTab } from './SpecExplorerPreviewTab';
+import { ReviewPanel } from './ReviewPanel';
+import { NewSpecModal } from './NewSpecModal';
+import { MagnifyingGlassIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
+
+// Hooks
+import { useResizablePanel } from '../../hooks/useResizablePanel';
+import { useSpecFileTree } from '../../hooks/useSpecFileTree';
+import { useSpecContent } from '../../hooks/useSpecContent';
+import { useSpecReview } from '../../hooks/useSpecReview';
+import { useSpecChat } from '../../hooks/useSpecChat';
+import { useSpecCreation } from '../../hooks/useSpecCreation';
+import { apiFetch } from '../ui/ErrorContext';
+
+// Types
+import { getSpecTypeFromFilename } from './types';
 
 interface SpecExplorerProps {
   projectPath: string;
 }
 
-interface SpecSession {
-  sessionId: string;
-  status: 'in_progress' | 'completed' | 'needs_attention';
-  suggestions: Suggestion[];
-  reviewResult: ReviewResult | null;
-  chatMessages: ChatMessage[];
-}
-
-type SuggestionTag =
-  | 'security'
-  | 'performance'
-  | 'scalability'
-  | 'data'
-  | 'api'
-  | 'ux'
-  | 'accessibility'
-  | 'architecture'
-  | 'testing'
-  | 'infrastructure'
-  | 'error-handling'
-  | 'documentation';
-
-interface Suggestion {
-  id: string;
-  type?: 'change' | 'comment';
-  severity: 'critical' | 'warning' | 'info';
-  // Data can come in two formats - handle both
-  location?: { section: string; lineStart?: number; lineEnd?: number };
-  section?: string;
-  lineStart?: number | null;
-  lineEnd?: number | null;
-  issue: string;
-  suggestedFix: string;
-  status: 'pending' | 'approved' | 'rejected' | 'edited';
-  tags?: SuggestionTag[];
-}
-
-interface ReviewResult {
-  verdict: 'PASS' | 'FAIL' | 'NEEDS_IMPROVEMENT' | 'SPLIT_RECOMMENDED';
-}
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-  suggestionId?: string;
-}
+// CSS keyframes (moved to separate style block)
+const animationStyles = `
+  @keyframes spec-review-spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes chat-pulse {
+    0%, 100% { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
+    50% { box-shadow: 0 4px 20px rgba(88, 166, 255, 0.4); }
+  }
+  @keyframes chat-popup-enter {
+    from { opacity: 0; transform: translateY(20px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes modal-overlay-enter {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes modal-enter {
+    from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .animate-spin-slow { animation: spec-review-spin 1s linear infinite; }
+  .animate-chat-pulse { animation: chat-pulse 2s infinite; }
+  .animate-chat-popup { animation: chat-popup-enter 0.2s ease; }
+  .animate-modal-overlay { animation: modal-overlay-enter 0.15s ease; }
+  .animate-modal { animation: modal-enter 0.2s ease; }
+`;
 
 export function SpecExplorer({ projectPath }: SpecExplorerProps) {
-  // Use React Router's useSearchParams for URL state
+  // URL state management
   const [searchParams, setSearchParams] = useSearchParams();
-
-  // Tree state
-  const [files, setFiles] = useState<SpecFileNode[]>([]);
   const [selectedPath, setSelectedPathState] = useState<string | null>(
     () => searchParams.get('spec') || null
   );
-  const [, setIsLoadingTree] = useState(true);
 
-  // Wrapper to sync selectedPath with URL
+  // Sync selectedPath with URL
   const setSelectedPath = useCallback((path: string | null) => {
     setSelectedPathState(path);
     setSearchParams(prev => {
@@ -88,985 +87,190 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     }, { replace: true });
   }, [setSearchParams]);
 
-  // Content state
-  const [content, setContent] = useState<string>('');
-  const [, setOriginalContent] = useState<string>('');
-  const [isLoadingContent, setIsLoadingContent] = useState(false);
-
-  // File watcher - triggers refetch when selected file changes on disk
-  const fileVersion = useFileVersion(projectPath, selectedPath);
-
-  // UI state
+  // Tab state
   const [activeTab, setActiveTab] = useState<SpecTab>('preview');
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const editorRef = useRef<SpecEditorRef>(null);
 
-  // Session state (for review tab)
-  const [session, setSession] = useState<SpecSession | null>(null);
-  const [isStartingReview, setIsStartingReview] = useState(false);
-  const [selectedTagFilters, setSelectedTagFilters] = useState<Set<SuggestionTag>>(new Set());
+  // Review panel drawer state
+  const [isReviewPanelOpen, setIsReviewPanelOpen] = useState(true);
 
-  // Diff overlay state
-  const [diffOverlay, setDiffOverlay] = useState<{
-    isOpen: boolean;
-    suggestion: Suggestion | null;
-    originalText: string;
-    proposedText: string;
-  }>({ isOpen: false, suggestion: null, originalText: '', proposedText: '' });
-
-  // Chat popup state
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isSendingChat, setIsSendingChat] = useState(false);
-  const [discussingContext, setDiscussingContext] = useState<DiscussingContext | null>(null);
-  // Timestamp marking when a "fresh" discuss session started (messages before this are hidden)
-  const [discussStartTimestamp, setDiscussStartTimestamp] = useState<string | null>(null);
-
-  // New spec modal state
-  const [isNewSpecModalOpen, setIsNewSpecModalOpen] = useState(false);
-  const [newSpecName, setNewSpecName] = useState('');
-  const [newSpecType, setNewSpecType] = useState<'prd' | 'tech-spec' | 'bug'>('prd');
-  const [isCreatingSpec, setIsCreatingSpec] = useState(false);
-
-  // Resizable tree panel state
-  const [treeWidth, setTreeWidth] = useState(() => {
-    const saved = localStorage.getItem('specExplorerTreeWidth');
-    return saved ? parseInt(saved, 10) : 260;
+  // Resizable panel
+  const { width: treeWidth, handleResizeStart } = useResizablePanel({
+    storageKey: 'specExplorerTreeWidth',
+    defaultWidth: 260,
+    minWidth: 180,
+    maxWidth: 500,
   });
-  const isResizingRef = useRef(false);
-  const MIN_TREE_WIDTH = 180;
-  const MAX_TREE_WIDTH = 500;
 
-  // Create Tech Spec modal state
-  const [isCreateTechSpecModalOpen, setIsCreateTechSpecModalOpen] = useState(false);
-  const [prdUserStories, setPrdUserStories] = useState<UserStory[]>([]);
-  const [isGeneratingTechSpec, setIsGeneratingTechSpec] = useState(false);
-  const [generatingTechSpecInfo, setGeneratingTechSpecInfo] = useState<{
-    parentPath: string;
-    name: string;
-  } | null>(null);
+  // File tree
+  const {
+    files,
+    isGeneratingTechSpec,
+    generatingTechSpecInfo,
+    setIsGeneratingTechSpec,
+    setGeneratingTechSpecInfo,
+    refreshFiles,
+  } = useSpecFileTree({
+    projectPath,
+    onAutoSelectFile: (path) => {
+      if (!selectedPath) setSelectedPath(path);
+    },
+  });
 
-  // API helper
-  const apiUrl = useCallback((endpoint: string) => {
-    const separator = endpoint.includes('?') ? '&' : '?';
-    return `${endpoint}${separator}project=${encodeURIComponent(projectPath)}`;
-  }, [projectPath]);
+  // Content management
+  const {
+    content,
+    setContent,
+    isLoading: isLoadingContent,
+    hasUnsavedChanges,
+    isEditing,
+    setIsEditing,
+    handleContentChange,
+    handleSave,
+    refetchContent,
+    revertChanges,
+  } = useSpecContent({
+    projectPath,
+    selectedPath,
+  });
 
-  // Reset content state when project changes (files will be refetched by the fetch effect)
+  // Review workflow
+  const {
+    session,
+    setSession,
+    isStartingReview,
+    selectedTagFilters,
+    setSelectedTagFilters,
+    diffOverlay,
+    setDiffOverlay,
+    getReviewStatus,
+    handleStartReview,
+    handleDiffApprove,
+    handleDiffReject,
+    handleSuggestionAction,
+  } = useSpecReview({
+    projectPath,
+    selectedPath,
+    content,
+    onContentChange: setContent,
+    onSave: handleSave,
+  });
+
+  // Chat
+  const {
+    isChatOpen,
+    setIsChatOpen,
+    isSendingChat,
+    discussingContext,
+    setDiscussingContext,
+    setDiscussStartTimestamp,
+    handleSendChatMessage,
+    handleDiscussSuggestion,
+    filteredChatMessages,
+  } = useSpecChat({
+    projectPath,
+    selectedPath,
+    session,
+    setSession,
+    onContentRefetch: refetchContent,
+  });
+
+  // Spec creation
+  const {
+    isNewSpecModalOpen,
+    newSpecName,
+    setNewSpecName,
+    newSpecType,
+    setNewSpecType,
+    isCreatingSpec,
+    handleOpenNewSpecModal,
+    handleCreateNewSpec,
+    handleCancelNewSpec,
+    isCreateTechSpecModalOpen,
+    prdUserStories,
+    handleOpenCreateTechSpec,
+    handleTechSpecCreated,
+    handleCloseTechSpecModal,
+    handleQuickExecute,
+  } = useSpecCreation({
+    projectPath,
+    selectedPath,
+    onFilesRefresh: refreshFiles,
+    onSelectPath: setSelectedPath,
+    onGenerationEnd: () => {
+      setIsGeneratingTechSpec(false);
+      setGeneratingTechSpecInfo(null);
+    },
+  });
+
+  // Handler for asking about selected text in the editor
+  const handleSelectionAsk = useCallback((selectedText: string, question: string) => {
+    // Clear old messages by setting a new timestamp
+    setDiscussStartTimestamp(new Date().toISOString());
+
+    // Open the chat panel
+    setIsChatOpen(true);
+
+    // Send the message with selection context
+    // Format: include the selected text as context for the AI
+    const messageWithContext = `Regarding this text from the spec:\n\n> ${selectedText}\n\n${question}`;
+    handleSendChatMessage(messageWithContext, selectedText);
+  }, [setDiscussStartTimestamp, setIsChatOpen, handleSendChatMessage]);
+
+  // Reset state when project changes
   useEffect(() => {
-    // Clear content-related state when switching projects
-    // Don't clear files - the fetch effect will update them
     setSelectedPathState(null);
-    setContent('');
-    setOriginalContent('');
-    setSession(null);
-    setHasUnsavedChanges(false);
-    setIsEditing(false);
     setActiveTab('preview');
-    setSelectedTagFilters(new Set());
-    setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' });
     setIsChatOpen(false);
     setDiscussingContext(null);
-  }, [projectPath]);
+  }, [projectPath, setIsChatOpen, setDiscussingContext]);
 
-  // Resize handlers for the tree panel
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizingRef.current = true;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-  }, []);
+  // Track decompose state for selected PRD (needed for Generate Tech Spec button visibility)
+  const [decomposeStoryCount, setDecomposeStoryCount] = useState(0);
 
+  // Derived values
+  const selectedFileName = selectedPath?.split('/').pop() || '';
+  const selectedSpecType = getSpecTypeFromFilename(selectedFileName);
+
+  // Fetch decompose state when a PRD is selected
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizingRef.current) return;
-      const newWidth = Math.min(MAX_TREE_WIDTH, Math.max(MIN_TREE_WIDTH, e.clientX));
-      setTreeWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      if (isResizingRef.current) {
-        isResizingRef.current = false;
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-        // Persist width to localStorage
-        localStorage.setItem('specExplorerTreeWidth', String(treeWidth));
-      }
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [treeWidth]);
-
-  // Merge review statuses into tree
-  function mergeStatusesIntoTree(
-    nodes: SpecFileNode[],
-    statuses: Record<string, string>
-  ): SpecFileNode[] {
-    return nodes.map(node => {
-      if (node.type === 'file') {
-        return {
-          ...node,
-          reviewStatus: (statuses[node.path] || 'none') as SpecFileNode['reviewStatus'],
-        };
-      }
-      if (node.children) {
-        return {
-          ...node,
-          children: mergeStatusesIntoTree(node.children, statuses),
-        };
-      }
-      return node;
-    });
-  }
-
-  // Fetch tree structure, statuses, and generation status
-  useEffect(() => {
-    async function fetchFilesAndStatuses() {
-      setIsLoadingTree(true);
-      try {
-        // Fetch all in parallel
-        const [filesRes, statusesRes, generationRes] = await Promise.all([
-          fetch(apiUrl('/api/spec-review/files')),
-          fetch(apiUrl('/api/sessions/statuses')),
-          fetch(apiUrl('/api/decompose/generation-status')),
-        ]);
-
-        const filesData = await filesRes.json();
-        const statusesData = await statusesRes.json();
-        const generationData = await generationRes.json();
-
-        // Merge statuses into tree
-        const filesWithStatus = mergeStatusesIntoTree(
-          filesData.files || [],
-          statusesData.statuses || {}
-        );
-        setFiles(filesWithStatus);
-
-        // Restore generation state if a generation is in progress
-        if (generationData.generating) {
-          setIsGeneratingTechSpec(true);
-          setGeneratingTechSpecInfo({
-            parentPath: `specs/${generationData.prdSpecId}.md`,
-            name: generationData.techSpecName,
-          });
-        }
-
-        // Auto-select first file if none selected
-        if (!selectedPath && filesWithStatus?.length > 0) {
-          const firstFile = findFirstFile(filesWithStatus);
-          if (firstFile) setSelectedPath(firstFile.path);
-        }
-      } catch (err) {
-        console.error('Failed to fetch spec files:', err);
-      } finally {
-        setIsLoadingTree(false);
-      }
-    }
-    fetchFilesAndStatuses();
-  }, [projectPath, apiUrl]);
-
-  // Poll for generation completion when generating
-  useEffect(() => {
-    if (!isGeneratingTechSpec) return;
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(apiUrl('/api/decompose/generation-status'));
-        const data = await res.json();
-
-        if (!data.generating) {
-          // Generation completed - clear state and refresh file list
-          setIsGeneratingTechSpec(false);
-          setGeneratingTechSpecInfo(null);
-
-          // Refresh file list to show the new spec
-          const [filesRes, statusesRes] = await Promise.all([
-            fetch(apiUrl('/api/spec-review/files')),
-            fetch(apiUrl('/api/sessions/statuses')),
-          ]);
-          const filesData = await filesRes.json();
-          const statusesData = await statusesRes.json();
-          const filesWithStatus = mergeStatusesIntoTree(
-            filesData.files || [],
-            statusesData.statuses || {}
-          );
-          setFiles(filesWithStatus);
-        }
-      } catch (err) {
-        console.error('Failed to poll generation status:', err);
-      }
-    }, 3000); // Poll every 3 seconds
-
-    return () => clearInterval(pollInterval);
-  }, [isGeneratingTechSpec, apiUrl]);
-
-  // Reset review state when file changes
-  useEffect(() => {
-    setIsStartingReview(false);
-  }, [selectedPath]);
-
-  // Fetch file content when selection changes
-  useEffect(() => {
-    if (!selectedPath) return;
-
-    const abortController = new AbortController();
-    let cancelled = false;
-
-    async function fetchContent() {
-      setIsLoadingContent(true);
-      try {
-        const res = await fetch(apiUrl(`/api/spec-review/content/${encodeURIComponent(selectedPath!)}`), {
-          signal: abortController.signal,
-        });
-
-        if (cancelled) return; // Don't process if we've been cancelled
-
-        const data = await res.json();
-        const fileContent = data.content || '';
-        setContent(fileContent);
-        setOriginalContent(fileContent);
-        setHasUnsavedChanges(false);
-        setIsEditing(false); // Reset to preview mode when switching files
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          // Request was cancelled, ignore
-          return;
-        }
-        console.error('Failed to fetch spec content:', err);
-      } finally {
-        // Only clear loading if not cancelled (to avoid clearing new request's loading state)
-        if (!cancelled) {
-          setIsLoadingContent(false);
-        }
-      }
-    }
-
-    // Also fetch session if exists
-    async function fetchSession() {
-      try {
-        const res = await fetch(apiUrl(`/api/sessions/spec/${encodeURIComponent(selectedPath!)}`), {
-          signal: abortController.signal,
-        });
-
-        if (cancelled) return;
-
-        if (res.ok) {
-          const data = await res.json();
-          setSession(data.session || null);
-        } else {
-          setSession(null);
-        }
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          return;
-        }
-        setSession(null);
-      }
-    }
-
-    fetchContent();
-    fetchSession();
-
-    return () => {
-      cancelled = true;
-      abortController.abort();
-      // Clear loading state immediately when switching files
-      // This ensures we don't get stuck in loading state
-      setIsLoadingContent(false);
-    };
-  }, [selectedPath, apiUrl, fileVersion]); // fileVersion triggers refetch when file changes on disk
-
-  // Poll for session updates when status is in_progress
-  useEffect(() => {
-    if (!session || session.status !== 'in_progress' || !selectedPath) {
+    if (!selectedPath || selectedSpecType !== 'prd') {
+      setDecomposeStoryCount(0);
       return;
     }
 
-    const pollInterval = setInterval(async () => {
+    const fetchDecomposeState = async () => {
       try {
-        const res = await fetch(apiUrl(`/api/sessions/spec/${encodeURIComponent(selectedPath)}`));
-        if (res.ok) {
-          const data = await res.json();
-          if (data.session && data.session.status !== 'in_progress') {
-            // Review completed or errored - update session
-            setSession(data.session);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to poll session status:', error);
+        const res = await apiFetch(`/api/decompose/draft?specPath=${encodeURIComponent(selectedPath)}&project=${encodeURIComponent(projectPath)}`);
+        const data = await res.json();
+        setDecomposeStoryCount(data.draft?.userStories?.length || 0);
+      } catch {
+        setDecomposeStoryCount(0);
       }
-    }, 3000); // Poll every 3 seconds
-
-    return () => {
-      clearInterval(pollInterval);
-    };
-  }, [session?.status, selectedPath, apiUrl]);
-
-  // Find first file in tree (DFS)
-  function findFirstFile(nodes: SpecFileNode[]): SpecFileNode | null {
-    for (const node of nodes) {
-      if (node.type === 'file') return node;
-      if (node.children) {
-        const found = findFirstFile(node.children);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  // Get selected file name
-  const selectedFileName = selectedPath?.split('/').pop() || '';
-
-  // Detect spec type from filename
-  const getSpecTypeFromFilename = (filename: string): 'prd' | 'tech-spec' | 'bug' => {
-    const lower = filename.toLowerCase();
-    if (lower.endsWith('.prd.md')) return 'prd';
-    if (lower.endsWith('.tech.md')) return 'tech-spec';
-    if (lower.endsWith('.bug.md')) return 'bug';
-    return 'prd';
-  };
-
-  const selectedSpecType = getSpecTypeFromFilename(selectedFileName);
-
-  // Get review status for current file
-  const getReviewStatus = (): 'reviewed' | 'pending' | 'god-spec' | 'in-progress' | 'none' => {
-    if (!session) return 'none';
-    if (session.status === 'in_progress') return 'in-progress';
-    if (session.reviewResult?.verdict === 'SPLIT_RECOMMENDED') return 'god-spec';
-    const pendingSuggestions = session.suggestions.filter(s => s.status === 'pending');
-    if (pendingSuggestions.length > 0) return 'pending';
-    if (session.suggestions.length > 0) return 'reviewed';
-    return 'none';
-  };
-
-  // Handle tab change
-  const handleTabChange = (tab: SpecTab) => {
-    setActiveTab(tab);
-  };
-
-  // Handle content change in editor
-  const handleContentChange = useCallback((newContent: string) => {
-    setContent(newContent);
-    setHasUnsavedChanges(true);
-  }, []);
-
-  // Refetch spec content (used when agent updates the file)
-  const refetchContent = useCallback(async () => {
-    if (!selectedPath) return;
-    try {
-      const res = await fetch(apiUrl(`/api/spec-review/content/${encodeURIComponent(selectedPath)}`));
-      const data = await res.json();
-      const fileContent = data.content || '';
-      setContent(fileContent);
-      setOriginalContent(fileContent);
-      setHasUnsavedChanges(false);
-      console.log('[SpecExplorer] Refetched spec content after agent update');
-    } catch (err) {
-      console.error('Failed to refetch spec content:', err);
-    }
-  }, [selectedPath, apiUrl]);
-
-  // Handle save
-  const handleSave = useCallback(async (newContent?: string) => {
-    if (!selectedPath) return;
-    const contentToSave = newContent ?? content;
-
-    try {
-      await fetch(apiUrl(`/api/spec-review/content/${encodeURIComponent(selectedPath)}`), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: contentToSave }),
-      });
-      setOriginalContent(contentToSave);
-      setHasUnsavedChanges(false);
-    } catch (err) {
-      console.error('Failed to save spec:', err);
-    }
-  }, [selectedPath, content, apiUrl]);
-
-  // Handle start review (or re-review with existing session)
-  const handleStartReview = async (reuseSession: boolean = false) => {
-    if (!selectedPath) return;
-
-    setIsStartingReview(true);
-    try {
-      const requestBody: Record<string, unknown> = { specFile: selectedPath };
-
-      // If re-reviewing, pass the existing session ID to preserve chat history
-      if (reuseSession && session?.sessionId) {
-        requestBody.sessionId = session.sessionId;
-      }
-
-      const res = await fetch(apiUrl('/api/spec-review/start'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-      const data = await res.json();
-
-      // Poll for completion
-      const sessionId = data.sessionId;
-      let completed = false;
-      while (!completed) {
-        await new Promise(r => setTimeout(r, 2000));
-        const statusRes = await fetch(apiUrl(`/api/spec-review/status/${sessionId}`));
-        const statusData = await statusRes.json();
-        if (statusData.status === 'completed' || statusData.status === 'error') {
-          completed = true;
-          // Refresh session data
-          const sessionRes = await fetch(apiUrl(`/api/sessions/spec/${encodeURIComponent(selectedPath)}`));
-          if (sessionRes.ok) {
-            const sessionData = await sessionRes.json();
-            setSession(sessionData.session || null);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Failed to start review:', err);
-    } finally {
-      setIsStartingReview(false);
-    }
-  };
-
-  // Handle review diff for a suggestion
-  const handleReviewDiff = (suggestion: Suggestion) => {
-    // Apply suggestion to generate proposed text
-    // For now, just show original vs original + suggested fix
-    const proposedContent = applySuggestion(content, suggestion);
-
-    setDiffOverlay({
-      isOpen: true,
-      suggestion,
-      originalText: content,
-      proposedText: proposedContent,
-    });
-  };
-
-  // Simple suggestion application (real implementation would be smarter)
-  const applySuggestion = (text: string, suggestion: Suggestion): string => {
-    // Get location info from either root level or nested in location object
-    const section = suggestion.section ?? suggestion.location?.section;
-    const lineStart = suggestion.lineStart ?? suggestion.location?.lineStart;
-    const lineEnd = suggestion.lineEnd ?? suggestion.location?.lineEnd;
-
-    // If we have line numbers, try to insert at that location
-    if (lineStart != null) {
-      const lines = text.split('\n');
-      const targetLineIndex = lineStart - 1; // Convert to 0-based index
-
-      if (targetLineIndex >= 0 && targetLineIndex < lines.length) {
-        // Insert the suggested fix after the end line (or start line if no end)
-        const insertIndex = (lineEnd ?? lineStart);
-        
-        // Add the suggested fix as a new section after the target location
-        lines.splice(insertIndex, 0, '', suggestion.suggestedFix, '');
-        return lines.join('\n');
-      }
-    }
-
-    // If we have a section but no line numbers, try to find the section heading
-    if (section) {
-      const lines = text.split('\n');
-      let sectionIndex = -1;
-
-      // Find the section heading
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line.toLowerCase().includes(section.toLowerCase())) {
-          sectionIndex = i;
-          break;
-        }
-      }
-
-      if (sectionIndex >= 0) {
-        // Find the end of this section (next heading or end of document)
-        let sectionEndIndex = lines.length;
-        for (let i = sectionIndex + 1; i < lines.length; i++) {
-          if (lines[i].match(/^#{1,6}\s/)) {
-            sectionEndIndex = i;
-            break;
-          }
-        }
-
-        // Insert the suggested fix at the end of the section
-        lines.splice(sectionEndIndex, 0, '', suggestion.suggestedFix, '');
-        return lines.join('\n');
-      }
-    }
-
-    // Fallback: append to end of document
-    return text + '\n\n' + suggestion.suggestedFix;
-  };;
-
-  // Handle diff approval
-  const handleDiffApprove = async (finalContent: string) => {
-    if (!diffOverlay.suggestion || !session) return;
-
-    // Update content
-    await handleSave(finalContent);
-
-    // Mark suggestion as approved
-    const updatedSuggestions = session.suggestions.map(s =>
-      s.id === diffOverlay.suggestion?.id ? { ...s, status: 'approved' as const } : s
-    );
-    setSession({ ...session, suggestions: updatedSuggestions });
-
-    // Close overlay
-    setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' });
-  };
-
-  // Handle diff reject
-  const handleDiffReject = () => {
-    if (!diffOverlay.suggestion || !session) return;
-
-    // Mark suggestion as rejected
-    const updatedSuggestions = session.suggestions.map(s =>
-      s.id === diffOverlay.suggestion?.id ? { ...s, status: 'rejected' as const } : s
-    );
-    setSession({ ...session, suggestions: updatedSuggestions });
-
-    // Close overlay
-    setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' });
-  };
-
-  // Handle suggestion status update (approve/reject/edit)
-  const handleSuggestionAction = useCallback(async (
-    suggestionId: string,
-    action: 'approved' | 'rejected' | 'edited',
-    userVersion?: string
-  ) => {
-    if (!session?.sessionId) return;
-
-    // If approving, apply the suggestion to the spec first
-    if (action === 'approved') {
-      const suggestion = session.suggestions.find(s => s.id === suggestionId);
-      if (suggestion) {
-        const updatedContent = applySuggestion(content, suggestion);
-        await handleSave(updatedContent);
-        setContent(updatedContent);
-      }
-    }
-
-    try {
-      const res = await fetch(apiUrl('/api/spec-review/suggestion'), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: session.sessionId,
-          suggestionId,
-          action,
-          userVersion,
-        }),
-      });
-
-      if (!res.ok) {
-        console.error('Failed to update suggestion status');
-        return;
-      }
-
-      const data = await res.json();
-
-      // Update local session state with the updated suggestion
-      if (data.success && data.suggestion) {
-        setSession(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            suggestions: prev.suggestions.map(s =>
-              s.id === suggestionId ? { ...s, status: action, reviewedAt: data.suggestion.reviewedAt } : s
-            ),
-          };
-        });
-      }
-    } catch (error) {
-      console.error('Failed to update suggestion:', error);
-    }
-  }, [session?.sessionId, session?.suggestions, content, apiUrl, handleSave, applySuggestion]);;
-
-  // Handle sending chat message
-  const handleSendChatMessage = useCallback(async (
-    message: string,
-    selectionContext?: string,
-    suggestionId?: string
-  ): Promise<void> => {
-    if (!selectedPath) return;
-
-    // Optimistically add user message immediately
-    const optimisticUserMessage = {
-      id: `temp-${Date.now()}`,
-      role: 'user' as const,
-      content: message,
-      timestamp: new Date().toISOString(),
-      suggestionId,
     };
 
-    setSession(prev => {
-      if (prev) {
-        return {
-          ...prev,
-          chatMessages: [...prev.chatMessages, optimisticUserMessage],
-        };
-      }
-      // Create local session state
-      return {
-        sessionId: `temp-${Date.now()}`,
-        status: 'completed',
-        suggestions: [],
-        reviewResult: null,
-        chatMessages: [optimisticUserMessage],
-      };
-    });
+    fetchDecomposeState();
+  }, [selectedPath, selectedSpecType, projectPath]);
 
-    setIsSendingChat(true);
+  // Compute progress for PRDs (needed for Generate Tech Spec button)
+  // We only need total > 0 to show the button, completed count not used in header
+  const prdProgress = selectedSpecType === 'prd' && decomposeStoryCount > 0
+    ? { completed: 0, total: decomposeStoryCount }
+    : undefined;
 
-    try {
-      console.log('[SpecExplorer] Sending chat message:', {
-        sessionId: session?.sessionId,
-        specPath: selectedPath,
-        messageLength: message.length,
-      });
-
-      // Send the message via POST to streaming endpoint
-      const res = await fetch(apiUrl('/api/spec-review/chat/stream'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: session?.sessionId,
-          specPath: selectedPath,
-          message,
-          suggestionId,
-          selectedText: selectionContext,
-        }),
-      });
-
-      console.log('[SpecExplorer] Got response:', {
-        status: res.status,
-        ok: res.ok,
-        headers: Object.fromEntries(res.headers.entries()),
-      });
-
-      // Read the SSE stream from response
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      console.log('[SpecExplorer] Starting to read stream...');
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          console.log('[SpecExplorer] Stream chunk:', { done, valueLength: value?.length });
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-          console.log('[SpecExplorer] Processing lines:', lines.length);
-          for (const line of lines) {
-            console.log('[SpecExplorer] Line:', line.substring(0, 100));
-            if (line.startsWith('event: complete')) {
-              console.log('[SpecExplorer] Got complete event');
-              // Next line should be the data
-              continue;
-            }
-            if (line.startsWith('data: ')) {
-              const jsonData = line.substring(6); // Remove 'data: ' prefix
-              console.log('[SpecExplorer] Parsing data:', jsonData.substring(0, 200));
-              try {
-                const data = JSON.parse(jsonData);
-                console.log('[SpecExplorer] Parsed data:', {
-                  success: data.success,
-                  hasAssistantMessage: !!data.assistantMessage,
-                });
-
-                if (data.success && data.assistantMessage) {
-                  // Check if agent updated the spec file
-                  if (data.assistantMessage.content?.includes('[SPEC_UPDATED]')) {
-                    console.log('[SpecExplorer] Detected [SPEC_UPDATED] marker, refetching content');
-                    refetchContent();
-                  }
-
-                  // Replace optimistic message with server version and add assistant response
-                  setSession(prev => {
-                    if (prev) {
-                      const messagesWithoutOptimistic = prev.chatMessages.filter(
-                        m => m.id !== optimisticUserMessage.id
-                      );
-                      return {
-                        ...prev,
-                        sessionId: data.sessionId || prev.sessionId,
-                        chatMessages: [...messagesWithoutOptimistic, data.userMessage, data.assistantMessage],
-                      };
-                    } else if (data.sessionId && data.userMessage && data.assistantMessage) {
-                      // Create new session if none exists (first message)
-                      return {
-                        sessionId: data.sessionId,
-                        status: 'completed' as const,
-                        suggestions: [],
-                        reviewResult: null,
-                        chatMessages: [data.userMessage, data.assistantMessage],
-                      };
-                    }
-                    return prev;
-                  });
-                }
-              } catch (parseError) {
-                // Ignore parse errors for non-complete events
-              }
-            }
-          }
-        }
-        console.log('[SpecExplorer] Stream reading complete');
-      } else {
-        console.error('[SpecExplorer] No reader available from response');
-      }
-    } catch (error) {
-      console.error('[SpecExplorer] Failed to send chat message:', error);
-      // Remove optimistic message on error
-      setSession(prev => {
-        if (prev) {
-          return {
-            ...prev,
-            chatMessages: prev.chatMessages.filter(m => m.id !== optimisticUserMessage.id),
-          };
-        }
-        return prev;
-      });
-    } finally {
-      setIsSendingChat(false);
-    }
-  }, [selectedPath, session?.sessionId, apiUrl, refetchContent]);
-
-  // Handle discuss suggestion (from review tab)
-  // Creates a "fresh chat" experience by:
-  // 1. Setting a timestamp to hide previous messages visually
-  // 2. Auto-sending a first message with the suggestion context
-  // The backend session retains full history for Claude's context
-  const handleDiscussSuggestion = useCallback(async (suggestion: Suggestion) => {
-    // Mark the start of this discuss session (hides older messages from view)
-    const now = new Date().toISOString();
-    setDiscussStartTimestamp(now);
-
-    setDiscussingContext({
-      suggestionId: suggestion.id,
-      issue: suggestion.issue,
-      suggestedFix: suggestion.suggestedFix,
-    });
-    setIsChatOpen(true);
-
-    // Auto-send the first message with suggestion context
-    if (session?.sessionId) {
-      const firstMessage = `Let's discuss this review item:\n\n**Issue:** ${suggestion.issue}\n\n**Suggested Fix:** ${suggestion.suggestedFix}`;
-
-      setIsSendingChat(true);
-      try {
-        const res = await fetch(apiUrl('/api/spec-review/chat/stream'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId: session.sessionId,
-            message: firstMessage,
-            suggestionId: suggestion.id,
-          }),
-        });
-
-        // Read the SSE stream from response
-        const reader = res.body?.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const jsonData = line.substring(6);
-                try {
-                  const data = JSON.parse(jsonData);
-
-                  if (data.success && data.userMessage && data.assistantMessage) {
-                    setSession(prev => prev ? {
-                      ...prev,
-                      chatMessages: [...prev.chatMessages, data.userMessage, data.assistantMessage],
-                    } : prev);
-                  }
-                } catch (parseError) {
-                  // Ignore parse errors
-                }
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Failed to send discuss message:', error);
-      } finally {
-        setIsSendingChat(false);
-      }
-    }
-  }, [session?.sessionId, apiUrl]);
-
-  // Handle create new spec
-  const handleOpenNewSpecModal = useCallback(() => {
-    setNewSpecName('');
-    setNewSpecType('prd');
-    setIsNewSpecModalOpen(true);
-  }, []);
-
-  const handleCreateNewSpec = useCallback(async () => {
-    if (!newSpecName.trim()) return;
-
-    setIsCreatingSpec(true);
-    try {
-      const res = await fetch(apiUrl('/api/spec-review/new'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newSpecName.trim(), type: newSpecType }),
-      });
-
-      const data = await res.json();
-
-      if (data.success && data.filePath) {
-        // Refresh file tree
-        const filesRes = await fetch(apiUrl('/api/spec-review/files'));
-        const filesData = await filesRes.json();
-
-        // Merge statuses
-        const statusesRes = await fetch(apiUrl('/api/sessions/statuses'));
-        const statusesData = await statusesRes.json();
-        const filesWithStatus = mergeStatusesIntoTree(
-          filesData.files || [],
-          statusesData.statuses || {}
-        );
-        setFiles(filesWithStatus);
-
-        // Select the new file
-        setSelectedPath(data.filePath);
-
-        // Close modal
-        setIsNewSpecModalOpen(false);
-        setNewSpecName('');
-        setNewSpecType('prd');
-      } else {
-        console.error('Failed to create spec:', data.error);
-      }
-    } catch (error) {
-      console.error('Failed to create spec:', error);
-    } finally {
-      setIsCreatingSpec(false);
-    }
-  }, [newSpecName, newSpecType, apiUrl]);
-
-  const handleCancelNewSpec = useCallback(() => {
-    setIsNewSpecModalOpen(false);
-    setNewSpecName('');
-    setNewSpecType('prd');
-  }, []);
-
-  // Handle opening Create Tech Spec modal for PRDs
-  const handleOpenCreateTechSpec = useCallback(async () => {
-    if (!selectedPath) return;
-
-    // Fetch the PRD's user stories from decompose state
-    try {
-      const res = await fetch(apiUrl(`/api/decompose/draft?specPath=${encodeURIComponent(selectedPath)}`));
-      const data = await res.json();
-
-      if (data.draft?.userStories && data.draft.userStories.length > 0) {
-        setPrdUserStories(data.draft.userStories);
-        setIsCreateTechSpecModalOpen(true);
-      } else {
-        // Show alert so user knows why modal didn't open
-        alert('No user stories found. Please decompose the PRD first (use the Decompose tab).');
-      }
-    } catch (err) {
-      console.error('Failed to fetch PRD user stories:', err);
-      alert('Failed to load PRD data. Please try again.');
-    }
-  }, [selectedPath, apiUrl]);
-
-  // Handle tech spec created - navigate to it
-  const handleTechSpecCreated = useCallback(async (techSpecPath: string) => {
-    setIsCreateTechSpecModalOpen(false);
-
-    // Refresh file tree
-    try {
-      const [filesRes, statusesRes] = await Promise.all([
-        fetch(apiUrl('/api/spec-review/files')),
-        fetch(apiUrl('/api/sessions/statuses')),
-      ]);
-
-      const filesData = await filesRes.json();
-      const statusesData = await statusesRes.json();
-
-      const filesWithStatus = mergeStatusesIntoTree(
-        filesData.files || [],
-        statusesData.statuses || {}
-      );
-      setFiles(filesWithStatus);
-
-      // Navigate to the new tech spec
-      setSelectedPath(techSpecPath);
-    } catch (err) {
-      console.error('Failed to refresh after tech spec creation:', err);
-    }
-  }, [apiUrl]);
-
-  // Handle quick execute (PRD -> Tasks directly, skip tech spec)
-  const handleQuickExecute = useCallback(async () => {
-    if (!selectedPath) return;
-
-    // Extract spec ID from path
-    const specId = selectedPath.replace(/^.*\//, '').replace(/\.md$/, '');
-
-    try {
-      const res = await fetch(apiUrl('/api/queue/quick-start'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ specId }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        console.error('Quick start failed:', data.error);
-        return;
-      }
-
-      console.log(`Quick Start: Queued ${data.addedCount} stories as tasks`);
-
-      // Navigate to queue view after queueing
-      window.location.href = '/execution/kanban';
-    } catch (err) {
-      console.error('Quick start failed:', err);
-    }
-  }, [selectedPath, apiUrl]);
-
-  // Render content based on active tab
+  // Render tab content
   const renderTabContent = () => {
     if (isLoadingContent) {
-      return <div className="flex items-center justify-center h-full text-text-muted text-sm">Loading...</div>;
+      return <div className="flex items-center justify-center h-full text-base-content/60 text-sm">Loading...</div>;
     }
 
     if (!selectedPath) {
-      // Show different message if there are no specs at all
       if (files.length === 0) {
         return (
-          <div className="flex flex-col items-center justify-center h-full text-text-muted text-sm text-center p-10 gap-3 max-w-[400px] mx-auto">
+          <div className="flex flex-col items-center justify-center h-full text-base-content/60 text-sm text-center p-10 gap-3 max-w-[400px] mx-auto">
             <div className="text-5xl mb-2">🚀</div>
-            <h2 className="m-0 text-2xl font-semibold text-text">Welcome to Ralph!</h2>
-            <p className="m-0 text-sm text-text-muted leading-relaxed">
+            <h2 className="m-0 text-2xl font-semibold text-base-content">Welcome to Ralph!</h2>
+            <p className="m-0 text-sm text-base-content/60 leading-relaxed">
               Create your first spec to start building with iterative AI development.
               Specs define what you want to build - Ralph will help you refine and implement them.
             </p>
@@ -1080,273 +284,26 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
         );
       }
       return (
-        <div className="flex flex-col items-center justify-center h-full text-text-muted text-sm text-center p-10">
+        <div className="flex flex-col items-center justify-center h-full text-base-content/60 text-sm text-center p-10">
           <p>Select a spec from the tree to view it</p>
         </div>
       );
     }
 
-    switch (activeTab) {
-      case 'preview':
-        return (
-          <div className="flex h-full overflow-hidden">
-            {/* Editor Panel (Left) */}
-            <div className="flex-1 min-w-0 overflow-hidden border-r border-border">
-              <div className="flex flex-col h-full relative">
-                {/* Edit mode toolbar - top right */}
-                <div className="spec-editor-header">
-                  {!isEditing ? (
-                    <button
-                      className="spec-editor-edit-btn"
-                      onClick={() => setIsEditing(true)}
-                      title="Edit spec"
-                    >
-                      ✏️
-                    </button>
-                  ) : (
-                    <div className="spec-editor-edit-actions">
-                      <button
-                        className="spec-editor-cancel-btn"
-                        onClick={() => {
-                          setIsEditing(false);
-                          // Revert any unsaved changes
-                          if (hasUnsavedChanges && editorRef.current) {
-                            // Refetch original content
-                            fetch(apiUrl(`/api/spec-review/content/${encodeURIComponent(selectedPath!)}`))
-                              .then(res => res.json())
-                              .then(data => {
-                                setContent(data.content || '');
-                                setHasUnsavedChanges(false);
-                              });
-                          }
-                        }}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        className="spec-editor-save-btn"
-                        onClick={() => {
-                          handleSave();
-                          setIsEditing(false);
-                        }}
-                        disabled={!hasUnsavedChanges}
-                      >
-                        Save
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <SpecEditor
-                  ref={editorRef}
-                  content={content}
-                  onChange={handleContentChange}
-                  readOnly={!isEditing}
-                  className="spec-editor-inline"
-                />
-              </div>
-            </div>
-
-            {/* Review Panel (Right) */}
-            <div className="spec-review-panel">
-              <div className="spec-review-panel-content">
-                {!session && !isStartingReview ? (
-                  // Empty state - no review yet
-                  <div className="spec-review-empty">
-                    <div className="spec-review-empty-icon">🔍</div>
-                    <h4 className="spec-review-empty-title">AI Review</h4>
-                    <p className="spec-review-empty-desc">
-                      Get AI-powered suggestions to improve this spec
-                    </p>
-                    <button
-                      className="spec-review-start-btn"
-                      onClick={() => handleStartReview(false)}
-                      disabled={isStartingReview}
-                    >
-                      Start Review
-                    </button>
-                  </div>
-                ) : isStartingReview || session?.status === 'in_progress' ? (
-                  // In progress state
-                  <div className="spec-review-in-progress">
-                    <div className="spec-review-spinner"></div>
-                    <p>Running AI Review...</p>
-                    <p className="spec-review-hint">This may take 2-5 minutes</p>
-                  </div>
-                ) : session ? (
-                  // Has results
-                  <div className="spec-review-results">
-                    <div className="spec-review-panel-header">
-                      <h4>Review ({session.suggestions.filter(s => s.status === 'pending').length} pending)</h4>
-                      <button
-                        className="spec-review-rereview-btn"
-                        onClick={() => handleStartReview(true)}
-                        disabled={isStartingReview}
-                        title="Run a fresh review"
-                      >
-                        🔄
-                      </button>
-                    </div>
-                    {/* Verdict display */}
-                    {session.reviewResult?.verdict && (
-                      <div className={`spec-review-verdict spec-review-verdict--${session.reviewResult.verdict.toLowerCase()}`}>
-                        {session.reviewResult.verdict === 'PASS' ? '✅' : session.reviewResult.verdict === 'FAIL' ? '❌' : '⚠️'}
-                        <span>{session.reviewResult.verdict}</span>
-                        {session.suggestions.length === 0 && session.reviewResult.verdict === 'PASS' && (
-                          <span className="spec-review-verdict-note">No issues found</span>
-                        )}
-                      </div>
-                    )}
-                    {/* Tag filters */}
-                    {(() => {
-                      const allTags = new Set<SuggestionTag>();
-                      session.suggestions.forEach(s => s.tags?.forEach(t => allTags.add(t)));
-                      if (allTags.size === 0) return null;
-                      return (
-                        <div className="spec-review-tag-filters">
-                          {Array.from(allTags).sort().map(tag => (
-                            <button
-                              key={tag}
-                              className={`tag-filter-btn tag-filter-btn--${tag}${selectedTagFilters.has(tag) ? ' tag-filter-btn--active' : ''}`}
-                              onClick={() => {
-                                setSelectedTagFilters(prev => {
-                                  const next = new Set(prev);
-                                  if (next.has(tag)) {
-                                    next.delete(tag);
-                                  } else {
-                                    next.add(tag);
-                                  }
-                                  return next;
-                                });
-                              }}
-                            >
-                              {tag}
-                            </button>
-                          ))}
-                          {selectedTagFilters.size > 0 && (
-                            <button
-                              className="tag-filter-clear"
-                              onClick={() => setSelectedTagFilters(new Set())}
-                            >
-                              Clear
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    <div className="spec-review-suggestions">
-                      {session.suggestions
-                        .filter(suggestion => {
-                          if (selectedTagFilters.size === 0) return true;
-                          return suggestion.tags?.some(tag => selectedTagFilters.has(tag)) ?? false;
-                        })
-                        .map(suggestion => {
-                          // Handle both data formats: root-level or nested in location
-                          const section = suggestion.section ?? suggestion.location?.section;
-                          const lineStart = suggestion.lineStart ?? suggestion.location?.lineStart;
-                          const lineEnd = suggestion.lineEnd ?? suggestion.location?.lineEnd;
-                          const hasLineInfo = lineStart != null;
-                          const isClickable = section != null || hasLineInfo;
-
-                          const handleCardClick = () => {
-                            if (editorRef.current) {
-                              // Prefer section-based scroll (more reliable), fallback to line-based
-                              if (section) {
-                                editorRef.current.scrollToSection(section);
-                              } else if (hasLineInfo) {
-                                editorRef.current.scrollToLine(lineStart!, lineEnd ?? undefined);
-                              }
-                            }
-                          };
-
-                          return (
-                            <div
-                              key={suggestion.id}
-                              className={`suggestion-card suggestion-card--${suggestion.severity} suggestion-card--${suggestion.status}${isClickable ? ' suggestion-card--clickable' : ''}`}
-                              onClick={isClickable ? handleCardClick : undefined}
-                              role={isClickable ? 'button' : undefined}
-                              tabIndex={isClickable ? 0 : undefined}
-                              onKeyDown={isClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleCardClick(); } : undefined}
-                            >
-                              <div className="suggestion-card-header">
-                                <span className={`suggestion-severity suggestion-severity--${suggestion.severity}`}>
-                                  {suggestion.severity}
-                                </span>
-                                {section && (
-                                  <span className="suggestion-location">
-                                    {section}
-                                    {lineStart && (
-                                      <span className="suggestion-lines">
-                                        {lineEnd && lineEnd !== lineStart
-                                          ? ` (L${lineStart}-${lineEnd})`
-                                          : ` (L${lineStart})`}
-                                      </span>
-                                    )}
-                                  </span>
-                                )}
-                                {suggestion.status !== 'pending' && (
-                                  <span className={`suggestion-status suggestion-status--${suggestion.status}`}>
-                                    {suggestion.status}
-                                  </span>
-                                )}
-                              </div>
-                              {/* Tags */}
-                              {suggestion.tags && suggestion.tags.length > 0 && (
-                                <div className="suggestion-tags">
-                                  {suggestion.tags.map(tag => (
-                                    <span key={tag} className={`suggestion-tag suggestion-tag--${tag}`}>
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              <p className="suggestion-issue">{suggestion.issue}</p>
-                              {suggestion.status === 'pending' && (
-                                <div className="suggestion-actions" onClick={(e) => e.stopPropagation()}>
-                                  <button
-                                    className="suggestion-btn suggestion-btn--approve"
-                                    onClick={() => handleSuggestionAction(suggestion.id, 'approved')}
-                                    title="Mark as approved"
-                                  >
-                                    ✓ Approve
-                                  </button>
-                                  <button
-                                    className="suggestion-btn suggestion-btn--reject"
-                                    onClick={() => handleSuggestionAction(suggestion.id, 'rejected')}
-                                    title="Mark as rejected"
-                                  >
-                                    ✕ Reject
-                                  </button>
-                                  {suggestion.type !== 'comment' && (
-                                    <button
-                                      className="suggestion-btn suggestion-btn--review"
-                                      onClick={() => handleReviewDiff(suggestion)}
-                                      title="Review with diff"
-                                    >
-                                      Review
-                                    </button>
-                                  )}
-                                  <button
-                                    className="suggestion-btn suggestion-btn--discuss"
-                                    onClick={() => handleDiscussSuggestion(suggestion)}
-                                    title="Discuss with AI"
-                                  >
-                                    Discuss
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'decompose':
-        return (
+    // Keep both tabs mounted but hide inactive one for performance
+    // This prevents the heavy MDX editor from re-initializing on tab switch
+    return (
+      <>
+        <div className={activeTab === 'preview' ? 'flex flex-col h-full' : 'hidden'}>
+          <SpecExplorerPreviewTab
+            content={content}
+            isEditing={isEditing}
+            onContentChange={handleContentChange}
+            editorRef={editorRef}
+            onSelectionAsk={handleSelectionAsk}
+          />
+        </div>
+        <div className={activeTab === 'decompose' ? 'flex flex-col h-full' : 'hidden'}>
           <SpecDecomposeTab
             specPath={selectedPath}
             projectPath={projectPath}
@@ -1355,256 +312,214 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
             onQuickExecute={handleQuickExecute}
             isGeneratingTechSpec={isGeneratingTechSpec}
           />
-        );
-
-      default:
-        return null;
-    }
+        </div>
+      </>
+    );
   };
 
   return (
     <>
-      <style>{`
-        @keyframes spec-review-spin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes chat-pulse {
-          0%, 100% { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
-          50% { box-shadow: 0 4px 20px rgba(88, 166, 255, 0.4); }
-        }
-        @keyframes chat-popup-enter {
-          from { opacity: 0; transform: translateY(20px) scale(0.95); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes modal-overlay-enter {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes modal-enter {
-          from { opacity: 0; transform: scale(0.95) translateY(-10px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        .animate-spin-slow { animation: spec-review-spin 1s linear infinite; }
-        .animate-chat-pulse { animation: chat-pulse 2s infinite; }
-        .animate-chat-popup { animation: chat-popup-enter 0.2s ease; }
-        .animate-modal-overlay { animation: modal-overlay-enter 0.15s ease; }
-        .animate-modal { animation: modal-enter 0.2s ease; }
-      `}</style>
-      <div className="flex h-full bg-bg">
-      {/* Tree Panel (Left) */}
-      <div className="flex-shrink-0 min-w-[180px] max-w-[500px] h-full overflow-hidden" style={{ width: treeWidth }}>
-        <SpecTree
-          files={files}
-          selectedPath={selectedPath}
-          onSelect={setSelectedPath}
-          onCreateNew={handleOpenNewSpecModal}
-          generatingSpec={generatingTechSpecInfo || undefined}
-        />
-      </div>
+      <style>{animationStyles}</style>
+      <div className="flex h-full bg-base-100">
+        {/* Tree Panel (Left) */}
+        <div className="flex-shrink-0 min-w-[180px] max-w-[500px] h-full overflow-hidden" style={{ width: treeWidth }}>
+          <SpecTree
+            files={files}
+            selectedPath={selectedPath}
+            onSelect={setSelectedPath}
+            onCreateNew={handleOpenNewSpecModal}
+            generatingSpec={generatingTechSpecInfo || undefined}
+          />
+        </div>
 
-      {/* Resize Handle */}
-      <div
-        className="flex-shrink-0 w-1 h-full bg-transparent cursor-col-resize relative z-10 transition-colors duration-150 hover:bg-accent before:content-[''] before:absolute before:left-px before:top-0 before:bottom-0 before:w-0.5 before:bg-border before:transition-colors hover:before:bg-accent"
-        onMouseDown={handleResizeStart}
-        title="Drag to resize"
-      />
+        {/* Resize Handle */}
+        <div
+          className="flex-shrink-0 w-1 h-full bg-gradient-to-b from-transparent via-base-content/10 to-transparent cursor-col-resize relative z-10 transition-all duration-200 hover:bg-primary/30 hover:w-1.5 hover:shadow-lg hover:shadow-primary/20 group"
+          onMouseDown={handleResizeStart}
+          title="Drag to resize"
+        >
+          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-base-content/5 group-hover:bg-primary/50 transition-colors" />
+        </div>
 
-      {/* Main Content Area (Right) */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {selectedPath && (
-          <SpecHeader
-            fileName={selectedFileName}
-            filePath={selectedPath}
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            onEdit={() => {}} // Unused - always in edit mode
-            reviewStatus={getReviewStatus()}
-            hasUnsavedChanges={hasUnsavedChanges}
-            onCreateTechSpec={handleOpenCreateTechSpec}
-            onQuickExecute={handleQuickExecute}
-            isGeneratingTechSpec={isGeneratingTechSpec}
+        {/* Document Area (Center) */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-base-100">
+          {selectedPath && (
+            <SpecHeader
+              fileName={selectedFileName}
+              filePath={selectedPath}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              reviewStatus={getReviewStatus()}
+              hasUnsavedChanges={hasUnsavedChanges}
+              isEditMode={isEditing}
+              onEditStart={() => setIsEditing(true)}
+              onEditCancel={() => {
+                setIsEditing(false);
+                revertChanges();
+              }}
+              onSave={handleSave}
+              onCreateTechSpec={handleOpenCreateTechSpec}
+              isGeneratingTechSpec={isGeneratingTechSpec}
+              progress={prdProgress}
+            />
+          )}
+
+          <div className="flex-1 overflow-hidden min-h-0">
+            {renderTabContent()}
+          </div>
+        </div>
+
+        {/* Review Panel (Right) - only on preview tab */}
+        {selectedPath && activeTab === 'preview' && (
+          isReviewPanelOpen ? (
+            <ReviewPanel
+              session={session}
+              isStartingReview={isStartingReview}
+              selectedTagFilters={selectedTagFilters}
+              onTagFilterChange={setSelectedTagFilters}
+              onStartReview={handleStartReview}
+              onDiscussSuggestion={handleDiscussSuggestion}
+              onResolveSuggestion={async (id) => {
+                await handleSuggestionAction(id, 'resolved');
+                refreshFiles();
+              }}
+              onDismissSuggestion={async (id) => {
+                await handleSuggestionAction(id, 'dismissed');
+                refreshFiles();
+              }}
+              editorRef={editorRef}
+              onCollapse={() => setIsReviewPanelOpen(false)}
+            />
+          ) : (
+            /* Collapsed Review Tab */
+            <button
+              className="flex flex-col items-center justify-center gap-3 w-12 h-full bg-gradient-to-l from-base-200 to-base-200/50 border-l border-base-content/5 hover:from-secondary/10 hover:to-secondary/5 transition-all duration-300 cursor-pointer group shadow-inner"
+              onClick={() => setIsReviewPanelOpen(true)}
+              title="Open Review Panel"
+            >
+              <ChevronLeftIcon className="h-4 w-4 text-base-content/40 group-hover:text-secondary group-hover:-translate-x-0.5 transition-all duration-200" />
+              <div className="flex flex-col items-center gap-2">
+                <div className="p-2 rounded-lg bg-secondary/10 group-hover:bg-secondary/20 transition-colors ring-1 ring-secondary/20">
+                  <MagnifyingGlassIcon className="h-4 w-4 text-secondary" />
+                </div>
+                <span className="text-[11px] font-medium text-base-content/50 group-hover:text-secondary/80 [writing-mode:vertical-rl] rotate-180 tracking-wide transition-colors">
+                  Review
+                </span>
+              </div>
+              {session && session.suggestions.filter(s => s.status === 'pending').length > 0 && (
+                <span className="badge badge-xs badge-secondary shadow-sm animate-pulse">
+                  {session.suggestions.filter(s => s.status === 'pending').length}
+                </span>
+              )}
+            </button>
+          )
+        )}
+
+        {/* Diff Overlay */}
+        {diffOverlay.isOpen && diffOverlay.suggestion && (
+          <DiffOverlay
+            title={`Reviewing: "${diffOverlay.suggestion.issue}"`}
+            originalText={diffOverlay.originalText}
+            proposedText={diffOverlay.proposedText}
+            onApprove={handleDiffApprove}
+            onReject={handleDiffReject}
+            onCancel={() => setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' })}
           />
         )}
 
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          {renderTabContent()}
-        </div>
-      </div>
+        {/* Chat Popup */}
+        {selectedPath && (
+          <>
+            {/* Chat Toggle Button */}
+            <button
+              className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-2xl flex items-center justify-center text-xl transition-all duration-300 ${
+                isChatOpen
+                  ? 'bg-gradient-to-br from-error to-error/80 text-error-content shadow-lg shadow-error/30 hover:shadow-xl hover:shadow-error/40 hover:scale-105'
+                  : 'bg-gradient-to-br from-primary to-primary/80 text-primary-content shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:scale-105 animate-chat-pulse'
+              }`}
+              onClick={() => setIsChatOpen(!isChatOpen)}
+              title={isChatOpen ? 'Close chat' : 'Open chat'}
+            >
+              {isChatOpen ? '✕' : '💬'}
+              {!isChatOpen && (session?.chatMessages?.length ?? 0) > 0 && (
+                <span className="absolute -top-1 -right-1 badge badge-sm badge-secondary ring-2 ring-base-100 shadow-md">
+                  {session?.chatMessages?.length}
+                </span>
+              )}
+            </button>
 
-      {diffOverlay.isOpen && diffOverlay.suggestion && (
-        <DiffOverlay
-          title={`Reviewing: "${diffOverlay.suggestion.issue}"`}
-          originalText={diffOverlay.originalText}
-          proposedText={diffOverlay.proposedText}
-          onApprove={handleDiffApprove}
-          onReject={handleDiffReject}
-          onCancel={() => setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' })}
-        />
-      )}
-
-      {/* Chat Popup */}
-      {selectedPath && (
-        <>
-          {/* Chat Toggle Button */}
-          <button
-            className={`chat-toggle-btn ${isChatOpen ? 'chat-toggle-btn--open' : ''} ${(session?.chatMessages?.length ?? 0) > 0 ? 'chat-toggle-btn--has-messages' : ''}`}
-            onClick={() => setIsChatOpen(!isChatOpen)}
-            title={isChatOpen ? 'Close chat' : 'Open chat'}
-          >
-            {isChatOpen ? '✕' : '💬'}
-            {!isChatOpen && (session?.chatMessages?.length ?? 0) > 0 && (
-              <span className="chat-toggle-badge">{session?.chatMessages?.length}</span>
+            {/* Chat Popup Panel */}
+            {isChatOpen && (
+              <div className="fixed top-16 bottom-24 right-6 z-50 w-[768px] bg-gradient-to-b from-base-200 to-base-200/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-base-content/5 ring-1 ring-base-content/10 flex flex-col overflow-hidden animate-chat-popup">
+                <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-base-300/80 to-base-300/60 border-b border-base-content/5 backdrop-blur-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="p-1.5 rounded-lg bg-primary/10 ring-1 ring-primary/20">
+                      <span className="text-sm">💬</span>
+                    </div>
+                    <span className="text-sm font-semibold text-base-content">Review Chat</span>
+                  </div>
+                  <button
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-base-content/50 hover:text-error hover:bg-error/10 transition-all duration-200"
+                    onClick={() => setIsChatOpen(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <ReviewChat
+                    messages={filteredChatMessages}
+                    sessionId={session?.sessionId}
+                    discussingContext={discussingContext}
+                    onSendMessage={handleSendChatMessage}
+                    onClearDiscussingContext={() => {
+                      setDiscussingContext(null);
+                      setDiscussStartTimestamp(null);
+                    }}
+                    isSending={isSendingChat}
+                    projectPath={projectPath}
+                  />
+                </div>
+              </div>
             )}
-          </button>
+          </>
+        )}
 
-          {/* Chat Popup Panel */}
-          {isChatOpen && (
-            <div className="chat-popup">
-              <div className="chat-popup-header">
-                <span className="chat-popup-title">Review Chat</span>
-                <button
-                  className="chat-popup-close"
-                  onClick={() => setIsChatOpen(false)}
-                >
-                  ✕
-                </button>
-              </div>
-              <ReviewChat
-                messages={
-                  // Filter to only show messages from the discuss start time (fresh chat view)
-                  discussStartTimestamp && session?.chatMessages
-                    ? session.chatMessages.filter(m => m.timestamp >= discussStartTimestamp)
-                    : (session?.chatMessages ?? [])
-                }
-                sessionId={session?.sessionId}
-                discussingContext={discussingContext}
-                onSendMessage={handleSendChatMessage}
-                onClearDiscussingContext={() => {
-                  setDiscussingContext(null);
-                  // Clear the fresh chat filter when context is cleared
-                  setDiscussStartTimestamp(null);
-                }}
-                isSending={isSendingChat}
-                projectPath={projectPath}
-              />
-            </div>
-          )}
-        </>
-      )}
+        {/* New Spec Modal */}
+        {isNewSpecModalOpen && (
+          <NewSpecModal
+            name={newSpecName}
+            type={newSpecType}
+            isCreating={isCreatingSpec}
+            onNameChange={setNewSpecName}
+            onTypeChange={setNewSpecType}
+            onCreate={handleCreateNewSpec}
+            onCancel={handleCancelNewSpec}
+          />
+        )}
 
-      {/* New Spec Modal */}
-      {isNewSpecModalOpen && (
-        <div className="new-spec-modal-overlay">
-          <div className="new-spec-modal">
-            <div className="new-spec-modal-header">
-              <h3>Create New Spec</h3>
-            </div>
-            <div className="new-spec-modal-body">
-              {/* Type Selector */}
-              <div className="new-spec-modal-label">Spec Type</div>
-              <div className="new-spec-type-selector">
-                <button
-                  type="button"
-                  className={`new-spec-type-btn ${newSpecType === 'prd' ? 'new-spec-type-btn--selected' : ''}`}
-                  onClick={() => setNewSpecType('prd')}
-                >
-                  <span className="new-spec-type-icon">📋</span>
-                  <span className="new-spec-type-name">PRD</span>
-                  <span className="new-spec-type-desc">What &amp; Why</span>
-                </button>
-                <button
-                  type="button"
-                  className={`new-spec-type-btn ${newSpecType === 'tech-spec' ? 'new-spec-type-btn--selected' : ''}`}
-                  onClick={() => setNewSpecType('tech-spec')}
-                >
-                  <span className="new-spec-type-icon">🔧</span>
-                  <span className="new-spec-type-name">Tech Spec</span>
-                  <span className="new-spec-type-desc">How</span>
-                </button>
-                <button
-                  type="button"
-                  className={`new-spec-type-btn ${newSpecType === 'bug' ? 'new-spec-type-btn--selected' : ''}`}
-                  onClick={() => setNewSpecType('bug')}
-                >
-                  <span className="new-spec-type-icon">🐛</span>
-                  <span className="new-spec-type-name">Bug</span>
-                  <span className="new-spec-type-desc">Issue</span>
-                </button>
-              </div>
-
-              <label className="new-spec-modal-label">
-                Spec Name
-                <input
-                  type="text"
-                  className="new-spec-modal-input"
-                  value={newSpecName}
-                  onChange={(e) => setNewSpecName(e.target.value)}
-                  placeholder="e.g., user-authentication, payment-flow"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newSpecName.trim()) {
-                      handleCreateNewSpec();
-                    }
-                    if (e.key === 'Escape') {
-                      handleCancelNewSpec();
-                    }
-                  }}
-                />
-              </label>
-              <p className="new-spec-modal-hint">
-                File will be created as: specs/YYYYMMDD-HHMMSS-{newSpecName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'name'}.{newSpecType === 'prd' ? 'prd' : newSpecType === 'tech-spec' ? 'tech' : 'bug'}.md
-              </p>
-            </div>
-            <div className="new-spec-modal-footer">
-              <button
-                className="new-spec-modal-btn new-spec-modal-btn--cancel"
-                onClick={handleCancelNewSpec}
-                disabled={isCreatingSpec}
-              >
-                Cancel
-              </button>
-              <button
-                className="new-spec-modal-btn new-spec-modal-btn--create"
-                onClick={handleCreateNewSpec}
-                disabled={!newSpecName.trim() || isCreatingSpec}
-              >
-                {isCreatingSpec ? 'Creating...' : 'Create'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create Tech Spec Modal */}
-      {isCreateTechSpecModalOpen && selectedPath && (
-        <CreateTechSpecModal
-          isOpen={isCreateTechSpecModalOpen}
-          onClose={() => setIsCreateTechSpecModalOpen(false)}
-          prdSpecId={selectedPath.replace(/^.*\//, '').replace(/\.md$/, '')}
-          prdName={selectedFileName}
-          userStories={prdUserStories}
-          projectPath={projectPath}
-          onCreated={(path) => {
-            handleTechSpecCreated(path);
-            setGeneratingTechSpecInfo(null);
-            setIsGeneratingTechSpec(false);
-            // Navigate to the new spec
-            setSelectedPath(path);
-          }}
-          onGenerationStart={(specName) => {
-            setIsGeneratingTechSpec(true);
-            setGeneratingTechSpecInfo({
-              parentPath: selectedPath,
-              name: specName,
-            });
-          }}
-          onGenerationEnd={() => {
-            setGeneratingTechSpecInfo(null);
-            setIsGeneratingTechSpec(false);
-          }}
-        />
-      )}
-    </div>
+        {/* Create Tech Spec Modal */}
+        {isCreateTechSpecModalOpen && selectedPath && (
+          <CreateTechSpecModal
+            isOpen={isCreateTechSpecModalOpen}
+            onClose={handleCloseTechSpecModal}
+            prdSpecId={selectedPath.replace(/^.*\//, '').replace(/\.md$/, '')}
+            prdName={selectedFileName}
+            userStories={prdUserStories}
+            projectPath={projectPath}
+            onCreated={(path) => {
+              handleTechSpecCreated(path);
+              setSelectedPath(path);
+            }}
+            onGenerationStart={(specName) => {
+              setIsGeneratingTechSpec(true);
+              setGeneratingTechSpecInfo({
+                parentPath: selectedPath,
+                name: specName,
+              });
+            }}
+          />
+        )}
+      </div>
     </>
   );
 }

@@ -54,7 +54,7 @@ describe('extractSpecId', () => {
 describe('getSpecDir', () => {
   it('getSpecDir_WithValidInputs_ReturnsCorrectPath', () => {
     const result = getSpecDir('/project', 'my-spec');
-    const expected = path.join('/project', '.ralph', 'specs', 'my-spec');
+    const expected = path.join('/project', '.speki', 'specs', 'my-spec');
     expect(result).toBe(expected);
   });
 });
@@ -72,7 +72,7 @@ describe('ensureSpecDir', () => {
 
   it('ensureSpecDir_WhenDirNotExists_CreatesDirectoryStructure', async () => {
     const result = await ensureSpecDir(testDir, 'new-spec');
-    const expectedPath = path.join(testDir, '.ralph', 'specs', 'new-spec');
+    const expectedPath = path.join(testDir, '.speki', 'specs', 'new-spec');
     expect(result).toBe(expectedPath);
 
     const dirStat = await stat(expectedPath);
@@ -86,7 +86,7 @@ describe('ensureSpecDir', () => {
 
     expect(firstResult).toBe(secondResult);
     expect(secondResult).toBe(
-      path.join(testDir, '.ralph', 'specs', specId)
+      path.join(testDir, '.speki', 'specs', specId)
     );
   });
 });
@@ -95,7 +95,7 @@ describe('getSpecLogsDir', () => {
   it('getSpecLogsDir_WithValidInputs_ReturnsLogsSubpath', () => {
     const result = getSpecLogsDir('/project', 'my-spec');
     expect(result).toBe(
-      path.join('/project', '.ralph', 'specs', 'my-spec', 'logs')
+      path.join('/project', '.speki', 'specs', 'my-spec', 'logs')
     );
   });
 });
@@ -145,7 +145,7 @@ describe('writeSpecMetadata', () => {
 
     const metadataPath = path.join(
       testDir,
-      '.ralph',
+      '.speki',
       'specs',
       specId,
       'metadata.json'
@@ -160,7 +160,7 @@ describe('writeSpecMetadata', () => {
 
     await writeSpecMetadata(testDir, specId, metadata);
 
-    const specDir = path.join(testDir, '.ralph', 'specs', specId);
+    const specDir = path.join(testDir, '.speki', 'specs', specId);
     const dirStat = await stat(specDir);
     expect(dirStat.isDirectory()).toBe(true);
   });
@@ -334,8 +334,8 @@ describe('spec isolation', () => {
 
     // Assert - Directories should be different and both should exist
     expect(specDirA).not.toBe(specDirB);
-    expect(specDirA).toBe(path.join(testDir, '.ralph', 'specs', specIdA));
-    expect(specDirB).toBe(path.join(testDir, '.ralph', 'specs', specIdB));
+    expect(specDirA).toBe(path.join(testDir, '.speki', 'specs', specIdA));
+    expect(specDirB).toBe(path.join(testDir, '.speki', 'specs', specIdB));
 
     // Verify both directories exist
     const statA = await stat(specDirA);

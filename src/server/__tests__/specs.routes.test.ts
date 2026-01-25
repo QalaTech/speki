@@ -42,7 +42,7 @@ describe('specs routes', function () {
     metadata: SpecMetadata,
     prd?: PRDData
   ): Promise<void> {
-    const specDir = join(testDir, '.ralph', 'specs', specId);
+    const specDir = join(testDir, '.speki', 'specs', specId);
     await fs.mkdir(specDir, { recursive: true });
     await fs.writeFile(join(specDir, 'metadata.json'), JSON.stringify(metadata));
     if (prd) {

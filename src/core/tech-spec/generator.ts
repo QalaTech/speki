@@ -75,12 +75,7 @@ async function validateInputs(
       errors.push({ field: 'prd.frontmatter', error: 'PRD must have frontmatter with type: prd' });
     }
 
-    // Check content length (excluding frontmatter)
-    const contentWithoutFrontmatter = prdContent.replace(/^---[\s\S]*?---/, '').trim();
-    if (contentWithoutFrontmatter.length < 100) {
-      errors.push({ field: 'prd.content', error: 'PRD content is too short (<100 chars)' });
-    }
-  } catch (err) {
+    } catch (err) {
     errors.push({ field: 'prdPath', error: `Cannot read PRD file: ${(err as Error).message}` });
   }
 
@@ -140,9 +135,31 @@ function buildGenerationPrompt(
 
 You are a senior technical architect. Your task is to create a technical specification from a PRD.
 
-## CRITICAL: Write directly to file
+## CRITICAL: Deep Planning Phase
 
-**Write the tech spec directly to: ${outputPath}**
+Before writing the tech spec, you MUST thoroughly explore and plan:
+
+1. **Explore the codebase** - Use Glob and Read tools to understand:
+   - Project structure and existing patterns
+   - Related code that this feature will interact with
+   - Existing APIs, database schemas, and conventions
+   - Testing patterns used in the project
+
+2. **Analyze dependencies** - Identify:
+   - Which existing modules/files will be affected
+   - What new files need to be created
+   - Integration points with existing code
+
+3. **Consider alternatives** - Think through:
+   - Multiple implementation approaches
+   - Trade-offs between approaches
+   - Why the chosen approach is best
+
+4. **Validate against user stories** - Ensure the technical approach addresses all user stories
+
+## Output: Write Tech Spec to File
+
+**After planning, write the tech spec directly to: ${outputPath}**
 
 Use your Write tool to create the file. Do NOT output the content as text - write it to the file.
 
@@ -160,13 +177,13 @@ parent: ${prdFilename}
 Then include these sections:
 1. # [Feature Name] Technical Specification
 2. ## Overview - relationship to PRD
-3. ## Technical Approach - architecture decisions with rationale
+3. ## Technical Approach - architecture decisions with rationale (reference explored code)
 4. ## Database Changes - schema changes OR "**N/A** - [justification]"
 5. ## API Changes - endpoints OR "**N/A** - [justification]"
-6. ## Code Structure - files to create/modify
+6. ## Code Structure - files to create/modify (based on codebase exploration)
 7. ## Edge Cases - table of cases and expected behavior
 8. ## Error Handling - table with HTTP status codes and recovery
-9. ## Testing Strategy - unit and integration test cases
+9. ## Testing Strategy - unit and integration test cases (following project patterns)
 10. ## Security Considerations
 11. ## Performance Considerations
 12. ## Open Questions - or "None identified"
@@ -181,11 +198,12 @@ ${storiesJson}
 
 ## Instructions
 
-1. Analyze the PRD and user stories thoroughly
-2. Make concrete technical decisions (no placeholders)
-3. Include ALL sections - use N/A with justification if not applicable
-4. Be specific about files, endpoints, and test cases
-5. **Write the complete tech spec to ${outputPath} using the Write tool**`;
+1. **FIRST: Explore the codebase** to understand existing patterns and structure
+2. Analyze the PRD and user stories in context of what you discovered
+3. Make concrete technical decisions (no placeholders) based on actual codebase patterns
+4. Include ALL sections - use N/A with justification if not applicable
+5. Be specific about files, endpoints, and test cases - reference actual project paths
+6. **Write the complete tech spec to ${outputPath} using the Write tool**`;
 }
 
 /**

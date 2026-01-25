@@ -99,12 +99,12 @@ describe('findSpecFiles', () => {
   it('findSpecFiles_SearchesAllDirectories', async () => {
     mkdirSync(join(tempDir, 'specs'));
     mkdirSync(join(tempDir, 'docs'));
-    mkdirSync(join(tempDir, '.ralph'));
-    mkdirSync(join(tempDir, '.ralph/specs'));
+    mkdirSync(join(tempDir, '.speki'));
+    mkdirSync(join(tempDir, '.speki/specs'));
 
     writeFileSync(join(tempDir, 'specs', 'feature-spec.md'), '# Feature Spec');
     writeFileSync(join(tempDir, 'docs', 'api-doc.md'), '# API Doc');
-    writeFileSync(join(tempDir, '.ralph/specs', 'internal-spec.md'), '# Internal Spec');
+    writeFileSync(join(tempDir, '.speki/specs', 'internal-spec.md'), '# Internal Spec');
     writeFileSync(join(tempDir, 'root-readme.md'), '# Root Readme');
 
     const results = await findSpecFiles(tempDir);
@@ -112,7 +112,7 @@ describe('findSpecFiles', () => {
     expect(results).toHaveLength(4);
     expect(results.some((f) => f.includes('specs/feature-spec.md'))).toBe(true);
     expect(results.some((f) => f.includes('docs/api-doc.md'))).toBe(true);
-    expect(results.some((f) => f.includes('.ralph/specs/internal-spec.md'))).toBe(true);
+    expect(results.some((f) => f.includes('.speki/specs/internal-spec.md'))).toBe(true);
     expect(results.some((f) => f.includes('root-readme.md'))).toBe(true);
   });
 
@@ -592,7 +592,7 @@ describe('spec-partitioned review', () => {
     expect(specId).toBe('my-feature');
 
     const specDir = getSpecDir('/project', specId);
-    expect(specDir).toBe('/project/.ralph/specs/my-feature');
+    expect(specDir).toBe('/project/.speki/specs/my-feature');
   });
 
   it('specReview_WithNewSpec_WritesReviewStateToSpecDir', async () => {
@@ -604,7 +604,7 @@ describe('spec-partitioned review', () => {
     const specDir = getSpecDir('/project', specId);
     const reviewStatePath = join(specDir, 'review_state.json');
 
-    expect(reviewStatePath).toBe('/project/.ralph/specs/test-spec/review_state.json');
+    expect(reviewStatePath).toBe('/project/.speki/specs/test-spec/review_state.json');
   });
 
   it('specReview_OnSuccess_TransitionsStatusToReviewed', async () => {
@@ -627,7 +627,7 @@ describe('spec-partitioned review', () => {
     const specId = extractSpecId(specPath);
     const logsDir = getSpecLogsDir('/project', specId);
 
-    expect(logsDir).toBe('/project/.ralph/specs/my-feature/logs');
+    expect(logsDir).toBe('/project/.speki/specs/my-feature/logs');
   });
 });
 
@@ -652,10 +652,10 @@ describe('spec list command', () => {
   it('specList_WithSpecsHavingMetadata_ShowsStatus', async () => {
     // Create spec file and metadata
     mkdirSync(join(tempDir, 'specs'));
-    mkdirSync(join(tempDir, '.ralph', 'specs', 'my-feature'), { recursive: true });
+    mkdirSync(join(tempDir, '.speki', 'specs', 'my-feature'), { recursive: true });
     writeFileSync(join(tempDir, 'specs', 'my-feature.md'), '# My Feature');
     writeFileSync(
-      join(tempDir, '.ralph', 'specs', 'my-feature', 'metadata.json'),
+      join(tempDir, '.speki', 'specs', 'my-feature', 'metadata.json'),
       JSON.stringify({
         created: '2026-01-10T10:00:00Z',
         lastModified: '2026-01-10T12:00:00Z',
@@ -694,17 +694,17 @@ describe('spec list command', () => {
     try {
       // Create multiple specs with different statuses
       mkdirSync(join(tempDir, 'specs'));
-      mkdirSync(join(tempDir, '.ralph', 'specs', 'spec-a'), { recursive: true });
-      mkdirSync(join(tempDir, '.ralph', 'specs', 'spec-b'), { recursive: true });
+      mkdirSync(join(tempDir, '.speki', 'specs', 'spec-a'), { recursive: true });
+      mkdirSync(join(tempDir, '.speki', 'specs', 'spec-b'), { recursive: true });
       writeFileSync(join(tempDir, 'specs', 'spec-a.md'), '# Spec A');
       writeFileSync(join(tempDir, 'specs', 'spec-b.md'), '# Spec B');
       writeFileSync(join(tempDir, 'specs', 'spec-c.md'), '# Spec C'); // No metadata
       writeFileSync(
-        join(tempDir, '.ralph', 'specs', 'spec-a', 'metadata.json'),
+        join(tempDir, '.speki', 'specs', 'spec-a', 'metadata.json'),
         JSON.stringify({ status: 'reviewed', created: '', lastModified: '', specPath: '' })
       );
       writeFileSync(
-        join(tempDir, '.ralph', 'specs', 'spec-b', 'metadata.json'),
+        join(tempDir, '.speki', 'specs', 'spec-b', 'metadata.json'),
         JSON.stringify({ status: 'decomposed', created: '', lastModified: '', specPath: '' })
       );
 

@@ -19,6 +19,7 @@ import {
   saveDecomposeStateForSpec,
   getSpecLogsDir,
   loadPRDForSpec,
+  savePRDForSpec,
   createTechSpecFromPrd,
   getChildSpecs,
   getParentSpec,
@@ -58,7 +59,7 @@ router.get('/prd-files', async (req, res) => {
       { path: join(projectPath, 'specs'), name: 'specs' },
       { path: join(projectPath, 'docs'), name: 'docs' },
       { path: join(projectPath, 'prd'), name: 'prd' },
-      { path: join(projectPath, '.ralph', 'specs'), name: '.ralph/specs' },
+      { path: join(projectPath, '.speki', 'specs'), name: '.speki/specs' },
     ];
 
     for (const dir of searchDirs) {
@@ -168,7 +169,7 @@ router.get('/draft', async (req, res) => {
     }
 
     // Construct the path for reference
-    const draftPath = join(req.projectPath!, '.ralph', 'specs', specId, 'decompose_state.json');
+    const draftPath = join(req.projectPath!, '.speki', 'specs', specId, 'decompose_state.json');
     res.json({ draft, draftPath });
   } catch (error) {
     res.status(500).json({
@@ -348,7 +349,7 @@ router.post('/execute-task', async (req, res) => {
         projectName: projectName || 'Single Task Execution',
         branchName: branchName || 'main',
         language: language || 'nodejs',
-        standardsFile: `.ralph/standards/${language || 'nodejs'}.md`,
+        standardsFile: `.speki/standards/${language || 'nodejs'}.md`,
         description: `Execute task: ${task.title}`,
         userStories: [task],
       };
@@ -700,6 +701,53 @@ router.post('/task-feedback', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: 'Failed to process task feedback',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/decompose/update-task
+ * Directly update a task's fields (for manual editing)
+ */
+router.post('/update-task', async (req, res) => {
+  try {
+    const { specId, task } = req.body;
+
+    if (!specId || !task?.id) {
+      return res.status(400).json({ error: 'Missing specId or task' });
+    }
+
+    // Load current PRD data for the spec (PRDData has userStories)
+    const prd = await loadPRDForSpec(req.project!.projectPath, specId);
+
+    if (!prd?.userStories) {
+      return res.status(404).json({ error: 'No tasks found for this spec' });
+    }
+
+    // Find and update the task
+    const taskIndex = prd.userStories.findIndex(s => s.id === task.id);
+    if (taskIndex === -1) {
+      return res.status(404).json({ error: `Task ${task.id} not found` });
+    }
+
+    // Update the task with new values
+    prd.userStories[taskIndex] = {
+      ...prd.userStories[taskIndex],
+      ...task,
+      id: prd.userStories[taskIndex].id, // Preserve original ID
+    };
+
+    // Save the updated PRD data
+    await savePRDForSpec(req.project!.projectPath, specId, prd);
+
+    res.json({
+      success: true,
+      task: prd.userStories[taskIndex],
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to update task',
       details: error instanceof Error ? error.message : String(error),
     });
   }

@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import type { LexicalEditor } from 'lexical';
-import type { SpecEditorRef } from '../components/SpecEditor.js';
+import type { SpecEditorRef } from '../components/shared/SpecEditor.js';
 import {
   scrollToSection,
   scrollToLine,

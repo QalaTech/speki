@@ -15,6 +15,8 @@ export interface RunStreamOptions {
   callbacks?: StreamCallbacks;
   skipPermissions?: boolean;
   model?: string;
+  /** Permission mode to use (e.g., 'plan' for deep planning mode) */
+  permissionMode?: 'acceptEdits' | 'bypassPermissions' | 'default' | 'delegate' | 'dontAsk' | 'plan';
 }
 
 export interface RunStreamResult {

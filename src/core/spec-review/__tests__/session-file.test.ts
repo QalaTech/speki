@@ -54,14 +54,14 @@ describe('session-file', () => {
 
     // Assert
     expect(result).toBe(
-      join(testDir, '.ralph', 'sessions', 'my-feature-spec.session.json')
+      join(testDir, '.speki', 'sessions', 'my-feature-spec.session.json')
     );
   });
 
   it('loadSession_WithExistingSession_ReturnsSessionFile', async () => {
     // Arrange
     const specFilePath = '/path/to/feature-spec.md';
-    const sessionsDir = join(testDir, '.ralph', 'sessions');
+    const sessionsDir = join(testDir, '.speki', 'sessions');
     await mkdir(sessionsDir, { recursive: true });
 
     const mockSession = createMockSession({
@@ -106,7 +106,7 @@ describe('session-file', () => {
     await saveSession(session);
 
     // Assert
-    const sessionsDir = join(testDir, '.ralph', 'sessions');
+    const sessionsDir = join(testDir, '.speki', 'sessions');
     const savedContent = await readFile(
       join(sessionsDir, 'save-spec.session.json'),
       'utf-8'
@@ -126,7 +126,7 @@ describe('session-file', () => {
     await saveSession(session);
 
     // Assert
-    const sessionsDir = join(testDir, '.ralph', 'sessions');
+    const sessionsDir = join(testDir, '.speki', 'sessions');
     const savedContent = await readFile(
       join(sessionsDir, 'mkdir-spec.session.json'),
       'utf-8'

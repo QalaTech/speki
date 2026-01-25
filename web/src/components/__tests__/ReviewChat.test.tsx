@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ReviewChat } from '../ReviewChat';
+import { ReviewChat } from '../review/ReviewChat';
 import type { ChatMessage } from '../../../../src/types/index.js';
 
 const mockMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({

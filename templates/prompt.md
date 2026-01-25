@@ -46,7 +46,7 @@ Use these CLI commands for task operations (instead of editing prd.json directly
 
 2. **Read progress file:**
 
-   Read `.ralph/progress.txt` and check the **Codebase Patterns** section FIRST.
+   Read `.speki/progress.txt` and check the **Codebase Patterns** section FIRST.
 
 3. **Check branch:**
 
@@ -55,7 +55,7 @@ Use these CLI commands for task operations (instead of editing prd.json directly
 
 4. **Read and apply peer feedback:**
 
-   Read `.ralph/peer_feedback.json` (create if missing). This file contains:
+   Read `.speki/peer_feedback.json` (create if missing). This file contains:
 
    ```json
    {
@@ -146,7 +146,7 @@ Use these CLI commands for task operations (instead of editing prd.json directly
    Task tool:
      subagent_type: "general-purpose"
      description: "Simplify modified code"
-     prompt: "Read your instructions from .ralph/skills/code-simplifier.md and apply them to these files:\n- <list files you modified this iteration>"
+     prompt: "Read your instructions from .speki/skills/code-simplifier.md and apply them to these files:\n- <list files you modified this iteration>"
    ```
 
    **After simplification:**
@@ -193,7 +193,7 @@ Use these CLI commands for task operations (instead of editing prd.json directly
 
 13. **Update peer feedback:**
 
-    Update `.ralph/peer_feedback.json` to maintain the knowledge base:
+    Update `.speki/peer_feedback.json` to maintain the knowledge base:
 
     **Cleanup (remove resolved items):**
     - Remove any `blocking` items you addressed this iteration

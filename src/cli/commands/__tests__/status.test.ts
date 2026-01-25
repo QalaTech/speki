@@ -22,7 +22,7 @@ function createMockPRD(overrides: Partial<PRDData> = {}): PRDData {
     projectName: 'Test Project',
     branchName: 'main',
     language: 'typescript',
-    standardsFile: '.ralph/standards/typescript.md',
+    standardsFile: '.speki/standards/typescript.md',
     description: 'Test project description',
     userStories: [
       {
@@ -59,7 +59,7 @@ describe('status command - getSpecsInfo', () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'status-test-'));
-    mkdirSync(join(tempDir, '.ralph'), { recursive: true });
+    mkdirSync(join(tempDir, '.speki'), { recursive: true });
   });
 
   afterEach(() => {
@@ -75,7 +75,7 @@ describe('status command - getSpecsInfo', () => {
   it('status_WithOneSpec_ShowsSpecDetails', async () => {
     // Create one spec
     const specId = 'my-feature';
-    const specDir = join(tempDir, '.ralph', 'specs', specId);
+    const specDir = join(tempDir, '.speki', 'specs', specId);
     mkdirSync(specDir, { recursive: true });
 
     const metadata = createMockMetadata({
@@ -98,7 +98,7 @@ describe('status command - getSpecsInfo', () => {
     const specIds = ['spec-alpha', 'spec-beta', 'spec-gamma'];
 
     for (const specId of specIds) {
-      const specDir = join(tempDir, '.ralph', 'specs', specId);
+      const specDir = join(tempDir, '.speki', 'specs', specId);
       mkdirSync(specDir, { recursive: true });
 
       const metadata = createMockMetadata({
@@ -120,7 +120,7 @@ describe('status command - getSpecsInfo', () => {
   it('status_WithDecomposedSpec_ShowsTaskProgress', async () => {
     // Create a decomposed spec with PRD
     const specId = 'decomposed-feature';
-    const specDir = join(tempDir, '.ralph', 'specs', specId);
+    const specDir = join(tempDir, '.speki', 'specs', specId);
     mkdirSync(specDir, { recursive: true });
 
     const metadata = createMockMetadata({
@@ -145,14 +145,14 @@ describe('status command - getSpecsInfo', () => {
 
   it('status_WithActiveSpec_IndicatesActive', async () => {
     // Create multiple specs with one active
-    const draftSpecDir = join(tempDir, '.ralph', 'specs', 'draft-spec');
+    const draftSpecDir = join(tempDir, '.speki', 'specs', 'draft-spec');
     mkdirSync(draftSpecDir, { recursive: true });
     writeFileSync(
       join(draftSpecDir, 'metadata.json'),
       JSON.stringify(createMockMetadata({ status: 'draft' }), null, 2)
     );
 
-    const activeSpecDir = join(tempDir, '.ralph', 'specs', 'active-spec');
+    const activeSpecDir = join(tempDir, '.speki', 'specs', 'active-spec');
     mkdirSync(activeSpecDir, { recursive: true });
     writeFileSync(
       join(activeSpecDir, 'metadata.json'),

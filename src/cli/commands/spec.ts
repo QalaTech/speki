@@ -44,7 +44,7 @@ export function validateSpecFile(filePath: string): SpecFileValidationResult {
   return { valid: true };
 }
 
-const SPEC_SEARCH_DIRECTORIES = ['specs', 'docs', '.ralph/specs', '.'];
+const SPEC_SEARCH_DIRECTORIES = ['specs', 'docs', '.speki/specs', '.'];
 
 export async function findSpecFiles(baseDir: string): Promise<string[]> {
   const results: string[] = [];
@@ -384,7 +384,7 @@ specCommand
       if (!specFile) {
         const specFiles = await findSpecFiles(projectPath);
         if (specFiles.length === 0) {
-          console.error(chalk.red('No markdown files found in specs/, docs/, .ralph/specs/, or current directory'));
+          console.error(chalk.red('No markdown files found in specs/, docs/, .speki/specs/, or current directory'));
           process.exit(2);
         }
 
@@ -655,7 +655,7 @@ specCommand
 
       if (specs.length === 0) {
         console.log(chalk.yellow('No spec files found.'));
-        console.log(chalk.gray('Specs are searched in: specs/, docs/, .ralph/specs/, and the project root'));
+        console.log(chalk.gray('Specs are searched in: specs/, docs/, .speki/specs/, and the project root'));
         process.exit(0);
       }
 

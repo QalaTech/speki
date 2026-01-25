@@ -1,30 +1,99 @@
 @import "tailwindcss";
+@plugin "daisyui";
 
-/* Custom theme matching existing GitHub-inspired dark theme */
-@theme {
-  /* Background colors */
-  --color-bg: #0d1117;
-  --color-surface: #161b22;
-  --color-surface-hover: #21262d;
+/* Nasalization font for branding */
+@font-face {
+  font-family: "Nasalization";
+  src: url("/fonts/nasalization.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
 
-  /* Border */
-  --color-border: #30363d;
+/* Poppins for headings and UI elements */
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Poppins", system-ui, sans-serif;
+}
 
-  /* Text */
-  --color-text: #c9d1d9;
-  --color-text-muted: #8b949e;
+/* Navigation and UI elements with Poppins */
+.font-poppins {
+  font-family: "Poppins", system-ui, sans-serif;
+}
 
-  /* Status colors */
-  --color-completed: #238636;
-  --color-ready: #1f6feb;
-  --color-blocked: #da3633;
-  --color-running: #a371f7;
-  --color-warning: #d29922;
+/* Apply Poppins to buttons and badges for modern feel */
+.btn, .badge, .tab {
+  font-family: "Poppins", system-ui, sans-serif;
+}
 
-  /* Accent colors */
-  --color-accent: #58a6ff;
-  --color-primary: #a371f7;
-  --color-primary-hover: #b48afa;
+/* DaisyUI night theme as default */
+/* @plugin "daisyui/theme" {
+  name: "night";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: oklch(20.768% 0.039 265.754);
+  --color-base-200: oklch(19.314% 0.037 265.754);
+  --color-base-300: oklch(17.86% 0.034 265.754);
+  --color-base-content: oklch(84.153% 0.007 265.754);
+  --color-primary: oklch(75.351% 0.138 232.661);
+  --color-primary-content: oklch(15.07% 0.027 232.661);
+  --color-secondary: oklch(68.011% 0.158 276.934);
+  --color-secondary-content: oklch(13.602% 0.031 276.934);
+  --color-accent: oklch(72.36% 0.176 350.048);
+  --color-accent-content: oklch(14.472% 0.035 350.048);
+  --color-neutral: oklch(27.949% 0.036 260.03);
+  --color-neutral-content: oklch(85.589% 0.007 260.03);
+  --color-info: oklch(68.455% 0.148 237.251);
+  --color-info-content: oklch(0% 0 0);
+  --color-success: oklch(78.452% 0.132 181.911);
+  --color-success-content: oklch(15.69% 0.026 181.911);
+  --color-warning: oklch(83.242% 0.139 82.95);
+  --color-warning-content: oklch(16.648% 0.027 82.95);
+  --color-error: oklch(71.785% 0.17 13.118);
+  --color-error-content: oklch(14.357% 0.034 13.118);
+  --radius-selector: 1rem;
+  --radius-field: 0.5rem;
+  --radius-box: 1rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+*/
+@plugin "daisyui/theme" {
+  name: "dark";
+  default: true;
+  prefersdark: false;
+  color-scheme: "dark";
+  --color-base-100: oklch(25.33% 0.016 252.42);
+  --color-base-200: oklch(23.26% 0.014 253.1);
+  --color-base-300: oklch(21.15% 0.012 254.09);
+  --color-base-content: oklch(97.807% 0.029 256.847);
+  --color-primary: oklch(58% 0.233 277.117);
+  --color-primary-content: oklch(96% 0.018 272.314);
+  --color-secondary: oklch(65% 0.241 354.308);
+  --color-secondary-content: oklch(94% 0.028 342.258);
+  --color-accent: oklch(77% 0.152 181.912);
+  --color-accent-content: oklch(38% 0.063 188.416);
+  --color-neutral: oklch(14% 0.005 285.823);
+  --color-neutral-content: oklch(92% 0.004 286.32);
+  --color-info: oklch(74% 0.16 232.661);
+  --color-info-content: oklch(29% 0.066 243.157);
+  --color-success: oklch(76% 0.177 163.223);
+  --color-success-content: oklch(37% 0.077 168.94);
+  --color-warning: oklch(82% 0.189 84.429);
+  --color-warning-content: oklch(41% 0.112 45.904);
+  --color-error: oklch(71% 0.194 13.428);
+  --color-error-content: oklch(27% 0.105 12.094);
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
 }
 
 /* Minimal reset */
@@ -34,3 +103,143 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ============================================
+   DaisyUI Button Glass Enhancements
+   Use: btn btn-glass-primary, etc.
+   ============================================ */
+
+/* Primary glass variant for DaisyUI buttons */
+.btn-glass-primary {
+  position: relative;
+  overflow: visible;
+  background: linear-gradient(
+    135deg,
+    oklch(from var(--color-primary) l c h / 25%) 0%,
+    oklch(from var(--color-primary) calc(l - 0.1) c h / 15%) 100%
+  );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(from var(--color-primary) l c h / 30%);
+  color: var(--color-primary-content);
+  box-shadow:
+    0 4px 20px oklch(from var(--color-primary) l c h / 25%),
+    inset 0 1px 0 oklch(from var(--color-base-content) l c h / 15%),
+    inset 0 -1px 0 oklch(from var(--color-primary) calc(l - 0.2) c h / 20%);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.btn-glass-primary:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(
+    135deg,
+    oklch(from var(--color-primary) calc(l + 0.05) c h / 35%) 0%,
+    oklch(from var(--color-primary) l c h / 25%) 100%
+  );
+  box-shadow:
+    0 8px 30px oklch(from var(--color-primary) l c h / 35%),
+    inset 0 1px 0 oklch(from var(--color-base-content) l c h / 20%),
+    inset 0 -1px 0 oklch(from var(--color-primary) calc(l - 0.2) c h / 25%);
+  border-color: oklch(from var(--color-primary) l c h / 40%);
+}
+
+.btn-glass-primary:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow:
+    0 2px 10px oklch(from var(--color-primary) l c h / 20%),
+    inset 0 1px 0 oklch(from var(--color-base-content) l c h / 10%);
+}
+
+/* Secondary glass variant */
+.btn-glass-secondary {
+  position: relative;
+  overflow: visible;
+  background: linear-gradient(
+    135deg,
+    oklch(from var(--color-secondary) l c h / 25%) 0%,
+    oklch(from var(--color-secondary) calc(l - 0.1) c h / 15%) 100%
+  );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(from var(--color-secondary) l c h / 30%);
+  color: var(--color-secondary-content);
+  box-shadow:
+    0 4px 20px oklch(from var(--color-secondary) l c h / 25%),
+    inset 0 1px 0 oklch(from var(--color-base-content) l c h / 15%);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.btn-glass-secondary:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(
+    135deg,
+    oklch(from var(--color-secondary) calc(l + 0.05) c h / 35%) 0%,
+    oklch(from var(--color-secondary) l c h / 25%) 100%
+  );
+  box-shadow:
+    0 8px 30px oklch(from var(--color-secondary) l c h / 35%),
+    inset 0 1px 0 oklch(from var(--color-base-content) l c h / 20%);
+}
+
+/* Success glass variant */
+.btn-glass-success {
+  position: relative;
+  overflow: visible;
+  background: linear-gradient(
+    135deg,
+    oklch(from var(--color-success) l c h / 25%) 0%,
+    oklch(from var(--color-success) calc(l - 0.1) c h / 15%) 100%
+  );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(from var(--color-success) l c h / 30%);
+  color: var(--color-success-content);
+  box-shadow:
+    0 4px 20px oklch(from var(--color-success) l c h / 25%),
+    inset 0 1px 0 oklch(from var(--color-base-content) l c h / 15%);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.btn-glass-success:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(
+    135deg,
+    oklch(from var(--color-success) calc(l + 0.05) c h / 35%) 0%,
+    oklch(from var(--color-success) l c h / 25%) 100%
+  );
+  box-shadow:
+    0 8px 30px oklch(from var(--color-success) l c h / 35%),
+    inset 0 1px 0 oklch(from var(--color-base-content) l c h / 20%);
+}
+
+/* Error glass variant */
+.btn-glass-error {
+  position: relative;
+  overflow: visible;
+  background: linear-gradient(
+    135deg,
+    oklch(from var(--color-error) l c h / 25%) 0%,
+    oklch(from var(--color-error) calc(l - 0.1) c h / 15%) 100%
+  );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(from var(--color-error) l c h / 30%);
+  color: var(--color-error-content);
+  box-shadow:
+    0 4px 20px oklch(from var(--color-error) l c h / 25%),
+    inset 0 1px 0 oklch(from var(--color-base-content) l c h / 15%);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.btn-glass-error:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(
+    135deg,
+    oklch(from var(--color-error) calc(l + 0.05) c h / 35%) 0%,
+    oklch(from var(--color-error) l c h / 25%) 100%
+  );
+  box-shadow:
+    0 8px 30px oklch(from var(--color-error) l c h / 35%),
+    inset 0 1px 0 oklch(from var(--color-base-content) l c h / 20%);
+}
+

@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import { join, dirname, basename } from 'path';
 import { resolveCliPath } from '../cli-path.js';
@@ -25,7 +26,7 @@ export interface SpecReviewOptions {
   timeoutMs?: number;
   /** Working directory (defaults to process.cwd()) */
   cwd?: string;
-  /** Path to golden standard file (defaults to .ralph/standards/golden_standard_prd_deterministic_decomposable.md) */
+  /** Path to golden standard file (defaults to .speki/standards/golden_standard_prd_deterministic_decomposable.md) */
   goldenStandardPath?: string;
   /** Directory for log files */
   logDir?: string;
@@ -57,7 +58,7 @@ const DECOMPOSE_PROMPTS: PromptDefinition[] = [
 ];
 
 async function loadGoldenStandard(cwd: string, customPath?: string): Promise<string> {
-  const standardPath = customPath ?? join(cwd, '.ralph', 'standards', 'golden_standard_prd_deterministic_decomposable.md');
+  const standardPath = customPath ?? join(cwd, '.speki', 'standards', 'golden_standard_prd_deterministic_decomposable.md');
 
   try {
     return await fs.readFile(standardPath, 'utf-8');
@@ -184,8 +185,8 @@ async function runPrompt(
 ): Promise<FocusedPromptResult> {
   const startTime = Date.now();
   try {
-    // Use provided logDir or fallback to .ralph/logs
-    const logsDir = options.logDir ?? join(cwd, '.ralph', 'logs');
+    // Use provided logDir or fallback to .speki/logs
+    const logsDir = options.logDir ?? join(cwd, '.speki', 'logs');
     try { await fs.mkdir(logsDir, { recursive: true }); } catch {}
     const promptPath = join(logsDir, `spec_review_${promptDef.name}_${Date.now()}.md`);
     await fs.writeFile(promptPath, fullPrompt, 'utf-8');
@@ -224,7 +225,7 @@ async function runPromptWithFileOutput(
   options: RunPromptOptions = {}
 ): Promise<void> {
   try {
-    const logsDir = options.logDir ?? join(cwd, '.ralph', 'logs');
+    const logsDir = options.logDir ?? join(cwd, '.speki', 'logs');
     try { await fs.mkdir(logsDir, { recursive: true }); } catch {}
     const promptPath = join(logsDir, `spec_review_${promptDef.name}_${Date.now()}.md`);
     await fs.writeFile(promptPath, fullPrompt, 'utf-8');
@@ -357,12 +358,13 @@ function parsePromptResponse(
 function parseSuggestions(rawSuggestions: unknown[], category: string): SuggestionCard[] {
   if (!Array.isArray(rawSuggestions)) return [];
 
-  return rawSuggestions.map((s, index) => {
-    const defaultId = `${category}-${index}`;
+  return rawSuggestions.map((s) => {
+    // Always generate a unique ID - don't rely on LLM-provided IDs which can collide
+    const uniqueId = randomUUID();
 
     if (typeof s === 'string') {
       return {
-        id: defaultId,
+        id: uniqueId,
         category,
         severity: 'info' as const,
         type: 'comment' as const,
@@ -382,7 +384,7 @@ function parseSuggestions(rawSuggestions: unknown[], category: string): Suggesti
     const inferredType: SuggestionType = hasConcreteChange ? 'change' : 'comment';
 
     return {
-      id: (raw.id as string) ?? defaultId,
+      id: uniqueId,
       category: (raw.category as string) ?? category,
       severity: (raw.severity as 'critical' | 'warning' | 'info') ?? 'info',
       type: (raw.type as SuggestionType) ?? inferredType,
@@ -467,8 +469,9 @@ async function runAggregationAgent(
     progress(`Aggregation complete: ${parsed.totalIssuesBeforeDedup} issues → ${parsed.totalIssuesAfterDedup} after dedup`);
 
     // Convert parsed suggestions to SuggestionCard format
-    const suggestions: SuggestionCard[] = (parsed.suggestions || []).map((s: Record<string, unknown>, index: number) => ({
-      id: (s.id as string) || `agg-${index}`,
+    // Always generate unique IDs - don't rely on LLM-provided IDs which can collide
+    const suggestions: SuggestionCard[] = (parsed.suggestions || []).map((s: Record<string, unknown>) => ({
+      id: randomUUID(),
       category: (s.category as string) || 'general',
       severity: (s.severity as 'critical' | 'warning' | 'info') || 'info',
       type: (s.type as 'change' | 'comment') || 'comment',
@@ -505,7 +508,7 @@ export async function runSpecReview(
 
   // Extract spec ID and set up directories
   const specId = extractSpecId(specPath);
-  const specStateDir = join(cwd, '.ralph', 'specs', specId);
+  const specStateDir = join(cwd, '.speki', 'specs', specId);
   const verdictsDir = join(specStateDir, 'verdicts');
   const logDir = options.logDir ?? join(specStateDir, 'logs');
 
@@ -754,7 +757,7 @@ export async function runDecomposeReview(
 ): Promise<ReviewFeedback> {
   const cwd = options.cwd ?? process.cwd();
   const timeoutMs = options.timeoutMs ?? getReviewTimeout();
-  const logDir = options.logDir ?? join(cwd, '.ralph', 'logs');
+  const logDir = options.logDir ?? join(cwd, '.speki', 'logs');
 
   await fs.mkdir(logDir, { recursive: true });
 

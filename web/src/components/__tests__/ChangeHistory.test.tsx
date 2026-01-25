@@ -59,7 +59,7 @@ describe('ChangeHistory', () => {
 
     it('should apply reverted class to reverted changes', () => {
       render(<ChangeHistory changes={[mockChange({ reverted: true })]} />);
-      expect(screen.getByTestId('change-item')).toHaveClass('change-reverted');
+      expect(screen.getByTestId('change-item')).toHaveClass('reverted');
     });
   });
 

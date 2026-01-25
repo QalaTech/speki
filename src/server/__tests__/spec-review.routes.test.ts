@@ -134,7 +134,7 @@ describe('spec-review routes', () => {
 
   describe('GET /api/spec-review/status/:sessionId', () => {
     it('GET_status_ReturnsResults', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       const mockSession: SessionFile = {
         sessionId: 'test-session-123',
@@ -171,7 +171,7 @@ describe('spec-review routes', () => {
     });
 
     it('GET_status_WithInvalidSessionId_Returns404', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       mockProjectPath = testDir;
 
@@ -301,7 +301,7 @@ describe('spec-review routes', () => {
 
   describe('POST /api/spec-review/feedback', () => {
     it('POST_feedback_Approved_UpdatesSession', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       const mockSession: SessionFile = {
         sessionId: 'feedback-session-123',
@@ -346,7 +346,7 @@ describe('spec-review routes', () => {
     });
 
     it('POST_feedback_Rejected_UpdatesSession', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       const mockSession: SessionFile = {
         sessionId: 'reject-session-123',
@@ -391,7 +391,7 @@ describe('spec-review routes', () => {
     });
 
     it('POST_feedback_Edited_UpdatesSession', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       const mockSession: SessionFile = {
         sessionId: 'edit-session-123',
@@ -441,7 +441,7 @@ describe('spec-review routes', () => {
 
   describe('POST /api/spec-review/chat', () => {
     it('POST_chat_SendsToAgent', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       const mockSession: SessionFile = {
         sessionId: 'chat-session-123',
@@ -478,7 +478,7 @@ describe('spec-review routes', () => {
     });
 
     it('POST_chat_IncludesSelectionContext', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       const mockSession: SessionFile = {
         sessionId: 'selection-chat-session',
@@ -516,7 +516,7 @@ describe('spec-review routes', () => {
     });
 
     it('POST_chat_HandlesEmptySelectedText', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       const mockSession: SessionFile = {
         sessionId: 'empty-selection-session',
@@ -551,7 +551,7 @@ describe('spec-review routes', () => {
     });
 
     it('POST_chat_HandlesWhitespaceOnlySelectedText', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       const mockSession: SessionFile = {
         sessionId: 'whitespace-selection-session',
@@ -588,7 +588,7 @@ describe('spec-review routes', () => {
 
   describe('POST /api/spec-review/revert', () => {
     it('POST_revert_RestoresPreviousContent', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
 
       const testFilePath = join(testDir, 'revert-test-file.md');
@@ -639,7 +639,7 @@ describe('spec-review routes', () => {
 
   describe('GET /api/spec-review/suggestions/:sessionId', () => {
     it('GET_suggestions_ReturnsPendingSuggestions', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       const mockSession: SessionFile = {
         sessionId: 'suggestions-session-123',
@@ -790,7 +790,7 @@ describe('spec-review routes', () => {
     });
 
     it('POST_splitExecute_UpdatesSession', async () => {
-      const sessionsDir = join(testDir, '.ralph', 'sessions');
+      const sessionsDir = join(testDir, '.speki', 'sessions');
       await fs.mkdir(sessionsDir, { recursive: true });
       const mockSession: SessionFile = {
         sessionId: 'split-session-123',

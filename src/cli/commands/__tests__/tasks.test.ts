@@ -43,7 +43,7 @@ function createMockPRD(overrides: Partial<PRDData> = {}): PRDData {
     projectName: 'Test Project',
     branchName: 'main',
     language: 'typescript',
-    standardsFile: '.ralph/standards/typescript.md',
+    standardsFile: '.speki/standards/typescript.md',
     description: 'Test project description',
     userStories: DEFAULT_USER_STORIES,
     ...overrides,
@@ -55,8 +55,8 @@ describe('tasks command spec-partitioned reading', () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'tasks-test-'));
-    // Create .ralph directory structure
-    mkdirSync(join(tempDir, '.ralph'), { recursive: true });
+    // Create .speki directory structure
+    mkdirSync(join(tempDir, '.speki'), { recursive: true });
   });
 
   afterEach(() => {
@@ -67,7 +67,7 @@ describe('tasks command spec-partitioned reading', () => {
   it('tasksList_WithSpecFlag_ReadsFromSpecDir', async () => {
     // Create spec directory with PRD
     const specId = 'my-feature';
-    const specDir = join(tempDir, '.ralph', 'specs', specId);
+    const specDir = join(tempDir, '.speki', 'specs', specId);
     mkdirSync(specDir, { recursive: true });
 
     const prd = createMockPRD({ projectName: 'My Feature Project' });
@@ -84,7 +84,7 @@ describe('tasks command spec-partitioned reading', () => {
   it('tasksList_WithSingleSpec_ReadsFromThatSpec', async () => {
     // Create a single spec directory
     const specId = 'only-spec';
-    const specDir = join(tempDir, '.ralph', 'specs', specId);
+    const specDir = join(tempDir, '.speki', 'specs', specId);
     mkdirSync(specDir, { recursive: true });
 
     const prd = createMockPRD({ projectName: 'Only Spec Project' });
@@ -105,8 +105,8 @@ describe('tasks command spec-partitioned reading', () => {
     const { select } = await import('@inquirer/prompts');
 
     // Create multiple spec directories
-    const spec1Dir = join(tempDir, '.ralph', 'specs', 'feature-a');
-    const spec2Dir = join(tempDir, '.ralph', 'specs', 'feature-b');
+    const spec1Dir = join(tempDir, '.speki', 'specs', 'feature-a');
+    const spec2Dir = join(tempDir, '.speki', 'specs', 'feature-b');
     mkdirSync(spec1Dir, { recursive: true });
     mkdirSync(spec2Dir, { recursive: true });
 
@@ -146,7 +146,7 @@ describe('tasks command spec-partitioned reading', () => {
   it('tasksNext_WithSpecFlag_ReadsFromSpecDir', async () => {
     // Create spec directory with PRD that has pending tasks
     const specId = 'next-test';
-    const specDir = join(tempDir, '.ralph', 'specs', specId);
+    const specDir = join(tempDir, '.speki', 'specs', specId);
     mkdirSync(specDir, { recursive: true });
 
     const prd = createMockPRD({
@@ -217,7 +217,7 @@ describe('listSpecs', () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'list-specs-test-'));
-    mkdirSync(join(tempDir, '.ralph'), { recursive: true });
+    mkdirSync(join(tempDir, '.speki'), { recursive: true });
   });
 
   afterEach(() => {
@@ -230,8 +230,8 @@ describe('listSpecs', () => {
   });
 
   it('listSpecs_WithSpecDirs_ReturnsSpecIds', async () => {
-    mkdirSync(join(tempDir, '.ralph', 'specs', 'spec-1'), { recursive: true });
-    mkdirSync(join(tempDir, '.ralph', 'specs', 'spec-2'), { recursive: true });
+    mkdirSync(join(tempDir, '.speki', 'specs', 'spec-1'), { recursive: true });
+    mkdirSync(join(tempDir, '.speki', 'specs', 'spec-2'), { recursive: true });
 
     const specs = await listSpecs(tempDir);
     expect(specs).toHaveLength(2);
@@ -240,9 +240,9 @@ describe('listSpecs', () => {
   });
 
   it('listSpecs_IgnoresFiles_OnlyReturnsDirs', async () => {
-    mkdirSync(join(tempDir, '.ralph', 'specs'), { recursive: true });
-    mkdirSync(join(tempDir, '.ralph', 'specs', 'valid-spec'), { recursive: true });
-    writeFileSync(join(tempDir, '.ralph', 'specs', 'some-file.json'), '{}');
+    mkdirSync(join(tempDir, '.speki', 'specs'), { recursive: true });
+    mkdirSync(join(tempDir, '.speki', 'specs', 'valid-spec'), { recursive: true });
+    writeFileSync(join(tempDir, '.speki', 'specs', 'some-file.json'), '{}');
 
     const specs = await listSpecs(tempDir);
     expect(specs).toHaveLength(1);
@@ -255,7 +255,7 @@ describe('loadPRDForSpec', () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'load-prd-test-'));
-    mkdirSync(join(tempDir, '.ralph', 'specs'), { recursive: true });
+    mkdirSync(join(tempDir, '.speki', 'specs'), { recursive: true });
   });
 
   afterEach(() => {
@@ -264,7 +264,7 @@ describe('loadPRDForSpec', () => {
 
   it('loadPRDForSpec_WithValidPRD_ReturnsData', async () => {
     const specId = 'valid-spec';
-    const specDir = join(tempDir, '.ralph', 'specs', specId);
+    const specDir = join(tempDir, '.speki', 'specs', specId);
     mkdirSync(specDir, { recursive: true });
 
     const prd = createMockPRD();
@@ -277,7 +277,7 @@ describe('loadPRDForSpec', () => {
 
   it('loadPRDForSpec_WithMissingPRD_ReturnsNull', async () => {
     const specId = 'empty-spec';
-    const specDir = join(tempDir, '.ralph', 'specs', specId);
+    const specDir = join(tempDir, '.speki', 'specs', specId);
     mkdirSync(specDir, { recursive: true });
 
     const loaded = await loadPRDForSpec(tempDir, specId);
@@ -286,7 +286,7 @@ describe('loadPRDForSpec', () => {
 
   it('loadPRDForSpec_WithInvalidJson_ReturnsNull', async () => {
     const specId = 'invalid-spec';
-    const specDir = join(tempDir, '.ralph', 'specs', specId);
+    const specDir = join(tempDir, '.speki', 'specs', specId);
     mkdirSync(specDir, { recursive: true });
     writeFileSync(join(specDir, 'decompose_state.json'), 'not valid json');
 

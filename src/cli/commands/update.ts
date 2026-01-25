@@ -10,7 +10,7 @@ async function updateSingleProject(projectPath: string, dryRun: boolean): Promis
   const project = new Project(projectPath);
 
   if (!(await project.exists())) {
-    return { path: projectPath, updated: [], error: 'No Qala project found (.ralph/ missing)' };
+    return { path: projectPath, updated: [], error: 'No Qala project found (.speki/ missing)' };
   }
 
   if (dryRun) {
@@ -73,7 +73,7 @@ export const updateCommand = new Command('update')
             console.log(chalk.yellow('  No template files found to update.'));
           } else {
             for (const file of result.updated) {
-              console.log(chalk.green(`  ✓ .ralph/${file}`));
+              console.log(chalk.green(`  ✓ .speki/${file}`));
             }
             successCount++;
           }
@@ -112,10 +112,10 @@ export const updateCommand = new Command('update')
         console.log(chalk.yellow('Dry run - no changes will be made'));
         console.log('');
         console.log('Would update:');
-        console.log(`  ${chalk.cyan('.ralph/prompt.md')}`);
-        console.log(`  ${chalk.cyan('.ralph/decompose-prompt.md')}`);
-        console.log(`  ${chalk.cyan('.ralph/standards/*.md')}`);
-        console.log(`  ${chalk.cyan('.ralph/skills/*.md')} (if present)`);
+        console.log(`  ${chalk.cyan('.speki/prompt.md')}`);
+        console.log(`  ${chalk.cyan('.speki/decompose-prompt.md')}`);
+        console.log(`  ${chalk.cyan('.speki/standards/*.md')}`);
+        console.log(`  ${chalk.cyan('.speki/skills/*.md')} (if present)`);
         console.log('');
         console.log(chalk.gray('Run without --dry-run to apply changes.'));
         return;
@@ -130,7 +130,7 @@ export const updateCommand = new Command('update')
 
       console.log(chalk.green('Updated files:'));
       for (const file of updated) {
-        console.log(`  ${chalk.cyan(`.ralph/${file}`)}`);
+        console.log(`  ${chalk.cyan(`.speki/${file}`)}`);
       }
 
       console.log('');

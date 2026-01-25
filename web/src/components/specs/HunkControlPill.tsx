@@ -87,7 +87,7 @@ export function HunkControlPill({
     hunk.modifiedEndLineNumber - hunk.modifiedStartLineNumber + 1
   );
 
-  const actionBase = "flex items-center gap-[5px] py-1.5 px-2.5 bg-transparent border-none rounded-[14px] text-text-muted text-[11px] font-medium cursor-pointer transition-all duration-150 whitespace-nowrap hover:bg-surface-hover hover:text-text active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40";
+  const actionBase = "flex items-center gap-[5px] py-1.5 px-2.5 bg-transparent border-none rounded-[14px] text-base-content/60 text-[11px] font-medium cursor-pointer transition-all duration-150 whitespace-nowrap hover:bg-base-300 hover:text-base-content active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/40";
 
   return (
     <>
@@ -106,7 +106,7 @@ export function HunkControlPill({
           left: `${position.left}px`,
         }}
       >
-        <span className="py-1 px-2 text-text-muted font-medium text-[10px] uppercase tracking-[0.03em] max-lg:hidden">
+        <span className="py-1 px-2 text-base-content/60 font-medium text-[10px] uppercase tracking-[0.03em] max-lg:hidden">
           {linesChanged} {linesChanged === 1 ? 'line' : 'lines'}
         </span>
 

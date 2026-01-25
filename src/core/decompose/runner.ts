@@ -15,6 +15,7 @@ import { resolveCliPath } from '../cli-path.js';
 import { runDecomposeReview } from '../spec-review/runner.js';
 import { selectEngine } from '../llm/engine-factory.js';
 import { getReviewTimeout } from '../spec-review/timeout.js';
+import { IdRegistry } from '../id-registry.js';
 import {
   extractSpecId,
   ensureSpecDir,
@@ -104,7 +105,7 @@ Output ONLY valid JSON in this exact format:
   "projectName": "Project name from PRD",
   "branchName": "BRANCH_NAME_HERE",
   "language": "dotnet|python|nodejs|go",
-  "standardsFile": ".ralph/standards/{language}.md",
+  "standardsFile": ".speki/standards/{language}.md",
   "description": "Brief description of the overall feature",
   "userStories": [
     {
@@ -122,7 +123,8 @@ Output ONLY valid JSON in this exact format:
       "priority": 1,
       "passes": false,
       "notes": "",
-      "dependencies": []
+      "dependencies": [],
+      "complexity": "low|medium|high"
     }
   ]
 }
@@ -134,7 +136,8 @@ Output ONLY valid JSON in this exact format:
 2. Maximum 3 files changed per story (excluding tests)
 3. Include specific testCases for every story
 4. Set all passes to false
-5. Output ONLY the JSON, no explanations
+5. Set complexity: "low" (simple, single file), "medium" (2-3 files), or "high" (complex logic)
+6. Output ONLY the JSON, no explanations
 `;
 }
 
@@ -206,6 +209,14 @@ File: src/services/UserService.ts
 Imports: UserRepository from '../repositories', EmailValidator from '../utils'"
 \`\`\`
 
+## Verification Step
+
+Before generating tasks, use the available tools to verify the current state of the codebase:
+1. Check if the files mentioned in the tech spec exist
+2. Check if the required changes have already been implemented
+3. If ALL work is already complete, set \`status\` to "completed" with a summary message
+4. If SOME work is done, only generate tasks for the remaining work
+
 ## Output Format
 
 Output ONLY valid JSON:
@@ -215,8 +226,10 @@ Output ONLY valid JSON:
   "projectName": "Project name",
   "branchName": "BRANCH_NAME",
   "language": "dotnet|python|nodejs|go",
-  "standardsFile": ".ralph/standards/{language}.md",
+  "standardsFile": ".speki/standards/{language}.md",
   "description": "What this tech spec implements",
+  "status": "pending|partial|completed",
+  "statusMessage": "Optional message explaining status, e.g. 'All requirements already implemented'",
   "userStories": [
     {
       "id": "TS-001",
@@ -239,7 +252,8 @@ Output ONLY valid JSON:
       "passes": false,
       "notes": "Edge cases: [list]. Dependencies: [list]",
       "dependencies": [],
-      "achievesUserStories": ["US-XXX"]
+      "achievesUserStories": ["US-XXX"],
+      "complexity": "low|medium|high"
     }
   ]
 }
@@ -257,7 +271,8 @@ Output ONLY valid JSON:
 8. Use TS-XXX IDs (Technical Story)
 9. Link to parent user stories via achievesUserStories when identifiable
 10. Set all passes to false
-11. Output ONLY JSON, no explanations
+11. Set complexity: "low" (single file, simple logic), "medium" (2-3 files, some complexity), or "high" (complex logic, many edge cases)
+12. Output ONLY JSON, no explanations
 
 ## CRITICAL: Compilable After Each Task
 
@@ -400,7 +415,7 @@ NO MARKDOWN, NO EXPLANATIONS.`;
 
 /**
  * Update decompose state and trigger progress callback.
- * Writes to per-spec location: .ralph/specs/<specId>/decompose_progress.json
+ * Writes to per-spec location: .speki/specs/<specId>/decompose_progress.json
  */
 async function updateState(
   projectRoot: string,
@@ -553,6 +568,9 @@ export async function runDecompose(
 
   if (skipDecomposition && existingPrd) {
     prd = existingPrd;
+    // Ensure existing IDs are registered in the global registry (migration support)
+    const existingIds = prd.userStories.map((s) => s.id);
+    await IdRegistry.registerIds(project.projectPath, existingIds, specId);
     await updateState(project.projectPath, specId, {
       status: 'DECOMPOSED',
       message: `Using existing draft with ${prd.userStories.length} tasks`,
@@ -573,9 +591,9 @@ export async function runDecompose(
       console.log(chalk.cyan('  Detected: PRD - generating user stories'));
     }
 
-    // Get next task number (US for PRD, TS for tech spec)
+    // Get next task number (US for PRD, TS for tech spec) from global registry
     const taskPrefix = isTechSpec ? 'TS' : 'US';
-    const nextUSNumber = await getNextUSNumber(project, freshStart);
+    const nextUSNumber = await IdRegistry.getNextNumber(project.projectPath, taskPrefix);
     if (nextUSNumber > 1) {
       console.log(`  ${chalk.cyan('Continuing from:')} ${taskPrefix}-${String(nextUSNumber).padStart(3, '0')}`);
     }
@@ -667,10 +685,14 @@ export async function runDecompose(
     // Ensure required fields
     prd.branchName = prd.branchName || branchName;
     prd.language = prd.language || language || 'nodejs';
-    prd.standardsFile = prd.standardsFile || `.ralph/standards/${prd.language}.md`;
+    prd.standardsFile = prd.standardsFile || `.speki/standards/${prd.language}.md`;
 
     // Save the draft
     await fs.writeFile(outputPath, JSON.stringify(prd, null, 2));
+
+    // Register task IDs in the global registry
+    const newIds = prd.userStories.map((s) => s.id);
+    await IdRegistry.registerIds(project.projectPath, newIds, specId);
 
     await updateState(project.projectPath, specId, {
       status: 'DECOMPOSED',

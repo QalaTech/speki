@@ -70,7 +70,7 @@ qala init
     │
     ▼
 ┌─────────────────────┐
-│   Create .ralph/    │
+│   Create .speki/    │
 │   - config.json     │
 │   - standards/      │
 │   - prompt.md       │
@@ -178,12 +178,12 @@ class Registry {
 
 ### Project (`src/core/project.ts`)
 
-Manages per-project state in `.ralph/`.
+Manages per-project state in `.speki/`.
 
 ```typescript
 class Project {
   projectPath: string
-  ralphDir: string
+  spekiDir: string
   configPath: string
   prdPath: string
   progressPath: string
@@ -314,7 +314,7 @@ interface StreamCallbacks {
 }
 ```
 
-### `.ralph-status.json` - Execution Status
+### `.speki-status.json` - Execution Status
 
 ```json
 {

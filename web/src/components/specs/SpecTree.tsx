@@ -1,4 +1,17 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import {
+  DocumentTextIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  WrenchScrewdriverIcon,
+  BugAntIcon,
+  ClipboardDocumentListIcon,
+  Cog6ToothIcon,
+  DocumentIcon,
+  PlusIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ExclamationTriangleIcon, ClockIcon } from '@heroicons/react/20/solid';
 
 export type SpecType = 'prd' | 'tech-spec' | 'bug';
 
@@ -27,7 +40,6 @@ function detectSpecTypeFromFilename(filename: string): SpecType {
   if (lower.endsWith('.prd.md')) return 'prd';
   if (lower.endsWith('.tech.md')) return 'tech-spec';
   if (lower.endsWith('.bug.md')) return 'bug';
-  // Legacy files without type suffix default to PRD
   return 'prd';
 }
 
@@ -36,60 +48,52 @@ interface SpecTreeProps {
   selectedPath: string | null;
   onSelect: (path: string) => void;
   onCreateNew?: () => void;
-  /** Placeholder for a spec currently being generated */
   generatingSpec?: {
     parentPath: string;
     name: string;
   };
 }
 
-interface TreeNodeProps {
-  node: SpecFileNode;
-  depth: number;
-  selectedPath: string | null;
-  focusedPath: string | null;
-  expandedPaths: Set<string>;
-  onSelect: (path: string) => void;
-  onToggle: (path: string) => void;
-  onFocus: (path: string) => void;
-  nodeRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
-}
-
-function getStatusIcon(status?: string): string {
+function getStatusIcon(status?: string) {
   switch (status) {
-    case 'reviewed': return '✅';
-    case 'pending': return '⚠️';
-    case 'god-spec': return '🔴';
-    case 'in-progress': return '⏳';
-    default: return '';
+    case 'reviewed':
+      return <CheckCircleIcon className="h-4 w-4 text-success" />;
+    case 'pending':
+      return <ExclamationTriangleIcon className="h-4 w-4 text-warning" />;
+    case 'god-spec':
+      return <ExclamationTriangleIcon className="h-4 w-4 text-error" />;
+    case 'in-progress':
+      return <ClockIcon className="h-4 w-4 text-info" />;
+    default:
+      return null;
   }
 }
 
-/**
- * Render progress dots (e.g., ●●●○○ for 3/5)
- */
-function renderProgressDots(completed: number, total: number, maxDots = 5): string {
-  if (total === 0) return '';
-  const filledCount = Math.round((completed / total) * maxDots);
-  const filled = '●'.repeat(filledCount);
-  const empty = '○'.repeat(maxDots - filledCount);
-  return filled + empty;
-}
+const typeIconColors: Record<SpecType, string> = {
+  'prd': 'text-info',
+  'tech-spec': 'text-secondary',
+  'bug': 'text-error',
+};
 
-function getSpecTypeIcon(specType: SpecType): string {
+const typeBadgeStyles: Record<SpecType, string> = {
+  'prd': 'badge badge-xs badge-outline badge-info',
+  'tech-spec': 'badge badge-xs badge-outline badge-secondary',
+  'bug': 'badge badge-xs badge-outline badge-error',
+};
+
+function getSpecTypeIcon(specType: SpecType) {
+  const colorClass = typeIconColors[specType];
   switch (specType) {
-    case 'prd': return '📋';
-    case 'tech-spec': return '🔧';
-    case 'bug': return '🐛';
+    case 'prd':
+      return <ClipboardDocumentListIcon className={`h-4 w-4 ${colorClass}`} />;
+    case 'tech-spec':
+      return <WrenchScrewdriverIcon className={`h-4 w-4 ${colorClass}`} />;
+    case 'bug':
+      return <BugAntIcon className={`h-4 w-4 ${colorClass}`} />;
   }
 }
 
-function getFileIcon(node: SpecFileNode, isExpanded: boolean): string {
-  if (node.type === 'directory') {
-    return isExpanded ? '📂' : '📁';
-  }
-
-  // For markdown files, show type-specific icon
+function getFileIcon(node: SpecFileNode) {
   if (node.name.endsWith('.md')) {
     const specType = node.specType || detectSpecTypeFromFilename(node.name);
     return getSpecTypeIcon(specType);
@@ -98,165 +102,121 @@ function getFileIcon(node: SpecFileNode, isExpanded: boolean): string {
   const ext = node.name.split('.').pop()?.toLowerCase();
   switch (ext) {
     case 'yaml':
-    case 'yml': return '⚙️';
-    case 'json': return '📋';
-    default: return '📄';
+    case 'yml':
+      return <Cog6ToothIcon className="h-4 w-4" />;
+    case 'json':
+      return <DocumentTextIcon className="h-4 w-4" />;
+    default:
+      return <DocumentIcon className="h-4 w-4" />;
   }
+}
+
+interface TreeNodeProps {
+  node: SpecFileNode;
+  selectedPath: string | null;
+  expandedPaths: Set<string>;
+  onSelect: (path: string) => void;
+  onToggle: (path: string) => void;
 }
 
 function TreeNode({
   node,
-  depth,
   selectedPath,
-  focusedPath,
   expandedPaths,
   onSelect,
   onToggle,
-  onFocus,
-  nodeRefs,
 }: TreeNodeProps) {
   const isExpanded = expandedPaths.has(node.path);
   const isSelected = selectedPath === node.path;
-  const isFocused = focusedPath === node.path;
   const isDirectory = node.type === 'directory';
-
-  const handleClick = () => {
-    onFocus(node.path);
-    if (isDirectory) {
-      onToggle(node.path);
-    } else {
-      onSelect(node.path);
-    }
-  };
-
   const isGenerating = node.isGenerating;
 
-  // Base node classes
-  const nodeClasses = [
-    "flex items-center gap-1.5 py-1.5 px-3 cursor-pointer transition-colors duration-100",
-    "hover:bg-surface-hover focus:outline-none focus:bg-surface-hover",
-    isSelected ? "!bg-[rgba(88,166,255,0.15)]" : "",
-    isFocused ? "outline outline-2 outline-accent -outline-offset-2" : "",
-    isDirectory ? "font-medium" : "",
-    isGenerating ? "opacity-70 cursor-default pointer-events-none" : "",
-  ].filter(Boolean).join(" ");
+  if (isDirectory) {
+    return (
+      <li>
+        <details open={isExpanded} onToggle={(e) => {
+          e.stopPropagation();
+          onToggle(node.path);
+        }}>
+          <summary className="gap-2 hover:bg-base-300/50 rounded-lg transition-colors">
+            {isExpanded ? (
+              <FolderOpenIcon className="h-4 w-4 text-warning" />
+            ) : (
+              <FolderIcon className="h-4 w-4 text-warning" />
+            )}
+            <span className="flex-1 truncate font-medium text-base-content/80">{node.name}</span>
+          </summary>
+          <ul>
+            {node.children?.map((child) => (
+              <TreeNode
+                key={child.path}
+                node={child}
+                selectedPath={selectedPath}
+                expandedPaths={expandedPaths}
+                onSelect={onSelect}
+                onToggle={onToggle}
+              />
+            ))}
+          </ul>
+        </details>
+      </li>
+    );
+  }
 
-  // Type badge classes
-  const getTypeBadgeClasses = (specType: SpecType) => {
-    const base = "ml-auto py-px px-1.5 text-[9px] font-semibold uppercase tracking-[0.03em] rounded flex-shrink-0";
-    switch (specType) {
-      case 'prd': return `${base} bg-[rgba(59,130,246,0.15)] text-[#3b82f6]`;
-      case 'tech-spec': return `${base} bg-[rgba(168,85,247,0.15)] text-[#a855f7]`;
-      case 'bug': return `${base} bg-[rgba(239,68,68,0.15)] text-[#ef4444]`;
-    }
-  };
+  // File node
+  const specType = node.specType || detectSpecTypeFromFilename(node.name);
 
   return (
-    <div className="select-none">
-      <div
-        ref={(el) => {
-          if (el) nodeRefs.current.set(node.path, el);
-          else nodeRefs.current.delete(node.path);
-        }}
-        className={nodeClasses}
-        style={{ paddingLeft: `${12 + depth * 16}px` }}
-        onClick={isGenerating ? undefined : handleClick}
-        role="treeitem"
-        tabIndex={isGenerating ? -1 : (isFocused ? 0 : -1)}
-        aria-selected={isSelected}
-        aria-expanded={isDirectory ? isExpanded : undefined}
-        aria-busy={isGenerating}
-        data-path={node.path}
-      >
-        {isDirectory && (
-          <span className={`inline-flex items-center justify-center w-4 h-4 text-xs text-text-muted transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`}>
-            ›
+    <>
+      <li>
+        <a
+          className={`gap-2 rounded-lg transition-all duration-200 ${
+            isSelected 
+              ? 'bg-primary/15 text-primary font-medium ring-1 ring-primary/20 shadow-sm' 
+              : 'hover:bg-base-300/50'
+          } ${isGenerating ? 'opacity-50 pointer-events-none' : ''}`}
+          onClick={(e) => {
+            e.preventDefault();
+            if (!isGenerating) onSelect(node.path);
+          }}
+        >
+          {getFileIcon(node)}
+          <span className={`flex-1 truncate ${isGenerating ? 'italic' : ''}`}>
+            {node.name}
           </span>
-        )}
-        <span className="flex-shrink-0 text-sm leading-none">
-          {getFileIcon(node, isExpanded)}
-        </span>
-        <span className={`flex-1 text-[13px] text-text whitespace-nowrap overflow-hidden text-ellipsis ${isSelected ? '!text-accent' : ''} ${isGenerating ? 'italic !text-text-muted' : ''}`}>
-          {node.name}
-        </span>
-        {!isDirectory && node.name.endsWith('.md') && (
-          <span className={getTypeBadgeClasses(node.specType || detectSpecTypeFromFilename(node.name))}>
-            {(node.specType || detectSpecTypeFromFilename(node.name)).replace('tech-spec', 'tech')}
-          </span>
-        )}
-        {node.progress && node.progress.total > 0 && (
-          <span
-            className="flex items-center gap-1.5 ml-auto flex-shrink-0"
-            title={`${node.progress.completed}/${node.progress.total} user stories achieved`}
-          >
-            <span className="text-[11px] font-medium text-text-muted tabular-nums">
-              {node.progress.completed}/{node.progress.total}
+          {node.name.endsWith('.md') && (
+            <span className={`${typeBadgeStyles[specType]} shadow-sm`}>
+              {specType.replace('tech-spec', 'tech')}
             </span>
-            <span className="text-[8px] tracking-[1px] text-accent">
-              {renderProgressDots(node.progress.completed, node.progress.total)}
-            </span>
-          </span>
-        )}
-        {node.reviewStatus && node.reviewStatus !== 'none' && (
-          <span className="flex-shrink-0 text-xs leading-none ml-auto" title={node.reviewStatus}>
-            {getStatusIcon(node.reviewStatus)}
-          </span>
-        )}
-        {node.isGenerating && (
-          <span className="flex-shrink-0 text-xs leading-none ml-auto animate-spin" title="Generating...">
-            ⏳
-          </span>
-        )}
-      </div>
-
+          )}
+          {node.reviewStatus && node.reviewStatus !== 'none' && getStatusIcon(node.reviewStatus)}
+          {isGenerating && <ClockIcon className="h-4 w-4 animate-spin" />}
+        </a>
+      </li>
       {/* Render linked specs (tech specs under PRDs) */}
-      {!isDirectory && node.linkedSpecs && node.linkedSpecs.length > 0 && (
-        <div className="border-l border-dashed border-border ml-5" role="group">
-          {node.linkedSpecs.map((child) => (
-            <TreeNode
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              selectedPath={selectedPath}
-              focusedPath={focusedPath}
-              expandedPaths={expandedPaths}
-              onSelect={onSelect}
-              onToggle={onToggle}
-              onFocus={onFocus}
-              nodeRefs={nodeRefs}
-            />
-          ))}
-        </div>
+      {node.linkedSpecs && node.linkedSpecs.length > 0 && (
+        <li>
+          <ul className="ml-2 border-l-2 border-dashed border-base-content/10">
+            {node.linkedSpecs.map((child) => (
+              <TreeNode
+                key={child.path}
+                node={child}
+                selectedPath={selectedPath}
+                expandedPaths={expandedPaths}
+                onSelect={onSelect}
+                onToggle={onToggle}
+              />
+            ))}
+          </ul>
+        </li>
       )}
-
-      {isDirectory && isExpanded && node.children && (
-        <div role="group">
-          {node.children.map((child) => (
-            <TreeNode
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              selectedPath={selectedPath}
-              focusedPath={focusedPath}
-              expandedPaths={expandedPaths}
-              onSelect={onSelect}
-              onToggle={onToggle}
-              onFocus={onFocus}
-              nodeRefs={nodeRefs}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+    </>
   );
 }
-
 export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatingSpec }: SpecTreeProps) {
   const [filter, setFilter] = useState('');
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
-  const [focusedPath, setFocusedPath] = useState<string | null>(null);
-  const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const treeRef = useRef<HTMLDivElement>(null);
+  const treeRef = useRef<HTMLUListElement>(null);
 
   // Inject generating spec placeholder into tree
   const filesWithGenerating = useMemo(() => {
@@ -289,7 +249,7 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     return injectGenerating(files);
   }, [files, generatingSpec]);
 
-  const handleToggle = (path: string) => {
+  const handleToggle = useCallback((path: string) => {
     setExpandedPaths((prev) => {
       const next = new Set(prev);
       if (next.has(path)) {
@@ -299,7 +259,7 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
       }
       return next;
     });
-  };
+  }, []);
 
   const filteredFiles = useMemo(() => {
     if (!filter.trim()) return filesWithGenerating;
@@ -329,7 +289,8 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     return filesWithGenerating.map(filterNode).filter((n): n is SpecFileNode => n !== null);
   }, [filesWithGenerating, filter]);
 
-  useMemo(() => {
+  // Auto-expand all directories when filtering
+  useEffect(() => {
     if (filter.trim()) {
       const allDirPaths = new Set<string>();
       function collectDirs(nodes: SpecFileNode[]) {
@@ -345,240 +306,94 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     }
   }, [filter, filteredFiles]);
 
-  const visiblePaths = useMemo(() => {
-    const paths: string[] = [];
-
-    function collectVisible(nodes: SpecFileNode[]) {
-      for (const node of nodes) {
-        paths.push(node.path);
-        if (node.type === 'directory' && expandedPaths.has(node.path) && node.children) {
-          collectVisible(node.children);
-        }
-      }
-    }
-
-    collectVisible(filteredFiles);
-    return paths;
-  }, [filteredFiles, expandedPaths]);
-
-  const parentMap = useMemo(() => {
-    const map = new Map<string, string>();
-
-    function buildMap(nodes: SpecFileNode[], parentPath: string | null) {
-      for (const node of nodes) {
-        if (parentPath) {
-          map.set(node.path, parentPath);
-        }
-        if (node.type === 'directory' && node.children) {
-          buildMap(node.children, node.path);
-        }
-      }
-    }
-
-    buildMap(filteredFiles, null);
-    return map;
-  }, [filteredFiles]);
-
-  const nodeMap = useMemo(() => {
-    const map = new Map<string, SpecFileNode>();
-
-    function buildMap(nodes: SpecFileNode[]) {
-      for (const node of nodes) {
-        map.set(node.path, node);
-        if (node.children) {
-          buildMap(node.children);
-        }
-      }
-    }
-
-    buildMap(filteredFiles);
-    return map;
-  }, [filteredFiles]);
-
-  useEffect(() => {
-    if (focusedPath) {
-      const el = nodeRefs.current.get(focusedPath);
-      el?.focus();
-    }
-  }, [focusedPath]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!focusedPath || visiblePaths.length === 0) return;
-
-    const currentIndex = visiblePaths.indexOf(focusedPath);
-    const currentNode = nodeMap.get(focusedPath);
-
-    switch (e.key) {
-      case 'ArrowDown': {
-        e.preventDefault();
-        if (currentIndex < visiblePaths.length - 1) {
-          setFocusedPath(visiblePaths[currentIndex + 1]);
-        }
-        break;
-      }
-
-      case 'ArrowUp': {
-        e.preventDefault();
-        if (currentIndex > 0) {
-          setFocusedPath(visiblePaths[currentIndex - 1]);
-        }
-        break;
-      }
-
-      case 'ArrowRight': {
-        e.preventDefault();
-        if (currentNode?.type === 'directory') {
-          if (!expandedPaths.has(focusedPath)) {
-            handleToggle(focusedPath);
-          } else if (currentNode.children?.length) {
-            setFocusedPath(currentNode.children[0].path);
-          }
-        }
-        break;
-      }
-
-      case 'ArrowLeft': {
-        e.preventDefault();
-        if (currentNode?.type === 'directory' && expandedPaths.has(focusedPath)) {
-          handleToggle(focusedPath);
-        } else {
-          const parentPath = parentMap.get(focusedPath);
-          if (parentPath) {
-            setFocusedPath(parentPath);
-          }
-        }
-        break;
-      }
-
-      case 'Home': {
-        e.preventDefault();
-        if (visiblePaths.length > 0) {
-          setFocusedPath(visiblePaths[0]);
-        }
-        break;
-      }
-
-      case 'End': {
-        e.preventDefault();
-        if (visiblePaths.length > 0) {
-          setFocusedPath(visiblePaths[visiblePaths.length - 1]);
-        }
-        break;
-      }
-
-      case 'Enter':
-      case ' ': {
-        e.preventDefault();
-        if (currentNode?.type === 'directory') {
-          handleToggle(focusedPath);
-        } else if (currentNode) {
-          onSelect(focusedPath);
-        }
-        break;
-      }
-    }
-  }, [focusedPath, visiblePaths, nodeMap, expandedPaths, parentMap, onSelect]);
-
-  useEffect(() => {
-    if (!focusedPath && visiblePaths.length > 0) {
-      setFocusedPath(visiblePaths[0]);
-    }
-  }, [visiblePaths, focusedPath]);
-
   return (
-    <>
-      <style>{`
-        .spec-tree-scrollbar::-webkit-scrollbar { width: 8px; }
-        .spec-tree-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .spec-tree-scrollbar::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
-        .spec-tree-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
-      `}</style>
-      <div className="flex flex-col h-full bg-surface border-r border-border">
-        <div className="flex items-center justify-between py-3 px-4 border-b border-border">
-          <span className="text-[13px] font-semibold text-text uppercase tracking-[0.03em]">📂 Specs</span>
-          {onCreateNew && (
-            <button
-              className="flex items-center justify-center w-6 h-6 p-0 bg-transparent border border-border rounded-md text-text-muted text-base font-medium cursor-pointer transition-all duration-150 hover:bg-surface-hover hover:border-accent hover:text-accent"
-              onClick={onCreateNew}
-              title="Create new spec"
-            >
-              +
-            </button>
-          )}
+    <div className="flex flex-col h-full bg-gradient-to-b from-base-200 to-base-200/80 border-r border-base-content/5">
+      {/* Header */}
+      <div className="flex items-center justify-between py-3.5 px-4 border-b border-base-content/5 bg-base-200/50 backdrop-blur-sm">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 rounded-lg bg-gradient-to-br from-warning/20 to-warning/10 ring-1 ring-warning/20">
+            <FolderIcon className="h-4 w-4 text-warning" />
+          </div>
+          <span className="text-sm font-semibold text-base-content tracking-tight">Specs</span>
         </div>
+        {onCreateNew && (
+          <button
+            className="btn btn-ghost btn-xs btn-square hover:bg-primary/10 hover:text-primary transition-all duration-200"
+            onClick={onCreateNew}
+            title="Create new spec"
+          >
+            <PlusIcon className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
-        <div className="relative py-2 px-3 border-b border-border">
+      {/* Filter input */}
+      <div className="relative py-2.5 px-3 border-b border-base-content/5 bg-base-300/30">
+        <div className="relative">
           <input
             type="text"
-            className="w-full py-2 pl-3 pr-8 bg-bg border border-border rounded-md text-text text-[13px] outline-none transition-all duration-150 placeholder:text-text-muted focus:border-accent focus:shadow-[0_0_0_2px_rgba(88,166,255,0.15)]"
+            className="input input-sm w-full pr-8 bg-base-100/80 border-base-content/10 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all duration-200 placeholder:text-base-content/40"
             placeholder="Filter specs..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
           {filter && (
             <button
-              className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 p-0 bg-transparent border-none rounded text-text-muted text-base cursor-pointer transition-all duration-150 hover:bg-surface-hover hover:text-text"
+              className="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs btn-circle hover:bg-error/10 hover:text-error transition-colors"
               onClick={() => setFilter('')}
               title="Clear filter"
             >
-              ×
+              <XMarkIcon className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
+      </div>
 
-        <div
-          ref={treeRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden py-2 spec-tree-scrollbar"
-          role="tree"
-          onKeyDown={handleKeyDown}
-          aria-label="Spec files"
-        >
-          {filteredFiles.length === 0 ? (
-            filter ? (
-              <div className="flex items-center justify-center h-[100px] text-text-muted text-[13px]">
-                No specs match filter
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 px-4 text-center gap-2">
-                <div className="text-[32px] mb-2 opacity-80">📄</div>
-                <h3 className="m-0 text-[15px] font-semibold text-text">No Specs Yet</h3>
-                <p className="m-0 text-[13px] text-text-muted max-w-[200px] leading-[1.4]">
-                  Create your first spec to get started with Ralph.
-                </p>
-                {onCreateNew && (
-                  <button
-                    className="mt-3 py-2.5 px-4 bg-primary border-none rounded-lg text-white text-[13px] font-medium cursor-pointer transition-all duration-150 hover:bg-primary-hover hover:-translate-y-px active:translate-y-0"
-                    onClick={onCreateNew}
-                  >
-                    + Create First Spec
-                  </button>
-                )}
-              </div>
-            )
+      {/* Tree */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        {filteredFiles.length === 0 ? (
+          filter ? (
+            <div className="flex flex-col items-center justify-center h-24 text-base-content/50 text-sm gap-1">
+              <span>No specs match</span>
+              <span className="text-xs text-base-content/40">"{filter}"</span>
+            </div>
           ) : (
-            filteredFiles.map((node) => (
+            <div className="flex flex-col items-center justify-center py-10 px-4 text-center gap-4">
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-base-300/50 to-base-300/30 ring-1 ring-base-content/5">
+                <DocumentTextIcon className="h-10 w-10 text-base-content/30" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold text-base-content">No Specs Yet</h3>
+                <p className="text-sm text-base-content/50 max-w-[180px] leading-relaxed">
+                  Create your first spec to get started
+                </p>
+              </div>
+              {onCreateNew && (
+                <button 
+                  className="btn btn-glass-primary btn-sm gap-2 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-200"
+                  onClick={onCreateNew}
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  Create Spec
+                </button>
+              )}
+            </div>
+          )
+        ) : (
+          <ul ref={treeRef} className="menu bg-transparent w-full p-2" role="tree">
+            {filteredFiles.map((node) => (
               <TreeNode
                 key={node.path}
                 node={node}
-                depth={0}
                 selectedPath={selectedPath}
-                focusedPath={focusedPath}
                 expandedPaths={expandedPaths}
                 onSelect={onSelect}
                 onToggle={handleToggle}
-                onFocus={setFocusedPath}
-                nodeRefs={nodeRefs}
               />
-            ))
-          )}
-        </div>
-
-        <div className="py-2 px-3 border-t border-border bg-bg">
-          <span className="text-[11px] text-text-muted tracking-[0.01em]">
-            ↑↓ Navigate • ←→ Collapse/Expand • Enter Select
-          </span>
-        </div>
+            ))}
+          </ul>
+        )}
       </div>
-    </>
+    </div>
   );
 }

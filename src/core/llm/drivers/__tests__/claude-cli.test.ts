@@ -4,11 +4,11 @@ describe('ClaudeCliEngine', () => {
   describe('ClaudeCliEngine_RunChat_WritesNormJsonl', () => {
     it('writes a .norm.jsonl file when chat completes', async () => {
       // This test verifies that runChat creates a normalized JSONL file
-      // in the session directory under .ralph/sessions/<sessionId>/chat.norm.jsonl
+      // in the session directory under .speki/sessions/<sessionId>/chat.norm.jsonl
       // The test would need to:
       // 1. Mock the spawn process to return controlled output
       // 2. Verify that fs.writeFile is called with normPath containing normalized events
-      // 3. Check that the file path follows the pattern .ralph/sessions/<sessionId>/chat.norm.jsonl
+      // 3. Check that the file path follows the pattern .speki/sessions/<sessionId>/chat.norm.jsonl
 
       // Note: Full integration test requires mocking spawn and fs operations
       // This is a placeholder for the test case requirement

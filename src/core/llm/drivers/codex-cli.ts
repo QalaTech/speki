@@ -213,7 +213,16 @@ export class CodexCliEngine implements Engine {
     const startTime = Date.now();
 
     // Build Codex CLI arguments
-    const args = ['exec', '-'];
+    // -s danger-full-access: explicit full filesystem access (needed for writing verdict files)
+    // --dangerously-bypass-approvals-and-sandbox: skip confirmations
+    const args = [
+      'exec',
+      '-s', 'danger-full-access',
+      '--dangerously-bypass-approvals-and-sandbox',
+      '-C', cwd,
+      '--json',
+      '-',  // Read from stdin
+    ];
 
     // Add model if specified
     if (model) {
@@ -334,7 +343,7 @@ export class CodexCliEngine implements Engine {
     const { extractSpecId, getSpecDir } = await import('../../spec-review/spec-metadata.js');
 
     // Store Codex conversation history in per-spec directory for consistency
-    // .ralph/specs/<spec-id>/codex/history.json
+    // .speki/specs/<spec-id>/codex/history.json
     let codexDir: string;
     if (specPath) {
       const specId = extractSpecId(specPath);
@@ -342,7 +351,7 @@ export class CodexCliEngine implements Engine {
       codexDir = join(specDir, 'codex');
     } else {
       // Fallback: if no specPath, use session-based directory (legacy compatibility)
-      codexDir = join(cwd, '.ralph', 'engines', 'codex', sessionId);
+      codexDir = join(cwd, '.speki', 'engines', 'codex', sessionId);
     }
 
     await fs.mkdir(codexDir, { recursive: true });
@@ -378,6 +387,19 @@ export class CodexCliEngine implements Engine {
       conversationPrompt += `The spec file is located at: ${specPath}\n`;
       conversationPrompt += `Read this file ONLY if you need to reference its contents to answer the user's question.\n`;
       conversationPrompt += `For simple greetings or general questions, there's no need to read the file.\n\n`;
+
+      // CRITICAL: Planning-phase-only instructions
+      conversationPrompt += `## CRITICAL: Your Scope is SPEC REFINEMENT ONLY (PLANNING PHASE)\n\n`;
+      conversationPrompt += `You are part of a spec-first development workflow:\n`;
+      conversationPrompt += `1. **Planning Phase** (YOU ARE HERE): Write and refine specs\n`;
+      conversationPrompt += `2. **Decompose Phase**: Spec gets broken into implementation tasks\n`;
+      conversationPrompt += `3. **Execution Phase**: Task runner implements tasks one at a time\n\n`;
+      conversationPrompt += `**ABSOLUTELY FORBIDDEN:**\n`;
+      conversationPrompt += `- ❌ NEVER offer to implement: "Want me to implement?", "I can write the code..."\n`;
+      conversationPrompt += `- ❌ NEVER write code outside this spec file\n`;
+      conversationPrompt += `- ❌ NEVER ask leading questions about implementation\n\n`;
+      conversationPrompt += `**YOUR ALLOWED ACTIONS:** Answer questions, suggest spec improvements, edit THIS spec file when asked.\n\n`;
+      conversationPrompt += `If user mentions implementation, say: "Let's capture that in the spec. Once ready, use Decompose to generate tasks."\n\n`;
     }
 
     conversationPrompt += '# Conversation History\n\n';

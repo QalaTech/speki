@@ -4,7 +4,7 @@
 
 Qala uses a two-level configuration system:
 1. **Global** - Settings that apply across all projects (`~/.qala/`)
-2. **Project** - Settings specific to each project (`.ralph/`)
+2. **Project** - Settings specific to each project (`.speki/`)
 
 ## Global Configuration
 
@@ -53,7 +53,7 @@ Tracks all initialized projects:
 
 ## Project Configuration
 
-Located at `.ralph/` within each project.
+Located at `.speki/` within each project.
 
 ### `config.json` - Project Settings
 
@@ -88,7 +88,7 @@ The current task list for execution. See [PRD Format](#prd-format) below.
   "status": "COMPLETED",
   "message": "Decomposition complete",
   "prdFile": "/path/to/specs/feature.md",
-  "draftFile": "/path/to/.ralph/tasks/feature.json",
+  "draftFile": "/path/to/.speki/tasks/feature.json",
   "verdict": "PASS",
   "reviewLogs": [
     {"attempt": 1, "path": "peer_review_attempt_1_2024-01-08.log"}
@@ -108,7 +108,7 @@ The current task list for execution. See [PRD Format](#prd-format) below.
 | `attempts` | number? | Review attempts made |
 | `error` | string? | Error message if failed |
 
-### `.ralph-status.json` - Execution Status
+### `.speki-status.json` - Execution Status
 
 ```json
 {
@@ -188,7 +188,7 @@ Managed by Claude during execution. Contains:
   "projectName": "Feature Name",
   "branchName": "ralph/feature",
   "language": "nodejs",
-  "standardsFile": ".ralph/standards/nodejs.md",
+  "standardsFile": ".speki/standards/nodejs.md",
   "description": "Feature description",
   "userStories": [
     {
@@ -231,7 +231,7 @@ Managed by Claude during execution. Contains:
 
 ## Language Standards
 
-Located in `.ralph/standards/`:
+Located in `.speki/standards/`:
 
 ### `dotnet.md`
 
@@ -266,7 +266,7 @@ Go coding standards including:
 
 ## Prompt Template
 
-Located at `.ralph/prompt.md`:
+Located at `.speki/prompt.md`:
 
 Key sections:
 1. Task overview
@@ -296,7 +296,7 @@ Key sections:
 ├── config.json              # Global settings
 └── projects.json            # Project registry
 
-.ralph/
+.speki/
 ├── config.json              # Project settings
 ├── prd.json                 # Active tasks
 ├── prompt.md                # Agent instructions
@@ -304,7 +304,7 @@ Key sections:
 ├── decompose_state.json     # Decomposition status
 ├── decompose_feedback.json  # Peer review feedback
 ├── peer_feedback.json       # Story feedback
-├── .ralph-status.json       # Execution status
+├── .speki-status.json       # Execution status
 ├── standards/
 │   ├── dotnet.md
 │   ├── python.md

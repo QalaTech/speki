@@ -78,7 +78,10 @@ describe('ReviewPanel', () => {
       expect(verdictDisplay).toBeInTheDocument();
       expect(screen.getByText('Verdict:')).toBeInTheDocument();
       expect(screen.getByText('Pass')).toBeInTheDocument();
-      expect(verdictDisplay).toHaveClass('verdict-pass');
+      // Check that badge has success variant class
+      const badge = screen.getByText('Pass');
+      expect(badge).toHaveClass('badge');
+      expect(badge).toHaveClass('badge-success');
     });
 
     it('should display FAIL verdict prominently', () => {
@@ -86,9 +89,10 @@ describe('ReviewPanel', () => {
 
       render(<ReviewPanel reviewResult={result} />);
 
-      const verdictDisplay = screen.getByTestId('verdict-display');
       expect(screen.getByText('Fail')).toBeInTheDocument();
-      expect(verdictDisplay).toHaveClass('verdict-fail');
+      const badge = screen.getByText('Fail');
+      expect(badge).toHaveClass('badge');
+      expect(badge).toHaveClass('badge-error');
     });
 
     it('should display NEEDS_IMPROVEMENT verdict prominently', () => {
@@ -96,9 +100,10 @@ describe('ReviewPanel', () => {
 
       render(<ReviewPanel reviewResult={result} />);
 
-      const verdictDisplay = screen.getByTestId('verdict-display');
       expect(screen.getByText('Needs Improvement')).toBeInTheDocument();
-      expect(verdictDisplay).toHaveClass('verdict-warning');
+      const badge = screen.getByText('Needs Improvement');
+      expect(badge).toHaveClass('badge');
+      expect(badge).toHaveClass('badge-warning');
     });
 
     it('should display SPLIT_RECOMMENDED verdict prominently', () => {
@@ -106,9 +111,10 @@ describe('ReviewPanel', () => {
 
       render(<ReviewPanel reviewResult={result} />);
 
-      const verdictDisplay = screen.getByTestId('verdict-display');
       expect(screen.getByText('Split Recommended')).toBeInTheDocument();
-      expect(verdictDisplay).toHaveClass('verdict-split');
+      const badge = screen.getByText('Split Recommended');
+      expect(badge).toHaveClass('badge');
+      expect(badge).toHaveClass('badge-info');
     });
 
     it('should have verdict section visible at top', () => {

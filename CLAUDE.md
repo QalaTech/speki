@@ -13,7 +13,7 @@ qala-ralph/
 │   │   ├── decompose/    # PRD decomposition
 │   │   ├── ralph-loop/   # Main Ralph loop
 │   │   ├── spec-review/  # Spec review and metadata management
-│   │   ├── project.ts    # Per-project .ralph/ management
+│   │   ├── project.ts    # Per-project .speki/ management
 │   │   └── registry.ts   # Central ~/.qala/ registry
 │   ├── server/           # Multi-project dashboard server
 │   └── types/            # TypeScript types
@@ -24,10 +24,10 @@ qala-ralph/
 
 ## Per-Spec State Directory
 
-Each spec file gets its own state directory under `.ralph/specs/<spec-id>/`:
+Each spec file gets its own state directory under `.speki/specs/<spec-id>/`:
 
 ```
-.ralph/
+.speki/
 ├── specs/
 │   ├── my-feature/
 │   │   ├── logs/                  # Decompose and review logs
@@ -70,7 +70,7 @@ Valid transitions:
 ## Commands
 
 ### Project Management
-- `qala init` - Initialize .ralph/ in current directory
+- `qala init` - Initialize .speki/ in current directory
 - `qala list` - List all registered projects
 - `qala status` - Show current project status
 - `qala unregister` - Unregister a project from the registry
@@ -108,10 +108,10 @@ If upgrading from a version without spec-partitioned state, you need to clean up
 
 ```bash
 # Remove legacy state files (BREAKING CHANGE)
-rm -f .ralph/decompose_state.json
-rm -f .ralph/prd.json
-rm -rf .ralph/logs/
-rm -rf .ralph/sessions/
+rm -f .speki/decompose_state.json
+rm -f .speki/prd.json
+rm -rf .speki/logs/
+rm -rf .speki/sessions/
 ```
 
 After cleanup, re-run `qala decompose` on your spec files to create the new per-spec state directories.

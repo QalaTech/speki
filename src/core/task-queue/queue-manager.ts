@@ -1,7 +1,7 @@
 /**
  * Task Queue Manager
  *
- * Manages the central task queue stored in .ralph/task-queue.json.
+ * Manages the central task queue stored in .speki/task-queue.json.
  * The queue contains references to tasks in spec decompose_state files,
  * not duplicate task data.
  */
@@ -24,7 +24,7 @@ const QUEUE_FILENAME = 'task-queue.json';
  * Get the path to the task queue file.
  */
 export function getQueuePath(projectRoot: string): string {
-  return path.join(projectRoot, '.ralph', QUEUE_FILENAME);
+  return path.join(projectRoot, '.speki', QUEUE_FILENAME);
 }
 
 /**

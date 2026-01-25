@@ -8,16 +8,16 @@ export type ReviewStatus = 'reviewed' | 'pending' | 'god-spec' | 'in-progress' |
 
 /**
  * Gets the session file path for a given spec file.
- * Session files are stored in .ralph/specs/{specId}/session.json (per-spec isolation)
+ * Session files are stored in .speki/specs/{specId}/session.json (per-spec isolation)
  *
  * @param specFilePath - Path to the spec file being reviewed
  * @param projectRoot - Optional project root directory (defaults to deriving from specFilePath)
- * @returns Path to the session file in .ralph/specs/{specId}/
+ * @returns Path to the session file in .speki/specs/{specId}/
  */
 export function getSessionPath(specFilePath: string, projectRoot?: string): string {
   const specId = extractSpecId(specFilePath);
   // If projectRoot not provided, derive it from the spec file path
-  // Spec files are typically in specs/, docs/, or .ralph/specs/ - find .ralph or use parent
+  // Spec files are typically in specs/, docs/, or .speki/specs/ - find .speki or use parent
   const resolvedRoot = projectRoot ?? deriveProjectRootFromSpecPath(specFilePath);
   return join(getSpecDir(resolvedRoot, specId), 'session.json');
 }
@@ -29,7 +29,7 @@ function deriveProjectRootFromSpecPath(specFilePath: string): string {
   if (specDirName === 'specs' || specDirName === 'docs') {
     return dirname(specDir);
   }
-  const ralphIndex = specDir.indexOf('.ralph');
+  const ralphIndex = specDir.indexOf('.speki');
   if (ralphIndex !== -1) {
     return specDir.substring(0, ralphIndex);
   }
@@ -62,7 +62,7 @@ export async function loadSession(specFilePath: string, projectRoot?: string): P
 
 /**
  * Saves a session file to disk.
- * Creates the .ralph/specs/{specId}/ directory if it doesn't exist.
+ * Creates the .speki/specs/{specId}/ directory if it doesn't exist.
  *
  * @param session - The session file to save
  * @param projectRoot - Optional project root directory
@@ -110,7 +110,7 @@ function getStatusFromSession(session: SessionFile): ReviewStatus {
 
 /**
  * Gets review statuses for all specs that have session files.
- * Scans per-spec directories under .ralph/specs/{specId}/session.json
+ * Scans per-spec directories under .speki/specs/{specId}/session.json
  *
  * @param projectRoot - Project root directory
  * @returns Map of spec paths to their review status
@@ -119,7 +119,7 @@ export async function getAllSessionStatuses(projectRoot: string): Promise<Record
   const statuses: Record<string, ReviewStatus> = {};
 
   try {
-    // Get all spec IDs from .ralph/specs/
+    // Get all spec IDs from .speki/specs/
     const specIds = await listSpecs(projectRoot);
 
     for (const specId of specIds) {

@@ -39,6 +39,7 @@ export class ClaudeCliEngine implements Engine {
       callbacks: options.callbacks,
       skipPermissions: options.skipPermissions ?? true,
       model: options.model,
+      permissionMode: options.permissionMode,
     });
     return {
       success: result.success,
@@ -77,21 +78,35 @@ Your role is to help the user improve their spec by:
 - Identifying potential issues or ambiguities
 - Making edits to the spec file when the user asks you to
 
-## CRITICAL: Your Scope is SPEC REFINEMENT ONLY
-You are a spec reviewer, NOT an implementer. Your job is ONLY to help refine and improve the specification document.
+## CRITICAL: Your Scope is SPEC REFINEMENT ONLY (PLANNING PHASE)
 
-**NEVER offer to:**
-- Implement the feature or write code
-- Update application code, tests, or non-spec files
-- Execute commands or run the implementation
-- Ask "Want me to update the code?" or similar
+You are part of a spec-first development workflow:
+1. **Planning Phase** (YOU ARE HERE): Write and refine specs → AI review → iterate
+2. **Decompose Phase**: Spec gets broken into implementation tasks
+3. **Execution Phase**: Task runner implements tasks one at a time
 
-**ALWAYS defer implementation:**
-- Say "Implementation will be handled by the task runner when this spec is decomposed."
-- Focus ONLY on making the spec clearer, more complete, and better structured
-- Your edits are limited to THIS spec/PRD file only
+**YOUR ROLE:** Help refine THIS specification document. That's it.
 
-If the user asks about implementation, respond: "My role is to help refine this spec. Once finalized, use Decompose to generate implementation tasks."
+**ABSOLUTELY FORBIDDEN - NEVER DO THESE:**
+- ❌ NEVER offer to implement: "Want me to implement this?", "I can write the code...", "Let me build that..."
+- ❌ NEVER offer to create: "Want me to create the CLI?", "Shall I write the script?", "I could set that up..."
+- ❌ NEVER write code outside this spec file
+- ❌ NEVER run implementation commands
+- ❌ NEVER ask leading questions about implementation
+
+**WHY THIS MATTERS:**
+The whole point of this system is well-written specs that get decomposed into tasks. If you jump to implementation, you defeat the purpose. The decomposition engine and task runner handle implementation - NOT you.
+
+**WHEN USER MENTIONS IMPLEMENTATION:**
+Do NOT offer to help with implementation. Instead say something like:
+"That's an implementation detail. Let's make sure the spec captures the requirement clearly. Once you're happy with the spec, use **Decompose** to generate implementation tasks."
+
+**YOUR ALLOWED ACTIONS:**
+✅ Answer questions about the spec content
+✅ Suggest improvements to spec wording/structure
+✅ Edit THIS spec file when asked
+✅ Identify gaps, ambiguities, or issues in the spec
+✅ Help with acceptance criteria and requirements
 
 ## Fast Mode
 Answer from prior context only; do not read files unless absolutely necessary to answer a question.
@@ -139,8 +154,8 @@ The spec file you are reviewing is at this EXACT path: ${specPath}
 
 **CRITICAL:**
 - Use this EXACT file path. Do NOT search for files or use similar paths.
-- Do NOT read files from .ralph/ directory - those are internal state files.
-- The spec file is in the specs/ folder, not .ralph/specs/.
+- Do NOT read files from .speki/ directory - those are internal state files.
+- The spec file is in the specs/ folder, not .speki/specs/.
 - Read this file ONLY when needed to answer the user's question.`;
     }
 
@@ -297,7 +312,7 @@ The spec file you are reviewing is at this EXACT path: ${specPath}
         if (normLines.length > 0) {
           const { join } = await import('path');
           const { dirname } = await import('path');
-          const normPath = join(cwd, '.ralph', 'sessions', sessionId, 'chat.norm.jsonl');
+          const normPath = join(cwd, '.speki', 'sessions', sessionId, 'chat.norm.jsonl');
           await fs.mkdir(dirname(normPath), { recursive: true }).catch(() => {});
           await fs.writeFile(normPath, normLines.join('\n') + '\n', 'utf-8').catch(() => {});
         }

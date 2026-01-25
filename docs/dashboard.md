@@ -59,7 +59,7 @@ When in Execution view:
    - `specs/`
    - `docs/`
    - `prd/`
-   - `.ralph/specs/`
+   - `.speki/specs/`
    - Root (files containing "prd", "spec", "requirement")
 
 2. **Configuration**

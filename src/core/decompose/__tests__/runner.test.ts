@@ -76,10 +76,10 @@ vi.mock('../../spec-review/timeout.js', () => ({
 vi.mock('../../spec-review/spec-metadata.js', () => ({
   extractSpecId: vi.fn((path: string) => path.replace(/.*\//, '').replace(/\.md$/, '')),
   ensureSpecDir: vi.fn((projectPath: string, specId: string) =>
-    Promise.resolve(`${projectPath}/.ralph/specs/${specId}`)
+    Promise.resolve(`${projectPath}/.speki/specs/${specId}`)
   ),
   getSpecLogsDir: vi.fn((projectPath: string, specId: string) =>
-    `${projectPath}/.ralph/specs/${specId}/logs`
+    `${projectPath}/.speki/specs/${specId}/logs`
   ),
   readSpecMetadata: vi.fn().mockResolvedValue(null),
   initSpecMetadata: vi.fn().mockResolvedValue({
@@ -105,6 +105,14 @@ vi.mock('../../llm/engine-factory.js', () => ({
     },
     model: 'claude-opus-4-5',
   }),
+}));
+
+// Mock id-registry
+vi.mock('../../id-registry.js', () => ({
+  IdRegistry: {
+    getNextNumber: vi.fn().mockResolvedValue(1),
+    registerIds: vi.fn().mockResolvedValue(undefined),
+  },
 }));
 
 // Import the function under test after mocks are set up
@@ -142,17 +150,17 @@ function createMockChildProcess(): ChildProcess {
 function createMockProject(): Project {
   return {
     projectPath: '/test/project',
-    ralphDir: '/test/project/.ralph',
-    tasksDir: '/test/project/.ralph/tasks',
-    logsDir: '/test/project/.ralph/logs',
+    spekiDir: '/test/project/.speki',
+    tasksDir: '/test/project/.speki/tasks',
+    logsDir: '/test/project/.speki/logs',
     loadConfig: vi.fn().mockResolvedValue({}),
     loadDecomposeState: vi.fn().mockResolvedValue({}),
     saveDecomposeState: vi.fn().mockResolvedValue(undefined),
-    decomposeStatePath: '/test/project/.ralph/decompose_state.json',
+    decomposeStatePath: '/test/project/.speki/decompose_state.json',
     loadPRD: vi.fn().mockResolvedValue(null),
     listTasks: vi.fn().mockResolvedValue([]),
-    decomposePromptPath: '/test/project/.ralph/templates/decompose.md',
-    promptPath: '/test/project/.ralph/templates/prompt.md',
+    decomposePromptPath: '/test/project/.speki/templates/decompose.md',
+    promptPath: '/test/project/.speki/templates/prompt.md',
   } as unknown as Project;
 }
 
@@ -182,7 +190,7 @@ const validPrdJson = JSON.stringify({
   projectName: 'Test Project',
   branchName: 'test-branch',
   language: 'nodejs',
-  standardsFile: '.ralph/standards/nodejs.md',
+  standardsFile: '.speki/standards/nodejs.md',
   userStories: [
     { id: 'US-001', title: 'Test Story', priority: 1, passes: false },
   ],
@@ -367,7 +375,7 @@ describe('runDecompose with spec-partitioned output', () => {
     const result = await resultPromise;
 
     // Assert
-    expect(result.outputPath).toBe('/test/project/.ralph/specs/my-feature/decompose_state.json');
+    expect(result.outputPath).toBe('/test/project/.speki/specs/my-feature/decompose_state.json');
   });
 
   it('decompose_WithNewSpec_InitializesMetadata', async () => {
@@ -462,7 +470,7 @@ describe('Decompose_RunsSuccessfully_AfterDeadCodeRemoval', () => {
     expect(result.prd).toBeDefined();
     expect(result.storyCount).toBeGreaterThan(0);
     // Verify the output was written to spec-partitioned location
-    expect(result.outputPath).toContain('.ralph/specs/');
+    expect(result.outputPath).toContain('.speki/specs/');
   });
 });
 

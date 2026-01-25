@@ -205,7 +205,7 @@ User's question: ${message}`;
       isFirstMessage, // Only true if no sessionId exists yet
       cwd: projectPath,
       specContent,
-      specPath: fullSpecPath, // Use absolute path so agent doesn't confuse with .ralph/specs/ files
+      specPath: fullSpecPath, // Use absolute path so agent doesn't confuse with .speki/specs/ files
       onStreamLine,
     });
     console.log('[chat/stream] runChatMessageStream completed:', {
@@ -504,7 +504,7 @@ async function loadSpecTemplate(type: string): Promise<string> {
 
   // Try loading from project templates first, then fall back to package templates
   const templatePaths = [
-    join(process.cwd(), '.ralph', 'templates', templateName),
+    join(process.cwd(), '.speki', 'templates', templateName),
     join(process.cwd(), 'templates', 'specs', templateName),
   ];
 
@@ -968,8 +968,8 @@ router.post('/feedback', async (req, res) => {
       return res.status(400).json({ error: 'suggestionId is required' });
     }
 
-    if (!action || !['approved', 'rejected', 'edited'].includes(action)) {
-      return res.status(400).json({ error: 'action must be one of: approved, rejected, edited' });
+    if (!action || !['approved', 'rejected', 'edited', 'dismissed', 'resolved'].includes(action)) {
+      return res.status(400).json({ error: 'action must be one of: approved, rejected, edited, dismissed, resolved' });
     }
 
     if (action === 'edited' && !userVersion) {
@@ -1005,6 +1005,64 @@ router.post('/feedback', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: 'Failed to process feedback',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * PUT /api/spec-review/suggestion
+ * Update a suggestion's status (approve/reject/edit/dismiss)
+ */
+router.put('/suggestion', async (req, res) => {
+  try {
+    const { sessionId, suggestionId, action, userVersion } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' });
+    }
+
+    if (!suggestionId) {
+      return res.status(400).json({ error: 'suggestionId is required' });
+    }
+
+    if (!action || !['approved', 'rejected', 'edited', 'dismissed', 'resolved'].includes(action)) {
+      return res.status(400).json({ error: 'action must be one of: approved, rejected, edited, dismissed, resolved' });
+    }
+
+    if (action === 'edited' && !userVersion) {
+      return res.status(400).json({ error: 'userVersion is required when action is edited' });
+    }
+
+    const projectPath = req.projectPath!;
+    const session = await findSessionById(projectPath, sessionId);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const suggestionIndex = session.suggestions.findIndex((s) => s.id === suggestionId);
+    if (suggestionIndex === -1) {
+      return res.status(404).json({ error: 'Suggestion not found' });
+    }
+
+    session.suggestions[suggestionIndex] = {
+      ...session.suggestions[suggestionIndex],
+      status: action,
+      userVersion: action === 'edited' ? userVersion : undefined,
+      reviewedAt: new Date().toISOString(),
+    };
+    session.lastUpdatedAt = new Date().toISOString();
+
+    await saveSession(session, projectPath);
+
+    res.json({
+      success: true,
+      suggestion: session.suggestions[suggestionIndex],
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to update suggestion',
       details: error instanceof Error ? error.message : String(error),
     });
   }
@@ -1114,7 +1172,7 @@ User's question: ${message}`;
       isFirstMessage, // Only true if no sessionId exists yet
       cwd: projectPath,
       specContent,
-      specPath: fullSpecPath, // Use absolute path so agent doesn't confuse with .ralph/specs/ files
+      specPath: fullSpecPath, // Use absolute path so agent doesn't confuse with .speki/specs/ files
       // No onStreamLine callback for non-streaming endpoint
     });
 
@@ -1374,7 +1432,7 @@ router.post('/split/execute', async (req, res) => {
  * Helper function to find a session by its ID
  */
 async function findSessionById(projectPath: string, sessionId: string): Promise<SessionFile | null> {
-  const specsDir = join(projectPath, '.ralph', 'specs');
+  const specsDir = join(projectPath, '.speki', 'specs');
 
   try {
     const specIds = await fs.readdir(specsDir);

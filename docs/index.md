@@ -43,11 +43,11 @@ qala status
 | File | Purpose |
 |------|---------|
 | `~/.qala/projects.json` | Global project registry |
-| `.ralph/config.json` | Project settings |
-| `.ralph/prd.json` | Active task list |
-| `.ralph/progress.txt` | Execution history |
-| `.ralph/tasks/` | Decomposed task files |
-| `.ralph/logs/` | Execution logs |
+| `.speki/config.json` | Project settings |
+| `.speki/prd.json` | Active task list |
+| `.speki/progress.txt` | Execution history |
+| `.speki/tasks/` | Decomposed task files |
+| `.speki/logs/` | Execution logs |
 
 ### Environment Variables
 

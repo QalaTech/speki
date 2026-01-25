@@ -19,9 +19,9 @@ vi.mock('../aggregator.js', () => ({ aggregateResults: vi.fn() }));
 vi.mock('../timeout.js', () => ({ getReviewTimeout: vi.fn(() => 600000) }));
 vi.mock('../review-logger.js', () => ({
   saveReviewLog: vi.fn(() => Promise.resolve({
-    logFile: '/test/project/.ralph/logs/spec_review_test.log',
-    promptsDir: '/test/project/.ralph/logs/spec_review_test.prompts',
-    jsonFile: '/test/project/.ralph/logs/spec_review_test.json',
+    logFile: '/test/project/.speki/logs/spec_review_test.log',
+    promptsDir: '/test/project/.speki/logs/spec_review_test.prompts',
+    jsonFile: '/test/project/.speki/logs/spec_review_test.json',
   })),
 }));
 
@@ -96,7 +96,7 @@ That's my assessment.`;
       categories: {},
       codebaseContext: mockCodebaseContext,
       suggestions: [],
-      logPath: '/test/project/.ralph/logs/spec-review.json',
+      logPath: '/test/project/.speki/logs/spec-review.json',
       durationMs: 1000,
     });
   });
@@ -144,7 +144,7 @@ That's my assessment.`;
 
     // Assert - verify golden standard was loaded from the correct path
     expect(fs.readFile).toHaveBeenCalledWith(
-      '/test/project/.ralph/standards/golden_standard_prd_deterministic_decomposable.md',
+      '/test/project/.speki/standards/golden_standard_prd_deterministic_decomposable.md',
       'utf-8'
     );
   });

@@ -83,9 +83,9 @@ qala init --name "My Project" --language nodejs --branch ralph/feature
 | `-l, --language <lang>` | Language: `dotnet`, `python`, `nodejs`, `go` | `nodejs` |
 | `-b, --branch <branch>` | Default git branch for features | `ralph/feature` |
 
-This creates a `.ralph/` folder in your project with:
+This creates a `.speki/` folder in your project with:
 ```
-.ralph/
+.speki/
 ├── config.json          # Project configuration
 ├── prompt.md            # Instructions for Claude
 ├── standards/           # Language-specific coding standards
@@ -112,7 +112,7 @@ my-project/                      # Your project root
 ├── package.json                 # Your project config
 ├── specs/                       # Create this folder for PRDs
 │   └── auth-feature.md          # Your PRD file
-└── .ralph/                      # Created by qala init
+└── .speki/                      # Created by qala init
     ├── config.json
     ├── prompt.md
     ├── standards/
@@ -163,7 +163,7 @@ The decomposition will:
 2. Generate atomic user stories with acceptance criteria
 3. Create test cases for each story
 4. Run peer review to validate coverage
-5. Save tasks to `.ralph/tasks/`
+5. Save tasks to `.speki/tasks/`
 
 ### Step 4: Review and Activate Tasks
 
@@ -307,7 +307,7 @@ qala dashboard --no-open    # Don't open browser
 ├── projects.json                 # Registry of all projects
 └── config.json                   # Global settings
 
-/your-project/.ralph/             # Per-project (created by qala init)
+/your-project/.speki/             # Per-project (created by qala init)
 ├── config.json                   # Project settings
 ├── prd.json                      # Active task list
 ├── progress.txt                  # Execution history

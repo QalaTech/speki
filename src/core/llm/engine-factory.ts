@@ -9,7 +9,7 @@ import type { EnginePurpose, GlobalSettings } from '../../types/index.js';
  * Engine Factory - Selects LLM engine based on precedence:
  * 1. CLI flags (--engine, --model from opts parameter)
  * 2. Environment variables (QALA_ENGINE, QALA_MODEL)
- * 3. Project config (.ralph/config.json llm.engine, llm.model)
+ * 3. Project config (.speki/config.json llm.engine, llm.model)
  * 4. Purpose-specific settings (decompose, specChat, condenser, specGenerator, taskRunner)
  * 5. Auto-detection (Claude first for backwards-compat, then Codex)
  *

@@ -89,7 +89,7 @@ function createMockPRD(stories: UserStory[]): PRDData {
     projectName: 'Test Project',
     branchName: 'test-branch',
     language: 'nodejs',
-    standardsFile: '.ralph/standards/nodejs.md',
+    standardsFile: '.speki/standards/nodejs.md',
     description: 'Test PRD',
     userStories: stories,
   };
@@ -100,8 +100,8 @@ function createMockProject(initialPrd: PRDData, prdSequence?: PRDData[]): Projec
 
   return {
     projectPath: '/test/project',
-    promptPath: '/test/project/.ralph/prompt.md',
-    logsDir: '/test/project/.ralph/logs',
+    promptPath: '/test/project/.speki/prompt.md',
+    logsDir: '/test/project/.speki/logs',
     loadPRD: vi.fn().mockImplementation(async () => {
       if (prdSequence && loadPrdCallCount > 0) {
         const idx = Math.min(loadPrdCallCount - 1, prdSequence.length - 1);

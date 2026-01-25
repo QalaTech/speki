@@ -33,7 +33,7 @@ export const unregisterCommand = new Command('unregister')
         console.log('');
         console.log(
           chalk.gray(
-            'Note: The .ralph directory has not been deleted. Remove it manually if needed.'
+            'Note: The .speki directory has not been deleted. Remove it manually if needed.'
           )
         );
       } else {

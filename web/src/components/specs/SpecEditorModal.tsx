@@ -138,24 +138,24 @@ export function SpecEditorModal({
 
   if (!isOpen) return null;
 
-  const btnBase = "py-2 px-4 border border-border rounded-md text-[13px] font-medium cursor-pointer transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed";
+  const btnBase = "py-2 px-4 border border-base-300 rounded-md text-[13px] font-medium cursor-pointer transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed";
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/75 backdrop-blur-[4px]" onClick={handleClose} />
 
-      <div className="relative flex flex-col w-[calc(100vw-80px)] h-[calc(100vh-80px)] max-w-[1200px] bg-bg border border-border rounded-xl shadow-[0_24px_48px_rgba(0,0,0,0.5)] overflow-hidden">
-        <header className="flex items-center justify-between py-3 px-5 bg-surface border-b border-border">
+      <div className="relative flex flex-col w-[calc(100vw-80px)] h-[calc(100vh-80px)] max-w-[1200px] bg-base-100 border border-base-300 rounded-xl shadow-[0_24px_48px_rgba(0,0,0,0.5)] overflow-hidden">
+        <header className="flex items-center justify-between py-3 px-5 bg-base-200 border-b border-base-300">
           <div className="flex items-center gap-2">
             <span className="text-base">✏️</span>
-            <span className="text-sm font-semibold text-text">{fileName}</span>
+            <span className="text-sm font-semibold text-base-content">{fileName}</span>
             {isDirty && <span className="text-warning text-xs">●</span>}
           </div>
 
           <div className="flex items-center gap-3">
             {error && <span className="text-xs text-[#f85149]">{error}</span>}
             <button
-              className={`${btnBase} bg-transparent text-text-muted hover:bg-surface-hover hover:text-text`}
+              className={`${btnBase} bg-transparent text-base-content/60 hover:bg-base-300 hover:text-base-content`}
               onClick={handleClose}
             >
               Cancel
@@ -172,12 +172,12 @@ export function SpecEditorModal({
 
         <div className="flex-1 overflow-hidden" ref={containerRef} />
 
-        <footer className="flex items-center justify-between py-2 px-5 bg-surface border-t border-border">
-          <span className="text-xs text-text-muted">
-            <kbd className="inline-block py-0.5 px-1.5 bg-surface-hover border border-border rounded text-[11px] text-text mr-1">⌘S</kbd> Save • 
-            <kbd className="inline-block py-0.5 px-1.5 bg-surface-hover border border-border rounded text-[11px] text-text mx-1">Esc</kbd> Close
+        <footer className="flex items-center justify-between py-2 px-5 bg-base-200 border-t border-base-300">
+          <span className="text-xs text-base-content/60">
+            <kbd className="inline-block py-0.5 px-1.5 bg-base-300 border border-base-300 rounded text-[11px] text-base-content mr-1">⌘S</kbd> Save • 
+            <kbd className="inline-block py-0.5 px-1.5 bg-base-300 border border-base-300 rounded text-[11px] text-base-content mx-1">Esc</kbd> Close
           </span>
-          <span className="font-mono text-[11px] text-text-muted">{filePath}</span>
+          <span className="font-mono text-[11px] text-base-content/60">{filePath}</span>
         </footer>
       </div>
     </div>

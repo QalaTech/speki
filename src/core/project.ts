@@ -12,64 +12,64 @@ import type {
   PeerFeedback,
 } from '../types/index.js';
 
-const RALPH_DIR_NAME = '.ralph';
+const SPEKI_DIR_NAME = '.speki';
 
 export class Project {
   readonly projectPath: string;
-  readonly ralphDir: string;
+  readonly spekiDir: string;
 
   constructor(projectPath: string) {
     this.projectPath = projectPath.replace(/[/\\]$/, '');
-    this.ralphDir = join(this.projectPath, RALPH_DIR_NAME);
+    this.spekiDir = join(this.projectPath, SPEKI_DIR_NAME);
   }
 
   // Path helpers
   get configPath(): string {
-    return join(this.ralphDir, 'config.json');
+    return join(this.spekiDir, 'config.json');
   }
   get prdPath(): string {
-    return join(this.ralphDir, 'prd.json');
+    return join(this.spekiDir, 'prd.json');
   }
   get decomposeStatePath(): string {
-    return join(this.ralphDir, 'decompose_state.json');
+    return join(this.spekiDir, 'decompose_state.json');
   }
   get decomposeFeedbackPath(): string {
-    return join(this.ralphDir, 'decompose_feedback.json');
+    return join(this.spekiDir, 'decompose_feedback.json');
   }
   get statusPath(): string {
-    return join(this.ralphDir, '.ralph-status.json');
+    return join(this.spekiDir, '.speki-status.json');
   }
   get progressPath(): string {
-    return join(this.ralphDir, 'progress.txt');
+    return join(this.spekiDir, 'progress.txt');
   }
   get peerFeedbackPath(): string {
-    return join(this.ralphDir, 'peer_feedback.json');
+    return join(this.spekiDir, 'peer_feedback.json');
   }
   get promptPath(): string {
-    return join(this.ralphDir, 'prompt.md');
+    return join(this.spekiDir, 'prompt.md');
   }
   get decomposePromptPath(): string {
-    return join(this.ralphDir, 'decompose-prompt.md');
+    return join(this.spekiDir, 'decompose-prompt.md');
   }
   get tasksDir(): string {
-    return join(this.ralphDir, 'tasks');
+    return join(this.spekiDir, 'tasks');
   }
   get logsDir(): string {
-    return join(this.ralphDir, 'logs');
+    return join(this.spekiDir, 'logs');
   }
   get standardsDir(): string {
-    return join(this.ralphDir, 'standards');
+    return join(this.spekiDir, 'standards');
   }
   get currentTaskPath(): string {
-    return join(this.ralphDir, 'current-task.json');
+    return join(this.spekiDir, 'current-task.json');
   }
 
   /**
-   * Check if .ralph folder exists
+   * Check if .speki folder exists
    */
   async exists(): Promise<boolean> {
     try {
-      await access(this.ralphDir);
+      await access(this.spekiDir);
       return true;
     } catch {
       return false;
@@ -77,7 +77,7 @@ export class Project {
   }
 
   /**
-   * Initialize .ralph folder with all required files and directories
+   * Initialize .speki folder with all required files and directories
    */
   async initialize(options: {
     name: string;
@@ -85,7 +85,7 @@ export class Project {
     language?: string;
   }): Promise<void> {
     // Create directories
-    await mkdir(this.ralphDir, { recursive: true });
+    await mkdir(this.spekiDir, { recursive: true });
     await mkdir(this.tasksDir, { recursive: true });
     await mkdir(this.logsDir, { recursive: true });
     await mkdir(this.standardsDir, { recursive: true });
@@ -245,7 +245,7 @@ export class Project {
     try {
       const skillsSrcDir = join(templatesDir, 'skills');
       await access(skillsSrcDir);
-      const skillsDestDir = join(this.ralphDir, 'skills');
+      const skillsDestDir = join(this.spekiDir, 'skills');
       await mkdir(skillsDestDir, { recursive: true });
       const files = await readdir(skillsSrcDir);
       for (const file of files) {
@@ -513,9 +513,9 @@ export class Project {
       completedDependencies,
       blocks,
       availableStandards,
-      progressFile: '.ralph/progress.txt',
-      prdFile: '.ralph/prd.json',
-      peerFeedbackFile: '.ralph/peer_feedback.json',
+      progressFile: '.speki/progress.txt',
+      prdFile: '.speki/prd.json',
+      peerFeedbackFile: '.speki/peer_feedback.json',
     };
 
     // Save to file
@@ -538,15 +538,15 @@ export class Project {
 }
 
 /**
- * Find the .ralph directory by walking up from current directory
+ * Find the .speki directory by walking up from current directory
  */
 export async function findProjectRoot(startDir: string = process.cwd()): Promise<string | null> {
   let currentDir = startDir;
 
   while (currentDir !== dirname(currentDir)) {
-    const ralphDir = join(currentDir, RALPH_DIR_NAME);
+    const spekiDir = join(currentDir, SPEKI_DIR_NAME);
     try {
-      await access(ralphDir);
+      await access(spekiDir);
       return currentDir;
     } catch {
       currentDir = dirname(currentDir);

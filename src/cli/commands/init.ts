@@ -97,7 +97,7 @@ export const initCommand = new Command("init")
     "Primary language (nodejs, python, dotnet, go)",
     "nodejs"
   )
-  .option("-f, --force", "Overwrite existing .ralph directory")
+  .option("-f, --force", "Overwrite existing .speki directory")
   .option("--no-serena", "Skip Serena MCP server installation")
   .action(async (options) => {
     const projectPath = process.cwd();
@@ -108,13 +108,13 @@ export const initCommand = new Command("init")
       if (!options.force) {
         console.error(
           chalk.red(
-            "Error: .ralph directory already exists. Use --force to overwrite."
+            "Error: .speki directory already exists. Use --force to overwrite."
           )
         );
         process.exit(1);
       }
       console.log(
-        chalk.yellow("Warning: Overwriting existing .ralph directory...")
+        chalk.yellow("Warning: Overwriting existing .speki directory...")
       );
     }
 
@@ -128,7 +128,7 @@ export const initCommand = new Command("init")
     console.log(`  ${chalk.gray("Language:")} ${options.language}`);
 
     try {
-      // Initialize .ralph directory
+      // Initialize .speki directory
       await project.initialize({
         name: projectName,
         branchName: options.branch,
@@ -159,15 +159,15 @@ export const initCommand = new Command("init")
       console.log("");
       console.log("Created:");
       console.log(
-        `  ${chalk.cyan(".ralph/")} - Project configuration directory`
+        `  ${chalk.cyan(".speki/")} - Project configuration directory`
       );
-      console.log(`  ${chalk.cyan(".ralph/config.json")} - Project settings`);
+      console.log(`  ${chalk.cyan(".speki/config.json")} - Project settings`);
       console.log(
-        `  ${chalk.cyan(".ralph/prompt.md")} - Claude prompt template`
+        `  ${chalk.cyan(".speki/prompt.md")} - Claude prompt template`
       );
-      console.log(`  ${chalk.cyan(".ralph/standards/")} - Language standards`);
-      console.log(`  ${chalk.cyan(".ralph/tasks/")} - Generated tasks`);
-      console.log(`  ${chalk.cyan(".ralph/logs/")} - Execution logs`);
+      console.log(`  ${chalk.cyan(".speki/standards/")} - Language standards`);
+      console.log(`  ${chalk.cyan(".speki/tasks/")} - Generated tasks`);
+      console.log(`  ${chalk.cyan(".speki/logs/")} - Execution logs`);
       console.log("");
       console.log("Next steps:");
       console.log(`  1. Create a PRD file describing your tasks`);

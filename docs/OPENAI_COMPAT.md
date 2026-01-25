@@ -47,7 +47,7 @@ Each spec file gets its own session:
 
 1. **First message**: Creates a new session, loads spec content into context
 2. **Subsequent messages**: Resumes existing session with full conversation history
-3. **Session storage**: Sessions are stored in `.ralph/specs/<spec-id>/review_state.json`
+3. **Session storage**: Sessions are stored in `.speki/specs/<spec-id>/review_state.json`
 
 The `sessionId` query parameter is optional:
 - If omitted on first message, a new session ID is created
@@ -200,7 +200,7 @@ Returns:
                         ┌──────────────┐
                         │  Session     │
                         │  Storage     │
-                        │ (.ralph/)    │
+                        │ (.speki/)    │
                         └──────────────┘
 ```
 

@@ -6,7 +6,7 @@ import type { PRDData } from '../../types/index.js';
 
 /**
  * Resolves the spec ID and loads PRD from spec-partitioned location.
- * Falls back to legacy .ralph/prd.json if no specs exist.
+ * Falls back to legacy .speki/prd.json if no specs exist.
  */
 export async function resolveSpecAndLoadPRD(
   projectPath: string,

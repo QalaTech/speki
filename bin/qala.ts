@@ -15,6 +15,7 @@ import { specCommand } from '../src/cli/commands/spec.js';
 import { updateCommand } from '../src/cli/commands/update.js';
 import { tuiCommand } from '../src/cli/commands/tui.js';
 import { modelsCommand } from '../src/cli/commands/models.js';
+import { idsCommand } from '../src/cli/commands/ids.js';
 
 program
   .name('qala')
@@ -35,6 +36,7 @@ program.addCommand(specCommand);
 program.addCommand(updateCommand);
 program.addCommand(tuiCommand);
 program.addCommand(modelsCommand);
+program.addCommand(idsCommand);
 
 // If no arguments provided, launch TUI by default
 if (process.argv.length <= 2) {

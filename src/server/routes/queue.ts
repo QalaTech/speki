@@ -246,7 +246,7 @@ router.post('/quick-start', async (req, res) => {
     const { promises: fs } = await import('fs');
     const { join } = await import('path');
 
-    const specDir = join(req.projectPath!, '.ralph', 'specs', specId);
+    const specDir = join(req.projectPath!, '.speki', 'specs', specId);
     const decomposeStatePath = join(specDir, 'decompose_state.json');
 
     let decomposeState;

@@ -37,9 +37,13 @@ export function useFileWatcher({ projectPath, onFileChange }: UseFileWatcherOpti
 
     es.addEventListener('spec-review/file-changed', (event) => {
       try {
-        const data = JSON.parse(event.data) as FileChangeEvent;
-        console.log('[useFileWatcher] File changed event received:', data);
-        onFileChangeRef.current?.(data);
+        const parsed = JSON.parse(event.data);
+        console.log('[useFileWatcher] File changed event received:', parsed);
+        // SSE event structure: {event, projectPath, data: {filePath, changeType}, timestamp}
+        const fileChangeData = parsed.data || parsed;
+        if (fileChangeData.filePath) {
+          onFileChangeRef.current?.(fileChangeData as FileChangeEvent);
+        }
       } catch (err) {
         console.error('[useFileWatcher] Failed to parse file change event:', err);
       }

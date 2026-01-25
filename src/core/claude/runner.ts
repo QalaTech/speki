@@ -18,6 +18,9 @@ import { resolveCliPath } from '../cli-path.js';
 import { ClaudeStreamNormalizer } from '../llm/normalizers/claude-normalizer.js';
 import type { ParsedOutput, StreamCallbacks } from './types.js';
 
+/** Permission mode options for Claude CLI */
+export type PermissionMode = 'acceptEdits' | 'bypassPermissions' | 'default' | 'delegate' | 'dontAsk' | 'plan';
+
 export interface RunOptions {
   /** Path to the prompt file to send to Claude */
   promptPath: string;
@@ -33,6 +36,8 @@ export interface RunOptions {
   skipPermissions?: boolean;
   /** Optional model identifier to pass to CLI */
   model?: string;
+  /** Permission mode (e.g., 'plan' for deep planning mode) */
+  permissionMode?: PermissionMode;
 }
 
 export interface RunResult {
@@ -68,6 +73,7 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
     callbacks = createConsoleCallbacks(),
     skipPermissions = true,
     model,
+    permissionMode,
   } = options;
 
   // Ensure log directory exists
@@ -91,6 +97,11 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
   // Add model if provided
   if (model && model.trim()) {
     args.push('--model', model.trim());
+  }
+
+  // Add permission mode if provided (e.g., 'plan' for deep planning mode)
+  if (permissionMode) {
+    args.push('--permission-mode', permissionMode);
   }
 
   // Resolve Claude CLI path - handles cases where claude is an alias not in PATH

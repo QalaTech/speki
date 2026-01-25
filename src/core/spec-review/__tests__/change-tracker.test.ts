@@ -159,7 +159,7 @@ describe('change-tracker', () => {
 
     await trackChange(session, change);
 
-    const sessionPath = join(testDir, '.ralph', 'sessions', 'persist-spec.session.json');
+    const sessionPath = join(testDir, '.speki', 'sessions', 'persist-spec.session.json');
     const savedContent = await readFile(sessionPath, 'utf-8');
     const savedSession = JSON.parse(savedContent) as SessionFile;
 

@@ -358,7 +358,7 @@ app.get("/api/standards/:language", (req, res) => {
 // API: Get Ralph running status
 app.get("/api/status", (req, res) => {
   try {
-    const statusPath = join(RALPH_DIR, ".ralph-status.json");
+    const statusPath = join(RALPH_DIR, ".speki-status.json");
     if (!existsSync(statusPath)) {
       return res.json({
         running: false,

@@ -22,7 +22,7 @@ function createMockPRD(overrides: Partial<PRDData> = {}): PRDData {
     projectName: 'Test Project',
     branchName: 'main',
     language: 'typescript',
-    standardsFile: '.ralph/standards/typescript.md',
+    standardsFile: '.speki/standards/typescript.md',
     description: 'Test project description',
     userStories: [
       {
@@ -53,7 +53,7 @@ function createMockMetadata(overrides: Partial<SpecMetadata> = {}): SpecMetadata
 }
 
 function setupSpecDir(tempDir: string, specId: string): string {
-  const specDir = join(tempDir, '.ralph', 'specs', specId);
+  const specDir = join(tempDir, '.speki', 'specs', specId);
   mkdirSync(specDir, { recursive: true });
   return specDir;
 }
@@ -63,7 +63,7 @@ describe('start command spec-partitioned state', () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'start-test-'));
-    mkdirSync(join(tempDir, '.ralph'), { recursive: true });
+    mkdirSync(join(tempDir, '.speki'), { recursive: true });
   });
 
   afterEach(() => {
@@ -192,7 +192,7 @@ describe('start command status transitions', () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'start-status-test-'));
-    mkdirSync(join(tempDir, '.ralph'), { recursive: true });
+    mkdirSync(join(tempDir, '.speki'), { recursive: true });
   });
 
   afterEach(() => {
