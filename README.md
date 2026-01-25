@@ -284,4 +284,6 @@ claude "Hello"          # Test authentication
 
 ## License
 
-MIT
+Proprietary. See [LICENSE](LICENSE) for details.
+
+© 2025 QalaTech. All Rights Reserved.
