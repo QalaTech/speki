@@ -259,6 +259,7 @@ your-project/
 - [CLI Reference](docs/cli-reference.md) — All commands and options
 - [Architecture](docs/architecture.md) — Technical design
 - [Configuration](docs/configuration.md) — Config files reference
+- [Roadmap](docs/roadmap.md) — Planned features and timeline
 
 ---
 
