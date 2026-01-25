@@ -88,17 +88,28 @@ async function projectDashboard(ctx: Ctx) {
     console.log(`  Specs: ${specIds.length}${activeSpec ? ` (active: ${activeSpec})` : ''}`);
     console.log(`  Stories: ${completedStories}/${totalStories}`);
 
+    const isRunning = status.status === 'running';
+    const hasTasks = totalStories > 0 && completedStories < totalStories;
+
+    const choices = [];
+
+    // Show Start or Stop based on current status
+    if (isRunning) {
+      choices.push({ name: 'Stop Run', value: 'stop' });
+    } else if (hasTasks && activeSpec) {
+      choices.push({ name: 'Start Run', value: 'start' });
+    }
+
+    // Always show these workflow options
+    choices.push({ name: 'Decompose PRD', value: 'decompose' });
+    choices.push({ name: 'Spec Review', value: 'spec' });
+    choices.push({ name: 'Open Dashboard', value: 'dashboard' });
+    choices.push({ name: 'Project Settings', value: 'project-settings' });
+    choices.push({ name: 'Back', value: 'back' });
+
     const action = await select({
       message: 'Choose an action',
-      choices: [
-        { name: 'Start Run', value: 'start' },
-        { name: 'Stop Run', value: 'stop' },
-        { name: 'Decompose PRD', value: 'decompose' },
-        { name: 'Spec Review', value: 'spec' },
-        { name: 'Open Dashboard', value: 'dashboard' },
-        { name: 'Project Settings', value: 'project-settings' },
-        { name: 'Back', value: 'back' },
-      ],
+      choices,
     });
 
     if (action === 'back') return;

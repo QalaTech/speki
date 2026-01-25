@@ -1,4 +1,9 @@
-# SPEKI
+<div align="center">
+  <img src="assets/avatar.png" alt="Speki the Owl" width="300" />
+  <h1>Welcome to SPEKI — where specs are a hoot!</h1>
+</div>
+
+---
 
 **Spec-First AI Development** — Write specs, get working code. SPEKI transforms your product requirements into atomic tasks and executes them using Claude Code.
 
