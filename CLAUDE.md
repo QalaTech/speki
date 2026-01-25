@@ -4,22 +4,60 @@ A TypeScript CLI tool for managing Ralph (iterative AI development) across multi
 
 ## Project Structure
 
+This is an npm workspaces monorepo with 4 packages:
+
 ```
 qala-ralph/
-├── src/
-│   ├── cli/commands/     # CLI commands (init, start, stop, etc.)
-│   ├── core/
-│   │   ├── claude/       # Claude CLI integration
-│   │   ├── decompose/    # PRD decomposition
-│   │   ├── ralph-loop/   # Main Ralph loop
-│   │   ├── spec-review/  # Spec review and metadata management
-│   │   ├── project.ts    # Per-project .speki/ management
-│   │   └── registry.ts   # Central ~/.qala/ registry
-│   ├── server/           # Multi-project dashboard server
-│   └── types/            # TypeScript types
-├── templates/            # Init templates (prompt.md, standards/)
-├── archive/              # Old bash-based ralph (reference)
-└── dist/                 # Compiled output
+├── packages/
+│   ├── core/                    # @speki/core - Business logic & types
+│   │   └── src/
+│   │       ├── types/           # Shared TypeScript types
+│   │       ├── llm/             # LLM engine abstraction
+│   │       ├── claude/          # Claude CLI integration
+│   │       ├── decompose/       # PRD decomposition
+│   │       ├── ralph-loop/      # Main Ralph loop
+│   │       ├── spec-review/     # Spec review and metadata management
+│   │       ├── tech-spec/       # Tech spec generation
+│   │       ├── task-queue/      # Task queue management
+│   │       ├── project.ts       # Per-project .speki/ management
+│   │       └── registry.ts      # Central ~/.qala/ registry
+│   ├── server/                  # @speki/server - Express API
+│   │   └── src/
+│   │       ├── routes/          # API routes
+│   │       └── middleware/      # Express middleware
+│   ├── cli/                     # @speki/cli - CLI commands
+│   │   ├── src/
+│   │   │   ├── commands/        # CLI commands (init, start, stop, etc.)
+│   │   │   └── tui/             # Terminal UI
+│   │   └── templates/           # Init templates (prompt.md, standards/)
+│   └── web/                     # @speki/web - React frontend
+│       └── src/
+│           ├── components/      # React components
+│           ├── features/        # Feature modules
+│           └── hooks/           # React hooks
+├── docs/
+└── specs/
+```
+
+### Package Dependencies
+
+```
+              ┌─────────────┐
+              │  @speki/    │
+              │    core     │  (types + business logic)
+              └──────┬──────┘
+                     │
+        ┌────────────┼────────────┐
+        │            │            │
+        ▼            ▼            ▼
+┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+│  @speki/    │ │  @speki/    │ │  @speki/    │
+│   server    │ │    cli      │ │    web      │
+└──────┬──────┘ └──────┬──────┘ └─────────────┘
+       │               │              │
+       └───────┬───────┘              │
+               │      HTTP API        │
+               └──────────────────────┘
 ```
 
 ## Per-Spec State Directory
@@ -97,9 +135,27 @@ Valid transitions:
 ## Development
 
 ```bash
-npm install
-npm run build
-npm link  # For global qala command
+npm install                    # Install all workspace dependencies
+npm run build                  # Build all packages (core → server → cli → web)
+npm run build:cli              # Build only CLI packages (core → server → cli)
+./install.sh                   # Install global qala command
+```
+
+### Working with Packages
+
+```bash
+# Build individual packages
+npm run build -w @speki/core
+npm run build -w @speki/server
+npm run build -w @speki/cli
+npm run build -w @speki/web
+
+# Run tests
+npm test                       # Run all tests
+npm run test -w @speki/core    # Test a specific package
+
+# Development mode
+npm run dev                    # Build core, then watch web and CLI
 ```
 
 ## Migration from Legacy Structure

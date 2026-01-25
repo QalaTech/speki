@@ -1,48 +1,20 @@
 {
-  "name": "qala",
-  "version": "0.1.0",
-  "description": "Multi-tenant AI-driven task runner powered by Claude",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "bin": {
-    "qala": "./dist/bin/qala.js"
-  },
+  "name": "speki-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "build": "tsc && npm run build:web",
-    "build:cli": "tsc",
-    "build:web": "cd web && npm run build",
-    "dev": "tsc --watch",
-    "start": "node dist/bin/qala.js",
-    "lint": "eslint src --ext .ts",
-    "postinstall": "cd web && npm install",
+    "build": "npm run build -w @speki/core && npm run build -w @speki/server && npm run build -w @speki/cli && npm run build -w @speki/web",
+    "build:cli": "npm run build -w @speki/core && npm run build -w @speki/server && npm run build -w @speki/cli",
+    "dev": "npm run build:cli && concurrently -n web,api -c cyan,green \"npm run dev -w @speki/web\" \"node packages/cli/dist/index.js dashboard --no-open\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
-  },
-  "keywords": [
-    "cli",
-    "ai",
-    "claude",
-    "task-runner",
-    "automation"
-  ],
-  "author": "",
-  "license": "MIT",
-  "dependencies": {
-    "@inquirer/prompts": "^8.1.0",
-    "chalk": "^5.3.0",
-    "commander": "^12.1.0",
-    "cors": "^2.8.5",
-    "express": "^4.21.2"
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "npm run clean --workspaces && rm -rf node_modules"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.10.5",
-    "@types/supertest": "^6.0.3",
-    "supertest": "^7.2.2",
+    "concurrently": "^9.2.1",
     "typescript": "^5.7.3",
     "vitest": "^4.0.16"
   },

@@ -2,63 +2,89 @@
 
 ## Overview
 
-Qala is a TypeScript application with three main components:
+Qala is a TypeScript monorepo with four packages:
 
-1. **CLI** (`bin/qala.ts`) - Command-line interface for all operations
-2. **Core** (`src/core/`) - Business logic for decomposition and execution
-3. **Server** (`src/server/`) - Express API for the web dashboard
-4. **Web** (`web/`) - React dashboard for visual management
+1. **Core** (`packages/core`) - Shared types and business logic
+2. **Server** (`packages/server`) - Express API for the web dashboard
+3. **CLI** (`packages/cli`) - Command-line interface
+4. **Web** (`packages/web`) - React dashboard
 
 ## Directory Structure
 
 ```
-qala/
-├── bin/
-│   └── qala.ts                 # CLI entry point
-├── src/
-│   ├── cli/
-│   │   └── commands/           # CLI command implementations
-│   │       ├── init.ts
-│   │       ├── decompose.ts
-│   │       ├── start.ts
-│   │       ├── stop.ts
-│   │       ├── status.ts
-│   │       ├── list.ts
-│   │       ├── dashboard.ts
-│   │       ├── activate.ts
-│   │       └── unregister.ts
-│   ├── core/
-│   │   ├── project.ts          # Per-project state management
-│   │   ├── registry.ts         # Global project registry
-│   │   ├── claude/
-│   │   │   ├── runner.ts       # Claude CLI orchestration
-│   │   │   ├── stream-parser.ts # JSONL stream parsing
-│   │   │   └── types.ts        # Claude output types
-│   │   ├── decompose/
-│   │   │   ├── runner.ts       # Decomposition orchestration
-│   │   │   └── peer-review.ts  # Codex peer review
-│   │   └── ralph-loop/
-│   │       └── runner.ts       # Main execution loop
-│   ├── server/
-│   │   ├── index.ts            # Express server setup
-│   │   ├── middleware/
-│   │   │   └── project-context.ts
-│   │   └── routes/
-│   │       ├── projects.ts     # /api/projects
-│   │       ├── tasks.ts        # /api/tasks
-│   │       ├── decompose.ts    # /api/decompose
-│   │       └── ralph.ts        # /api/ralph
-│   └── types/
-│       └── index.ts            # Shared TypeScript types
-├── web/                        # React dashboard
-│   ├── src/
-│   │   ├── App.tsx
-│   │   ├── components/
-│   │   └── utils/
-│   └── dist/                   # Built dashboard (served by Express)
-└── templates/                  # Init templates
-    ├── prompt.md               # Ralph agent instructions
-    └── standards/              # Language coding standards
+qala-ralph/
+├── packages/
+│   ├── core/                       # @speki/core - Business logic
+│   │   └── src/
+│   │       ├── types/              # Shared TypeScript types
+│   │       ├── llm/                # LLM engine abstraction
+│   │       ├── claude/             # Claude CLI integration
+│   │       ├── decompose/          # PRD decomposition
+│   │       ├── ralph-loop/         # Main Ralph loop
+│   │       ├── spec-review/        # Spec review and metadata
+│   │       ├── tech-spec/          # Tech spec generation
+│   │       ├── task-queue/         # Task queue management
+│   │       ├── project.ts          # Per-project .speki/ management
+│   │       └── registry.ts         # Central ~/.qala/ registry
+│   │
+│   ├── server/                     # @speki/server - Express API
+│   │   └── src/
+│   │       ├── routes/             # API routes
+│   │       │   ├── projects.ts     # /api/projects
+│   │       │   ├── tasks.ts        # /api/tasks
+│   │       │   ├── decompose.ts    # /api/decompose
+│   │       │   ├── ralph.ts        # /api/ralph
+│   │       │   └── spec-review.ts  # /api/spec-review
+│   │       └── middleware/         # Express middleware
+│   │
+│   ├── cli/                        # @speki/cli - CLI commands
+│   │   ├── src/
+│   │   │   ├── commands/           # CLI command implementations
+│   │   │   │   ├── init.ts
+│   │   │   │   ├── decompose.ts
+│   │   │   │   ├── start.ts
+│   │   │   │   ├── stop.ts
+│   │   │   │   ├── status.ts
+│   │   │   │   ├── list.ts
+│   │   │   │   ├── dashboard.ts
+│   │   │   │   ├── activate.ts
+│   │   │   │   ├── tasks.ts
+│   │   │   │   ├── spec.ts
+│   │   │   │   └── unregister.ts
+│   │   │   └── tui/                # Terminal UI
+│   │   └── templates/              # Init templates
+│   │       ├── prompt.md           # Ralph agent instructions
+│   │       └── standards/          # Language coding standards
+│   │
+│   └── web/                        # @speki/web - React dashboard
+│       └── src/
+│           ├── components/         # React components
+│           ├── features/           # Feature modules
+│           └── hooks/              # React hooks
+│
+├── docs/                           # Documentation
+└── specs/                          # Example specs
+```
+
+## Package Dependencies
+
+```
+              ┌─────────────┐
+              │  @speki/    │
+              │    core     │  (types + business logic)
+              └──────┬──────┘
+                     │
+        ┌────────────┼────────────┐
+        │            │            │
+        ▼            ▼            ▼
+┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+│  @speki/    │ │  @speki/    │ │  @speki/    │
+│   server    │ │    cli      │ │    web      │
+└──────┬──────┘ └──────┬──────┘ └─────────────┘
+       │               │              │
+       └───────┬───────┘              │
+               │      HTTP API        │
+               └──────────────────────┘
 ```
 
 ## Data Flow
@@ -161,7 +187,7 @@ qala start
 
 ## Key Classes
 
-### Registry (`src/core/registry.ts`)
+### Registry (`packages/core/src/registry.ts`)
 
 Manages the global project registry at `~/.qala/projects.json`.
 
@@ -176,7 +202,7 @@ class Registry {
 }
 ```
 
-### Project (`src/core/project.ts`)
+### Project (`packages/core/src/project.ts`)
 
 Manages per-project state in `.speki/`.
 
@@ -198,7 +224,7 @@ class Project {
 }
 ```
 
-### Claude Runner (`src/core/claude/runner.ts`)
+### Claude Runner (`packages/core/src/claude/runner.ts`)
 
 Orchestrates Claude CLI execution with stream parsing.
 
@@ -217,7 +243,7 @@ async function runClaude(options: {
 }>
 ```
 
-### Stream Parser (`src/core/claude/stream-parser.ts`)
+### Stream Parser (`packages/core/src/claude/stream-parser.ts`)
 
 Parses Claude's `--output-format stream-json` JSONL output in real-time.
 
@@ -277,6 +303,41 @@ interface StreamCallbacks {
 
 ## State Files
 
+### Per-Spec State Directory (`.speki/specs/<spec-id>/`)
+
+Each spec file gets its own state directory:
+
+```
+.speki/specs/my-feature/
+├── metadata.json           # Spec status and timestamps
+├── decompose_state.json    # Task decomposition output
+├── review_state.json       # Review session state
+└── logs/                   # Decompose and review logs
+```
+
+### `metadata.json` - Spec Status
+
+```json
+{
+  "specId": "my-feature",
+  "status": "draft|reviewed|decomposed|active|completed",
+  "createdAt": "ISO8601",
+  "updatedAt": "ISO8601"
+}
+```
+
+### `decompose_state.json` - Decomposition Status
+
+```json
+{
+  "status": "IDLE|DECOMPOSING|REVIEWING|COMPLETED|ERROR",
+  "message": "string",
+  "prdFile": "string",
+  "draftFile": "string",
+  "verdict": "PASS|FAIL|UNKNOWN|SKIPPED"
+}
+```
+
 ### `prd.json` - Active Task List
 
 ```json
@@ -299,18 +360,6 @@ interface StreamCallbacks {
       "dependencies": ["US-000"]
     }
   ]
-}
-```
-
-### `decompose_state.json` - Decomposition Status
-
-```json
-{
-  "status": "IDLE|DECOMPOSING|REVIEWING|COMPLETED|ERROR",
-  "message": "string",
-  "prdFile": "string",
-  "draftFile": "string",
-  "verdict": "PASS|FAIL|UNKNOWN|SKIPPED"
 }
 ```
 

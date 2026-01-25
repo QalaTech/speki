@@ -41,23 +41,22 @@ Before installing Qala, ensure you have:
 git clone git@github.com:QalaTech/qala-ralph.git
 cd qala-ralph
 
-# 2. Install dependencies (this also installs web dependencies)
+# 2. Install dependencies
 npm install
 
-# 3. Build the CLI and web dashboard
+# 3. Build all packages (core → server → cli → web)
 npm run build
 
-# 4. Link globally to use 'qala' command anywhere
-npm link
+# 4. Install global 'qala' command
+./install.sh
 
 # 5. Verify installation
 qala --help
 ```
 
-### From npm (Coming Soon)
-
+To uninstall:
 ```bash
-npm install -g qala
+sudo rm /usr/local/bin/qala
 ```
 
 ## Getting Started
@@ -302,19 +301,42 @@ qala dashboard --no-open    # Don't open browser
 
 ## Project Structure
 
+### Qala Monorepo
+
+```
+qala-ralph/
+├── packages/
+│   ├── core/                     # @speki/core - Shared types & business logic
+│   ├── server/                   # @speki/server - Express API
+│   ├── cli/                      # @speki/cli - CLI commands
+│   └── web/                      # @speki/web - React dashboard
+├── docs/                         # Documentation
+└── specs/                        # Example specs
+```
+
+### Global Config
+
 ```
 ~/.qala/                          # Global (created automatically)
 ├── projects.json                 # Registry of all projects
 └── config.json                   # Global settings
+```
 
+### Per-Project Config
+
+```
 /your-project/.speki/             # Per-project (created by qala init)
 ├── config.json                   # Project settings
-├── prd.json                      # Active task list
 ├── progress.txt                  # Execution history
 ├── prompt.md                     # Claude instructions
 ├── standards/                    # Coding standards
-├── tasks/                        # Decomposed tasks
-└── logs/                         # Execution logs
+├── specs/                        # Per-spec state directories
+│   └── <spec-id>/
+│       ├── metadata.json         # Spec status and timestamps
+│       ├── decompose_state.json  # Task decomposition output
+│       ├── review_state.json     # Review session state
+│       └── logs/                 # Decompose and review logs
+└── tasks/                        # Decomposed task files
 ```
 
 ## Troubleshooting

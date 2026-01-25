@@ -70,9 +70,7 @@ cd qala-ralph
 npm install
 ```
 
-This command:
-- Installs CLI dependencies
-- Automatically runs `postinstall` to install web dashboard dependencies
+This installs all workspace dependencies for the monorepo packages.
 
 ### Step 3: Build
 
@@ -80,17 +78,21 @@ This command:
 npm run build
 ```
 
-This compiles:
-- TypeScript CLI to `dist/`
-- React web dashboard to `web/dist/`
+This builds all packages in dependency order:
+- `@speki/core` → `packages/core/dist/`
+- `@speki/server` → `packages/server/dist/`
+- `@speki/cli` → `packages/cli/dist/`
+- `@speki/web` → `packages/web/dist/`
 
-### Step 4: Link Globally
+### Step 4: Install Global Command
 
 ```bash
-npm link
+./install.sh
 ```
 
-This creates a global `qala` command that you can run from any directory.
+This creates `/usr/local/bin/qala` pointing to the built CLI.
+
+To uninstall later: `sudo rm /usr/local/bin/qala`
 
 ### Step 5: Verify Installation
 
@@ -268,7 +270,7 @@ qala decompose specs/hello-world.md --branch ralph/health-endpoint
    - All requirements are covered
    - No contradictions
    - Dependencies are correct
-4. **Output** - Tasks saved to `.speki/tasks/<prd-name>.json`
+4. **Output** - Tasks saved to `.speki/tasks/<prd-name>.json` with state in `.speki/specs/<spec-id>/`
 
 ## Review and Activate Tasks
 

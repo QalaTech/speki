@@ -6,7 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-QALA_BIN="$SCRIPT_DIR/dist/bin/qala.js"
+QALA_BIN="$SCRIPT_DIR/packages/cli/dist/index.js"
 INSTALL_PATH="/usr/local/bin/qala"
 
 echo "Installing Qala CLI..."

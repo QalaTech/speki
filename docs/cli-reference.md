@@ -84,8 +84,10 @@ qala decompose docs/feature.md --fresh --redecompose
 
 **Output:**
 - Task file saved to `.speki/tasks/<output>.json`
-- Peer review feedback in `.speki/decompose_feedback.json`
-- Logs in `.speki/logs/decompose_*.log`
+- Per-spec state in `.speki/specs/<spec-id>/`
+  - `decompose_state.json` - Task decomposition output
+  - `metadata.json` - Spec status tracking
+  - `logs/` - Decomposition logs
 
 ---
 

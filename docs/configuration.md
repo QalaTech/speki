@@ -81,7 +81,39 @@ Located at `.speki/` within each project.
 
 The current task list for execution. See [PRD Format](#prd-format) below.
 
+### Per-Spec State Directory (`.speki/specs/<spec-id>/`)
+
+Each spec file gets its own state directory. The `<spec-id>` is derived from the spec filename (e.g., `my-feature.md` → `my-feature`).
+
+```
+.speki/specs/my-feature/
+├── metadata.json           # Spec status and timestamps
+├── decompose_state.json    # Task decomposition output
+├── review_state.json       # Review session state
+└── logs/                   # Decompose and review logs
+```
+
+### `metadata.json` - Spec Metadata
+
+```json
+{
+  "specId": "my-feature",
+  "status": "decomposed",
+  "createdAt": "2024-01-08T00:00:00.000Z",
+  "updatedAt": "2024-01-08T12:00:00.000Z"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `specId` | string | Spec identifier (from filename) |
+| `status` | string | draft, reviewed, decomposed, active, completed |
+| `createdAt` | string | When first processed |
+| `updatedAt` | string | Last modification |
+
 ### `decompose_state.json` - Decomposition Status
+
+Located in `.speki/specs/<spec-id>/decompose_state.json`:
 
 ```json
 {
@@ -301,8 +333,6 @@ Key sections:
 ├── prd.json                 # Active tasks
 ├── prompt.md                # Agent instructions
 ├── progress.txt             # Execution history
-├── decompose_state.json     # Decomposition status
-├── decompose_feedback.json  # Peer review feedback
 ├── peer_feedback.json       # Story feedback
 ├── .speki-status.json       # Execution status
 ├── standards/
@@ -310,10 +340,14 @@ Key sections:
 │   ├── python.md
 │   ├── nodejs.md
 │   └── go.md
+├── specs/                   # Per-spec state directories
+│   └── <spec-id>/
+│       ├── metadata.json         # Spec status
+│       ├── decompose_state.json  # Decomposition status
+│       ├── review_state.json     # Review session state
+│       └── logs/                 # Spec-specific logs
 ├── tasks/                   # Decomposed task files
 │   └── *.json
 └── logs/                    # Execution logs
-    ├── iteration_*.jsonl
-    ├── decompose_*.log
-    └── peer_review_*.log
+    └── iteration_*.jsonl
 ```

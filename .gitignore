@@ -140,4 +140,6 @@ vite.config.ts.timestamp-*
 
 .speki
 /specs
-.claude/
+.claude
+.serena
+.tldr
