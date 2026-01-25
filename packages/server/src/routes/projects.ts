@@ -141,10 +141,15 @@ router.get('/', async (req, res) => {
             const config = await project.loadConfig();
             const specs = await listSpecs(entry.path);
 
-            // Get active spec info if any
+            // Get active spec info if any (parallel reads)
             let activeSpec = null;
-            for (const specId of specs) {
-              const metadata = await readSpecMetadata(entry.path, specId);
+            const metadataResults = await Promise.all(
+              specs.map(async (specId) => {
+                const metadata = await readSpecMetadata(entry.path, specId);
+                return { specId, metadata };
+              })
+            );
+            for (const { specId, metadata } of metadataResults) {
               if (metadata?.status === 'active') {
                 activeSpec = { id: specId, ...metadata };
                 break;

@@ -91,13 +91,8 @@ function App() {
   // Redirect to home page if no projects (except if already on home page)
   // The home page handles the "no projects" state with its own UI
 
-  if (loading && !selectedProject) {
-    return (
-      <div className="flex h-screen max-h-screen overflow-hidden items-center justify-center">
-        <div className="text-xl text-base-content/60">Loading Projects...</div>
-      </div>
-    );
-  }
+  // Don't block render - let individual pages handle their loading states
+  // This prevents the entire app from freezing during initial load
 
   const currentProject = projects.find(p => p.path === selectedProject);
 

@@ -43,6 +43,7 @@ export function HomePage() {
   const [browserData, setBrowserData] = useState<BrowseResult | null>(null);
   const [browserLoading, setBrowserLoading] = useState(false);
 
+
   // Validate path when it changes
   useEffect(() => {
     if (!projectPath.trim()) {
@@ -164,11 +165,6 @@ export function HomePage() {
     }
   };
 
-  const getPreviewUrl = (project: ProjectEntry) => {
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/execution/kanban?project=${encodeURIComponent(project.path)}`;
-  };
-
   const formatLastActivity = (lastActivity: string) => {
     if (!lastActivity) return 'No activity';
     try {
@@ -193,13 +189,16 @@ export function HomePage() {
     <div className="min-h-screen bg-base-100">
       {/* Header */}
       <header className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 border-b border-base-300">
-        <div className="max-w-7xl mx-auto px-6 py-12 text-center">
-          <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-            Welcome to SPEKI
-          </h1>
-          <p className="text-lg text-base-content/70 max-w-2xl mx-auto">
-            Multi-tenant AI development orchestration. Manage your projects, review specs, and execute tasks with intelligent automation.
-          </p>
+        <div className="max-w-7xl mx-auto px-6 py-12 flex items-center justify-center gap-6">
+          <img src="/avatar.png" alt="Speki" className="h-48 w-auto" />
+          <div>
+            <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+              Welcome to SPEKI
+            </h1>
+            <p className="text-lg text-base-content/70 max-w-2xl">
+              Multi-tenant AI development orchestration. Manage your projects, review specs, and execute tasks with intelligent automation.
+            </p>
+          </div>
         </div>
       </header>
 
@@ -365,16 +364,20 @@ export function HomePage() {
                 onClick={() => handleSelectProject(project)}
                 className="bg-base-200 rounded-xl border border-base-300 overflow-hidden hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-200 text-left group"
               >
-                {/* Preview iframe */}
-                <div className="relative h-40 overflow-hidden bg-base-300">
-                  <iframe
-                    src={getPreviewUrl(project)}
-                    title={`Preview of ${project.name}`}
-                    className="w-[200%] h-[200%] border-none scale-50 origin-top-left pointer-events-none"
-                    sandbox="allow-same-origin allow-scripts"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-base-200/90 pointer-events-none" />
-                  <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/5 transition-colors pointer-events-none" />
+                {/* Project stats overview */}
+                <div className="h-32 bg-gradient-to-br from-base-200 to-base-300 p-4 flex items-center justify-around">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">{project.specCount ?? 0}</div>
+                    <div className="text-xs text-base-content/60">Specs</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-warning">{project.activeSpec ? 1 : 0}</div>
+                    <div className="text-xs text-base-content/60">Active</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-success">{project.ralphStatus?.completedTasks ?? 0}</div>
+                    <div className="text-xs text-base-content/60">Done</div>
+                  </div>
                 </div>
 
                 {/* Project Info */}
