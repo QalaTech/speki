@@ -1,376 +1,286 @@
-# Qala
+# SPEKI
 
-**AI-powered iterative development assistant** - Break down PRDs into atomic tasks and execute them one at a time using Claude Code.
+**Spec-First AI Development** — Write specs, get working code. SPEKI transforms your product requirements into atomic tasks and executes them using Claude Code.
 
-## Table of Contents
+> **The Problem**: AI coding assistants are powerful but directionless. They need clear, well-structured requirements to produce quality code.
+>
+> **The Solution**: SPEKI enforces a spec-first workflow where AI reviews your specs, decomposes them into tasks, and executes them one at a time with full test coverage.
 
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Getting Started](#getting-started)
-- [Usage Guide](#usage-guide)
-- [CLI Commands](#cli-commands)
-- [Web Dashboard](#web-dashboard)
-- [Documentation](#documentation)
-- [License](#license)
+---
 
-## Prerequisites
+## Features at a Glance
 
-Before installing Qala, ensure you have:
+### 1. Multi-Project Dashboard
 
-1. **Node.js 18+** - [Download](https://nodejs.org/)
-   ```bash
-   node --version  # Should be v18.0.0 or higher
-   ```
+**Stop context-switching between terminals.** Manage all your AI development projects from one place. Instantly see which projects have pending specs, active tasks, or running executions. Jump between projects without losing your place.
 
-2. **Claude Code CLI** - The `claude` command must be available
-   ```bash
-   claude --version  # Verify Claude Code is installed
-   ```
+*Perfect for teams juggling multiple features, services, or client projects.*
 
-3. **Codex CLI** (optional) - For peer review of decomposed tasks
-   ```bash
-   codex --version  # Optional - enables task validation
-   ```
+![Manage and create projects](assets/1.%20Manage%20and%20create%20projects.png)
 
-## Installation
+---
 
-### From Source (Recommended)
+### 2. Spec Management
+
+**Your specs are your source of truth.** SPEKI automatically tracks every PRD, technical spec, and bug report through its lifecycle—from draft to reviewed to implemented. No more "where's that spec?" or "did we build that yet?"
+
+*Color-coded status indicators show exactly where each spec stands at a glance.*
+
+![Manage PRDs, SPECs, and BUGs](assets/2.%20Manage%20PRDs_SPECs_BUGs.png)
+
+---
+
+### 3. AI-Powered User Story Generation
+
+**Turn vague requirements into buildable tasks.** One PRD becomes 10-20 atomic user stories, each with acceptance criteria, test cases, and dependency ordering. No more ambiguity about what "done" means.
+
+*The AI understands your codebase context and generates stories that actually fit your architecture.*
+
+![Generate User Stories](assets/3.%20Generate%20User%20Stories.png)
+
+---
+
+### 4. Technical Spec Generation
+
+**Bridge the gap between product and engineering.** Generate detailed technical specs from your PRDs automatically. API contracts, data models, component structures—all derived from your requirements.
+
+*Tech specs become living documents that stay in sync with your PRDs.*
+
+![Generate Tech Spec](assets/4.%20Generate%20Tech%20spec.png)
+
+---
+
+### 5. AI Specialist Reviewers
+
+**Catch problems before they become code.** Multiple AI specialists analyze your specs for missing requirements, contradictions, security gaps, and implementation risks. It's like having a senior architect review every document.
+
+*Fix issues when they're cheap (in the spec) instead of expensive (in production).*
+
+![AI Specialist Reviewers](assets/5.%20Use%20AI%20Specialist%20Reviewers.png)
+
+---
+
+### 6. Contextual Spec Chat
+
+**AI that actually knows what you're working on.** Unlike generic chatbots, SPEKI's assistant sees your entire spec. Ask "what happens if the user cancels mid-checkout?" and get answers grounded in YOUR requirements.
+
+*No more copy-pasting context into ChatGPT. The AI already has it.*
+
+![Reference spec for chat](assets/6.%20Reference%20spec%20for%20chat.png)
+
+---
+
+### 7. Interactive Refinement
+
+**Iterate until it's bulletproof.** Have a conversation to clarify edge cases, add missing requirements, or rethink approaches. When you approve a change, the AI edits the spec directly—no manual updates.
+
+*Your specs evolve through dialogue, not document archaeology.*
+
+![Interactive chat with your spec](assets/7.%20Interactive%20chat%20with%20your%20spec.png)
+
+---
+
+### 8. Task Decomposition
+
+**From spec to sprint-ready backlog in minutes.** One click transforms your reviewed spec into a dependency-ordered task list. Each task is small enough to implement in one session, with clear acceptance criteria and test requirements.
+
+*No more grooming meetings to break down stories. The AI does it.*
+
+![Generate technical tasks](assets/8.%20Generate%20technical%20tasks.png)
+
+---
+
+### 9. Automated Execution
+
+**Watch your spec become working code.** Queue tasks and let Claude Code implement them one by one. Each task runs tests, commits on success, and moves to the next. You review the PRs, not the keystrokes.
+
+*Go from PRD to pull request while you grab coffee.*
+
+![Queue and execute tasks](assets/9.%20Queue%20and%20execute%20tasks.png)
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+<details>
+<summary><strong>Node.js 18+</strong> — via nvm or direct download</summary>
+
+**Using nvm (recommended):**
+```bash
+# Install nvm via curl
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash
+
+# Or via Homebrew (macOS)
+brew install nvm
+```
+
+**Or download directly:** [nodejs.org](https://nodejs.org/)
+
+</details>
+
+<details>
+<summary><strong>AI Coding Assistant</strong> — Claude Code or Codex CLI</summary>
+
+SPEKI works with either:
+
+- **Claude Code** — `claude --version` to verify ([install guide](https://docs.anthropic.com/en/docs/claude-code))
+- **Codex CLI** — `codex --version` to verify ([install guide](https://github.com/openai/codex))
+
+</details>
+
+### Installation
 
 ```bash
-# 1. Clone the repository
-git clone git@github.com:QalaTech/qala-ralph.git
-cd qala-ralph
+# Clone the repo
+git clone git@github.com:QalaTech/speki.git
+cd speki
 
-# 2. Install dependencies
+# Ensure Node 18+ (if using nvm)
+nvm install 20
+nvm use 20
+
+# Install dependencies and build
 npm install
-
-# 3. Build all packages (core → server → cli → web)
 npm run build
 
-# 4. Install global 'qala' command
+# Install global command
 ./install.sh
 
-# 5. Verify installation
+# Verify
 qala --help
 ```
 
-To uninstall:
-```bash
-sudo rm /usr/local/bin/qala
-```
-
-## Getting Started
-
-### Step 1: Initialize Your Project
-
-Navigate to your project directory and initialize Qala:
+### Your First Project
 
 ```bash
-cd /path/to/your/project
-
-# Basic initialization
-qala init
-
-# Or with options
-qala init --name "My Project" --language nodejs --branch ralph/feature
-```
-
-**Options:**
-| Option | Description | Default |
-|--------|-------------|---------|
-| `-n, --name <name>` | Project display name | Directory name |
-| `-l, --language <lang>` | Language: `dotnet`, `python`, `nodejs`, `go` | `nodejs` |
-| `-b, --branch <branch>` | Default git branch for features | `ralph/feature` |
-
-This creates a `.speki/` folder in your project with:
-```
-.speki/
-├── config.json          # Project configuration
-├── prompt.md            # Instructions for Claude
-├── standards/           # Language-specific coding standards
-│   ├── dotnet.md
-│   ├── python.md
-│   ├── nodejs.md
-│   └── go.md
-├── tasks/               # Decomposed task files
-└── logs/                # Execution logs
-```
-
-### Step 2: Write a PRD
-
-Create a PRD (Product Requirements Document) in markdown format. Place it in your **project folder** (not the qala-ralph folder) in one of these locations:
-- `specs/` (recommended)
-- `docs/`
-- `prd/`
-
-**Example project structure after creating a spec:**
-```
-my-project/                      # Your project root
-├── src/                         # Your source code
-├── tests/                       # Your tests
-├── package.json                 # Your project config
-├── specs/                       # Create this folder for PRDs
-│   └── auth-feature.md          # Your PRD file
-└── .speki/                      # Created by qala init
-    ├── config.json
-    ├── prompt.md
-    ├── standards/
-    ├── tasks/
-    └── logs/
-```
-
-**Example PRD (`specs/auth-feature.md`):**
-```markdown
-# Feature: User Authentication
-
-## Overview
-Implement JWT-based user authentication for the API.
-
-## Requirements
-1. Users can register with email and password
-2. Users can login and receive a JWT token
-3. Protected endpoints require valid JWT
-4. Tokens expire after 24 hours
-
-## Technical Notes
-- Use bcrypt for password hashing
-- Store refresh tokens in database
-```
-
-### Step 3: Decompose the PRD
-
-Convert your PRD into atomic, executable tasks.
-
-**Option A: Using the Dashboard (Recommended)**
-```bash
-qala dashboard
-```
-1. Select your project from the dropdown
-2. Click **Decompose** in the sidebar
-3. Select your spec file from the list (e.g., `specs/auth-feature.md`)
-4. Set the branch name and language
-5. Click **Start Decomposition**
-6. Watch progress in real-time
-
-**Option B: Using CLI**
-```bash
-qala decompose specs/auth-feature.md --branch ralph/auth
-```
-
-The decomposition will:
-1. Send your PRD to Claude for analysis
-2. Generate atomic user stories with acceptance criteria
-3. Create test cases for each story
-4. Run peer review to validate coverage
-5. Save tasks to `.speki/tasks/`
-
-### Step 4: Review and Activate Tasks
-
-Use the dashboard to review generated tasks:
-
-```bash
+# Launch the dashboard (from speki directory)
 qala dashboard
 ```
 
-In the dashboard:
-1. Go to **Decompose** section
-2. Review each task's acceptance criteria and test cases
-3. Delete any unwanted tasks
-4. Click **Activate & Run** to start execution
+From the dashboard:
+1. Click **New Project** and select your project directory
+2. Add a spec file to the `specs/` folder
+3. Select your spec from the file tree
+4. Click **Review** to get AI feedback
+5. Click **Decompose** to generate tasks
+6. Click **Execute** to start implementation
 
-Or activate via CLI:
-```bash
-qala activate auth-feature.json
+---
+
+## The Spec-First Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           SPEKI WORKFLOW                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐            │
+│   │  Write   │    │  Review  │    │Decompose │    │ Execute  │            │
+│   │   Spec   │───▶│  & Chat  │───▶│  Tasks   │───▶│  & Test  │            │
+│   └──────────┘    └──────────┘    └──────────┘    └──────────┘            │
+│                                                                             │
+│   PRD/Tech Spec   AI Reviewers    Atomic Tasks    Claude Code              │
+│   Bug Reports     Interactive     Dependencies    Auto-Commit              │
+│   Requirements    Refinement      Test Cases      Progress Logs            │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Step 5: Execute Tasks
+### Why Spec-First?
 
-Start the Ralph execution loop:
+| Traditional AI Coding | SPEKI Approach |
+|----------------------|----------------|
+| Vague prompts → inconsistent results | Clear specs → predictable output |
+| One-shot generation → lots of fixes | Iterative refinement → fewer bugs |
+| No test coverage → fragile code | Tests required → reliable code |
+| Context lost between sessions | Full spec context preserved |
 
-```bash
-# Via dashboard - click "Start Ralph"
-
-# Or via CLI
-qala start --iterations 25
-```
-
-Ralph will automatically:
-1. Pick the next ready task (by priority, with dependencies met)
-2. Implement the code following your language standards
-3. Write and run tests
-4. Commit changes on success
-5. Move to the next task
-
-Monitor progress in the dashboard's **Kanban** view with live chat logs.
-
-## Usage Guide
-
-### Typical Workflow
-
-```bash
-# 1. Initialize (once per project)
-cd my-project
-qala init --name "My App" --language dotnet
-
-# 2. Write your PRD
-vim specs/new-feature.md
-
-# 3. Start dashboard
-qala dashboard
-
-# 4. In dashboard:
-#    - Select your PRD file
-#    - Click "Start Decomposition"
-#    - Review generated tasks
-#    - Click "Activate & Run"
-#    - Monitor in Kanban view
-
-# 5. When complete, review commits
-git log --oneline
-```
-
-### Managing Multiple Projects
-
-Qala supports multiple projects from a single dashboard:
-
-```bash
-# Initialize multiple projects
-cd ~/project-a && qala init --name "Project A"
-cd ~/project-b && qala init --name "Project B"
-
-# List all registered projects
-qala list
-
-# Start dashboard (shows all projects)
-qala dashboard
-
-# Use dropdown in dashboard to switch projects
-```
-
-### Stopping Execution
-
-```bash
-# Via dashboard - click "Stop Ralph"
-
-# Or via CLI
-qala stop
-```
+---
 
 ## CLI Commands
 
 | Command | Description |
 |---------|-------------|
 | `qala init` | Initialize project in current directory |
-| `qala decompose <prd>` | Decompose a PRD file into tasks |
-| `qala start` | Start the Ralph execution loop |
-| `qala stop` | Stop a running Ralph loop |
+| `qala dashboard` | Launch the web dashboard |
+| `qala decompose <spec>` | Decompose a spec file into tasks |
+| `qala start` | Start the execution loop |
+| `qala stop` | Stop execution |
 | `qala status` | Show current project status |
 | `qala list` | List all registered projects |
-| `qala dashboard` | Launch the web dashboard |
-| `qala activate <file>` | Activate a task file |
-| `qala unregister` | Remove project from registry |
+| `qala tasks list` | List all tasks with status |
+| `qala tasks next` | Show next pending task |
 
-See [CLI Reference](docs/cli-reference.md) for detailed options.
+See [CLI Reference](docs/cli-reference.md) for all options.
 
-## Web Dashboard
-
-The dashboard provides a visual interface at `http://localhost:3005`:
-
-```bash
-qala dashboard              # Default port 3005
-qala dashboard -p 8080      # Custom port
-qala dashboard --no-open    # Don't open browser
-```
-
-**Features:**
-- **Project Selector** - Switch between registered projects
-- **Decompose View** - Select PRDs, start decomposition, review tasks
-- **Kanban Board** - Visual task status with dependency highlighting
-- **Live Chat Logs** - Real-time Claude activity with chat bubbles
-- **Progress History** - View completed task summaries
-
-## Documentation
-
-- [Getting Started](docs/getting-started.md) - Detailed setup guide
-- [CLI Reference](docs/cli-reference.md) - All commands and options
-- [Architecture](docs/architecture.md) - Technical design
-- [Decomposition](docs/decomposition.md) - How PRD breakdown works
-- [Execution](docs/execution.md) - The Ralph loop explained
-- [Dashboard](docs/dashboard.md) - Web interface guide
-- [Configuration](docs/configuration.md) - Config files reference
+---
 
 ## Project Structure
 
-### Qala Monorepo
+### SPEKI Monorepo
 
 ```
-qala-ralph/
+speki/
 ├── packages/
-│   ├── core/                     # @speki/core - Shared types & business logic
-│   ├── server/                   # @speki/server - Express API
-│   ├── cli/                      # @speki/cli - CLI commands
-│   └── web/                      # @speki/web - React dashboard
-├── docs/                         # Documentation
-└── specs/                        # Example specs
+│   ├── core/      # @speki/core - Business logic & types
+│   ├── server/    # @speki/server - Express API
+│   ├── cli/       # @speki/cli - CLI commands
+│   └── web/       # @speki/web - React dashboard
+├── docs/          # Documentation
+└── assets/        # Screenshots
 ```
 
-### Global Config
+### Per-Project Structure
 
 ```
-~/.qala/                          # Global (created automatically)
-├── projects.json                 # Registry of all projects
-└── config.json                   # Global settings
+your-project/
+├── specs/                    # Your spec files (PRDs, tech specs, bugs)
+│   ├── auth-feature.md
+│   └── payment-system.md
+└── .speki/                   # SPEKI state (auto-managed)
+    ├── config.json           # Project settings
+    ├── progress.txt          # Execution history
+    ├── prompt.md             # Claude instructions
+    ├── standards/            # Language coding standards
+    └── specs/                # Per-spec state
+        └── <spec-id>/
+            ├── session.json  # Review chat history
+            ├── tasks.json    # Decomposed tasks
+            └── logs/         # Execution logs
 ```
 
-### Per-Project Config
+---
 
-```
-/your-project/.speki/             # Per-project (created by qala init)
-├── config.json                   # Project settings
-├── progress.txt                  # Execution history
-├── prompt.md                     # Claude instructions
-├── standards/                    # Coding standards
-├── specs/                        # Per-spec state directories
-│   └── <spec-id>/
-│       ├── metadata.json         # Spec status and timestamps
-│       ├── decompose_state.json  # Task decomposition output
-│       ├── review_state.json     # Review session state
-│       └── logs/                 # Decompose and review logs
-└── tasks/                        # Decomposed task files
-```
+## Documentation
+
+- [Getting Started](docs/getting-started.md) — Detailed setup guide
+- [CLI Reference](docs/cli-reference.md) — All commands and options
+- [Architecture](docs/architecture.md) — Technical design
+- [Configuration](docs/configuration.md) — Config files reference
+
+---
 
 ## Troubleshooting
 
-### "command not found: qala"
-
-Run `npm link` from the qala-ralph directory:
+**"command not found: qala"**
 ```bash
-cd /path/to/qala-ralph
-npm link
+cd /path/to/speki && ./install.sh
 ```
 
-### "No projects found"
-
-Initialize a project first:
-```bash
-cd your-project
-qala init
-```
-
-### Dashboard won't start
-
-Check if port is in use:
+**Dashboard won't start**
 ```bash
 qala dashboard -p 3006  # Try different port
 ```
 
-### Claude not responding
-
-Verify Claude Code is installed and authenticated:
+**Claude not responding**
 ```bash
-claude --version
-claude "Hello"  # Test it works
+claude --version        # Verify installed
+claude "Hello"          # Test authentication
 ```
+
+---
 
 ## License
 
