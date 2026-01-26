@@ -15,8 +15,10 @@ const DEBOUNCE_MS = 100;
  * Publishes 'spec-review/file-changed' SSE events when files change.
  */
 export async function startFileWatcher(projectPath: string): Promise<void> {
-  // Stop any existing watchers for this project
-  stopFileWatcher(projectPath);
+  // Truly idempotent: if already watching this project, do nothing
+  if (projectWatchers.has(projectPath)) {
+    return;
+  }
 
   const specsDir = join(projectPath, 'specs');
   const watchers: FSWatcher[] = [];
@@ -44,19 +46,14 @@ async function watchDirectory(
     if (!dirStat.isDirectory()) return;
 
     // Watch this directory
-    console.log(`[file-watcher] Setting up watcher for directory: ${dirPath}`);
     const watcher = watch(dirPath, { persistent: false }, (eventType, filename) => {
-      console.log(`[file-watcher] Raw event: ${eventType} on ${filename} in ${dirPath}`);
       if (!filename) return;
 
       const fullPath = join(dirPath, filename);
       const relativePath = relative(projectPath, fullPath);
 
       // Only watch markdown files
-      if (!filename.endsWith('.md')) {
-        console.log(`[file-watcher] Ignoring non-markdown file: ${filename}`);
-        return;
-      }
+      if (!filename.endsWith('.md')) return;
 
       // Debounce to avoid duplicate events
       const debounceKey = `${projectPath}:${relativePath}`;
