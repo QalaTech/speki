@@ -50,6 +50,16 @@ const reviewChatStyles = `
     background: linear-gradient(90deg, transparent, rgba(138, 180, 248, 0.08), transparent);
     animation: shimmer 2s infinite;
   }
+  .chat-bubble-compacting-shimmer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.12), transparent);
+    animation: shimmer 1.2s infinite;
+  }
   .text-effect-icon-pulse { animation: iconPulse 1.5s ease-in-out infinite; }
   .text-effect-icon-bounce { animation: iconBounce 0.6s ease-in-out infinite; }
   .text-effect-icon-wiggle { animation: iconWiggle 0.5s ease-in-out infinite; }
@@ -310,6 +320,23 @@ const QUIRKY_MESSAGES: Array<{
   },
 ];
 
+/** Fun messages to show when Claude is compacting context */
+const COMPACTING_MESSAGES: Array<{
+  text: string;
+  icon: string;
+  preset: TextPreset;
+  iconAnim: IconAnimation;
+}> = [
+  { text: "Squashing memories together...", icon: "🗜️", preset: "shake", iconAnim: "wiggle" },
+  { text: "Marie Kondo-ing my thoughts...", icon: "✨", preset: "fade", iconAnim: "pulse" },
+  { text: "Packing a suitcase of context...", icon: "🧳", preset: "slide", iconAnim: "bounce" },
+  { text: "Compressing the brain juice...", icon: "🧠", preset: "blur", iconAnim: "spin" },
+  { text: "Tidying up the thought attic...", icon: "🏠", preset: "wave", iconAnim: "bounce" },
+  { text: "Zipping up the context file...", icon: "📦", preset: "scale", iconAnim: "pulse" },
+  { text: "Defragmenting my memories...", icon: "💾", preset: "shake", iconAnim: "spin" },
+  { text: "Folding thoughts into origami...", icon: "🦢", preset: "bounce", iconAnim: "bounce" },
+];
+
 /** Context for discussing a specific suggestion */
 export interface DiscussingContext {
   suggestionId: string;
@@ -358,6 +385,7 @@ export function ReviewChat({
   const [quirkyMessage, setQuirkyMessage] = useState<
     (typeof QUIRKY_MESSAGES)[0] | null
   >(null);
+  const [isCompacting, setIsCompacting] = useState(false);
   const lastQuirkyIndexRef = useRef<number>(-1);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -438,14 +466,21 @@ export function ReviewChat({
               Object.keys(obj),
             );
 
+            // Handle system status events (e.g. compacting)
+            if (obj.type === "system" && obj.status === "compacting") {
+              setIsCompacting(true);
+              const msg = COMPACTING_MESSAGES[Math.floor(Math.random() * COMPACTING_MESSAGES.length)];
+              setQuirkyMessage(msg);
+            }
             // Handle direct content blocks (Claude CLI stream-json format)
             // Pick a new random quirky message for each activity event
-            if (
+            else if (
               obj.type === "tool_use" ||
               obj.type === "tool_result" ||
               obj.type === "thinking" ||
               obj.type === "text"
             ) {
+              setIsCompacting(false);
               pickRandomQuirky();
             }
             // Also handle wrapped message format for backwards compatibility
@@ -632,10 +667,19 @@ export function ReviewChat({
           {/* Inline streaming indicator - shows fun quirky messages with TextEffect */}
           {isSending && (
             <div className="flex items-start gap-2 max-w-[95%] chat-message-animate self-start">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 shadow-sm bg-primary">
-                <SparklesIcon className="w-4 h-4 text-primary-content" />
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 shadow-sm ${isCompacting ? 'bg-warning animate-pulse' : 'bg-primary'}`}>
+                <SparklesIcon className={`w-4 h-4 ${isCompacting ? 'text-warning-content' : 'text-primary-content'}`} />
               </div>
-              <div className="min-h-[40px] bg-primary/5 border border-dashed border-primary/35 rounded-xl shadow-[0_0_12px_rgba(138,180,248,0.08)] relative overflow-hidden py-2.5 px-3.5 chat-bubble-streaming-shimmer">
+              <div className={`min-h-[40px] rounded-xl relative overflow-hidden py-2.5 px-3.5 ${
+                isCompacting
+                  ? 'bg-warning/10 border-2 border-dashed border-warning/50 shadow-[0_0_16px_rgba(251,191,36,0.15)] chat-bubble-compacting-shimmer'
+                  : 'bg-primary/5 border border-dashed border-primary/35 shadow-[0_0_12px_rgba(138,180,248,0.08)] chat-bubble-streaming-shimmer'
+              }`}>
+                {isCompacting && (
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-warning/70 mb-1">
+                    Context Compacting
+                  </div>
+                )}
                 <div
                   className="flex items-center gap-3 py-2 px-1 min-h-[32px]"
                   key={quirkyMessage?.text || "init"}
@@ -648,7 +692,7 @@ export function ReviewChat({
                   <TextEffect
                     per="char"
                     preset={quirkyMessage?.preset || "fade"}
-                    className="text-[15px] font-medium text-primary tracking-wide"
+                    className={`text-[15px] font-medium tracking-wide ${isCompacting ? 'text-warning' : 'text-primary'}`}
                     delay={0.1}
                   >
                     {quirkyMessage?.text || "Warming up..."}
