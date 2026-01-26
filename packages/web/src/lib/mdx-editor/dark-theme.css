@@ -686,6 +686,147 @@
   background: #484f58;
 }
 
+/* ===== Mermaid Editor ===== */
+.mermaid-editor-block {
+  background: oklch(16% 0.01 256);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid #a371f7;
+  border-radius: 8px;
+  margin: 16px 0;
+  overflow: hidden;
+}
+
+.mermaid-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(163, 113, 247, 0.1);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mermaid-editor-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #a371f7;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mermaid-editor-toggle {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  padding: 2px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mermaid-editor-toggle:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.mermaid-editor-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: oklch(14% 0.005 256);
+  color: #e6edf3;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px 16px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+
+.mermaid-editor-textarea:focus {
+  background: oklch(15% 0.005 256);
+}
+
+.mermaid-editor-preview {
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  min-height: 60px;
+}
+
+/* Mermaid renderer states (shared by editor and chat) */
+.mermaid-renderer {
+  width: 100%;
+  overflow-x: auto;
+  display: flex;
+  justify-content: center;
+}
+
+.mermaid-renderer svg {
+  height: auto;
+  min-width: 0;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+/* Fix mermaid issue #790: foreignObject dimensions are too small for text */
+.mermaid-renderer foreignObject {
+  overflow: visible !important;
+}
+
+.mermaid-renderer .label foreignObject {
+  overflow: visible !important;
+}
+
+.mermaid-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.mermaid-loading-text {
+  color: var(--color-text-muted, #8b949e);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.mermaid-error {
+  padding: 12px 16px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid rgba(248, 81, 73, 0.3);
+  border-radius: 6px;
+}
+
+.mermaid-error-label {
+  display: block;
+  color: #f85149;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.mermaid-error-message {
+  color: #f85149;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Hide mermaid edit controls in read-only mode */
+.spec-editor--readonly .mermaid-editor-header,
+.spec-editor--readonly .mermaid-editor-textarea {
+  display: none !important;
+}
+
+.spec-editor--readonly .mermaid-editor-block {
+  border-left-width: 1px;
+}
+
 /* ===== Frontmatter ===== */
 .mdxeditor [class*="_frontmatter_"],
 .mdxeditor [class*="_frontMatter_"] {
