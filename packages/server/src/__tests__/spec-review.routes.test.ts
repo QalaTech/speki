@@ -111,10 +111,9 @@ describe('spec-review routes', () => {
         .post('/api/spec-review/start')
         .send({ specFile: testSpecPath });
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(202);
       expect(response.body).toHaveProperty('sessionId');
-      expect(response.body.status).toBe('completed');
-      expect(response.body.verdict).toBe('PASS');
+      expect(response.body.status).toBe('in_progress');
       expect(runnerModule.runSpecReview).toHaveBeenCalledWith(
         testSpecPath,
         expect.objectContaining({

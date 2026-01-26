@@ -107,36 +107,32 @@ describe('App - Settings Navigation', () => {
       // Arrange
       setupMocks();
 
-      // Act
-      renderApp();
+      // Act - TopNav only shows on non-home routes
+      renderApp('/execution/kanban');
 
       // Assert
       await waitFor(() => {
-        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+        const settingsButton = screen.getByTitle('Settings');
+        expect(settingsButton).toBeInTheDocument();
       });
-
-      const settingsButton = screen.getByTitle('Settings');
-      expect(settingsButton).toBeInTheDocument();
     });
 
     it('should display gear icon for Settings', async () => {
       // Arrange
       setupMocks();
 
-      // Act
-      renderApp();
+      // Act - TopNav only shows on non-home routes
+      renderApp('/execution/kanban');
 
       // Assert
       await waitFor(() => {
-        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+        const settingsButton = screen.getByTitle('Settings');
+        expect(settingsButton).toBeInTheDocument();
+
+        // Check for gear icon (svg inside button)
+        const svgIcon = settingsButton.querySelector('svg');
+        expect(svgIcon).toBeInTheDocument();
       });
-
-      const settingsButton = screen.getByTitle('Settings');
-      expect(settingsButton).toBeInTheDocument();
-
-      // Check for gear icon (svg inside button)
-      const svgIcon = settingsButton.querySelector('svg');
-      expect(svgIcon).toBeInTheDocument();
     });
   });
 
@@ -145,11 +141,12 @@ describe('App - Settings Navigation', () => {
       // Arrange
       setupMocks();
 
-      // Act
-      renderApp();
+      // Act - TopNav only shows on non-home routes
+      renderApp('/execution/kanban');
 
       await waitFor(() => {
-        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+        const settingsButton = screen.getByTitle('Settings');
+        expect(settingsButton).toBeInTheDocument();
       });
 
       const settingsButton = screen.getByTitle('Settings');
@@ -254,20 +251,17 @@ describe('App - Settings Navigation', () => {
       expect(settingsButton.className).not.toContain('bg-base-300/80');
     });
 
-    it('should show execution content when URL is /', async () => {
+    it('should render home page when URL is /', async () => {
       // Arrange
       setupMocks();
 
-      // Act - render with / as initial route
+      // Act - render with / as initial route (home page has its own layout, no TopNav)
       renderApp('/');
 
+      // Assert - Home page should render (TopNav is not shown on home page)
       await waitFor(() => {
-        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+        expect(screen.getByText('Welcome to SPEKI')).toBeInTheDocument();
       });
-
-      // Assert - Execution button should have active styling
-      const executionButton = screen.getAllByText('Execution')[0];
-      expect(executionButton.closest('button')?.className).toContain('bg-base-100');
     });
   });
 
@@ -276,35 +270,31 @@ describe('App - Settings Navigation', () => {
       // Arrange
       setupMocks();
 
-      // Act
-      renderApp();
+      // Act - TopNav only shows on non-home routes
+      renderApp('/execution/kanban');
 
       // Assert
       await waitFor(() => {
-        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+        const specsButton = screen.getAllByText('Specs')[0];
+        expect(specsButton).toBeInTheDocument();
       });
-
-      const specsButton = screen.getAllByText('Specs')[0];
-      expect(specsButton).toBeInTheDocument();
     });
 
     it('should display document icon with Specs label', async () => {
       // Arrange
       setupMocks();
 
-      // Act
-      renderApp();
+      // Act - TopNav only shows on non-home routes
+      renderApp('/execution/kanban');
 
       // Assert
       await waitFor(() => {
-        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+        const specsButton = screen.getAllByText('Specs')[0];
+        expect(specsButton).toBeInTheDocument();
+        // Check for document icon (svg inside button)
+        const svgIcon = specsButton.closest('button')?.querySelector('svg');
+        expect(svgIcon).toBeInTheDocument();
       });
-
-      const specsButton = screen.getAllByText('Specs')[0];
-      expect(specsButton).toBeInTheDocument();
-      // Check for document icon (svg inside button)
-      const svgIcon = specsButton.closest('button')?.querySelector('svg');
-      expect(svgIcon).toBeInTheDocument();
     });
   });
 
@@ -313,11 +303,12 @@ describe('App - Settings Navigation', () => {
       // Arrange
       setupMocks();
 
-      // Act
-      renderApp();
+      // Act - TopNav only shows on non-home routes
+      renderApp('/execution/kanban');
 
       await waitFor(() => {
-        expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
+        const specsButton = screen.getAllByText('Specs')[0];
+        expect(specsButton).toBeInTheDocument();
       });
 
       const specsButton = screen.getAllByText('Specs')[0];
