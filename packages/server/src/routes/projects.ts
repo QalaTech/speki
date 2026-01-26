@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express';
-import { Registry, Project, listSpecs, readSpecMetadata, loadPRDForSpec } from '@speki/core';
+import { Registry, Project, listSpecs, readSpecMetadata, loadPRDForSpec, installSerenaMcp } from '@speki/core';
 import { publishProjects } from '../sse.js';
 import { homedir } from 'os';
 import { resolve, join } from 'path';
@@ -270,6 +270,9 @@ router.post('/init', async (req, res) => {
     // Register in central registry
     await Registry.register(projectPath, projectName);
 
+    // Install Serena MCP server (non-blocking — skip silently on failure)
+    const serenaResult = installSerenaMcp(projectPath);
+
     // Notify clients
     const projects = await Registry.list();
     publishProjects('projects/updated', projects);
@@ -279,7 +282,8 @@ router.post('/init', async (req, res) => {
       path: projectPath,
       name: projectName,
       branch,
-      language
+      language,
+      serena: serenaResult,
     });
   } catch (error) {
     res.status(500).json({

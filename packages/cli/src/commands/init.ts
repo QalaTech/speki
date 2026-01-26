@@ -5,7 +5,7 @@ import { basename, join } from "path";
 import { confirm } from "@inquirer/prompts";
 import { Project } from "@speki/core";
 import { Registry } from "@speki/core";
-import { isCliAvailable, isExecutableAvailable } from "@speki/core";
+import { isCliAvailable, isExecutableAvailable, installSerenaMcp } from "@speki/core";
 
 
 /**
@@ -72,16 +72,12 @@ async function installSerena(projectPath: string): Promise<void> {
     return;
   }
 
-  // Install Serena (only relevant for Claude CLI integrations)
+  // Install Serena using shared utility
   console.log(chalk.blue("  Adding Serena MCP server (Claude) ..."));
-  try {
-    execSync(
-      `claude mcp add serena -- uvx --from git+https://github.com/oraios/serena serena start-mcp-server --context claude-code --project "${projectPath}" --enable-web-dashboard False`,
-      { stdio: "inherit" }
-    );
+  const result = installSerenaMcp(projectPath);
+  if (result.success) {
     console.log(chalk.green("  Serena MCP server added successfully!"));
-  } catch {
-    // Don't fail the init if Serena installation fails (it might already exist)
+  } else {
     console.log(
       chalk.yellow("  Serena installation skipped (may already be configured)")
     );
