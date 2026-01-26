@@ -15,7 +15,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDecomposeSSE } from "../../hooks/useDecomposeSSE";
 import { apiFetch } from "../ui/ErrorContext";
-import type { QueuedTaskReference, UserStory } from "../../types";
+import type { QueuedTaskReference, UserStory, DecomposeFeedback, FeedbackItem } from "../../types";
 import { ChatMarkdown } from "../chat/ChatMarkdown";
 import { SpecEditor, type SpecEditorRef } from "../shared/SpecEditor";
 
@@ -34,6 +34,66 @@ interface Props {
 function getSpecId(specPath: string): string {
   const filename = specPath.split("/").pop() || specPath;
   return filename.replace(/\.md$/i, "");
+}
+
+function formatFeedbackItem(item: string | FeedbackItem): string {
+  if (typeof item === "string") return item;
+  const parts: string[] = [];
+  if (item.taskId) parts.push(`[${item.taskId}]`);
+  if (item.taskIds) parts.push(`[${item.taskIds.join(", ")}]`);
+  if (item.requirement) parts.push(item.requirement);
+  if (item.issue) parts.push(item.issue);
+  if (item.reason) parts.push(item.reason);
+  if (item.action) parts.push(`Action: ${item.action}`);
+  if (item.prdSection) parts.push(`(PRD: ${item.prdSection})`);
+  if (item.dependsOn) parts.push(`depends on: ${item.dependsOn}`);
+  return parts.join(" ");
+}
+
+function FeedbackSection({ label, items, icon }: { label: string; items?: (string | FeedbackItem)[]; icon: string }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-semibold text-base-content/70 flex items-center gap-1.5">
+        <span>{icon}</span> {label}
+        <span className="badge badge-xs badge-ghost">{items.length}</span>
+      </div>
+      <ul className="space-y-1.5 text-sm">
+        {items.map((item, i) => (
+          <li key={i} className="flex gap-2 items-start">
+            <span className="text-base-content/40 mt-0.5">•</span>
+            <span className="text-base-content/80">{formatFeedbackItem(item)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ReviewFeedbackPanel({ feedback }: { feedback: DecomposeFeedback }) {
+  const hasFeedback =
+    (feedback.missingRequirements?.length ?? 0) > 0 ||
+    (feedback.contradictions?.length ?? 0) > 0 ||
+    (feedback.dependencyErrors?.length ?? 0) > 0 ||
+    (feedback.duplicates?.length ?? 0) > 0 ||
+    (feedback.suggestions?.length ?? 0) > 0 ||
+    (feedback.issues?.length ?? 0) > 0;
+
+  if (!hasFeedback) return null;
+
+  return (
+    <div className="bg-base-200 border border-error/20 rounded-lg p-4 my-3 space-y-4">
+      <div className="text-sm font-bold text-error/80">Review Feedback</div>
+      <FeedbackSection label="Missing Requirements" items={feedback.missingRequirements} icon="⚠" />
+      <FeedbackSection label="Contradictions" items={feedback.contradictions} icon="⊘" />
+      <FeedbackSection label="Dependency Errors" items={feedback.dependencyErrors} icon="⛓" />
+      <FeedbackSection label="Duplicates" items={feedback.duplicates} icon="⧉" />
+      <FeedbackSection label="Suggestions" items={feedback.suggestions} icon="💡" />
+      {feedback.issues && feedback.issues.length > 0 && (
+        <FeedbackSection label="Other Issues" items={feedback.issues} icon="ℹ" />
+      )}
+    </div>
+  );
 }
 
 export function SpecDecomposeTab({
@@ -64,6 +124,11 @@ export function SpecDecomposeTab({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const editorRef = useRef<SpecEditorRef>(null);
+
+  // Review feedback state
+  const [reviewFeedback, setReviewFeedback] = useState<DecomposeFeedback | null>(null);
+  const [reviewVerdict, setReviewVerdict] = useState<'PASS' | 'FAIL' | 'UNKNOWN' | 'SKIPPED' | null>(null);
+  const [retryLoading, setRetryLoading] = useState(false);
 
   // Convert task to markdown for editing
   const taskToMarkdown = (task: UserStory): string => {
@@ -228,8 +293,50 @@ export function SpecDecomposeTab({
           // completedIds is populated from queue tasks in loadQueueTasks
         }
       }
+
+      // Load decompose state (verdict)
+      const stateRes = await apiFetch(`/api/decompose/state?${params}`);
+      if (stateRes.ok) {
+        const stateData = await stateRes.json();
+        setReviewVerdict(stateData.verdict || null);
+      }
+
+      // Load review feedback
+      const feedbackRes = await apiFetch(`/api/decompose/feedback?${params}`);
+      if (feedbackRes.ok) {
+        const feedbackData = await feedbackRes.json();
+        setReviewFeedback(feedbackData.feedback || null);
+      }
     } catch (err) {
       console.error("Failed to load decompose state:", err);
+    }
+  };
+
+  const handleRetryReview = async () => {
+    if (!specId) return;
+
+    setRetryLoading(true);
+    setError(null);
+
+    try {
+      const params = new URLSearchParams({ project: projectPath });
+      const res = await apiFetch(`/api/decompose/retry-review?${params}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ specId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to retry review");
+      } else {
+        // Reload state to get updated verdict and feedback
+        await loadDecomposeState();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to retry review");
+    } finally {
+      setRetryLoading(false);
     }
   };
 
@@ -711,6 +818,38 @@ export function SpecDecomposeTab({
           <span>⚠</span>
           <span>{error}</span>
         </div>
+      )}
+
+      {/* Review verdict + retry */}
+      {reviewVerdict && reviewVerdict !== 'SKIPPED' && (
+        <div className={`alert my-3 ${reviewVerdict === 'PASS' ? 'alert-success' : reviewVerdict === 'FAIL' ? 'alert-error' : 'alert-warning'}`}>
+          <span>{reviewVerdict === 'PASS' ? '✓' : reviewVerdict === 'FAIL' ? '✗' : '○'}</span>
+          <span className="font-medium">
+            Review {reviewVerdict === 'PASS' ? 'passed' : reviewVerdict === 'FAIL' ? 'failed' : 'inconclusive'}
+          </span>
+          {reviewVerdict === 'FAIL' && hasBeenDecomposed && (
+            <button
+              className="btn btn-sm btn-outline"
+              onClick={handleRetryReview}
+              disabled={retryLoading || isLoading}
+            >
+              {retryLoading ? (
+                <>
+                  <span className="loading loading-spinner loading-xs" /> Retrying...
+                </>
+              ) : (
+                <>
+                  <ArrowPathIcon className="h-4 w-4" /> Retry Review
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Review feedback details */}
+      {reviewFeedback && reviewVerdict && reviewVerdict !== 'PASS' && (
+        <ReviewFeedbackPanel feedback={reviewFeedback} />
       )}
 
       {/* Spec already completed message */}
