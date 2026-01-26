@@ -4,6 +4,9 @@
  */
 
 import { createElement } from 'react';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
+import { Prec } from '@codemirror/state';
 import {
   headingsPlugin,
   listsPlugin,
@@ -36,6 +39,48 @@ import {
   InsertCodeBlock,
   Separator,
 } from '@mdxeditor/editor';
+
+/**
+ * Dark CodeMirror highlight style to override the bundled basic-light theme.
+ * Wrapped in Prec.highest so it wins over the hardcoded basicLight in MDXEditor.
+ */
+const darkHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword, color: '#ff7b72' },
+  { tag: [tags.name, tags.deleted, tags.character, tags.macroName], color: '#ffa657' },
+  { tag: [tags.propertyName], color: '#79c0ff' },
+  { tag: [tags.variableName], color: '#ffa657' },
+  { tag: [tags.function(tags.variableName)], color: '#d2a8ff' },
+  { tag: [tags.labelName], color: '#79c0ff' },
+  { tag: [tags.color, tags.constant(tags.name), tags.standard(tags.name)], color: '#79c0ff' },
+  { tag: [tags.definition(tags.name), tags.separator], color: '#a3be8c' },
+  { tag: [tags.brace], color: '#c9d1d9' },
+  { tag: [tags.annotation], color: '#d2a8ff' },
+  { tag: [tags.number, tags.changed, tags.modifier, tags.self, tags.namespace], color: '#79c0ff' },
+  { tag: [tags.typeName, tags.className], color: '#ffa657' },
+  { tag: [tags.operator, tags.operatorKeyword], color: '#ff7b72' },
+  { tag: [tags.tagName], color: '#7ee787' },
+  { tag: [tags.squareBracket], color: '#c9d1d9' },
+  { tag: [tags.angleBracket], color: '#c9d1d9' },
+  { tag: [tags.attributeName], color: '#79c0ff' },
+  { tag: [tags.regexp], color: '#a5d6ff' },
+  { tag: [tags.quote], color: '#8b949e' },
+  { tag: [tags.string], color: '#a5d6ff' },
+  { tag: tags.link, color: '#58a6ff', textDecoration: 'underline' },
+  { tag: [tags.url, tags.escape, tags.special(tags.string)], color: '#a5d6ff' },
+  { tag: [tags.meta], color: '#79c0ff' },
+  { tag: [tags.comment], color: '#b8c4ce', fontStyle: 'italic' },
+  { tag: tags.strong, fontWeight: 'bold', color: '#e6edf3' },
+  { tag: tags.emphasis, fontStyle: 'italic', color: '#e6edf3' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  { tag: tags.heading, fontWeight: 'bold', color: '#e6edf3' },
+  { tag: [tags.atom, tags.bool, tags.special(tags.variableName)], color: '#79c0ff' },
+  { tag: [tags.processingInstruction, tags.inserted], color: '#7ee787' },
+  { tag: tags.invalid, color: '#f85149', borderBottom: '1px dotted #f85149' },
+]);
+
+const darkCodeMirrorExtensions = [
+  Prec.highest(syntaxHighlighting(darkHighlightStyle)),
+];
 
 /**
  * Generic directive descriptor that renders unknown directives as plain text.
@@ -106,6 +151,7 @@ export function createEditorPlugins(): RealmPlugin[] {
       defaultCodeBlockLanguage: '',
     }),
     codeMirrorPlugin({
+      codeMirrorExtensions: darkCodeMirrorExtensions,
       codeBlockLanguages: {
         // Default / fallback
         '': 'Plain Text',
