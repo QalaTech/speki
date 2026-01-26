@@ -41,7 +41,7 @@ export function ChatBubble({
         </div>
       )}
       {header && <div className="chat-header">{header}</div>}
-      <div className={`chat-bubble ${variant ? variantClasses[variant] : ''}`}>
+      <div className={`chat-bubble min-w-0 ${variant ? variantClasses[variant] : ''}`}>
         {children}
       </div>
       {footer && <div className="chat-footer opacity-50">{footer}</div>}

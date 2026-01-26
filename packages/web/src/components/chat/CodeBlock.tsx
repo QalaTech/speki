@@ -15,7 +15,7 @@ export function CodeBlock({ language, children, className }: CodeBlockProps) {
 
   if (lang === 'mermaid' || lang === 'mmd') {
     return (
-      <div className="relative my-2 rounded-md overflow-hidden bg-base-300">
+      <div className="relative my-2 rounded-md bg-base-300" style={{ width: 0, minWidth: '100%' }}>
         <div className="py-1 px-2.5 bg-base-100/50 border-b border-base-content/10 flex justify-between items-center">
           <span className="text-[0.7em] text-base-content/50 uppercase tracking-wide">mermaid</span>
           <button
@@ -30,7 +30,7 @@ export function CodeBlock({ language, children, className }: CodeBlockProps) {
             {copied ? '✓ Copied!' : '📋 Copy'}
           </button>
         </div>
-        <div className="p-4 flex justify-center">
+        <div className="p-4 overflow-x-auto">
           <MermaidRenderer code={String(children).replace(/\n$/, '')} />
         </div>
       </div>

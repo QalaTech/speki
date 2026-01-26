@@ -2,8 +2,8 @@
  * Shared Mermaid rendering component.
  * Used by both MDXEditor (MermaidCodeBlockEditor) and chat (CodeBlock).
  *
- * Uses mermaid.run() to render directly into a DOM element (the same approach
- * as the mermaid live editor), which avoids SVG viewBox/foreignObject sizing bugs.
+ * Uses mermaid.run() which renders in-place with correct DOM measurement,
+ * avoiding the foreignObject clipping bugs (mermaid#790).
  * Includes debounce (300ms) to avoid re-rendering on every keystroke.
  */
 import { useEffect, useRef, useState } from 'react';
@@ -21,7 +21,8 @@ export function MermaidRenderer({ code, className }: MermaidRendererProps) {
 
   useEffect(() => {
     const trimmed = code.trim();
-    if (!trimmed || !containerRef.current) {
+    if (!trimmed) {
+      if (containerRef.current) containerRef.current.innerHTML = '';
       setError(null);
       setLoading(false);
       return;
@@ -33,13 +34,13 @@ export function MermaidRenderer({ code, className }: MermaidRendererProps) {
     const timer = setTimeout(async () => {
       try {
         const mermaid = await getMermaid();
-        if (cancelled || !containerRef.current) return;
+        if (cancelled) return;
 
-        // Set the mermaid source as text content, then let mermaid.run() render it in-place
         const el = containerRef.current;
+        if (!el) return;
+
         el.textContent = trimmed;
         el.removeAttribute('data-processed');
-
         await mermaid.run({ nodes: [el] });
 
         if (!cancelled) {
@@ -47,8 +48,8 @@ export function MermaidRenderer({ code, className }: MermaidRendererProps) {
           setLoading(false);
         }
       } catch (err) {
-        if (!cancelled && containerRef.current) {
-          containerRef.current.textContent = '';
+        if (!cancelled) {
+          if (containerRef.current) containerRef.current.innerHTML = '';
           setError(err instanceof Error ? err.message : 'Failed to render diagram');
           setLoading(false);
         }
@@ -61,19 +62,16 @@ export function MermaidRenderer({ code, className }: MermaidRendererProps) {
     };
   }, [code]);
 
-  if (error) {
-    return (
-      <div className={`mermaid-renderer mermaid-error ${className ?? ''}`}>
-        <span className="mermaid-error-label">Diagram error</span>
-        <pre className="mermaid-error-message">{error}</pre>
-      </div>
-    );
-  }
-
   return (
-    <div className={`mermaid-renderer ${loading ? 'mermaid-loading' : 'mermaid-success'} ${className ?? ''}`}>
-      {loading && <span className="mermaid-loading-text">Rendering diagram…</span>}
-      <div ref={containerRef} className="mermaid" />
+    <div className={`mermaid-renderer ${error ? 'mermaid-error' : loading ? 'mermaid-loading' : 'mermaid-success'} ${className ?? ''}`}>
+      {loading && !error && <span className="mermaid-loading-text">Rendering diagram…</span>}
+      {error && (
+        <>
+          <span className="mermaid-error-label">Diagram error</span>
+          <pre className="mermaid-error-message">{error}</pre>
+        </>
+      )}
+      <div ref={containerRef} className="mermaid" style={{ display: error ? 'none' : undefined }} />
     </div>
   );
 }

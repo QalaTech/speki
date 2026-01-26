@@ -522,7 +522,7 @@ export function ReviewChat({
       >
         {/* Messages Area */}
         <div
-          className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 chat-scrollbar"
+          className="flex-1 overflow-y-auto overflow-x-hidden p-4 flex flex-col gap-3 chat-scrollbar"
           data-testid="chat-messages"
         >
           {/* Context Banner - shown when discussing a suggestion */}

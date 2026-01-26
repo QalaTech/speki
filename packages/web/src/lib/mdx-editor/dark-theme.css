@@ -759,7 +759,6 @@
 /* Mermaid renderer states (shared by editor and chat) */
 .mermaid-renderer {
   width: 100%;
-  overflow-x: auto;
   display: flex;
   justify-content: center;
 }
