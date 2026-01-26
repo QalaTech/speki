@@ -90,11 +90,11 @@ async function getDecomposePrompt(project: Project): Promise<string> {
 function getDefaultDecomposePrompt(): string {
   return `# PRD Decomposition Task
 
-You are a senior technical architect breaking down a Product Requirements Document (PRD) into small, atomic user stories suitable for the Ralph iterative development technique.
+You are a senior product analyst breaking down a Product Requirements Document (PRD) into product-focused user stories. Each story describes a user-facing outcome — what the product does and why it matters. Stories are product-focused but may include technical detail where it directly aids successful implementation.
 
 ## Your Task
 
-Analyze the PRD provided below and decompose it into small, independent user stories that can each be completed in a single AI coding iteration.
+Analyze the PRD provided below and decompose it into small, independent user stories that each describe a product outcome a user can experience or verify. Each story must reference the specific PRD sections it derives from.
 
 ## Output Format
 
@@ -104,27 +104,25 @@ Output ONLY valid JSON in this exact format:
 {
   "projectName": "Project name from PRD",
   "branchName": "BRANCH_NAME_HERE",
-  "language": "dotnet|python|nodejs|go",
-  "standardsFile": ".speki/standards/{language}.md",
   "description": "Brief description of the overall feature",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Short descriptive title",
-      "description": "What this story accomplishes",
+      "title": "As a [role], I want [feature], so that [benefit]",
+      "description": "What this story delivers to the user and why it matters. Include technical context where it aids implementation.",
       "acceptanceCriteria": [
-        "Specific, testable criterion from the PRD",
-        "All relevant tests pass",
-        "Build succeeds with no warnings"
-      ],
-      "testCases": [
-        "MethodName_Scenario_ExpectedResult - Description"
+        "Observable product behavior the user can verify"
       ],
       "priority": 1,
       "passes": false,
       "notes": "",
       "dependencies": [],
-      "complexity": "low|medium|high"
+      "complexity": "low|medium|high",
+      "context": {
+        "references": [
+          "PRD Section 'X' (lines N-M): relevant detail"
+        ]
+      }
     }
   ]
 }
@@ -132,12 +130,16 @@ Output ONLY valid JSON in this exact format:
 
 ## Rules
 
-1. Each story must be completable in ONE coding session
-2. Maximum 3 files changed per story (excluding tests)
-3. Include specific testCases for every story
-4. Set all passes to false
-5. Set complexity: "low" (simple, single file), "medium" (2-3 files), or "high" (complex logic)
-6. Output ONLY the JSON, no explanations
+1. Each story must represent a single user-facing capability or behavior
+2. Use "As a [role], I want [feature], so that [benefit]" title format
+3. Acceptance criteria describe observable product behavior (technical criteria OK when verifiable)
+4. Every story MUST include context.references linking to specific PRD sections
+5. Do NOT include testCases — test design is a tech-spec concern
+6. Include technical detail where it aids implementation success
+7. Order by product value flow: Core flows → Supporting flows → Edge cases → Polish
+8. Set all passes to false
+9. Set complexity: "low" (simple), "medium" (standard workflow), or "high" (complex multi-step)
+10. Output ONLY the JSON, no explanations
 `;
 }
 
@@ -577,6 +579,32 @@ export async function runDecompose(
       console.log(`  ${chalk.cyan('Continuing from:')} ${taskPrefix}-${String(nextUSNumber).padStart(3, '0')}`);
     }
 
+    // For tech specs with a parent PRD, load the parent's user stories
+    let parentStoriesContext = '';
+    if (isTechSpec) {
+      const specMetadata = await readSpecMetadata(project.projectPath, specId);
+      if (specMetadata?.parent) {
+        const parentSpecId = extractSpecId(specMetadata.parent);
+        const parentTasksPath = join(
+          project.projectPath, '.speki', 'specs', parentSpecId, 'tasks.json'
+        );
+        try {
+          const parentContent = await fs.readFile(parentTasksPath, 'utf-8');
+          const parentPrd = JSON.parse(parentContent) as PRDData;
+          if (parentPrd.userStories && parentPrd.userStories.length > 0) {
+            const storyLines = parentPrd.userStories
+              .map((s) => `- ${s.id}: ${s.title}`)
+              .join('\n');
+            parentStoriesContext = `\n\n## Parent PRD User Stories\n\nThis tech spec implements the following user stories from the parent PRD:\n${storyLines}\n\nFor each implementation task, specify which user stories (US-XXX) it helps achieve via the \`achievesUserStories\` field.`;
+            console.log(chalk.cyan(`  Parent PRD: ${parentSpecId} (${parentPrd.userStories.length} user stories)`));
+          }
+        } catch {
+          // Parent tasks.json doesn't exist yet — parent PRD may not be decomposed
+          console.log(chalk.yellow(`  Note: Parent PRD '${parentSpecId}' has no decomposed tasks yet`));
+        }
+      }
+    }
+
     // Build full prompt
     let fullPrompt = promptTemplate;
     fullPrompt += `\n\n## Branch Name\n${branchName}`;
@@ -587,6 +615,11 @@ export async function runDecompose(
 
     if (language) {
       fullPrompt += `\n\n## Language\n${language}\n\nUse this for the \`language\` and \`standardsFile\` fields in the JSON output.`;
+    }
+
+    // Append parent PRD stories context for tech specs
+    if (parentStoriesContext) {
+      fullPrompt += parentStoriesContext;
     }
 
     // Use appropriate content tag based on spec type

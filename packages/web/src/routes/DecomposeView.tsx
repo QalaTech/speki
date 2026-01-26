@@ -207,10 +207,14 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
     setError(null);
     setErrorType(null);
 
+    // Derive specId from selected file path (filename without .md)
+    const specId = selectedFile ? selectedFile.split('/').pop()?.replace(/\.md$/i, '') : null;
+
     try {
       const res = await apiFetch(apiUrl('/api/decompose/retry-review'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ specId }),
       });
 
       const data = await res.json();
@@ -481,7 +485,42 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
               {decomposeState.verdict === 'PASS' ? '✓' : decomposeState.verdict === 'FAIL' ? '✗' : '○'} Review {decomposeState.verdict}
             </Badge>
           )}
+          {decomposeState.verdict === 'FAIL' && draft && !error && (
+            <button
+              className="btn btn-xs btn-outline btn-error"
+              onClick={handleRetryReview}
+              disabled={retrying}
+            >
+              {retrying ? 'Retrying...' : 'Retry Review'}
+            </button>
+          )}
         </div>
+
+        {/* Inline Review Feedback (visible when verdict is not PASS) */}
+        {feedback && decomposeState.verdict && decomposeState.verdict !== 'PASS' && (feedback.missingRequirements?.length || feedback.contradictions?.length ||
+          feedback.dependencyErrors?.length || feedback.duplicates?.length || feedback.suggestions?.length || feedback.issues?.length) && (
+          <div className="bg-base-200 border border-error/30 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-error">Review Feedback</span>
+              <Badge variant="error" size="xs">{feedback.verdict}</Badge>
+            </div>
+            {renderFeedbackSection('Missing Requirements', feedback.missingRequirements)}
+            {renderFeedbackSection('Contradictions', feedback.contradictions)}
+            {renderFeedbackSection('Dependency Errors', feedback.dependencyErrors)}
+            {renderFeedbackSection('Duplicates', feedback.duplicates)}
+            {renderFeedbackSection('Suggestions', feedback.suggestions)}
+            {feedback.issues && feedback.issues.length > 0 && (
+              <div className="space-y-1">
+                <div className="text-sm font-semibold opacity-70">Issues</div>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  {feedback.issues.map((issue, i) => (
+                    <li key={i}>{issue}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {error && (
           <Alert variant="error">
@@ -499,7 +538,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                   <span>to configure a different reviewer CLI.</span>
                 </div>
               )}
-              {(errorType === 'TIMEOUT' || errorType === 'CRASH') && draft && (
+              {(errorType === 'TIMEOUT' || errorType === 'CRASH' || decomposeState.verdict === 'FAIL') && draft && (
                 <button
                   className="btn btn-sm btn-outline"
                   onClick={handleRetryReview}
