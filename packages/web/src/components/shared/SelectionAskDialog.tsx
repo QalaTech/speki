@@ -4,6 +4,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ChatBubbleLeftRightIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface SelectionAskDialogProps {
@@ -99,10 +100,10 @@ export function SelectionAskDialog({
 
   if (!isExpanded) {
     // Initial state - just show the "Ask about this" button
-    return (
+    return createPortal(
       <div
         data-selection-ask-dialog
-        className="absolute z-50 transform -translate-x-1/2"
+        className="fixed z-[9999] transform -translate-x-1/2"
         style={{
           top: position.top,
           left: position.left,
@@ -121,16 +122,17 @@ export function SelectionAskDialog({
           <ChatBubbleLeftRightIcon className="h-4 w-4" />
           Ask about this
         </button>
-      </div>
+      </div>,
+      document.body
     );
   }
 
   // Expanded state - show dialog with input
-  return (
+  return createPortal(
     <div
       ref={dialogRef}
       data-selection-ask-dialog
-      className="absolute z-50 w-80 rounded-xl bg-base-100 border border-base-content/10
+      className="fixed z-[9999] w-80 rounded-xl bg-base-100 border border-base-content/10
                  shadow-2xl shadow-black/20 transform -translate-x-1/2
                  animate-in fade-in zoom-in-95 duration-150"
       style={{
@@ -188,6 +190,7 @@ export function SelectionAskDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

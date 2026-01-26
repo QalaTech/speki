@@ -220,8 +220,8 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
 
       setSelection({
         text: selectedText,
-        top: rect.bottom - containerRect.top + 8,
-        left: rect.left - containerRect.left + (rect.width / 2),
+        top: rect.bottom + 8,
+        left: rect.left + (rect.width / 2),
       });
     };
 
