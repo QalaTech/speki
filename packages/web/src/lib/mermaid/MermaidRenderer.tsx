@@ -7,7 +7,7 @@
  * Includes debounce (300ms) to avoid re-rendering on every keystroke.
  */
 import { useEffect, useRef, useState } from 'react';
-import { getMermaid } from './mermaid-lazy';
+import { queueMermaidRun } from './mermaid-lazy';
 
 interface MermaidRendererProps {
   code: string;
@@ -33,7 +33,6 @@ export function MermaidRenderer({ code, className }: MermaidRendererProps) {
 
     const timer = setTimeout(async () => {
       try {
-        const mermaid = await getMermaid();
         if (cancelled) return;
 
         const el = containerRef.current;
@@ -41,7 +40,7 @@ export function MermaidRenderer({ code, className }: MermaidRendererProps) {
 
         el.textContent = trimmed;
         el.removeAttribute('data-processed');
-        await mermaid.run({ nodes: [el] });
+        await queueMermaidRun(el);
 
         if (!cancelled) {
           setError(null);

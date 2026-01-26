@@ -705,6 +705,51 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.mermaid-editor-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mermaid-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mermaid-zoom-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.mermaid-zoom-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.mermaid-editor-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.mermaid-zoom-level {
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+  text-align: center;
+  border-left: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+}
+
 .mermaid-editor-label {
   font-size: 12px;
   font-weight: 600;
@@ -741,6 +786,7 @@
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   font-size: 13px;
   line-height: 1.5;
+  min-height: 160px;
   resize: vertical;
   outline: none;
 }
@@ -754,6 +800,7 @@
   display: flex;
   justify-content: center;
   min-height: 60px;
+  overflow: auto;
 }
 
 /* Mermaid renderer states (shared by editor and chat) */
@@ -764,10 +811,10 @@
 }
 
 .mermaid-renderer svg {
-  height: auto;
   min-width: 0;
   flex-shrink: 0;
   overflow: visible;
+  max-width: none !important;
 }
 
 /* Fix mermaid issue #790: foreignObject dimensions are too small for text */
@@ -816,8 +863,8 @@
   word-break: break-word;
 }
 
-/* Hide mermaid edit controls in read-only mode */
-.spec-editor--readonly .mermaid-editor-header,
+/* Hide mermaid edit controls in read-only mode (keep zoom controls) */
+.spec-editor--readonly .mermaid-editor-toggle,
 .spec-editor--readonly .mermaid-editor-textarea {
   display: none !important;
 }

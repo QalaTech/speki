@@ -1,6 +1,10 @@
 /**
  * Lazy-loads the mermaid library and initializes it once.
  * Mermaid is ~800KB so we code-split it via dynamic import.
+ *
+ * Also provides a serialized render queue because mermaid.run() uses
+ * global state and produces garbled output when called concurrently
+ * (e.g. 3 diagrams in a single chat message all mount at once).
  */
 import type mermaidAPI from 'mermaid';
 import { mermaidThemeVariables } from './mermaid-theme';
@@ -34,4 +38,17 @@ export function getMermaid(): Promise<typeof mermaidAPI> {
   });
 
   return initPromise;
+}
+
+/** Serializes mermaid.run() calls to prevent concurrent rendering conflicts. */
+let renderQueue: Promise<void> = Promise.resolve();
+
+export function queueMermaidRun(node: HTMLElement): Promise<void> {
+  const job = renderQueue.then(async () => {
+    const mermaid = await getMermaid();
+    await mermaid.run({ nodes: [node] });
+  });
+  // Chain next job regardless of success/failure so the queue doesn't stall
+  renderQueue = job.catch(() => {});
+  return job;
 }
