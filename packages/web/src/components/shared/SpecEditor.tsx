@@ -216,8 +216,6 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
 
       // Get position for the floating button
       const rect = range.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-
       setSelection({
         text: selectedText,
         top: rect.bottom + 8,

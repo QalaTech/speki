@@ -7,6 +7,9 @@ export interface ProjectEntry {
   path: string;
   status: string;
   lastActivity: string;
+  specCount?: number;
+  activeSpec?: string;
+  ralphStatus?: { completedTasks: number };
 }
 
 async function fetchProjects(): Promise<ProjectEntry[]> {
