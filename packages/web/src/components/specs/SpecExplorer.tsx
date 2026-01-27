@@ -52,13 +52,10 @@ interface SpecExplorerProps {
 export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   // URL state management
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedPath, setSelectedPathState] = useState<string | null>(
-    () => searchParams.get('spec') || null
-  );
+  const selectedPath = searchParams.get('spec');
 
   // Sync selectedPath with URL
   const setSelectedPath = useCallback((path: string | null) => {
-    setSelectedPathState(path);
     setSearchParams(prev => {
       if (path) {
         prev.set('spec', path);
@@ -220,7 +217,6 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
   // Reset state when project changes
   useEffect(() => {
-    setSelectedPathState(null);
     setActiveTab('preview');
     setIsChatOpen(false);
     setDiscussingContext(null);

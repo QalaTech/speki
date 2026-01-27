@@ -48,7 +48,10 @@ function App() {
     const currentPath = window.location.pathname;
     const requiresProject = currentPath !== '/' && currentPath !== '';
     if (!selectedProject && projects.length > 0 && requiresProject) {
-      setSearchParams({ project: projects[0].path });
+      setSearchParams(prev => {
+        prev.set('project', projects[0].path);
+        return prev;
+      });
     }
   }, [selectedProject, projects, setSearchParams]);
 
@@ -68,7 +71,11 @@ function App() {
 
   // Update project in URL
   const setSelectedProject = useCallback((projectPath: string) => {
-    setSearchParams({ project: projectPath });
+    setSearchParams(prev => {
+      prev.set('project', projectPath);
+      prev.delete('spec'); // Clear spec when switching projects
+      return prev;
+    });
   }, [setSearchParams]);
 
   const handleTasksActivated = useCallback(() => {
