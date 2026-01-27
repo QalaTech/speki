@@ -662,12 +662,12 @@ export function SpecDecomposeTab({
                         <div
                           className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                             status === "completed"
-                              ? "bg-success text-success-foreground"
+                              ? "bg-success text-success-content"
                               : status === "blocked"
-                                ? "bg-muted text-muted-foreground"
+                                ? "bg-warning text-warning-content"
                                 : status === "running"
-                                  ? "bg-primary text-primary-foreground animate-pulse"
-                                  : "bg-muted text-muted-foreground"
+                                  ? "bg-info text-info-content animate-pulse"
+                                  : "bg-base-300 text-base-content/70"
                           }`}
                         >
                           {status === "completed" ? (

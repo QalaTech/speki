@@ -101,14 +101,14 @@ const DrawerContent = React.forwardRef<
         {/* Drag handle for bottom/top drawers */}
         {(side === "bottom" || side === "top") && (
           <div className={cn(
-            "mx-auto w-12 h-1.5 shrink-0 rounded-full bg-primary mb-4",
+            "mx-auto w-12 h-1.5 shrink-0 rounded-full bg-muted-foreground mb-4",
             side === "bottom" ? "mt-4" : "mb-4 mt-auto"
           )} />
         )}
         {/* Drag handle for left/right drawers */}
         {(side === "left" || side === "right") && (
           <div className={cn(
-            "absolute top-1/2 -translate-y-1/2 w-1.5 h-12 rounded-full bg-muted/50",
+            "absolute top-1/2 -translate-y-1/2 w-1.5 h-12 rounded-full bg-muted-foreground",
             side === "left" ? "right-2" : "left-2"
           )} />
         )}

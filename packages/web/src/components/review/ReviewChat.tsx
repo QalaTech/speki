@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@speki/core";
 import { ChatMarkdown } from "../chat/ChatMarkdown";
 import { Button } from "../ui/Button";
@@ -7,6 +7,66 @@ import {
   ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/solid";
 
+const QUIRKY_MESSAGES: Array<{
+  text: string;
+  icon: string;
+}> = [
+  { text: "Thinkering...", icon: "🧠" },
+  { text: "Doing specy things...", icon: "📝" },
+  { text: "Ooooh nasty...", icon: "😬" },
+  { text: "Hmm, interesting...", icon: "🤔" },
+  { text: "Consulting the oracle...", icon: "🔮" },
+  { text: "Reading the tea leaves...", icon: "🍵" },
+  { text: "Pondering deeply...", icon: "💭" },
+  { text: "Having a eureka moment...", icon: "💡" },
+  { text: "Channeling my inner genius...", icon: "🧙" },
+  { text: "Crunching the bits...", icon: "⚙️" },
+  { text: "Summoning the answers...", icon: "✨" },
+  { text: "Decoding the matrix...", icon: "🔢" },
+  { text: "Brewing some thoughts...", icon: "☕" },
+  { text: "Connecting the dots...", icon: "🔗" },
+  { text: "Mining for insights...", icon: "⛏️" },
+  { text: "Untangling spaghetti...", icon: "🍝" },
+  { text: "Polishing the response...", icon: "💎" },
+  { text: "Assembling brilliance...", icon: "🏗️" },
+  { text: "Consulting the specs...", icon: "📋" },
+  { text: "Doing the thing...", icon: "🎯" },
+  { text: "Ross was right. They were on a break.", icon: "🛋️" },
+  { text: "Checking my Bitcoin… still not rich.", icon: "₿" },
+  { text: "Watching Buffy instead of thinking.", icon: "🧛‍♀️" },
+  { text: "Googling something I should know.", icon: "🔍" },
+  { text: "Stack Overflow, don’t fail me now.", icon: "🧑‍💻" },
+  { text: "Turning it off and on again.", icon: "🔌" },
+  { text: "Blaming Mercury in retrograde.", icon: "🪐" },
+  { text: "Overthinking… again.", icon: "🔄" },
+  { text: "This made sense five minutes ago.", icon: "😵‍💫" },
+  { text: "Waiting for inspiration to load…", icon: "⏳" },
+  { text: "Pretending this is intentional.", icon: "😌" },
+  { text: "Ah yes, a bold design choice.", icon: "🎨" },
+  { text: "Explaining it to a rubber duck.", icon: "🦆" },
+  { text: "This is fine. Everything is fine.", icon: "🔥" },
+  { text: "Consulting past-me (bad idea).", icon: "📜" },
+  { text: "Rolling a D20 for luck.", icon: "🎲" },
+  { text: "Sacrificing performance for vibes.", icon: "✨" },
+  { text: "One does not simply answer this.", icon: "🧝‍♂️" },
+  { text: "Loading sarcasm module…", icon: "😏" },
+  { text: "Manifesting a solution.", icon: "🧿" },
+];
+
+/** Fun messages to show when Claude is compacting context */
+const COMPACTING_MESSAGES: Array<{
+  text: string;
+  icon: string;
+}> = [
+  { text: "Squashing memories together...", icon: "🗜️" },
+  { text: "Marie Kondo-ing my thoughts...", icon: "✨" },
+  { text: "Packing a suitcase of context...", icon: "🧳" },
+  { text: "Compressing the brain juice...", icon: "🧠" },
+  { text: "Tidying up the thought attic...", icon: "🏠" },
+  { text: "Zipping up the context file...", icon: "📦" },
+  { text: "Defragmenting my memories...", icon: "💾" },
+  { text: "Folding thoughts into origami...", icon: "🦢" },
+];
 
 
 
@@ -54,7 +114,25 @@ export function ReviewChat({
   projectPath,
 }: ReviewChatProps): React.ReactElement {
   const [inputValue, setInputValue] = useState("");
+  const [quirkyMessage, setQuirkyMessage] = useState<
+    (typeof QUIRKY_MESSAGES)[0] | null
+  >(null);
+  const [isCompacting, setIsCompacting] = useState(false);
+  const lastQuirkyIndexRef = useRef<number>(-1);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Pick a random quirky message (avoids repeating the last one)
+  const pickRandomQuirky = useCallback(() => {
+    let newIndex: number;
+    do {
+      newIndex = Math.floor(Math.random() * QUIRKY_MESSAGES.length);
+    } while (
+      newIndex === lastQuirkyIndexRef.current &&
+      QUIRKY_MESSAGES.length > 1
+    );
+    lastQuirkyIndexRef.current = newIndex;
+    setQuirkyMessage(QUIRKY_MESSAGES[newIndex]);
+  }, []);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -120,6 +198,44 @@ export function ReviewChat({
               "keys:",
               Object.keys(obj),
             );
+
+            // Handle system status events (e.g. compacting)
+            if (obj.type === "system" && obj.status === "compacting") {
+              setIsCompacting(true);
+              const msg = COMPACTING_MESSAGES[Math.floor(Math.random() * COMPACTING_MESSAGES.length)];
+              setQuirkyMessage(msg);
+            }
+            // Handle direct content blocks (Claude CLI stream-json format)
+            // Pick a new random quirky message for each activity event
+            else if (
+              obj.type === "tool_use" ||
+              obj.type === "tool_result" ||
+              obj.type === "thinking" ||
+              obj.type === "text"
+            ) {
+              setIsCompacting(false);
+              pickRandomQuirky();
+            }
+            // Also handle wrapped message format for backwards compatibility
+            else if (obj.type === "assistant" && obj.message?.content) {
+              const content = obj.message.content;
+              if (Array.isArray(content)) {
+                for (const block of content) {
+                  if (block.type === "tool_use" || block.type === "text") {
+                    pickRandomQuirky();
+                  }
+                }
+              }
+            } else if (obj.type === "user" && obj.message?.content) {
+              const content = obj.message.content;
+              if (Array.isArray(content)) {
+                for (const block of content) {
+                  if (block.type === "tool_result") {
+                    pickRandomQuirky();
+                  }
+                }
+              }
+            }
           } catch {
             // Ignore parse errors for individual lines
           }
@@ -132,14 +248,22 @@ export function ReviewChat({
     return () => {
       eventSource.close();
     };
-  }, [projectPath]); // Don't depend on sessionId - we want connection active even before first message
+  }, [projectPath, pickRandomQuirky]); // Don't depend on sessionId - we want connection active even before first message
 
   const handleSubmit = async (): Promise<void> => {
     const message = inputValue.trim();
     if (!message || isSending) return;
 
     setInputValue("");
+    // Pick initial quirky message for streaming
+    pickRandomQuirky();
+
     await onSendMessage(message, selectedText, discussingContext?.suggestionId);
+
+    // Clear streaming state after response completes
+    setTimeout(() => {
+      setQuirkyMessage(null);
+    }, 100);
 
     // Clear context after sending
     onClearDiscussingContext?.();
@@ -274,16 +398,26 @@ export function ReviewChat({
           {/* Inline streaming indicator - Simple typing dots */}
           {isSending && (
             <div className="flex items-center gap-3 max-w-[95%] chat-message-animate self-start mt-1">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 shadow-sm bg-primary/20 text-primary border border-primary/20">
-                <SparklesIcon className="w-3.5 h-3.5 animate-pulse" />
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 shadow-sm ${isCompacting ? 'bg-warning/20 text-warning border-warning/20' : 'bg-primary/20 text-primary border border-primary/20'}`}>
+                <SparklesIcon className={`w-3.5 h-3.5 ${isCompacting ? 'animate-bounce' : 'animate-pulse'}`} />
               </div>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 h-5 px-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:-0.3s]"></span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:-0.15s]"></span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce"></span>
+              <div className="flex flex-col gap-0.5">
+                {isCompacting && (
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-warning/70">
+                    Compacting
+                  </span>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-medium italic ${isCompacting ? 'text-warning/60' : 'text-muted-foreground/60'}`}>
+                    {quirkyMessage?.icon || "✨"}
+                    {quirkyMessage?.text || "Warming up..."}
+                  </span>
+                  <div className="flex items-center gap-1 h-5 px-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${isCompacting ? 'bg-warning/60' : 'bg-primary/60'} animate-bounce [animation-delay:-0.3s]`}></span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isCompacting ? 'bg-warning/60' : 'bg-primary/60'} animate-bounce [animation-delay:-0.15s]`}></span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isCompacting ? 'bg-warning/60' : 'bg-primary/60'} animate-bounce`}></span>
+                  </div>
                 </div>
-                <span className="text-xs text-muted-foreground/60 font-medium italic">Speki is thinking...</span>
               </div>
             </div>
           )}
