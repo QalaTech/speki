@@ -726,7 +726,9 @@ function buildDecomposeVerdictGuidelines(descriptions: {
 }): string {
   return `### Verdict Guidelines
 - **PASS**: ${descriptions.pass}
-- **FAIL**: ${descriptions.fail}`;
+- **FAIL**: ${descriptions.fail}
+
+**IMPORTANT**: Use FAIL only when critical-severity issues are present. Warnings and info-level issues should NOT cause a FAIL verdict. Report them as issues but set the verdict to PASS.`;
 }
 
 /**
@@ -754,7 +756,7 @@ ${buildDecomposeContextHeader()}
 4. Flag requirements with no matching task coverage
 
 ${buildDecomposeSeveritySection({
-  critical: "Core functionality requirement not covered by any task",
+  critical: "Core functional requirement not covered by any task",
   warning: "Secondary requirement or edge case missing coverage",
   info: "Nice-to-have or implicit requirement not explicitly tasked",
 })}
@@ -762,8 +764,8 @@ ${buildDecomposeSeveritySection({
 ${buildDecomposeOutputFormat("missing_requirements", "coverage")}
 
 ${buildDecomposeVerdictGuidelines({
-  pass: "All requirements in spec have corresponding task coverage",
-  fail: "One or more requirements lack task coverage",
+  pass: "All core functional requirements in spec have corresponding task coverage",
+  fail: "Core functional requirement (critical severity) not covered by any task",
 })}
 
 `;
@@ -803,8 +805,8 @@ ${buildDecomposeSeveritySection({
 ${buildDecomposeOutputFormat("contradictions", "consistency")}
 
 ${buildDecomposeVerdictGuidelines({
-  pass: "No contradictions found between spec and tasks or between tasks",
-  fail: "One or more contradictions detected that need resolution",
+  pass: "No critical contradictions found between spec and tasks or between tasks",
+  fail: "Critical contradiction that would cause implementation failure",
 })}
 
 `;
@@ -850,7 +852,7 @@ ${buildDecomposeOutputFormat("dependency_validation", "dependencies")}
 
 ${buildDecomposeVerdictGuidelines({
   pass: "All dependencies are valid and form a correct execution DAG",
-  fail: "Dependency issues found that need correction",
+  fail: "Circular dependency or missing blocking dependency (critical severity)",
 })}
 
 `;
@@ -892,7 +894,7 @@ ${buildDecomposeContextHeader()}
 - Same API endpoint modified by multiple tasks = potential conflict
 
 ${buildDecomposeSeveritySection({
-  critical: "Exact duplicate tasks that should be removed",
+  critical: "Exact duplicate tasks that must be removed",
   warning: "Significant overlap that should be merged or clarified",
   info: "Minor overlap that could be better organized",
 })}
@@ -900,8 +902,8 @@ ${buildDecomposeSeveritySection({
 ${buildDecomposeOutputFormat("duplicate_detection", "duplication")}
 
 ${buildDecomposeVerdictGuidelines({
-  pass: "No duplicate or significantly overlapping tasks found",
-  fail: "Duplicate or overlapping tasks detected that need resolution",
+  pass: "No exact duplicate or critically overlapping tasks found",
+  fail: "Exact duplicate tasks that must be removed (critical severity)",
 })}
 
 `;
@@ -1739,7 +1741,7 @@ export function buildAggregationPrompt(
   reviewResults: Array<{
     promptName: string;
     verdict: string;
-    issues: string[];
+    issues: unknown[];
     suggestions: unknown[];
   }>,
   promptCount: number

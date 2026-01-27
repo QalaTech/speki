@@ -177,7 +177,8 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
     setError(null);
 
     try {
-      const activateRes = await apiFetch(apiUrl('/api/decompose/activate'), { method: 'POST' });
+      const specPathParam = selectedFile ? `&specPath=${encodeURIComponent(selectedFile)}` : '';
+      const activateRes = await apiFetch(apiUrl('/api/decompose/activate') + specPathParam, { method: 'POST' });
       if (!activateRes.ok) {
         const data = await activateRes.json();
         throw new Error(data.error || 'Failed to activate tasks');
@@ -369,12 +370,15 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
   const formatFeedbackItem = (item: string | FeedbackItem): string => {
     if (typeof item === 'string') return item;
     const parts: string[] = [];
+    if (item.severity) parts.push(`[${item.severity.toUpperCase()}]`);
     if (item.taskId) parts.push(`[${item.taskId}]`);
     if (item.taskIds) parts.push(`[${item.taskIds.join(', ')}]`);
     if (item.requirement) parts.push(item.requirement);
+    if (item.description) parts.push(item.description);
     if (item.issue) parts.push(item.issue);
     if (item.reason) parts.push(item.reason);
     if (item.action) parts.push(`Action: ${item.action}`);
+    if (item.suggestedFix) parts.push(`Fix: ${item.suggestedFix}`);
     if (item.prdSection) parts.push(`(PRD: ${item.prdSection})`);
     if (item.dependsOn) parts.push(`depends on: ${item.dependsOn}`);
     return parts.join(' ');

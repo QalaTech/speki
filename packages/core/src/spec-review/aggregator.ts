@@ -74,7 +74,7 @@ function extractSplitProposal(
   );
 
   const reason = splitSuggestion?.issue
-    ?? godSpecResult.issues[0]
+    ?? godSpecResult.issues[0]?.description
     ?? 'Spec detected as too large or complex';
 
   return {

@@ -6,7 +6,7 @@
 
 import { Router } from 'express';
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { join, relative } from 'path';
 import { projectContext } from '../middleware/project-context.js';
 import { runDecompose } from '@speki/core';
 import { publishDecompose } from '../sse.js';
@@ -182,9 +182,21 @@ router.get('/draft', async (req, res) => {
 /**
  * GET /api/decompose/feedback
  * Get current feedback
+ * Query params: specPath (optional) - path to spec file for per-spec feedback
  */
 router.get('/feedback', async (req, res) => {
   try {
+    // Try per-spec feedback first if specPath provided
+    const specPath = req.query.specPath as string;
+    if (specPath) {
+      const specId = extractSpecId(specPath);
+      const logsDir = getSpecLogsDir(req.projectPath!, specId);
+      const content = await fs.readFile(join(logsDir, 'decompose_feedback.json'), 'utf-8');
+      const feedback = JSON.parse(content);
+      return res.json({ feedback });
+    }
+
+    // Fallback to global path
     const content = await fs.readFile(req.project!.decomposeFeedbackPath, 'utf-8');
     const feedback = JSON.parse(content);
     res.json({ feedback });
@@ -282,30 +294,34 @@ router.get('/review-log', async (req, res) => {
 /**
  * DELETE /api/decompose/draft/task/:taskId
  * Delete a task from the draft
+ * Query params: specPath (required) - path to the spec file
  */
 router.delete('/draft/task/:taskId', async (req, res) => {
   try {
-    const state = await req.project!.loadDecomposeState();
+    const specPath = req.query.specPath as string;
+    if (!specPath) {
+      return res.status(400).json({ error: 'specPath query parameter is required' });
+    }
 
-    if (!state.draftFile) {
+    const specId = extractSpecId(specPath);
+    const prd = await loadPRDForSpec(req.projectPath!, specId);
+
+    if (!prd) {
       return res.status(400).json({ error: 'No draft available' });
     }
 
-    const content = await fs.readFile(state.draftFile, 'utf-8');
-    const draft = JSON.parse(content) as PRDData;
-
-    const taskIndex = draft.userStories.findIndex(s => s.id === req.params.taskId);
+    const taskIndex = prd.userStories.findIndex(s => s.id === req.params.taskId);
     if (taskIndex === -1) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
     // Remove the task
-    draft.userStories.splice(taskIndex, 1);
+    prd.userStories.splice(taskIndex, 1);
 
     // Save updated draft
-    await fs.writeFile(state.draftFile, JSON.stringify(draft, null, 2));
+    await savePRDForSpec(req.projectPath!, specId, prd);
 
-    res.json({ success: true, remainingTasks: draft.userStories.length });
+    res.json({ success: true, remainingTasks: prd.userStories.length });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to delete task',
@@ -316,21 +332,30 @@ router.delete('/draft/task/:taskId', async (req, res) => {
 
 /**
  * POST /api/decompose/execute-task
- * Execute a single task by adding it to prd.json (or creating one)
+ * Execute a single task by adding it to the spec's tasks.json (or creating one)
+ * Body: { task, projectName?, branchName?, language?, sourceFile?, specId? }
  */
 router.post('/execute-task', async (req, res) => {
   try {
-    const { task, projectName, branchName, language, sourceFile } = req.body;
+    const { task, projectName, branchName, language, sourceFile, specId: bodySpecId } = req.body;
 
     if (!task) {
       return res.status(400).json({ error: 'Task is required' });
     }
 
+    // Derive specId from body or sourceFile path
+    const specId = bodySpecId || (sourceFile ? extractSpecId(sourceFile) : null);
+    if (!specId) {
+      return res.status(400).json({ error: 'specId or sourceFile is required' });
+    }
+
+    const projectPath = req.projectPath!;
+
     // Load existing PRD or create new one
-    let prd = await req.project!.loadPRD();
+    let prd = await loadPRDForSpec(projectPath, specId);
 
     if (prd) {
-      // Check if task already exists in prd.json
+      // Check if task already exists
       const existingTask = prd.userStories.find(s => s.id === task.id);
       if (existingTask) {
         return res.json({
@@ -356,10 +381,10 @@ router.post('/execute-task', async (req, res) => {
     }
 
     // Save updated PRD
-    await req.project!.savePRD(prd);
+    await savePRDForSpec(projectPath, specId, prd);
 
     // Update loop limit if Ralph is running
-    const runningLoop = getRunningLoop(req.projectPath!);
+    const runningLoop = getRunningLoop(projectPath);
     if (runningLoop) {
       const incompleteTasks = prd.userStories.filter(s => !s.passes).length;
       const newLimit = calculateLoopLimit(incompleteTasks);
@@ -367,24 +392,6 @@ router.post('/execute-task', async (req, res) => {
         runningLoop.updateMaxIterations(newLimit);
         runningLoop.maxIterations = newLimit;
         console.log(`[Decompose] Updated loop limit to ${newLimit} after adding task ${task.id}`);
-      }
-    }
-
-    // Remove task from source file after adding to prd.json
-    if (sourceFile) {
-      try {
-        const sourceContent = await fs.readFile(sourceFile, 'utf-8');
-        const sourceData = JSON.parse(sourceContent) as PRDData;
-
-        const taskIndex = sourceData.userStories.findIndex(s => s.id === task.id);
-        if (taskIndex !== -1) {
-          // Remove the task from the source file
-          sourceData.userStories.splice(taskIndex, 1);
-          await fs.writeFile(sourceFile, JSON.stringify(sourceData, null, 2));
-        }
-      } catch (err) {
-        // Don't fail the request if we can't update source file
-        console.warn('Could not update source file:', err);
       }
     }
 
@@ -404,58 +411,30 @@ router.post('/execute-task', async (req, res) => {
 
 /**
  * POST /api/decompose/activate
- * Activate draft as the active PRD
+ * Activate draft as the active PRD.
+ * In the per-spec model, tasks are already in .speki/specs/<specId>/tasks.json
+ * (written by the decompose runner), so activation validates they exist.
+ * Query params: specPath (required) - path to the spec file
  */
 router.post('/activate', async (req, res) => {
   try {
-    const state = await req.project!.loadDecomposeState();
-
-    if (!state.draftFile) {
-      return res.status(400).json({ error: 'No draft to activate' });
+    const specPath = req.query.specPath as string;
+    if (!specPath) {
+      return res.status(400).json({ error: 'specPath query parameter is required' });
     }
 
-    const content = await fs.readFile(state.draftFile, 'utf-8');
-    const draft = JSON.parse(content) as PRDData;
-    const newTasks = draft.userStories || [];
+    const specId = extractSpecId(specPath);
+    const projectPath = req.projectPath!;
 
-    if (newTasks.length === 0) {
-      return res.status(400).json({ error: 'No tasks in draft to activate' });
+    // In the per-spec model, draft and PRD are the same file (tasks.json).
+    // Verify tasks exist in the spec's tasks.json.
+    const prd = await loadPRDForSpec(projectPath, specId);
+
+    if (!prd || !prd.userStories || prd.userStories.length === 0) {
+      return res.status(400).json({ error: 'No tasks to activate. Run decompose first.' });
     }
 
-    // Load existing PRD to merge with
-    let existingPrd = await req.project!.loadPRD();
-
-    if (existingPrd) {
-      // Merge: add new tasks that don't already exist
-      const existingIds = new Set(existingPrd.userStories.map(s => s.id));
-      const tasksToAdd = newTasks.filter(t => !existingIds.has(t.id));
-
-      if (tasksToAdd.length === 0) {
-        return res.json({
-          success: true,
-          storyCount: 0,
-          message: 'All tasks already exist in PRD',
-        });
-      }
-
-      existingPrd.userStories.push(...tasksToAdd);
-      await req.project!.savePRD(existingPrd);
-
-      // Clear tasks from the draft file after activation
-      draft.userStories = [];
-      await fs.writeFile(state.draftFile, JSON.stringify(draft, null, 2));
-
-      res.json({ success: true, storyCount: tasksToAdd.length });
-    } else {
-      // No existing PRD - use draft as the new PRD
-      await req.project!.savePRD(draft);
-
-      // Clear tasks from the draft file after activation
-      draft.userStories = [];
-      await fs.writeFile(state.draftFile, JSON.stringify(draft, null, 2));
-
-      res.json({ success: true, storyCount: newTasks.length });
-    }
+    res.json({ success: true, storyCount: prd.userStories.length });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to activate draft',
@@ -578,47 +557,37 @@ router.post('/start', async (req, res) => {
 
 /**
  * POST /api/decompose/approve
- * Approve the current decomposition draft (merges with existing PRD)
+ * Approve the current decomposition draft.
+ * In the per-spec model, tasks are already in tasks.json, so this validates
+ * and updates the decompose state to COMPLETED.
+ * Query params: specPath (required) - path to the spec file
  */
 router.post('/approve', async (req, res) => {
   try {
-    const state = await req.project!.loadDecomposeState();
-
-    if (!state.draftFile) {
-      return res.status(400).json({ error: 'No draft to approve' });
+    const specPath = req.query.specPath as string;
+    if (!specPath) {
+      return res.status(400).json({ error: 'specPath query parameter is required' });
     }
 
-    // Load draft
-    const content = await fs.readFile(state.draftFile, 'utf-8');
-    const draft = JSON.parse(content) as PRDData;
-    const newTasks = draft.userStories || [];
+    const specId = extractSpecId(specPath);
+    const projectPath = req.projectPath!;
 
-    // Load existing PRD to merge with
-    let existingPrd = await req.project!.loadPRD();
-    let addedCount = 0;
+    const prd = await loadPRDForSpec(projectPath, specId);
+    const storyCount = prd?.userStories?.length || 0;
 
-    if (existingPrd) {
-      // Merge: add new tasks that don't already exist
-      const existingIds = new Set(existingPrd.userStories.map(s => s.id));
-      const tasksToAdd = newTasks.filter(t => !existingIds.has(t.id));
-      addedCount = tasksToAdd.length;
-
-      existingPrd.userStories.push(...tasksToAdd);
-      await req.project!.savePRD(existingPrd);
-    } else {
-      // No existing PRD - use draft as the new PRD
-      await req.project!.savePRD(draft);
-      addedCount = newTasks.length;
+    if (storyCount === 0) {
+      return res.status(400).json({ error: 'No tasks to approve' });
     }
 
-    // Update state
-    await req.project!.saveDecomposeState({
+    // Update state to completed
+    const state = await loadDecomposeStateForSpec(projectPath, specId);
+    await saveDecomposeStateForSpec(projectPath, specId, {
       ...state,
       status: 'COMPLETED',
       message: 'Decomposition approved and activated',
     });
 
-    res.json({ success: true, storyCount: addedCount });
+    res.json({ success: true, storyCount });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to approve decomposition',
@@ -630,6 +599,7 @@ router.post('/approve', async (req, res) => {
 /**
  * POST /api/decompose/feedback
  * Submit feedback for re-decomposition
+ * Query params: specPath (optional) - path to the spec file for per-spec state
  */
 router.post('/feedback', async (req, res) => {
   try {
@@ -639,18 +609,31 @@ router.post('/feedback', async (req, res) => {
       return res.status(400).json({ error: 'Feedback required' });
     }
 
-    // Save feedback
-    const { promises: fs } = await import('fs');
-    await fs.writeFile(
-      req.project!.decomposeFeedbackPath,
-      JSON.stringify({ feedback, timestamp: new Date().toISOString() }, null, 2)
-    );
+    const projectPath = req.projectPath!;
 
-    // Update state
-    await req.project!.saveDecomposeState({
-      status: 'REVIEWING',
-      message: 'Feedback submitted, ready for re-decomposition',
-    });
+    // Save feedback to per-spec location if specPath provided, else global
+    const specPath = req.query.specPath as string;
+    if (specPath) {
+      const specId = extractSpecId(specPath);
+      const logsDir = getSpecLogsDir(projectPath, specId);
+      await fs.mkdir(logsDir, { recursive: true });
+      await fs.writeFile(
+        join(logsDir, 'decompose_feedback.json'),
+        JSON.stringify({ feedback, timestamp: new Date().toISOString() }, null, 2)
+      );
+
+      // Update per-spec state
+      await saveDecomposeStateForSpec(projectPath, specId, {
+        status: 'REVIEWING',
+        message: 'Feedback submitted, ready for re-decomposition',
+      });
+    } else {
+      // Fallback to global path
+      await fs.writeFile(
+        req.project!.decomposeFeedbackPath,
+        JSON.stringify({ feedback, timestamp: new Date().toISOString() }, null, 2)
+      );
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -664,13 +647,18 @@ router.post('/feedback', async (req, res) => {
 /**
  * POST /api/decompose/reset
  * Reset decomposition state
+ * Query params: specPath (optional) - path to the spec file for per-spec state
  */
 router.post('/reset', async (req, res) => {
   try {
-    await req.project!.saveDecomposeState({
-      status: 'IDLE',
-      message: 'Ready to decompose PRD',
-    });
+    const specPath = req.query.specPath as string;
+    if (specPath) {
+      const specId = extractSpecId(specPath);
+      await saveDecomposeStateForSpec(req.projectPath!, specId, {
+        status: 'IDLE',
+        message: 'Ready to decompose PRD',
+      });
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -1001,9 +989,12 @@ router.post('/generate-tech-spec', async (req, res) => {
         line: `✅ Tech spec generated: ${result.outputPath}`,
       });
 
+      // Return relative path (e.g. "specs/foo.tech.md") to match tree nodes and SSE events
+      const relativePath = relative(req.projectPath!, result.outputPath);
+
       res.json({
         success: true,
-        outputPath: result.outputPath,
+        outputPath: relativePath,
         specId: extractSpecId(result.outputPath),
       });
     } else {

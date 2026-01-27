@@ -208,7 +208,24 @@ export class CodexCliEngine implements Engine {
     const stderrPath = join(logDir, `iteration_${iteration}.err`);
 
     // Read the prompt content
-    const promptContent = await fs.readFile(promptPath, 'utf-8');
+    let promptContent = await fs.readFile(promptPath, 'utf-8');
+    const originalPromptContent = promptContent;
+
+    // Emulate session support using conversation history
+    if (options.sessionId && options.resumeSession) {
+      const historyPath = join(logDir, `session_${options.sessionId}_history.json`);
+      try {
+        const historyData = await fs.readFile(historyPath, 'utf-8');
+        const history = JSON.parse(historyData);
+        let contextPrefix = '## Previous conversation context:\n\n';
+        for (const entry of history) {
+          contextPrefix += `### ${entry.role}:\n${entry.content}\n\n`;
+        }
+        promptContent = contextPrefix + '\n---\n\n## Current request:\n\n' + promptContent;
+      } catch {
+        // No history yet — first call
+      }
+    }
 
     const startTime = Date.now();
 
@@ -219,6 +236,7 @@ export class CodexCliEngine implements Engine {
       'exec',
       '-s', 'danger-full-access',
       '--dangerously-bypass-approvals-and-sandbox',
+      '--skip-git-repo-check',
       '-C', cwd,
       '--json',
       '-',  // Read from stdin
@@ -316,7 +334,7 @@ export class CodexCliEngine implements Engine {
     codex.stdin.end();
 
     return new Promise((resolve) => {
-      codex.on('close', (code) => {
+      codex.on('close', async (code) => {
         const durationMs = Date.now() - startTime;
 
         // Extract agent_message content from Codex JSONL output.
@@ -324,6 +342,18 @@ export class CodexCliEngine implements Engine {
         // {"id":"0","msg":{"type":"agent_message","message":"..."}} lines.
         // Without this, extractJson picks up the Codex config preamble instead.
         const extractedOutput = this.extractAgentMessages(output);
+
+        // Save conversation history for session emulation
+        if (options.sessionId) {
+          const historyPath = join(logDir, `session_${options.sessionId}_history.json`);
+          let history: Array<{ role: string; content: string }> = [];
+          try {
+            history = JSON.parse(await fs.readFile(historyPath, 'utf-8'));
+          } catch { /* first entry */ }
+          history.push({ role: 'user', content: originalPromptContent });
+          history.push({ role: 'assistant', content: extractedOutput || output });
+          await fs.writeFile(historyPath, JSON.stringify(history, null, 2));
+        }
 
         resolve({
           success: code === 0,
@@ -334,6 +364,7 @@ export class CodexCliEngine implements Engine {
           stderrPath,
           exitCode: code ?? -1,
           claudePid: codex.pid,
+          sessionId: options.sessionId,
         });
       });
 
@@ -467,6 +498,7 @@ export class CodexCliEngine implements Engine {
       'exec',
       '-s', 'danger-full-access',
       '--dangerously-bypass-approvals-and-sandbox',
+      '--skip-git-repo-check',
       '-C', cwd,
       '--json',
       '-',  // Read from stdin
@@ -827,7 +859,7 @@ export class CodexCliEngine implements Engine {
     if (text.toUpperCase().includes('FAIL')) {
       return {
         verdict: 'FAIL',
-        missingRequirements: ['Review indicated failure but JSON not parseable'],
+        missingRequirements: [{ id: 'parse-error-0', severity: 'critical', description: 'Review indicated failure but JSON not parseable' }],
         contradictions: [],
         dependencyErrors: [],
         duplicates: [],

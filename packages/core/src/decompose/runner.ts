@@ -5,6 +5,7 @@
  * Ralph-compatible task files using an Engine.
  */
 
+import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import { join, basename } from 'path';
 import chalk from 'chalk';
@@ -320,7 +321,8 @@ async function reviseTasksWithFeedback(
   logDir: string,
   attempt: number,
   engineName?: string,
-  model?: string
+  model?: string,
+  sessionId?: string
 ): Promise<PRDData | null> {
   const revisionPrompt = `You are revising a task decomposition based on peer review feedback.
 
@@ -389,6 +391,8 @@ NO MARKDOWN, NO EXPLANATIONS.`;
     logDir,
     iteration: attempt,
     model: sel.model,
+    sessionId,
+    resumeSession: !!sessionId,
   });
 
   return extractJson(result.output);
@@ -414,15 +418,30 @@ async function updateState(
  * Log feedback issues in a standardized format
  */
 function logFeedbackIssues(feedback: ReviewFeedback): void {
+  const allIssues = [
+    ...feedback.missingRequirements,
+    ...feedback.contradictions,
+    ...feedback.dependencyErrors,
+    ...feedback.duplicates,
+  ];
+
+  const criticalCount = allIssues.filter(i => i.severity === 'critical').length;
+  const warningCount = allIssues.filter(i => i.severity === 'warning').length;
+  const infoCount = allIssues.filter(i => i.severity === 'info').length;
+
   console.log(chalk.yellow('  Issues found:'));
-  const issues = [
+  if (criticalCount > 0) console.log(chalk.red(`    - ${criticalCount} critical`));
+  if (warningCount > 0) console.log(chalk.yellow(`    - ${warningCount} warning`));
+  if (infoCount > 0) console.log(chalk.blue(`    - ${infoCount} info`));
+
+  const categories = [
     { items: feedback.missingRequirements, label: 'missing requirements' },
     { items: feedback.contradictions, label: 'contradictions' },
     { items: feedback.dependencyErrors, label: 'dependency errors' },
     { items: feedback.duplicates, label: 'duplicates' },
   ];
 
-  issues.forEach(({ items, label }) => {
+  categories.forEach(({ items, label }) => {
     if (items?.length) {
       console.log(chalk.yellow(`    - ${items.length} ${label}`));
     }
@@ -546,6 +565,8 @@ export async function runDecompose(
   }
 
   let prd: PRDData;
+  // Session ID for decompose + revision continuity (generated when decomposition runs)
+  let decomposeSessionId: string | undefined;
 
   if (skipDecomposition && existingPrd) {
     prd = existingPrd;
@@ -649,6 +670,8 @@ export async function runDecompose(
     await fs.writeFile(promptPath, fullPrompt, 'utf-8');
 
     const startTime = Date.now();
+    // Generate session ID for decompose + revision continuity
+    decomposeSessionId = randomUUID();
     const sel = await selectEngine({ engineName: options.engineName, model: options.model, purpose: 'decompose' });
     const result = await sel.engine.runStream({
       promptPath,
@@ -657,6 +680,7 @@ export async function runDecompose(
       iteration: 0,
       model: sel.model,
       callbacks: options.streamCallbacks,
+      sessionId: decomposeSessionId,
     });
     const elapsed = Math.round((Date.now() - startTime) / 1000);
 
@@ -766,6 +790,12 @@ export async function runDecompose(
 
       verdict = feedback.verdict;
 
+      // Persist feedback for web UI (GET /api/decompose/feedback reads this)
+      await fs.writeFile(
+        project.decomposeFeedbackPath,
+        JSON.stringify(feedback, null, 2)
+      );
+
       console.log('');
       console.log(`  ${chalk.cyan('Review attempt:')} ${reviewAttempt}/${maxReviewAttempts}`);
       console.log(`  ${chalk.cyan('Verdict:')} ${verdict === 'PASS' ? chalk.green(verdict) : chalk.red(verdict)}`);
@@ -795,7 +825,8 @@ export async function runDecompose(
           reviewLogsDir,
           reviewAttempt,
           options.engineName,
-          options.model
+          options.model,
+          decomposeSessionId
         );
 
         if (revisedPrd) {

@@ -180,6 +180,9 @@ export interface FeedbackItem {
   action?: string;
   prdSection?: string;
   dependsOn?: string;
+  severity?: 'critical' | 'warning' | 'info';
+  description?: string;
+  suggestedFix?: string;
 }
 
 export interface TaskGrouping {

@@ -37,7 +37,7 @@ import {
   buildAggregationPrompt,
   buildFileOutputInstruction,
 } from './prompts.js';
-import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SuggestionType, SpecReviewVerdict, ReviewFeedback, CliType, TimeoutInfo, SpecType, UserStory } from '../types/index.js';
+import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SuggestionType, SpecReviewVerdict, ReviewFeedback, CliType, TimeoutInfo, SpecType, UserStory, DecomposeIssue } from '../types/index.js';
 import { detectSpecType, getParentSpec, loadPRDForSpec, extractSpecId } from './spec-metadata.js';
 
 export interface SpecReviewOptions {
@@ -178,7 +178,7 @@ function createErrorResult(
     promptName: promptDef.name,
     category: promptDef.category,
     verdict: 'FAIL' as SpecReviewVerdict,
-    issues: [errorMessage],
+    issues: [{ id: 'error-0', severity: 'critical', description: errorMessage }],
     suggestions: [],
     rawResponse,
     durationMs,
@@ -305,7 +305,7 @@ async function readVerdictFile(
       promptName: promptDef.name,
       category: promptDef.category,
       verdict: parsed.verdict as SpecReviewVerdict,
-      issues: parsed.issues ?? [],
+      issues: parseIssues(parsed.issues ?? []),
       suggestions: parseSuggestions(parsed.suggestions ?? [], promptDef.category),
       rawResponse: content,
       durationMs,
@@ -339,11 +339,53 @@ function createParseFailureResult(
     promptName: promptDef.name,
     category: promptDef.category,
     verdict: 'NEEDS_IMPROVEMENT' as SpecReviewVerdict,
-    issues: [errorMessage],
+    issues: [{ id: 'parse-error-0', severity: 'warning', description: errorMessage }],
     suggestions: [],
     rawResponse,
     durationMs,
   };
+}
+
+/**
+ * Normalizes raw LLM issue output into DecomposeIssue[].
+ * Handles structured objects (use as-is), plain strings (wrap with warning severity),
+ * and missing/invalid severity (default to warning).
+ */
+function parseIssues(rawIssues: unknown[]): DecomposeIssue[] {
+  if (!Array.isArray(rawIssues)) return [];
+
+  return rawIssues.map((item, index) => {
+    if (typeof item === 'string') {
+      return {
+        id: `auto-${index}`,
+        severity: 'warning' as const,
+        description: item,
+      };
+    }
+
+    if (item && typeof item === 'object') {
+      const obj = item as Record<string, unknown>;
+      const severity = obj.severity;
+      const validSeverity = severity === 'critical' || severity === 'warning' || severity === 'info'
+        ? severity as 'critical' | 'warning' | 'info'
+        : 'warning';
+
+      return {
+        id: (obj.id as string) || `auto-${index}`,
+        severity: validSeverity,
+        description: (obj.description as string) || String(item),
+        specSection: obj.specSection as string | undefined,
+        affectedTasks: obj.affectedTasks as string[] | undefined,
+        suggestedFix: obj.suggestedFix as string | undefined,
+      };
+    }
+
+    return {
+      id: `auto-${index}`,
+      severity: 'warning' as const,
+      description: String(item),
+    };
+  });
 }
 
 function parsePromptResponse(
@@ -368,7 +410,7 @@ function parsePromptResponse(
           promptName: promptDef.name,
           category: promptDef.category,
           verdict: parsed.verdict as SpecReviewVerdict,
-          issues: parsed.issues ?? [],
+          issues: parseIssues(parsed.issues ?? []),
           suggestions: parseSuggestions(parsed.suggestions ?? [], promptDef.category),
           rawResponse: response,
           durationMs,
@@ -427,7 +469,7 @@ function parseSuggestions(rawSuggestions: unknown[], category: string): Suggesti
 }
 
 function isTimeoutResult(result: FocusedPromptResult): boolean {
-  return result.issues.some(issue => issue === 'Review timed out');
+  return result.issues.some(issue => issue.description === 'Review timed out');
 }
 
 /**
@@ -711,8 +753,8 @@ export async function runSpecReview(
 /**
  * Builds categorized results from prompt results (helper for aggregation).
  */
-function buildCategories(results: FocusedPromptResult[]): Record<string, { verdict: SpecReviewVerdict; issues: string[] }> {
-  const categories: Record<string, { verdict: SpecReviewVerdict; issues: string[] }> = {};
+function buildCategories(results: FocusedPromptResult[]): Record<string, { verdict: SpecReviewVerdict; issues: DecomposeIssue[] }> {
+  const categories: Record<string, { verdict: SpecReviewVerdict; issues: DecomposeIssue[] }> = {};
 
   for (const result of results) {
     const categoryKey = result.category || result.promptName;
@@ -735,20 +777,22 @@ export interface DecomposeReviewOptions {
 }
 
 function aggregateDecomposeResults(results: FocusedPromptResult[]): ReviewFeedback {
-  const missingRequirements: string[] = [];
-  const contradictions: string[] = [];
-  const dependencyErrors: string[] = [];
-  const duplicates: string[] = [];
+  const missingRequirements: DecomposeIssue[] = [];
+  const contradictions: DecomposeIssue[] = [];
+  const dependencyErrors: DecomposeIssue[] = [];
+  const duplicates: DecomposeIssue[] = [];
   const suggestions: string[] = [];
 
-  let hasFailure = false;
+  let hasCritical = false;
 
   for (const result of results) {
-    if (result.verdict === 'FAIL') {
-      hasFailure = true;
+    const issues = result.issues;
+
+    // Check if any issues in this result have critical severity
+    if (issues.some(issue => issue.severity === 'critical')) {
+      hasCritical = true;
     }
 
-    const issues = result.issues;
     switch (result.promptName) {
       case 'missing_requirements':
         missingRequirements.push(...issues);
@@ -768,7 +812,7 @@ function aggregateDecomposeResults(results: FocusedPromptResult[]): ReviewFeedba
   }
 
   return {
-    verdict: hasFailure ? 'FAIL' : 'PASS',
+    verdict: hasCritical ? 'FAIL' : 'PASS',
     missingRequirements,
     contradictions,
     dependencyErrors,

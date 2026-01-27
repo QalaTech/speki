@@ -133,29 +133,31 @@ function buildGenerationPrompt(
 
   return `# Tech Spec Generation Task
 
-You are a senior technical architect. Your task is to create a technical specification from a PRD.
+You are a pragmatic senior engineer. Your task is to create a technical specification from a PRD.
 
-## CRITICAL: Deep Planning Phase
+## Guiding Principles
 
-Before writing the tech spec, you MUST thoroughly explore and plan:
+- **Simplicity first.** Prefer the simplest approach that satisfies the user stories. Do not invent abstractions, patterns, or indirection that the requirements don't demand.
+- **Leverage existing code.** Extend what exists rather than building new systems. Match the project's current patterns and conventions exactly.
+- **Proportional detail.** A small feature gets a short spec. Only elaborate where genuine complexity or risk exists.
+- **No speculative design.** Don't add error handling, fallbacks, or configurability for scenarios that can't happen. Don't design for hypothetical future requirements.
+- **No prescriptive refactoring.** Describe what needs to change to deliver the feature — nothing more. Do not include "refactor X for maintainability" or "clean up Y while we're here." The implementing agent will refactor as needed during normal engineering practice. If a structural change is required to make the feature possible, describe it as a necessary change, not as a refactoring goal. Large-scale refactoring that isn't required by the feature belongs in its own PRD.
+
+## Planning Phase
+
+Before writing, explore the codebase to ground your decisions in reality:
 
 1. **Explore the codebase** - Use Glob and Read tools to understand:
-   - Project structure and existing patterns
-   - Related code that this feature will interact with
-   - Existing APIs, database schemas, and conventions
-   - Testing patterns used in the project
+   - Project structure, existing patterns, and conventions
+   - Related code this feature will interact with
+   - How similar features were implemented before
 
-2. **Analyze dependencies** - Identify:
-   - Which existing modules/files will be affected
-   - What new files need to be created
+2. **Identify what changes** - Be specific about:
+   - Which existing files need modification (and what changes)
+   - What new files are needed (only if existing files can't absorb the change)
    - Integration points with existing code
 
-3. **Consider alternatives** - Think through:
-   - Multiple implementation approaches
-   - Trade-offs between approaches
-   - Why the chosen approach is best
-
-4. **Validate against user stories** - Ensure the technical approach addresses all user stories
+3. **Validate against user stories** - Ensure the approach addresses every user story. If a story is already satisfied by existing code, say so.
 
 ## Output: Write Tech Spec to File
 
@@ -163,7 +165,7 @@ Before writing the tech spec, you MUST thoroughly explore and plan:
 
 Use your Write tool to create the file. Do NOT output the content as text - write it to the file.
 
-## Required Document Structure
+## Document Structure
 
 The tech spec MUST start with this exact frontmatter:
 
@@ -174,19 +176,20 @@ created: ${today}
 parent: ${prdFilename}
 ---
 
-Then include these sections:
+Then include these sections. **Skip any section that genuinely doesn't apply** — an empty section adds noise, not value:
+
 1. # [Feature Name] Technical Specification
-2. ## Overview - relationship to PRD
-3. ## Technical Approach - architecture decisions with rationale (reference explored code)
-4. ## Database Changes - schema changes OR "**N/A** - [justification]"
-5. ## API Changes - endpoints OR "**N/A** - [justification]"
-6. ## Code Structure - files to create/modify (based on codebase exploration)
-7. ## Edge Cases - table of cases and expected behavior
-8. ## Error Handling - table with HTTP status codes and recovery
-9. ## Testing Strategy - unit and integration test cases (following project patterns)
-10. ## Security Considerations
-11. ## Performance Considerations
-12. ## Open Questions - or "None identified"
+2. ## Overview - What this spec delivers and its relationship to the PRD
+3. ## Technical Approach - The chosen approach with rationale. Reference actual code you explored. If there was a meaningful alternative, briefly note why you didn't choose it — but don't manufacture alternatives for simple decisions.
+4. ## Database Changes - Only if the feature touches the database
+5. ## API Changes - Only if the feature adds or modifies endpoints
+6. ## Code Structure - Files to create/modify with specific descriptions of changes (reference actual project paths from your exploration)
+7. ## Edge Cases - Only cases that are realistic given the feature scope
+8. ## Error Handling - Only error scenarios that could actually occur
+9. ## Testing Strategy - Test cases that validate the user stories, following the project's existing test patterns
+10. ## Security Considerations - Only if the feature handles user input, auth, or sensitive data
+11. ## Performance Considerations - Only if the feature involves bulk operations, real-time processing, or known bottlenecks
+12. ## Open Questions - Genuine unknowns that need resolution before implementation, or omit if none
 
 ## PRD Content
 
@@ -200,10 +203,9 @@ ${storiesJson}
 
 1. **FIRST: Explore the codebase** to understand existing patterns and structure
 2. Analyze the PRD and user stories in context of what you discovered
-3. Make concrete technical decisions (no placeholders) based on actual codebase patterns
-4. Include ALL sections - use N/A with justification if not applicable
-5. Be specific about files, endpoints, and test cases - reference actual project paths
-6. **Write the complete tech spec to ${outputPath} using the Write tool**`;
+3. Choose the simplest approach that satisfies the requirements — three lines of straightforward code is better than a premature abstraction
+4. Reference actual file paths and patterns from the codebase — no invented structure
+5. **Write the complete tech spec to ${outputPath} using the Write tool**`;
 }
 
 /**

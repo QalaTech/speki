@@ -28,6 +28,7 @@ interface Props {
   onCreateTechSpec?: () => void;
   onQuickExecute?: () => void;
   isGeneratingTechSpec?: boolean;
+  onDecomposeComplete?: () => void;
 }
 
 // Derive specId from specPath (filename without .md extension, but keep .tech/.prd/.bug)
@@ -39,12 +40,15 @@ function getSpecId(specPath: string): string {
 function formatFeedbackItem(item: string | FeedbackItem): string {
   if (typeof item === "string") return item;
   const parts: string[] = [];
+  if (item.severity) parts.push(`[${item.severity.toUpperCase()}]`);
   if (item.taskId) parts.push(`[${item.taskId}]`);
   if (item.taskIds) parts.push(`[${item.taskIds.join(", ")}]`);
   if (item.requirement) parts.push(item.requirement);
+  if (item.description) parts.push(item.description);
   if (item.issue) parts.push(item.issue);
   if (item.reason) parts.push(item.reason);
   if (item.action) parts.push(`Action: ${item.action}`);
+  if (item.suggestedFix) parts.push(`Fix: ${item.suggestedFix}`);
   if (item.prdSection) parts.push(`(PRD: ${item.prdSection})`);
   if (item.dependsOn) parts.push(`depends on: ${item.dependsOn}`);
   return parts.join(" ");
@@ -100,6 +104,7 @@ export function SpecDecomposeTab({
   specPath,
   projectPath,
   specType = "prd",
+  onDecomposeComplete,
 }: Props) {
   const specId = useMemo(() => getSpecId(specPath), [specPath]);
   const [stories, setStories] = useState<UserStory[]>([]);
@@ -274,6 +279,8 @@ export function SpecDecomposeTab({
       setIsLoading(false);
       // Reload data when decompose completes
       loadDecomposeState();
+      // Notify parent so it can update button visibility
+      onDecomposeComplete?.();
     }
   }, [decomposeState, specPath]);
 
@@ -403,7 +410,7 @@ export function SpecDecomposeTab({
     setError(null);
 
     try {
-      const params = new URLSearchParams({ project: projectPath });
+      const params = new URLSearchParams({ project: projectPath, specPath });
 
       // Activate the spec first
       await apiFetch(`/api/decompose/activate?${params}`, {

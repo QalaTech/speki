@@ -75,14 +75,13 @@ Use these CLI commands for task operations (instead of editing prd.json directly
    - Check `suggestions` for items where `forTask` matches your current task ID
    - Read `lessonsLearned` for relevant knowledge (filter by `category` if helpful)
 
-5. **Implement the current task:**
+5. **Understand the task:**
 
    **Use Serena MCP tools** for code editing and navigation. Serena provides powerful semantic tools for finding symbols, editing code, and understanding the codebase structure. Prefer Serena tools over basic file operations when working with code.
 
    The task to implement is in `currentTask` from step 1.
 
-   - Focus only on the acceptance criteria in `currentTask.acceptanceCriteria`
-   - **Implement all tests in `currentTask.testCases`** - these are mandatory
+   - Read the acceptance criteria in `currentTask.acceptanceCriteria` — these define what "done" means
    - **Check `completedDependencies`** - these tasks are already done, you can build on their work
    - **Check `blocks`** - these tasks are waiting on you, consider their needs
    - **Check for cleanup responsibilities** - if acceptance criteria mention removing stubs/temp code from dependency stories, do it
@@ -105,61 +104,62 @@ Use these CLI commands for task operations (instead of editing prd.json directly
 
    **Legacy format:** If `context` uses the old flat format (`context.schemas`, `context.dataContracts`, etc.), treat everything as suggestions EXCEPT `context.dataContracts` which are requirements.
 
-   - No shortcuts, no compromises
+6. **RED — Write tests first (MANDATORY):**
 
-6. **Implement Tests (MANDATORY):**
+   Before writing any implementation code, write tests that define the expected behavior.
 
-   Each story includes a `testCases` array specifying exact tests to write.
+   - Derive tests from `currentTask.acceptanceCriteria` — each criterion should have at least one test
+   - If `currentTask.testCases` is provided, implement ALL of them — no exceptions
+   - Add any additional tests you identify as necessary for edge cases or error scenarios
 
-   **Rules:**
-
-   - Implement ALL tests listed in `testCases` - no exceptions
-   - Follow the naming convention exactly: `MethodName_Scenario_ExpectedResult`
-   - Place tests in the appropriate test file/directory for the project
-   - If `testCases` is empty `[]`, verify the story notes explain why (e.g., "migration only")
-
-   **Test Quality:**
+   **Test quality:**
 
    - Each test should be independent (no shared state between tests)
    - Use Arrange-Act-Assert pattern
    - Test one thing per test method
+   - Follow the project's existing test naming conventions and file structure
    - Include meaningful assertion messages where helpful
 
-7. **Verify (MANDATORY):**
+   **Run the tests — they MUST fail.** If a test passes before you've written any implementation, either the behavior already exists (and the acceptance criterion is already met) or the test is not actually testing anything. Investigate which.
 
-   **Run tests scoped to the project you modified:**
+7. **GREEN — Implement the minimum to pass:**
 
-   - Only run tests relevant to the files changed
-   - Do NOT run unrelated tests (e.g., don't run .NET tests for Python changes)
+   Write the simplest implementation that makes all tests pass.
 
-   **Rules:**
-
-   - Fix any failures before proceeding
+   - Focus on making each test go from red to green
+   - Don't optimize, don't abstract, don't clean up — just make the tests pass
+   - No shortcuts: no TODOs, no empty catch blocks, no skipped validation
+   - Run tests after implementation — **ALL tests MUST pass before proceeding**
    - **DO NOT PROCEED IF BUILD OR TESTS FAIL**
-   - If no tests exist for the project, note this but continue
 
-8. **Code Simplification (MANDATORY):**
+8. **REFACTOR — Clean up with test safety:**
 
-   After tests pass, spawn a sub-agent to simplify your implementation:
+   With all tests green, refactor the implementation:
 
-   ```
-   Task tool:
-     subagent_type: "general-purpose"
-     description: "Simplify modified code"
-     prompt: "Read your instructions from .speki/skills/code-simplifier.md and apply them to these files:\n- <list files you modified this iteration>"
-   ```
+   - Remove duplication introduced during the green phase
+   - Improve naming, extract functions, simplify logic
+   - Match the project's existing patterns and conventions
+   - **Run tests after every significant refactoring change** — if any test fails, undo and try a different approach
+   - Do NOT add new functionality during refactoring — only restructure
 
-   **After simplification:**
-   - Review any changes made by the simplifier
-   - Re-run tests to verify the simplifier's changes didn't break functionality
-   - If tests fail after simplification, fix the issues before proceeding
+   **Scope:** Only refactor code you wrote or modified this iteration. Do not refactor unrelated code.
 
-9. **Update AGENTS.md (if applicable):**
+9. **COVERAGE — Verify test quality:**
 
-- If you discovered reusable patterns, update relevant AGENTS.md files
+   Read your coverage instructions from `.speki/skills/speki-cover.md` and follow them.
+
+   This skill contains language-specific commands (Coverlet for .NET, Jest/Vitest for TS, pytest-cov for Python, etc.), scoping rules, and the 80% line coverage threshold.
+
+   Run coverage on the files you changed this iteration, add tests for uncovered lines if needed, then run the full test suite one final time.
+
+10. **Update agent instruction files (if applicable):**
+
+- If you discovered reusable patterns, update the relevant agent instruction file:
+  - **Claude Code:** Update `CLAUDE.md` or `AGENTS.md`
+  - **Codex:** Update `AGENTS.md` (Codex discovers these from repo root downward)
 - Only add things worth preserving (gotchas, conventions, dependencies)
 
-10. **Commit (MUST SUCCEED BEFORE MARKING COMPLETE):**
+11. **Commit (MUST SUCCEED BEFORE MARKING COMPLETE):**
 
     Create a git commit with all implementation changes:
     - Format: `feat: [ID] - [Title]`
@@ -168,7 +168,7 @@ Use these CLI commands for task operations (instead of editing prd.json directly
     - If commit fails (pre-commit hooks, etc.), fix the issue and retry
     - **DO NOT mark the task complete if the commit failed**
 
-11. **Mark task complete (ONLY AFTER SUCCESSFUL COMMIT):**
+12. **Mark task complete (ONLY AFTER SUCCESSFUL COMMIT):**
 
     **CRITICAL:** Only perform this step if step 11 succeeded.
 
@@ -186,12 +186,12 @@ Use these CLI commands for task operations (instead of editing prd.json directly
 
     **If the commit in step 11 failed, do NOT mark the task complete. Fix the commit first.**
 
-12. **Update progress.txt:**
+13. **Update progress.txt:**
 
     - APPEND your learnings at the bottom
     - Add any new patterns to the TOP (Codebase Patterns section)
 
-13. **Update peer feedback:**
+14. **Update peer feedback:**
 
     Update `.speki/peer_feedback.json` to maintain the knowledge base:
 
@@ -263,9 +263,11 @@ APPEND to the bottom of progress.txt:
 ## [Date] - [Story ID]: [Title]
 - What was implemented
 - Files changed: [list files]
-- Tests implemented: [list each test from testCases that was written]
-  - TestName1 - PASS
-  - TestName2 - PASS
+- **TDD Cycle:**
+  - RED: Tests written before implementation [list tests]
+  - GREEN: Implementation to pass tests
+  - REFACTOR: What was cleaned up
+- **Coverage:** X% on changed files (target: 80%+)
 - **Learnings:**
   - Patterns discovered
   - Gotchas encountered
@@ -299,9 +301,11 @@ After completing the current task, check if ALL stories in prd.json have `passes
 
 - Complete the **current task** from `qala tasks next`
 - **READ peer_feedback.json** at start - check for blocking issues and relevant suggestions
+- **TDD: Write tests FIRST, confirm they fail, then implement, then refactor** - this is the workflow
 - **IMPLEMENT ALL tests in `currentTask.testCases`** - this is mandatory
 - **CLEANUP stub/temp code** from dependency stories when implementing the real solution
-- **ALWAYS** run tests (scoped to project) before committing
+- **ALWAYS** run tests (scoped to project) after every phase (red, green, refactor)
+- **CHECK COVERAGE** on your changed files before committing
 - **NEVER** skip verification
 - **NEVER** modify existing tests to make them pass
 - **NEVER** take shortcuts - quality over speed
