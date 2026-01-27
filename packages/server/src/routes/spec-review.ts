@@ -189,27 +189,10 @@ User's question: ${message}`;
           }
         }
 
-        // Claude format: tool_result after Edit/Write indicates file was modified
-        // {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"...","content":"..."}]}}
-        if (parsed.type === 'user' && parsed.message?.content) {
-          const content = parsed.message.content;
-          if (Array.isArray(content)) {
-            for (const block of content) {
-              if (block.type === 'tool_result' && !block.is_error) {
-                // A tool completed successfully - likely a file edit
-                // Use the spec file path since Claude doesn't include it in tool_result
-                const filePath = session!.specFilePath;
-                if (filePath) {
-                  console.log('[chat/stream] Claude tool_result - file may have changed:', filePath);
-                  publishSpecReview(projectPath, 'spec-review/file-changed', {
-                    filePath: filePath,
-                    changeType: 'change',
-                  });
-                }
-              }
-            }
-          }
-        }
+        // File changes are detected by the fs watcher (file-watcher.ts).
+        // No need to emit file-changed events from tool_result — the watcher
+        // already covers actual file modifications and avoids false positives
+        // from read-only tools (Read, Grep, Bash, etc.).
       } catch {
         // Not JSON or parsing failed - ignore, it's fine
       }

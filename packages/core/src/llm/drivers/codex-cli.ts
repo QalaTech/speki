@@ -280,9 +280,21 @@ export class CodexCliEngine implements Engine {
         // Ignore normalization errors - continue streaming
       }
 
-      // Invoke text callback if provided
+      // Extract agent_message content from JSONL and relay to text callback
+      // so the console shows the actual LLM output, not raw JSONL lines.
       if (callbacks?.onText) {
-        callbacks.onText(text);
+        for (const line of text.split('\n')) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+          try {
+            const parsed = JSON.parse(trimmedLine);
+            if (parsed?.msg?.type === 'agent_message' && typeof parsed.msg.message === 'string') {
+              callbacks.onText(parsed.msg.message);
+            }
+          } catch {
+            // Not a complete JSON line yet (partial chunk), skip
+          }
+        }
       }
 
       // Check for completion marker
@@ -306,11 +318,18 @@ export class CodexCliEngine implements Engine {
     return new Promise((resolve) => {
       codex.on('close', (code) => {
         const durationMs = Date.now() - startTime;
+
+        // Extract agent_message content from Codex JSONL output.
+        // Codex --json outputs JSONL lines; the actual LLM response is in
+        // {"id":"0","msg":{"type":"agent_message","message":"..."}} lines.
+        // Without this, extractJson picks up the Codex config preamble instead.
+        const extractedOutput = this.extractAgentMessages(output);
+
         resolve({
           success: code === 0,
           isComplete,
           durationMs,
-          output,
+          output: extractedOutput || output,
           jsonlPath,
           stderrPath,
           exitCode: code ?? -1,
@@ -333,6 +352,30 @@ export class CodexCliEngine implements Engine {
         });
       });
     });
+  }
+
+  /**
+   * Extract agent_message content from Codex JSONL output.
+   * Codex --json outputs JSONL lines where the actual LLM response lives in:
+   *   {"id":"0","msg":{"type":"agent_message","message":"<actual content>"}}
+   * Returns concatenated message content, or empty string if none found.
+   */
+  private extractAgentMessages(rawOutput: string): string {
+    const messages: string[] = [];
+    const lines = rawOutput.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed?.msg?.type === 'agent_message' && typeof parsed.msg.message === 'string') {
+          messages.push(parsed.msg.message);
+        }
+      } catch {
+        // Not valid JSON line, skip
+      }
+    }
+    return messages.join('\n');
   }
 
   async runChat(options: RunChatOptions): Promise<RunChatResult> {

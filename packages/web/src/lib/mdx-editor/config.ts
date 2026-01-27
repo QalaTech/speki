@@ -7,6 +7,7 @@ import { createElement } from 'react';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { Prec } from '@codemirror/state';
+import { mermaidCodeBlockDescriptor } from './MermaidCodeBlockEditor';
 import {
   headingsPlugin,
   listsPlugin,
@@ -149,6 +150,7 @@ export function createEditorPlugins(): RealmPlugin[] {
     // Code block plugins (must come together)
     codeBlockPlugin({
       defaultCodeBlockLanguage: '',
+      codeBlockEditorDescriptors: [mermaidCodeBlockDescriptor],
     }),
     codeMirrorPlugin({
       codeMirrorExtensions: darkCodeMirrorExtensions,
@@ -231,6 +233,10 @@ export function createEditorPlugins(): RealmPlugin[] {
         markdown: 'Markdown',
         md: 'Markdown',
         mdx: 'Markdown',
+
+        // Diagrams
+        mermaid: 'Mermaid',
+        mmd: 'Mermaid',
 
         // DevOps / Config
         dockerfile: 'Docker',
