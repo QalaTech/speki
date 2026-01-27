@@ -32,27 +32,27 @@ function MermaidBlock({ code }: { code: string }) {
   }, []);
 
   return (
-    <div className="relative my-2 rounded-md bg-base-300" style={{ width: 0, minWidth: '100%' }}>
-      <div className="py-1 px-2.5 bg-base-100/50 border-b border-base-content/10 flex justify-between items-center">
-        <span className="text-[0.7em] text-base-content/50 uppercase tracking-wide">mermaid</span>
+    <div className="relative my-2 rounded-md bg-muted" style={{ width: 0, minWidth: '100%' }}>
+      <div className="py-1 px-2.5 bg-background/50 border-b border-border flex justify-between items-center">
+        <span className="text-[0.7em] text-muted-foreground/50 uppercase tracking-wide">mermaid</span>
         <div className="flex items-center gap-2">
-          <div className="flex items-center border border-base-content/20 rounded overflow-hidden">
+          <div className="flex items-center border border-border/20 rounded overflow-hidden">
             <button
-              className="bg-base-content/10 px-2 py-0.5 text-base-content text-[0.7em] cursor-pointer hover:bg-base-content/15"
+              className="bg-muted px-2 py-0.5 text-foreground text-[0.7em] cursor-pointer hover:bg-muted/80"
               onClick={zoomOut}
               title="Zoom out"
             >
               −
             </button>
             <button
-              className="bg-base-content/10 border-x border-base-content/20 px-2 py-0.5 text-base-content text-[0.7em] cursor-pointer hover:bg-base-content/15 tabular-nums min-w-[40px] text-center"
+              className="bg-muted border-x border-border/20 px-2 py-0.5 text-foreground text-[0.7em] cursor-pointer hover:bg-muted/80 tabular-nums min-w-[40px] text-center"
               onClick={zoomReset}
               title="Reset zoom"
             >
               {Math.round(zoom * 100)}%
             </button>
             <button
-              className="bg-base-content/10 px-2 py-0.5 text-base-content text-[0.7em] cursor-pointer hover:bg-base-content/15"
+              className="bg-muted px-2 py-0.5 text-foreground text-[0.7em] cursor-pointer hover:bg-muted/80"
               onClick={zoomIn}
               title="Zoom in"
             >
@@ -60,7 +60,7 @@ function MermaidBlock({ code }: { code: string }) {
             </button>
           </div>
           <button
-            className="bg-base-content/10 border border-base-content/20 rounded px-2.5 py-0.5 text-base-content text-[0.7em] cursor-pointer transition-all duration-200 hover:bg-base-content/15 hover:-translate-y-px active:translate-y-0"
+            className="bg-muted border border-border/20 rounded px-2.5 py-0.5 text-foreground text-[0.7em] cursor-pointer transition-all duration-200 hover:bg-muted/80 hover:-translate-y-px active:translate-y-0"
             onClick={async () => {
               await navigator.clipboard.writeText(code);
               setCopied(true);
@@ -77,7 +77,7 @@ function MermaidBlock({ code }: { code: string }) {
           <MermaidRenderer code={code} />
         </div>
       </div>
-      <div className="px-2.5 py-1 text-[0.6em] text-base-content/30 text-right">
+      <div className="px-2.5 py-1 text-[0.6em] text-muted-foreground/30 text-right">
 {navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+scroll to zoom · Scroll to pan
       </div>
     </div>
@@ -99,12 +99,12 @@ export function CodeBlock({ language, children, className }: CodeBlockProps) {
   };
 
   return (
-    <div className="relative my-2 rounded-md overflow-hidden bg-base-300">
+    <div className="relative my-2 rounded-md overflow-hidden bg-muted border border-border">
       {lang && lang !== 'text' && (
-        <div className="py-1 px-2.5 bg-base-100/50 border-b border-base-content/10 flex justify-between items-center">
-          <span className="text-[0.7em] text-base-content/50 uppercase tracking-wide">{lang}</span>
+        <div className="py-1 px-2.5 bg-background/50 border-b border-border flex justify-between items-center">
+          <span className="text-[0.7em] text-muted-foreground/50 uppercase tracking-wide">{lang}</span>
           <button
-            className="bg-base-content/10 border border-base-content/20 rounded px-2.5 py-0.5 text-base-content text-[0.7em] cursor-pointer transition-all duration-200 hover:bg-base-content/15 hover:-translate-y-px active:translate-y-0"
+            className="bg-muted border border-border/20 rounded px-2.5 py-0.5 text-foreground text-[0.7em] cursor-pointer transition-all duration-200 hover:bg-muted/80 hover:-translate-y-px active:translate-y-0"
             onClick={handleCopy}
             aria-label="Copy code"
           >

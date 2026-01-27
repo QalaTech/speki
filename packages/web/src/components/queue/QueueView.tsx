@@ -206,7 +206,7 @@ export function QueueView({ projectPath, onNavigateToSpec }: QueueViewProps) {
 
       {/* Stats bar */}
       {stats && (
-        <div className="flex gap-4 p-3 bg-base-200 border border-base-300 rounded-lg mb-5">
+        <div className="flex gap-4 p-3 bg-muted border border-border rounded-lg mb-5">
           <Badge variant="neutral" size="sm">{stats.total} total</Badge>
           <Badge variant="ghost" size="sm">{stats.queued} queued</Badge>
           <Badge variant="primary" size="sm">{stats.running} running</Badge>
@@ -233,8 +233,8 @@ export function QueueView({ projectPath, onNavigateToSpec }: QueueViewProps) {
           </h3>
           <div className="flex flex-col gap-2">
             {runningTasks.map(item => (
-              <div key={`${item.specId}-${item.taskId}`} className="card bg-base-200 border border-base-300 border-l-4 border-l-success">
-                <div className="card-body p-3 flex-row items-center gap-3">
+              <div key={`${item.specId}-${item.taskId}`} className="rounded-xl bg-muted border border-border border-l-4 border-l-success">
+                <div className="p-3 flex flex-row items-center gap-3">
                   <span className="text-sm">{getStatusIcon(item.status)}</span>
                   <div className="flex flex-col gap-0.5 min-w-[120px]">
                     <span className="font-mono text-xs font-semibold">{item.taskId}</span>
@@ -245,7 +245,7 @@ export function QueueView({ projectPath, onNavigateToSpec }: QueueViewProps) {
                   {item.task && (
                     <span className="flex-1 text-sm truncate">{item.task.title}</span>
                   )}
-                  <span className="text-xs text-base-content/50">
+                  <span className="text-xs text-muted-foreground">
                     Started {formatTime(item.startedAt)}
                   </span>
                 </div>
@@ -262,15 +262,15 @@ export function QueueView({ projectPath, onNavigateToSpec }: QueueViewProps) {
           Queued ({pendingTasks.length})
         </h3>
         {pendingTasks.length === 0 ? (
-          <div className="py-10 px-5 text-center text-base-content/50 text-sm bg-base-200 border border-dashed border-base-300 rounded-lg">
+          <div className="py-10 px-5 text-center text-muted-foreground text-sm bg-muted border border-dashed border-border rounded-lg">
             No tasks in queue. Add tasks from the Decompose tab.
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             {pendingTasks.map((item, idx) => (
-              <div key={`${item.specId}-${item.taskId}`} className="card bg-base-200 border border-base-300">
-                <div className="card-body p-3 flex-row items-center gap-3">
-                  <span className="font-mono text-xs font-semibold text-base-content/50 min-w-[24px]">#{idx + 1}</span>
+              <div key={`${item.specId}-${item.taskId}`} className="rounded-xl bg-muted border border-border">
+                <div className="p-3 flex flex-row items-center gap-3">
+                  <span className="font-mono text-xs font-semibold text-muted-foreground min-w-[24px]">#{idx + 1}</span>
                   <span className="text-sm">{getStatusIcon(item.status)}</span>
                   <div className="flex flex-col gap-0.5 min-w-[120px]">
                     <span className="font-mono text-xs font-semibold">{item.taskId}</span>
@@ -329,9 +329,9 @@ export function QueueView({ projectPath, onNavigateToSpec }: QueueViewProps) {
               {completedTasks.map(item => (
                 <div
                   key={`${item.specId}-${item.taskId}`}
-                  className={`card bg-base-200 border border-base-300 border-l-4 ${item.status === 'completed' ? 'border-l-success' : item.status === 'failed' ? 'border-l-error' : 'border-l-base-content/30'}`}
+                  className={`rounded-xl bg-muted border border-border border-l-4 ${item.status === 'completed' ? 'border-l-success' : item.status === 'failed' ? 'border-l-error' : 'border-l-muted-foreground/30'}`}
                 >
-                  <div className="card-body p-3 flex-row items-center gap-3">
+                  <div className="p-3 flex flex-row items-center gap-3">
                     <span className="text-sm">{getStatusIcon(item.status)}</span>
                     <div className="flex flex-col gap-0.5 min-w-[120px]">
                       <span className="font-mono text-xs font-semibold">{item.taskId}</span>
@@ -342,7 +342,7 @@ export function QueueView({ projectPath, onNavigateToSpec }: QueueViewProps) {
                     {item.task && (
                       <span className="flex-1 text-sm truncate">{item.task.title}</span>
                     )}
-                    <span className="text-xs text-base-content/50">
+                    <span className="text-xs text-muted-foreground">
                       {formatTime(item.completedAt)}
                     </span>
                   </div>

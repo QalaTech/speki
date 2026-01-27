@@ -13,8 +13,8 @@ const COLUMN_CONFIG: Record<Column, { label: string; icon: React.ReactNode; colo
   todo: {
     label: 'To Do',
     icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth={2} /><path strokeLinecap="round" strokeWidth={2} d="M12 6v6l4 2" /></svg>,
-    color: 'text-base-content/70',
-    bgColor: 'bg-base-300',
+    color: 'text-muted-foreground',
+    bgColor: 'bg-muted',
   },
   running: {
     label: 'In Progress',
@@ -52,15 +52,15 @@ export function KanbanView({ stories, currentStory }: KanbanViewProps) {
 
   if (stories.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-base-100">
+      <div className="flex-1 flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-base-200 flex items-center justify-center">
-            <svg className="w-8 h-8 text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-secondary flex items-center justify-center">
+            <svg className="w-8 h-8 text-muted-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold mb-2 text-base-content">No tasks found</h3>
-          <p className="text-base-content/60 text-sm">Decompose a spec to generate tasks.</p>
+          <h3 className="text-lg font-semibold mb-2 text-foreground">No tasks found</h3>
+          <p className="text-muted-foreground/60 text-sm">Decompose a spec to generate tasks.</p>
         </div>
       </div>
     );
@@ -69,28 +69,28 @@ export function KanbanView({ stories, currentStory }: KanbanViewProps) {
   return (
     <div className="flex-1 flex h-full">
       {/* Kanban columns */}
-      <div className="flex flex-1 gap-6 p-6 overflow-x-auto bg-base-100 w-full">
+      <div className="flex flex-1 gap-6 p-6 overflow-x-auto bg-background w-full">
         {columns.map(col => {
           const config = COLUMN_CONFIG[col];
           const count = tasksByColumn[col].length;
           return (
             <div key={col} className="flex-1 min-w-[280px] flex flex-col">
               {/* Column Header */}
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-base-300">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-lg ${config.bgColor}`}>
                     <span className={config.color}>{config.icon}</span>
                   </div>
                   <div>
                     <h3 className={`font-semibold text-sm ${config.color}`}>{config.label}</h3>
-                    <p className="text-xs text-base-content/50">{count} {count === 1 ? 'task' : 'tasks'}</p>
+                    <p className="text-xs text-muted-foreground/50">{count} {count === 1 ? 'task' : 'tasks'}</p>
                   </div>
                 </div>
                 <span className={`text-lg font-bold ${config.color}`}>{count}</span>
               </div>
 
               {/* Column Content */}
-              <div className="flex-1 flex flex-col gap-3 overflow-y-auto pr-1">
+              <div className="flex-1 flex flex-col gap-3 overflow-y-auto pr-1 pt-1">
                 {tasksByColumn[col].map((story) => {
                   const isBlocked = !story.passes && story.dependencies.length > 0 && !story.dependencies.every(d => completedIds.has(d));
                   const isHovered = hoveredId === story.id;
@@ -101,7 +101,7 @@ export function KanbanView({ stories, currentStory }: KanbanViewProps) {
                     <div
                       key={story.id}
                       className={`
-                        group relative bg-base-200 rounded-xl border-2 cursor-pointer
+                        group relative bg-secondary rounded-xl border-2 cursor-pointer
                         transition-all duration-200 ease-out
                         ${isHovered ? 'border-primary shadow-lg shadow-primary/10 -translate-y-0.5' : 'border-transparent'}
                         ${isRunningTask ? 'bg-primary/5 ring-2 ring-primary/30' : ''}
@@ -122,7 +122,7 @@ export function KanbanView({ stories, currentStory }: KanbanViewProps) {
                       <div className="p-4 pl-5">
                         {/* Header row */}
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-mono text-base-content/50 bg-base-300/50 px-2 py-0.5 rounded">
+                          <span className="text-xs font-mono text-muted-foreground/50 bg-muted/50 px-2 py-0.5 rounded">
                             {story.id}
                           </span>
                           <div className="flex items-center gap-2">
@@ -151,7 +151,7 @@ export function KanbanView({ stories, currentStory }: KanbanViewProps) {
                         </div>
 
                         {/* Title */}
-                        <h4 className={`font-medium text-sm leading-snug mb-2 ${isDone ? 'line-through text-base-content/60' : ''}`}>
+                        <h4 className={`font-medium text-sm leading-snug mb-2 ${isDone ? 'line-through text-muted-foreground/60' : ''}`}>
                           {story.title}
                         </h4>
 
@@ -166,7 +166,7 @@ export function KanbanView({ stories, currentStory }: KanbanViewProps) {
                             </span>
                           )}
                           {story.dependencies.length > 0 && !isBlocked && (
-                            <span className="inline-flex items-center gap-1 text-xs text-base-content/50">
+                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/50">
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
                               </svg>
@@ -188,7 +188,7 @@ export function KanbanView({ stories, currentStory }: KanbanViewProps) {
                   );
                 })}
                 {tasksByColumn[col].length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-12 text-base-content/40">
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground/40">
                     <div className={`p-4 rounded-full ${config.bgColor} mb-3`}>
                       <span className={config.color}>{config.icon}</span>
                     </div>
@@ -206,7 +206,6 @@ export function KanbanView({ stories, currentStory }: KanbanViewProps) {
         story={selectedTask}
         completedIds={completedIds}
         blocksMap={new Map()}
-        logContent=""
         onClose={() => setSelectedTask(null)}
       />
     </div>

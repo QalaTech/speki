@@ -128,7 +128,7 @@ export function ProjectSelector({
       <button
         className={`flex items-center justify-between gap-2 min-w-40 max-w-[200px] px-3 py-2 bg-white/4 border rounded-lg text-foreground text-[13px] font-medium cursor-pointer transition-all duration-200 ${
           isOpen
-            ? "bg-linear-to-r from-base-200/80 to-base-200/50 shadow-[0_0_0_3px_rgba(var(--primary),0.15)]"
+            ? "bg-linear-to-r from-secondary/80 to-secondary/50 shadow-[0_0_0_3px_rgba(var(--primary),0.15)]"
             : "border-white/8 hover:bg-white/8 hover:border-white/12"
         }`}
         onClick={() => setIsOpen(!isOpen)}
@@ -164,7 +164,7 @@ export function ProjectSelector({
                   key={project.path}
                   className={`flex flex-col gap-1 w-full px-3 py-2.5 bg-transparent border-none rounded-lg text-left cursor-pointer transition-all duration-150 ${
                     project.path === selectedProject
-                      ? 'bg-linear-to-b from-base-100 to-base-100/98'
+                      ? 'bg-linear-to-b from-background to-background/98'
                       : project.path === hoveredProject?.path
                         ? 'bg-white/8'
                         : 'hover:bg-white/6'

@@ -28,7 +28,7 @@ const chatComponents: Components = {
     const isInline = !className;
     if (isInline) {
       return (
-        <code className="bg-black/10 py-0.5 px-1.5 rounded font-mono text-[0.85em] text-accent" {...props}>
+        <code className="bg-muted py-0.5 px-1.5 rounded font-mono text-[0.85em] text-primary" {...props}>
           {children}
         </code>
       );
@@ -56,14 +56,14 @@ const chatComponents: Components = {
 
   // Links - open in new tab
   a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent no-underline border-b border-dotted border-current hover:underline">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary no-underline border-b border-dotted border-current hover:underline">
       {children}
     </a>
   ),
 
   // Blockquotes
   blockquote: ({ children }) => (
-    <blockquote className="my-2 py-2 px-3 border-l-[3px] border-base-300 bg-black/10 rounded-r italic text-base-content/60">{children}</blockquote>
+    <blockquote className="my-2 py-2 px-3 border-l-[3px] border-border bg-muted/30 rounded-r italic text-muted-foreground/60">{children}</blockquote>
   ),
 
   // Tables (GFM)
@@ -74,7 +74,7 @@ const chatComponents: Components = {
   ),
 
   // Horizontal rule
-  hr: () => <hr className="my-3 border-none border-t border-base-300" />,
+  hr: () => <hr className="my-3 border-none border-t border-border" />,
 
   // Strong/emphasis
   strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
@@ -117,7 +117,7 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps): React.R
   const normalizedContent = normalizeWhitespace(content);
 
   return (
-    <div className={`text-[0.9rem] leading-relaxed break-words ${className ?? ''}`}>
+    <div className={`text-[0.9rem] leading-relaxed wrap-break-word ${className ?? ''}`}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={chatComponents}>
         {normalizedContent}
       </ReactMarkdown>

@@ -12,6 +12,8 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolidIcon } from "@heroicons/react/24/solid";
 import { Button } from "../ui/Button";
+import { Badge } from "../ui/Badge";
+import { Loading } from "../ui/Loading";
 import type { SpecEditorRef } from "../shared/SpecEditor";
 import type { SpecSession, Suggestion, SuggestionTag } from "./types";
 import { getSuggestionLocation } from "./types";
@@ -29,18 +31,18 @@ interface ReviewPanelProps {
   onCollapse?: () => void;
 }
 
-const severityColors: Record<string, string> = {
-  critical: "badge-error",
-  major: "badge-warning",
-  minor: "badge-info",
-  suggestion: "badge-ghost",
+const severityVariants: Record<string, "error" | "warning" | "info" | "ghost"> = {
+  critical: "error",
+  major: "warning",
+  minor: "info",
+  suggestion: "ghost",
 };
 
 const statusColors: Record<string, string> = {
   approved: "text-success",
   rejected: "text-error",
   edited: "text-info",
-  dismissed: "text-base-content/40",
+  dismissed: "text-muted-foreground/40",
   resolved: "text-success",
 };
 
@@ -78,9 +80,9 @@ export function ReviewPanel({
   const allAddressed = totalCount > 0 && pendingCount === 0;
 
   return (
-    <div className="flex flex-col h-full w-80 border-l border-white/5 bg-transparent overflow-hidden animate-slide-in-right">
+    <div className="flex flex-col h-full w-80 border-l border-border bg-transparent overflow-hidden animate-slide-in-right">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-background/50 backdrop-blur-sm">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-background/50 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           {onCollapse && (
             <button
@@ -119,7 +121,7 @@ export function ReviewPanel({
           // In progress state
           <div className="flex flex-col items-center justify-center h-full text-center gap-4 animate-fade-in">
             <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 ring-1 ring-primary/20 shadow-glow-white">
-              <span className="loading loading-spinner loading-lg text-primary" />
+              <Loading size="lg" className="text-primary" />
             </div>
             <div className="space-y-1">
               <p className="text-sm font-semibold text-foreground tracking-tight">Running AI Review...</p>
@@ -133,7 +135,7 @@ export function ReviewPanel({
           <div className="flex flex-col items-center justify-center h-full text-center gap-6 animate-fade-in">
             <div className="relative group">
               <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="relative p-5 rounded-3xl bg-gradient-to-br from-base-100 to-base-200 ring-1 ring-white/10 shadow-xl">
+              <div className="relative p-5 rounded-3xl bg-secondary ring-1 ring-border shadow-xl">
                 <SparklesIcon className="h-8 w-8 text-primary" />
               </div>
             </div>
@@ -207,17 +209,17 @@ export function ReviewPanel({
                   </span>
                   {session.suggestions.length === 0 &&
                     session.reviewResult.verdict === "PASS" && (
-                      <span className="text-xs text-base-content/50">
+                      <span className="text-xs text-muted-foreground">
                         No issues found
                       </span>
                     )}
                   {allAddressed && (
-                    <span className="text-xs text-base-content/50">
+                    <span className="text-xs text-muted-foreground">
                       {totalCount} suggestion{totalCount !== 1 ? "s" : ""} resolved
                     </span>
                   )}
                   {!allAddressed && session.suggestions.length > 0 && (
-                    <span className="text-xs text-base-content/50">
+                    <span className="text-xs text-muted-foreground">
                       {pendingCount} of {totalCount} pending
                     </span>
                   )}
@@ -227,7 +229,7 @@ export function ReviewPanel({
 
             {/* Pending count */}
             {pendingCount > 0 && (
-              <div className="text-xs text-base-content/60">
+              <div className="text-xs text-muted-foreground">
                 {pendingCount} pending suggestion{pendingCount !== 1 ? "s" : ""}
               </div>
             )}
@@ -240,11 +242,6 @@ export function ReviewPanel({
                   .map((tag) => (
                     <button
                       key={tag}
-                      className={`badge badge-sm cursor-pointer ${
-                        selectedTagFilters.has(tag)
-                          ? "badge-primary"
-                          : "badge-outline"
-                      }`}
                       onClick={() => {
                         const next = new Set(selectedTagFilters);
                         if (next.has(tag)) {
@@ -255,15 +252,20 @@ export function ReviewPanel({
                         onTagFilterChange(next);
                       }}
                     >
-                      {tag}
+                      <Badge
+                        variant={selectedTagFilters.has(tag) ? "primary" : "outline"}
+                        size="sm"
+                        className="cursor-pointer"
+                      >
+                        {tag}
+                      </Badge>
                     </button>
                   ))}
                 {selectedTagFilters.size > 0 && (
-                  <button
-                    className="badge badge-sm badge-ghost cursor-pointer"
-                    onClick={() => onTagFilterChange(new Set())}
-                  >
-                    Clear
+                  <button onClick={() => onTagFilterChange(new Set())}>
+                    <Badge variant="ghost" size="sm" className="cursor-pointer">
+                      Clear
+                    </Badge>
                   </button>
                 )}
               </div>
@@ -313,13 +315,14 @@ export function ReviewPanel({
                     <div className="gap-2">
                       {/* Header */}
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className={`badge badge-xs ${severityColors[suggestion.severity] || "badge-ghost"}`}
+                        <Badge
+                          variant={severityVariants[suggestion.severity] || "ghost"}
+                          size="xs"
                         >
                           {suggestion.severity}
-                        </span>
+                        </Badge>
                         {section && (
-                          <span className="text-xs text-base-content/60 truncate">
+                          <span className="text-xs text-muted-foreground truncate">
                             {section}
                             {lineStart && (
                               <span className="opacity-60">
@@ -343,25 +346,22 @@ export function ReviewPanel({
                       {suggestion.tags && suggestion.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {suggestion.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="badge badge-xs badge-outline"
-                            >
+                            <Badge key={tag} variant="outline" size="xs">
                               {tag}
-                            </span>
+                            </Badge>
                           ))}
                         </div>
                       )}
 
                       {/* Issue text */}
-                      <p className="text-sm text-base-content">
+                      <p className="text-sm text-foreground">
                         {suggestion.issue}
                       </p>
 
                       {/* Actions */}
                       {suggestion.status === "pending" && (
                         <div
-                          className="mt-2 pt-2 border-t border-base-content/5 flex items-center gap-2"
+                          className="mt-2 pt-2 border-t border-border/5 flex items-center"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <Button

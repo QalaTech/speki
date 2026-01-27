@@ -328,7 +328,7 @@ export function MonacoDiffReview({
   }, [originalText, modifiedText]);
 
   return (
-      <div className="flex flex-col h-full w-full bg-base-200 rounded-lg overflow-hidden" data-testid="monaco-diff-review">
+      <div className="flex flex-col h-full w-full bg-secondary rounded-lg overflow-hidden" data-testid="monaco-diff-review">
         <div ref={containerRef} className="flex-1 min-h-[400px]" />
       </div>
   );

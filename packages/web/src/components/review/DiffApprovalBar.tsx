@@ -36,13 +36,13 @@ export function DiffApprovalBar({
 
   return (
     <div
-      className="flex items-center justify-between py-2 px-4 bg-info/10 border-b border-info/30 shadow-sm animate-diff-bar"
+      className="flex items-center justify-between py-2 px-4 bg-secondary border-b border-border shadow-sm animate-diff-bar"
       data-testid="diff-approval-bar"
     >
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <span className="text-sm font-medium text-info whitespace-nowrap">Reviewing change:</span>
+        <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Reviewing change:</span>
         {suggestionIssue && (
-          <span className="text-sm text-base-content overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]" data-testid="diff-approval-issue">
+          <span className="text-sm text-foreground overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]" data-testid="diff-approval-issue">
             {suggestionIssue}
           </span>
         )}

@@ -13,6 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon, ExclamationTriangleIcon, ClockIcon } from '@heroicons/react/20/solid';
 import { Button } from '../ui/Button';
+import { Badge } from '../ui/Badge';
 
 export type SpecType = 'prd' | 'tech-spec' | 'bug';
 
@@ -76,10 +77,10 @@ const typeIconColors: Record<SpecType, string> = {
   'bug': 'text-error',
 };
 
-const typeBadgeStyles: Record<SpecType, string> = {
-  'prd': 'badge badge-xs badge-outline badge-info',
-  'tech-spec': 'badge badge-xs badge-outline badge-primary',
-  'bug': 'badge badge-xs badge-outline badge-error',
+const typeBadgeVariants: Record<SpecType, "info" | "primary" | "error"> = {
+  'prd': 'info',
+  'tech-spec': 'primary',
+  'bug': 'error',
 };
 
 function getSpecTypeIcon(specType: SpecType) {
@@ -139,13 +140,13 @@ function TreeNode({
           e.stopPropagation();
           onToggle(node.path);
         }}>
-          <summary className="gap-2 hover:bg-base-300/50 rounded-lg transition-colors">
+          <summary className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted/50 rounded-lg transition-colors cursor-pointer">
             {isExpanded ? (
               <FolderOpenIcon className="h-4 w-4 text-warning" />
             ) : (
               <FolderIcon className="h-4 w-4 text-warning" />
             )}
-            <span className="flex-1 truncate font-medium text-base-content/80">{node.name}</span>
+            <span className="flex-1 truncate font-medium text-foreground/80">{node.name}</span>
           </summary>
           <ul>
             {node.children?.map((child) => (
@@ -171,10 +172,10 @@ function TreeNode({
     <>
       <li>
         <a
-          className={`gap-2 rounded-lg transition-all duration-200 hover-lift-sm active-press ${
-            isSelected 
-              ? 'bg-primary/15 text-primary font-medium ring-1 ring-primary/20 shadow-sm inner-glow-primary' 
-              : 'hover:bg-base-300/50'
+          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 hover-lift-sm active-press cursor-pointer ${
+            isSelected
+              ? 'bg-primary/15 text-primary font-medium ring-1 ring-primary/20 shadow-sm inner-glow-primary'
+              : 'hover:bg-muted/50'
           } ${isGenerating ? 'opacity-50 pointer-events-none' : ''}`}
           onClick={(e) => {
             e.preventDefault();
@@ -186,9 +187,9 @@ function TreeNode({
             {node.name}
           </span>
           {node.name.endsWith('.md') && (
-            <span className={`${typeBadgeStyles[specType]} shadow-sm`}>
+            <Badge variant={typeBadgeVariants[specType]} size="xs" outline className="shadow-sm">
               {specType.replace('tech-spec', 'tech')}
-            </span>
+            </Badge>
           )}
           {node.reviewStatus && node.reviewStatus !== 'none' && getStatusIcon(node.reviewStatus)}
           {isGenerating && <ClockIcon className="h-4 w-4 animate-spin" />}
@@ -197,7 +198,7 @@ function TreeNode({
       {/* Render linked specs (tech specs under PRDs) */}
       {node.linkedSpecs && node.linkedSpecs.length > 0 && (
         <li>
-          <ul className="ml-2 border-l-2 border-dashed border-base-content/10">
+          <ul className="ml-2 border-l-2 border-dashed border-muted-foreground/10">
             {node.linkedSpecs.map((child) => (
               <TreeNode
                 key={child.path}
@@ -310,12 +311,12 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
   return (
     <div className="flex flex-col h-full frosted-sidebar">
       {/* Header */}
-      <div className="flex items-center justify-between py-3.5 px-4 border-b border-base-content/5 bg-base-200/30 backdrop-blur-sm">
+      <div className="flex items-center justify-between py-3.5 px-4 border-b border-border/5 bg-muted/30 backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
           <div className="p-1.5 rounded-lg bg-linear-to-br from-warning/20 to-warning/10 ring-1 ring-warning/20">
             <FolderIcon className="h-4 w-4 text-warning" />
           </div>
-          <span className="text-sm font-semibold text-base-content tracking-tight">Specs</span>
+          <span className="text-sm font-semibold text-foreground tracking-tight">Specs</span>
         </div>
         {onCreateNew && (
           <Button
@@ -331,11 +332,11 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
       </div>
 
       {/* Filter input */}
-      <div className="relative py-2.5 px-3 border-b border-base-content/5 bg-base-300/30">
+      <div className="relative py-2.5 px-3 border-b border-border/5 bg-muted/30">
         <div className="relative">
           <input
             type="text"
-            className="input input-sm w-full pr-8 bg-base-100/80 border-base-content/10 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all duration-200 placeholder:text-base-content/40"
+            className="w-full h-8 px-3 pr-8 text-sm rounded-md bg-card/80 border border-border/10 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-200 placeholder:text-muted-foreground/40"
             placeholder="Filter specs..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -358,18 +359,18 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {filteredFiles.length === 0 ? (
           filter ? (
-            <div className="flex flex-col items-center justify-center h-24 text-base-content/50 text-sm gap-1">
+            <div className="flex flex-col items-center justify-center h-24 text-muted-foreground text-sm gap-1">
               <span>No specs match</span>
-              <span className="text-xs text-base-content/40">"{filter}"</span>
+              <span className="text-xs text-muted-foreground/40">"{filter}"</span>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-10 px-4 text-center gap-4">
-              <div className="p-4 rounded-2xl bg-linear-to-br from-base-300/50 to-base-300/30 ring-1 ring-base-content/5">
-                <DocumentTextIcon className="h-10 w-10 text-base-content/30" />
+              <div className="p-4 rounded-2xl bg-linear-to-br from-muted/50 to-muted/30 ring-1 ring-border/5">
+                <DocumentTextIcon className="h-10 w-10 text-muted-foreground/30" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-base font-semibold text-base-content">No Specs Yet</h3>
-                <p className="text-sm text-base-content/50 max-w-[180px] leading-relaxed">
+                <h3 className="text-base font-semibold text-foreground">No Specs Yet</h3>
+                <p className="text-sm text-muted-foreground max-w-[180px] leading-relaxed">
                   Create your first spec to get started
                 </p>
               </div>
@@ -386,7 +387,7 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
             </div>
           )
         ) : (
-          <ul ref={treeRef} className="menu bg-transparent w-full p-2 animate-stagger-in" role="tree">
+          <ul ref={treeRef} className="w-full p-2 animate-stagger-in space-y-0.5" role="tree">
             {filteredFiles.map((node) => (
               <TreeNode
                 key={node.path}

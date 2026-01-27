@@ -402,20 +402,18 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-base-300 bg-base-200">
+      <div className="p-4 border-b border-border bg-muted">
         <h2 className="text-xl font-bold">PRD Decomposition</h2>
         <p className="text-sm opacity-60">Break down a PRD into atomic user stories</p>
       </div>
 
       {/* Configuration Bar */}
-      <div className="p-4 border-b border-base-300 bg-base-100 space-y-4">
+      <div className="p-4 border-b border-border bg-card space-y-4">
         <div className="flex flex-wrap items-end gap-4">
-          <div className="form-control flex-1 min-w-48">
-            <label className="label">
-              <span className="label-text">PRD File</span>
-            </label>
+          <div className="flex flex-col flex-1 min-w-48 gap-1.5">
+            <label className="text-sm font-medium">PRD File</label>
             <select
-              className="select select-bordered select-sm"
+              className="h-9 px-3 text-sm rounded-md border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary/20"
               value={selectedFile}
               onChange={(e) => setSelectedFile(e.target.value)}
               disabled={isInProgress}
@@ -429,13 +427,11 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
             </select>
           </div>
 
-          <div className="form-control min-w-40">
-            <label className="label">
-              <span className="label-text">Branch</span>
-            </label>
+          <div className="flex flex-col min-w-40 gap-1.5">
+            <label className="text-sm font-medium">Branch</label>
             <input
               type="text"
-              className="input input-bordered input-sm"
+              className="h-9 px-3 text-sm rounded-md border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary/20"
               value={branch}
               onChange={(e) => setBranch(e.target.value)}
               disabled={isInProgress}
@@ -443,16 +439,16 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
             />
           </div>
 
-          <div className="form-control">
-            <label className="label cursor-pointer gap-2">
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                className="checkbox checkbox-sm"
+                className="w-4 h-4 rounded border-border text-primary focus:ring-primary/20"
                 checked={forceRedecompose}
                 onChange={(e) => setForceRedecompose(e.target.checked)}
                 disabled={isInProgress}
               />
-              <span className="label-text">Force re-decomposition</span>
+              <span className="text-sm">Force re-decomposition</span>
             </label>
           </div>
 
@@ -492,20 +488,23 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
             </Badge>
           )}
           {decomposeState.verdict === 'FAIL' && draft && !error && (
-            <button
-              className="btn btn-xs btn-outline btn-error"
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-error border-error hover:bg-error/10"
               onClick={handleRetryReview}
               disabled={retrying}
+              isLoading={retrying}
             >
               {retrying ? 'Retrying...' : 'Retry Review'}
-            </button>
+            </Button>
           )}
         </div>
 
         {/* Inline Review Feedback (visible when verdict is not PASS) */}
         {feedback && decomposeState.verdict && decomposeState.verdict !== 'PASS' && (feedback.missingRequirements?.length || feedback.contradictions?.length ||
           feedback.dependencyErrors?.length || feedback.duplicates?.length || feedback.suggestions?.length || feedback.issues?.length) && (
-          <div className="bg-base-200 border border-error/30 rounded-lg p-4 space-y-3">
+          <div className="bg-muted border border-error/30 rounded-lg p-4 space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-error">Review Feedback</span>
               <Badge variant="error" size="xs">{feedback.verdict}</Badge>
@@ -588,10 +587,10 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
               {draft.userStories.map((story) => (
                 <div
                   key={story.id}
-                  className={`card card-compact bg-base-200 border border-base-300 cursor-pointer hover:bg-base-300/50 transition-colors ${story.inPrd ? 'opacity-70 border-l-4 border-l-success' : ''}`}
+                  className={`rounded-xl bg-muted border border-border cursor-pointer hover:bg-muted/80 transition-colors ${story.inPrd ? 'opacity-70 border-l-4 border-l-success' : ''}`}
                   onClick={() => openTaskDetail(story)}
                 >
-                  <div className="card-body gap-2">
+                  <div className="p-4 space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono text-xs opacity-60">{story.id}</span>
                       <Badge variant="neutral" size="xs">P{story.priority}</Badge>
@@ -632,10 +631,10 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
           onClick={() => setDrawerOpen(false)}
         >
           <div
-            className="w-full max-w-xl h-full bg-base-100 shadow-xl flex flex-col"
+            className="w-full max-w-xl h-full bg-card shadow-xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-base-300 bg-base-200">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-muted">
               <h3 className="font-bold">
                 {drawerMode === 'logs' ? 'Decomposition Logs' : selectedTask?.id}
               </h3>
@@ -652,7 +651,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
               {drawerMode === 'logs' && (
                 <div className="space-y-4">
                   {/* Compact Status Summary */}
-                  <div className="card bg-base-200 p-4 space-y-2">
+                  <div className="rounded-xl bg-muted p-4 space-y-2">
                     <div className="flex flex-wrap gap-4 text-sm">
                       <div>
                         <span className="opacity-60">Status:</span>{' '}
@@ -686,7 +685,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                     {decomposeState.prdFile && (
                       <div className="text-xs">
                         <span className="opacity-60">PRD:</span>{' '}
-                        <code className="bg-base-300 px-1 rounded">{decomposeState.prdFile}</code>
+                        <code className="bg-muted-foreground/10 px-1 rounded">{decomposeState.prdFile}</code>
                       </div>
                     )}
                   </div>
@@ -694,14 +693,15 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                   {/* Feedback Issues (if any) */}
                   {feedback && (feedback.missingRequirements?.length || feedback.contradictions?.length ||
                     feedback.dependencyErrors?.length || feedback.duplicates?.length || feedback.suggestions?.length) && (
-                    <div className="collapse collapse-arrow bg-base-200 border border-base-300">
-                      <input
-                        type="checkbox"
-                        checked={expandedLogs.has(0)}
-                        onChange={() => toggleLogExpanded(0)}
-                      />
-                      <div className="collapse-title font-medium">Review Feedback</div>
-                      <div className="collapse-content space-y-4">
+                    <details className="rounded-xl bg-muted border border-border overflow-hidden">
+                      <summary
+                        className="px-4 py-3 font-medium cursor-pointer hover:bg-muted/80 flex items-center justify-between"
+                        onClick={() => toggleLogExpanded(0)}
+                      >
+                        Review Feedback
+                        <span className={`transition-transform ${expandedLogs.has(0) ? 'rotate-180' : ''}`}>▼</span>
+                      </summary>
+                      <div className="px-4 pb-4 space-y-4">
                         {renderFeedbackSection('Missing Requirements', feedback.missingRequirements)}
                         {renderFeedbackSection('Contradictions', feedback.contradictions)}
                         {renderFeedbackSection('Dependency Errors', feedback.dependencyErrors)}
@@ -718,7 +718,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                           </div>
                         )}
                       </div>
-                    </div>
+                    </details>
                   )}
 
                   {/* Collapsible Review Logs */}
@@ -726,41 +726,43 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                     <div className="space-y-2">
                       <div className="text-sm font-semibold opacity-70">Peer Review Logs</div>
                       {allReviewLogs.map((log) => (
-                        <div key={log.attempt} className="collapse collapse-arrow bg-base-200 border border-base-300">
-                          <input
-                            type="checkbox"
-                            checked={expandedLogs.has(log.attempt)}
-                            onChange={() => toggleLogExpanded(log.attempt)}
-                          />
-                          <div className="collapse-title text-sm font-medium flex items-center gap-2">
-                            Review Attempt {log.attempt}
-                            <span className="text-xs opacity-60">
-                              {log.content ? `${(log.content.length / 1024).toFixed(1)}KB` : 'Not found'}
+                        <details key={log.attempt} className="rounded-xl bg-muted border border-border overflow-hidden">
+                          <summary
+                            className="px-4 py-3 text-sm font-medium cursor-pointer hover:bg-muted/80 flex items-center justify-between"
+                            onClick={() => toggleLogExpanded(log.attempt)}
+                          >
+                            <span className="flex items-center gap-2">
+                              Review Attempt {log.attempt}
+                              <span className="text-xs opacity-60">
+                                {log.content ? `${(log.content.length / 1024).toFixed(1)}KB` : 'Not found'}
+                              </span>
                             </span>
-                          </div>
-                          <div className="collapse-content">
-                            <pre className="text-xs bg-base-300 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-96">
+                            <span className={`transition-transform ${expandedLogs.has(log.attempt) ? 'rotate-180' : ''}`}>▼</span>
+                          </summary>
+                          <div className="px-4 pb-4">
+                            <pre className="text-xs bg-card p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-96">
                               {log.content || 'Log file not found'}
                             </pre>
                           </div>
-                        </div>
+                        </details>
                       ))}
                     </div>
                   )}
                   {!allReviewLogs.length && reviewLog && (
-                    <div className="collapse collapse-arrow bg-base-200 border border-base-300">
-                      <input
-                        type="checkbox"
-                        checked={expandedLogs.has(1)}
-                        onChange={() => toggleLogExpanded(1)}
-                      />
-                      <div className="collapse-title font-medium">Peer Review Log</div>
-                      <div className="collapse-content">
-                        <pre className="text-xs bg-base-300 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-96">
+                    <details className="rounded-xl bg-muted border border-border overflow-hidden">
+                      <summary
+                        className="px-4 py-3 font-medium cursor-pointer hover:bg-muted/80 flex items-center justify-between"
+                        onClick={() => toggleLogExpanded(1)}
+                      >
+                        Peer Review Log
+                        <span className={`transition-transform ${expandedLogs.has(1) ? 'rotate-180' : ''}`}>▼</span>
+                      </summary>
+                      <div className="px-4 pb-4">
+                        <pre className="text-xs bg-card p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-96">
                           {reviewLog}
                         </pre>
                       </div>
-                    </div>
+                    </details>
                   )}
                 </div>
               )}
@@ -822,7 +824,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                       <ul className="space-y-1">
                         {selectedTask.testCases.map((tc, i) => (
                           <li key={i}>
-                            <code className="text-xs bg-base-300 px-2 py-1 rounded font-mono">{tc}</code>
+                            <code className="text-xs bg-muted px-2 py-1 rounded font-mono">{tc}</code>
                           </li>
                         ))}
                       </ul>
@@ -843,7 +845,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                   {selectedTask.notes && (
                     <section className="space-y-2">
                       <h4 className="text-sm font-semibold opacity-70">Notes</h4>
-                      <div className="text-sm bg-base-200 p-3 rounded-lg">{selectedTask.notes}</div>
+                      <div className="text-sm bg-muted p-3 rounded-lg">{selectedTask.notes}</div>
                     </section>
                   )}
 
@@ -855,13 +857,13 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                   )}
 
                   {/* Feedback Section */}
-                  <section className="space-y-3 border-t border-base-300 pt-4">
+                  <section className="space-y-3 border-t border-border pt-4">
                     <h4 className="text-sm font-semibold opacity-70">Update Task</h4>
                     <p className="text-xs opacity-60">
                       Provide feedback to update this task. Claude will revise the task based on your comments.
                     </p>
                     <textarea
-                      className="textarea textarea-bordered w-full"
+                      className="w-full min-h-[100px] px-3 py-2 text-sm rounded-md border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 resize-y"
                       placeholder="e.g., Add a test case for error handling, clarify the acceptance criteria for edge cases, change the priority to 1..."
                       value={taskFeedback}
                       onChange={(e) => setTaskFeedback(e.target.value)}

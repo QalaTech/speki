@@ -49,11 +49,11 @@ export function BatchNavigation({
     }
   };
 
-  const navBtnClass = "py-1.5 px-3 text-sm font-medium text-base-content bg-base-200 border border-base-300 rounded cursor-pointer transition-all duration-150 hover:bg-base-300 hover:border-base-content/60 disabled:opacity-50 disabled:cursor-not-allowed";
+  const navBtnClass = "py-1.5 px-3 text-sm font-medium text-foreground bg-secondary border border-border rounded cursor-pointer transition-all duration-150 hover:bg-muted hover:border-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed";
   const actionBtnClass = "py-1.5 px-4 text-sm font-medium border border-transparent rounded cursor-pointer transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed";
 
   return (
-    <div className="flex justify-between items-center py-3 px-4 bg-base-200 border border-base-300 rounded-md mb-4" data-testid="batch-navigation">
+    <div className="flex items-center gap-1 p-1 bg-muted border border-border rounded-lg mb-4" data-testid="batch-navigation">
       <div className="flex items-center gap-3">
         <button
           className={navBtnClass}
@@ -65,7 +65,7 @@ export function BatchNavigation({
           Previous
         </button>
 
-        <span className="text-sm font-medium text-base-content min-w-[140px] text-center" data-testid="nav-counter">
+        <span className="text-sm font-medium text-foreground min-w-[140px] text-center" data-testid="nav-counter">
           Suggestion {currentIndex + 1} of {total}
         </span>
 
@@ -82,7 +82,7 @@ export function BatchNavigation({
 
       <div className="flex items-center gap-2">
         <button
-          className={`${actionBtnClass} bg-red-600 border-red-600 text-white hover:bg-red-700`}
+          className={`${actionBtnClass} bg-error border-error text-error-foreground hover:bg-error/90`}
           onClick={onRejectAll}
           disabled={disabled}
           data-testid="reject-all-btn"
@@ -91,7 +91,7 @@ export function BatchNavigation({
         </button>
 
         <button
-          className={`${actionBtnClass} bg-green-600 border-green-600 text-white hover:bg-green-700`}
+          className={`${actionBtnClass} bg-success border-success text-success-foreground hover:bg-success/90`}
           onClick={onApproveAll}
           disabled={disabled}
           data-testid="approve-all-btn"

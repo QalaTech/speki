@@ -20,22 +20,22 @@ function parseMarkdown(markdown: string): string {
 
   // Code blocks (fenced) - must be before other processing
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre class="my-4 py-4 px-5 bg-[#1e1e1e] border border-base-300 rounded-lg overflow-x-auto font-mono text-[13px] leading-relaxed text-[#d4d4d4]" data-lang="${lang}"><code>${code.trim()}</code></pre>`;
+    return `<pre class="my-4 py-4 px-5 bg-[#1e1e1e] border border-border rounded-lg overflow-x-auto font-mono text-[13px] leading-relaxed text-[#d4d4d4]" data-lang="${lang}"><code>${code.trim()}</code></pre>`;
   });
 
   // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code class="py-0.5 px-1.5 bg-base-300 rounded font-mono text-[0.9em] text-[#e06c75]">$1</code>');
+  html = html.replace(/`([^`]+)`/g, '<code class="py-0.5 px-1.5 bg-muted rounded font-mono text-[0.9em] text-primary">$1</code>');
 
   // Headers with IDs for TOC
   html = html.replace(/^(#{1,6})\s+(.+)$/gm, (_, hashes, text) => {
     const level = hashes.length;
     const id = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
-    const sizeClass = level === 1 ? 'text-[28px] pb-3 border-b border-base-300' :
-                      level === 2 ? 'text-[22px] pb-2 border-b border-base-300' :
+    const sizeClass = level === 1 ? 'text-[28px] pb-3 border-b border-border' :
+                      level === 2 ? 'text-[22px] pb-2 border-b border-border' :
                       level === 3 ? 'text-[18px]' :
                       level === 4 ? 'text-[16px]' :
-                      level === 5 ? 'text-[14px]' : 'text-[13px] text-base-content/60';
-    return `<h${level} id="${id}" class="mt-8 first:mt-0 mb-4 font-semibold leading-tight text-base-content scroll-mt-5 ${sizeClass}">${text}</h${level}>`;
+                      level === 5 ? 'text-[14px]' : 'text-[13px] text-muted-foreground/60';
+    return `<h${level} id="${id}" class="mt-8 first:mt-0 mb-4 font-semibold leading-tight text-foreground scroll-mt-5 ${sizeClass}">${text}</h${level}>`;
   });
 
   // Bold
@@ -57,14 +57,14 @@ function parseMarkdown(markdown: string): string {
   html = html.replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li class="my-1 list-decimal">$1</li>');
 
   // Checkboxes
-  html = html.replace(/\[ \]/g, '<input type="checkbox" disabled class="mr-2 scale-110 accent-accent">');
-  html = html.replace(/\[x\]/gi, '<input type="checkbox" disabled checked class="mr-2 scale-110 accent-accent">');
+  html = html.replace(/\[ \]/g, '<input type="checkbox" disabled class="mr-2 scale-110 accent-primary">');
+  html = html.replace(/\[x\]/gi, '<input type="checkbox" disabled checked class="mr-2 scale-110 accent-primary">');
 
   // Blockquotes
-  html = html.replace(/^>\s+(.+)$/gm, '<blockquote class="my-4 py-3 px-5 border-l-4 border-base-300 bg-base-200 text-base-content/60 rounded-r-md">$1</blockquote>');
+  html = html.replace(/^>\s+(.+)$/gm, '<blockquote class="my-4 py-3 px-5 border-l-4 border-muted-foreground/30 bg-muted/30 text-muted-foreground rounded-r-md">$1</blockquote>');
 
   // Horizontal rules
-  html = html.replace(/^---+$/gm, '<hr class="my-6 border-none border-t border-base-300">');
+  html = html.replace(/^---+$/gm, '<hr class="my-6 border-none border-t border-border">');
 
   // Paragraphs - wrap loose text
   html = html.replace(/^(?!<[a-z]|$)(.+)$/gm, '<p class="mb-4">$1</p>');
@@ -127,7 +127,7 @@ export function SpecPreviewTab({ content, filePath }: SpecPreviewTabProps) {
   const isMarkdown = ['md', 'mdx', 'markdown'].includes(fileExt || '');
 
   const getLevelClass = (level: number) => {
-    const base = "block py-1.5 px-2 bg-transparent border-none border-l-2 border-transparent text-base-content/60 text-xs text-left cursor-pointer transition-all duration-150 whitespace-nowrap overflow-hidden text-ellipsis hover:text-base-content hover:bg-base-300";
+    const base = "block py-1.5 px-2 bg-transparent border-none border-l-2 border-transparent text-muted-foreground/60 text-xs text-left cursor-pointer transition-all duration-150 whitespace-nowrap overflow-hidden text-ellipsis hover:text-foreground hover:bg-muted";
     const indents = ['pl-2 font-medium', 'pl-4', 'pl-6 text-[11px]', 'pl-8 text-[11px]', 'pl-10 text-[11px]', 'pl-12 text-[11px]'];
     return `${base} ${indents[level - 1] || indents[0]}`;
   };
@@ -135,9 +135,9 @@ export function SpecPreviewTab({ content, filePath }: SpecPreviewTabProps) {
   // For non-markdown files, show raw content
   if (!isMarkdown) {
     return (
-      <div className="flex h-full bg-base-100 overflow-hidden">
+      <div className="flex h-full bg-background overflow-hidden">
         <div className="flex-1 overflow-y-auto py-8 px-10">
-          <pre className="bg-base-200 p-5 rounded-lg overflow-x-auto text-[13px] leading-relaxed text-base-content">
+          <pre className="bg-secondary p-5 rounded-lg overflow-x-auto text-[13px] leading-relaxed text-foreground border border-border">
             <code>{content}</code>
           </pre>
         </div>
@@ -146,15 +146,15 @@ export function SpecPreviewTab({ content, filePath }: SpecPreviewTabProps) {
   }
 
   return (
-    <div className="flex h-full bg-base-100 overflow-hidden">
+    <div className="flex h-full bg-background overflow-hidden">
       {toc.length > 2 && (
-        <aside className="shrink-0 w-[200px] py-5 px-4 border-r border-base-content/10 bg-base-200 overflow-y-auto">
-          <div className="text-[11px] font-semibold text-base-content/60 uppercase tracking-[0.05em] mb-3">On this page</div>
+        <aside className="shrink-0 w-[200px] py-5 px-4 border-r border-border bg-secondary/50 overflow-y-auto">
+          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.05em] mb-3">On this page</div>
           <nav className="flex flex-col gap-0.5">
             {toc.map((item) => (
               <button
                 key={item.id}
-                className={`${getLevelClass(item.level)} ${activeHeading === item.id ? 'text-secondary border-l-accent' : ''}`}
+                className={`${getLevelClass(item.level)} ${activeHeading === item.id ? 'text-primary border-l-primary' : ''}`}
                 onClick={() => scrollToHeading(item.id)}
               >
                 {item.text}
@@ -166,7 +166,7 @@ export function SpecPreviewTab({ content, filePath }: SpecPreviewTabProps) {
 
       <div className="flex-1 overflow-y-auto py-8 px-10">
         <article
-          className="max-w-[800px] mx-auto text-base-content text-[15px] leading-relaxed"
+          className="max-w-[800px] mx-auto text-foreground text-[15px] leading-relaxed"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </div>

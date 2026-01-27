@@ -112,17 +112,17 @@ export function LiveExecutionView({
   };
 
   return (
-    <div className="flex flex-1 h-full bg-base-100 overflow-hidden">
+    <div className="flex flex-1 h-full bg-background overflow-hidden">
       {/* Left Panel - Task Queue */}
-      <div className="w-80 min-w-[280px] max-w-[360px] h-full bg-base-100 border-r border-base-300 flex flex-col overflow-hidden">
-        <div className="px-5 py-4 border-b border-base-300 flex items-center justify-between bg-base-200/50">
+      <div className="w-80 min-w-[280px] max-w-[360px] h-full bg-background border-r border-border flex flex-col overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-secondary/50">
           <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-base-content/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
             </svg>
-            <h3 className="text-sm font-semibold text-base-content">Task Queue</h3>
+            <h3 className="text-sm font-semibold text-foreground">Task Queue</h3>
           </div>
-          <span className="text-xs px-2 py-1 rounded-full bg-base-300 text-base-content/60">{stories.length}</span>
+          <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">{stories.length}</span>
         </div>
         <div className="flex-1 overflow-y-auto p-3" ref={listRef}>
           {orderedStories.map((story, index) => {
@@ -139,8 +139,8 @@ export function LiveExecutionView({
                 data-task-item
                 className={`
                   relative rounded-xl p-3 mb-2 cursor-pointer transition-all duration-200
-                  border-2 ${isSelected ? 'border-primary bg-primary/5' : 'border-transparent hover:border-base-300'}
-                  ${isRunningTask ? 'bg-primary/5 ring-2 ring-primary/20' : 'bg-base-200 hover:bg-base-200/80'}
+                  border-2 ${isSelected ? 'border-primary bg-primary/5' : 'border-transparent hover:border-muted'}
+                  ${isRunningTask ? 'bg-primary/5 ring-2 ring-primary/20' : 'bg-secondary hover:bg-secondary/80'}
                   ${status === 'done' ? 'opacity-50 hover:opacity-80' : ''}
                 `}
                 onClick={() => setSelectedStoryId(story.id)}
@@ -157,22 +157,22 @@ export function LiveExecutionView({
                     ) : (
                       <span className={`w-2 h-2 rounded-full ${config.dot} ${isRunningTask ? 'animate-pulse' : ''}`} />
                     )}
-                    <span className="text-xs font-mono text-base-content/60 bg-base-300/50 px-1.5 py-0.5 rounded">{story.id}</span>
+                    <span className="text-xs font-mono text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">{story.id}</span>
                     {isNext && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-info/20 text-info font-semibold">NEXT</span>
                     )}
                     <span className={`text-xs px-2 py-0.5 rounded-full ml-auto ${
                       story.priority === 1 ? 'bg-error/10 text-error' :
                       story.priority === 2 ? 'bg-warning/10 text-warning' :
-                      'bg-base-300 text-base-content/60'
+                      'bg-muted text-muted-foreground'
                     }`}>P{story.priority}</span>
                   </div>
-                  <div className={`text-sm leading-snug line-clamp-2 ${status === 'done' ? 'text-base-content/50' : 'text-base-content'}`}>
+                  <div className={`text-sm leading-snug line-clamp-2 ${status === 'done' ? 'text-muted-foreground' : 'text-foreground'}`}>
                     {story.title}
                   </div>
                   {isRunningTask && (
                     <div className="flex items-center gap-2 mt-2 text-xs text-primary">
-                      <span className="loading loading-dots loading-xs" />
+                      <span className="loading-dots h-1 w-4" />
                       <span>Running...</span>
                     </div>
                   )}
@@ -184,11 +184,11 @@ export function LiveExecutionView({
       </div>
 
       {/* Right Panel - Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-base-100">
+      <div className="flex-1 flex flex-col overflow-hidden bg-background">
         {selectedStory ? (
           <>
             {/* Content Header */}
-            <div className="px-6 py-5 bg-base-200/50 border-b border-base-300">
+            <div className="px-6 py-5 bg-secondary/50 border-b border-border">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${statusConfig[getStoryStatus(selectedStory)].bg} ${statusConfig[getStoryStatus(selectedStory)].color}`}>
@@ -216,18 +216,18 @@ export function LiveExecutionView({
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm text-base-content/50">{selectedStory.id}</span>
-                <span className="text-base-content/30">·</span>
-                <h2 className="text-lg font-semibold text-base-content">{selectedStory.title}</h2>
+                <span className="font-mono text-sm text-muted-foreground">{selectedStory.id}</span>
+                <span className="text-border">·</span>
+                <h2 className="text-lg font-semibold text-foreground">{selectedStory.title}</h2>
               </div>
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-base-300 bg-base-100 px-6">
+            <div className="flex border-b border-border bg-background px-6">
               <button
                 onClick={() => setActiveTab('chat')}
                 className={`relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all ${
-                  activeTab === 'chat' ? 'text-primary' : 'text-base-content/60 hover:text-base-content'
+                  activeTab === 'chat' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {TabIcons.chat}
@@ -243,7 +243,7 @@ export function LiveExecutionView({
               <button
                 onClick={() => setActiveTab('info')}
                 className={`relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all ${
-                  activeTab === 'info' ? 'text-primary' : 'text-base-content/60 hover:text-base-content'
+                  activeTab === 'info' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {TabIcons.info}
@@ -260,18 +260,18 @@ export function LiveExecutionView({
                     <ChatLogView entries={chatEntries} isRunning={isRunning} />
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
-                      <div className="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center mb-4">
+                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                         {getStoryStatus(selectedStory) === 'done' ? (
                           <svg className="w-8 h-8 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         ) : (
-                          <svg className="w-8 h-8 text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-8 h-8 text-muted-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                           </svg>
                         )}
                       </div>
-                      <p className="text-sm text-base-content/60">
+                      <p className="text-sm text-muted-foreground">
                         {getStoryStatus(selectedStory) === 'done'
                           ? 'This task has been completed.'
                           : 'Start a run to see live execution logs.'}
@@ -290,13 +290,13 @@ export function LiveExecutionView({
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
-            <div className="w-20 h-20 rounded-full bg-base-200 flex items-center justify-center mb-6">
-              <svg className="w-10 h-10 text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-6">
+              <svg className="w-10 h-10 text-muted-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-base-content mb-2">No Task Selected</h3>
-            <p className="text-sm text-base-content/60">Select a task from the queue to view details.</p>
+            <h3 className="text-lg font-semibold text-foreground mb-2">No Task Selected</h3>
+            <p className="text-sm text-muted-foreground">Select a task from the queue to view details.</p>
           </div>
         )}
       </div>

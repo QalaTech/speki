@@ -90,8 +90,8 @@ const DrawerContent = React.forwardRef<
         ref={ref}
         className={cn(
           "fixed z-1000 flex flex-col focus:outline-none",
-          "bg-linear-to-b from-base-100 to-base-100/98",
-          "border border-base-300/50",
+          "bg-background",
+          "border border-border",
           "shadow-2xl shadow-black/40",
           positionStyles[side],
           className
@@ -130,8 +130,8 @@ const DrawerHeader = ({
   <div
     className={cn(
       "flex flex-col gap-1.5 px-6 py-4",
-      "border-b border-base-300/50",
-      "bg-linear-to-r from-base-200/80 to-base-200/50",
+      "border-b border-border",
+      "bg-secondary/50",
       className
     )}
     {...props}
@@ -199,8 +199,8 @@ const DrawerFooter = ({
     className={cn(
       "flex items-center justify-end gap-3",
       "px-6 py-4",
-      "border-t border-base-300/50",
-      "bg-linear-to-r from-base-200/50 to-base-200/30",
+      "border-t border-border",
+      "bg-secondary/30",
       className
     )}
     {...props}

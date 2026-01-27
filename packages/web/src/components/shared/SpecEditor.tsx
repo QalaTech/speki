@@ -17,6 +17,7 @@ import { createEditorPlugins } from '../../lib/mdx-editor/config';
 import { sanitizeForMdx } from '../../features/editor';
 import { SelectionAskDialog } from './SelectionAskDialog';
 import { Button } from '../ui/Button';
+import { Alert } from '../ui/Alert';
 
 interface SelectionState {
   text: string;
@@ -527,17 +528,19 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
   return (
     <div ref={containerRef} className={`spec-editor ${className ?? ''} ${readOnly ? 'spec-editor--readonly' : ''} relative`} data-testid="spec-editor">
       {parseError && (
-        <div className="alert alert-warning mb-2 py-2 text-sm">
-          <span>⚠️ Some content couldn't be parsed in rich-text mode. Showing source view.</span>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-7 text-xs" 
-            onClick={() => setParseError(null)}
-          >
-            Try Again
-          </Button>
-        </div>
+        <Alert variant="warning" className="mb-2 py-2 text-sm">
+          <div className="flex items-center justify-between w-full">
+            <span>⚠️ Some content couldn't be parsed in rich-text mode. Showing source view.</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setParseError(null)}
+            >
+              Try Again
+            </Button>
+          </div>
+        </Alert>
       )}
       <MDXEditor
         key={editorKey}

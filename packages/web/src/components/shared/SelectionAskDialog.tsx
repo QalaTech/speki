@@ -131,7 +131,7 @@ export function SelectionAskDialog({
     <div
       ref={dialogRef}
       data-selection-ask-dialog
-      className="fixed z-3000 w-80 rounded-xl bg-base-100 border border-base-content/10
+      className="fixed z-3000 w-80 rounded-xl bg-background border border-border
                  shadow-2xl shadow-black/20 transform -translate-x-1/2
                  animate-in fade-in zoom-in-95 duration-300"
       style={{
@@ -141,17 +141,17 @@ export function SelectionAskDialog({
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-base-content/10 bg-base-200/50 rounded-t-xl">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/50 rounded-t-xl">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-primary/20">
             <ChatBubbleLeftRightIcon className="h-4 w-4 text-primary" />
           </div>
-          <span className="text-sm font-semibold text-base-content">Ask about selection</span>
+          <span className="text-sm font-semibold text-foreground">Ask about selection</span>
         </div>
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 w-8 p-0 rounded-full hover:bg-base-300"
+          className="h-8 w-8 p-0 rounded-full hover:bg-muted"
           onClick={onClose}
         >
           <XMarkIcon className="h-4 w-4" />
@@ -159,9 +159,9 @@ export function SelectionAskDialog({
       </div>
 
       {/* Selected text preview */}
-      <div className="px-4 py-3 border-b border-base-content/5 bg-base-200/30">
-        <p className="text-xs text-base-content/60 mb-1">Selected text:</p>
-        <p className="text-sm text-base-content/80 italic line-clamp-3">
+      <div className="px-4 py-3 border-b border-border/50 bg-secondary/30">
+        <p className="text-xs text-muted-foreground mb-1">Selected text:</p>
+        <p className="text-sm text-foreground/80 italic line-clamp-3">
           "{displayText}"
         </p>
       </div>
@@ -170,15 +170,16 @@ export function SelectionAskDialog({
       <div className="p-4">
         <textarea
           ref={inputRef}
-          className="textarea textarea-bordered w-full text-sm min-h-[80px] resize-none
-                     focus:textarea-primary focus:border-primary/50"
+          className="w-full text-sm min-h-[80px] resize-none
+                     bg-secondary border border-border rounded-lg p-3
+                     focus:ring-2 focus:ring-primary/50 focus:border-primary/50 outline-hidden"
           placeholder="What would you like to know about this?"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={handleKeyDown}
         />
         <div className="flex items-center justify-between mt-3">
-          <span className="text-xs text-base-content/40">
+          <span className="text-xs text-muted-foreground/40">
             Press Enter to send
           </span>
           <Button

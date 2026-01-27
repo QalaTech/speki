@@ -51,10 +51,10 @@ export function TaskInfoPanel({ story, completedIds, blocks = [], className = ''
     <div className={`space-y-6 ${className}`}>
       {/* Description */}
       <section>
-        <h4 className="text-xs font-semibold text-base-content/50 uppercase tracking-wide mb-3">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
           Description
         </h4>
-        <div className="prose prose-sm max-w-none">
+        <div className="prose prose-sm max-w-none text-foreground">
           <ChatMarkdown content={story.description} />
         </div>
       </section>
@@ -62,18 +62,18 @@ export function TaskInfoPanel({ story, completedIds, blocks = [], className = ''
       {/* Acceptance Criteria */}
       {story.acceptanceCriteria.length > 0 && (
         <section>
-          <h4 className="text-xs font-semibold text-base-content/50 uppercase tracking-wide mb-3">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             Acceptance Criteria
           </h4>
           <ul className="space-y-2">
             {story.acceptanceCriteria.map((criterion, idx) => (
               <li key={idx} className="flex items-start gap-3 text-sm">
                 <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                  story.passes ? 'bg-success/20 text-success' : 'bg-base-300 text-base-content/40'
+                  story.passes ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground/40'
                 }`}>
                   {story.passes ? Icons.check : <span className="w-2 h-2 rounded-full bg-current" />}
                 </span>
-                <span className={story.passes ? 'text-base-content/60' : ''}>{criterion}</span>
+                <span className={story.passes ? 'text-muted-foreground' : 'text-foreground'}>{criterion}</span>
               </li>
             ))}
           </ul>
@@ -83,13 +83,13 @@ export function TaskInfoPanel({ story, completedIds, blocks = [], className = ''
       {/* Test Cases */}
       {story.testCases && story.testCases.length > 0 && (
         <section>
-          <h4 className="text-xs font-semibold text-base-content/50 uppercase tracking-wide mb-3 flex items-center gap-2">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
             {Icons.test}
             Test Cases
           </h4>
           <div className="space-y-2">
             {story.testCases.map((test, idx) => (
-              <code key={idx} className="block text-xs bg-base-200 border border-base-300 px-3 py-2 rounded-lg font-mono">
+              <code key={idx} className="block text-xs bg-secondary border border-border px-3 py-2 rounded-lg font-mono">
                 {test}
               </code>
             ))}
@@ -100,7 +100,7 @@ export function TaskInfoPanel({ story, completedIds, blocks = [], className = ''
       {/* Dependencies */}
       {story.dependencies.length > 0 && (
         <section>
-          <h4 className="text-xs font-semibold text-base-content/50 uppercase tracking-wide mb-3 flex items-center gap-2">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
             {Icons.link}
             Dependencies ({story.dependencies.length - missingDeps.length}/{story.dependencies.length})
           </h4>
@@ -111,7 +111,7 @@ export function TaskInfoPanel({ story, completedIds, blocks = [], className = ''
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
                   completedIds.has(dep)
                     ? 'bg-success/10 text-success'
-                    : 'bg-base-300 text-base-content/70'
+                    : 'bg-muted text-muted-foreground'
                 }`}
               >
                 {completedIds.has(dep) ? Icons.check : Icons.clock}
@@ -135,7 +135,7 @@ export function TaskInfoPanel({ story, completedIds, blocks = [], className = ''
       {/* Blocks */}
       {blocks.length > 0 && (
         <section>
-          <h4 className="text-xs font-semibold text-base-content/50 uppercase tracking-wide mb-3 flex items-center gap-2">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
             <svg className="w-4 h-4 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
             </svg>
@@ -167,11 +167,11 @@ export function TaskInfoPanel({ story, completedIds, blocks = [], className = ''
       {/* Notes */}
       {story.notes && (
         <section>
-          <h4 className="text-xs font-semibold text-base-content/50 uppercase tracking-wide mb-3 flex items-center gap-2">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
             {Icons.notes}
             Notes
           </h4>
-          <div className="bg-base-200 border border-base-300 p-4 rounded-lg">
+          <div className="bg-secondary border border-border p-4 rounded-lg">
             <ChatMarkdown content={story.notes} />
           </div>
         </section>
@@ -180,7 +180,7 @@ export function TaskInfoPanel({ story, completedIds, blocks = [], className = ''
       {/* Context */}
       {story.context && (
         <section>
-          <h4 className="text-xs font-semibold text-base-content/50 uppercase tracking-wide mb-3">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             Context
           </h4>
           <ContextSection context={story.context} headingLevel="h5" />

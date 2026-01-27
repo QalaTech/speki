@@ -32,6 +32,7 @@ import {
   CollapsibleTrigger,
 } from "../ui/collapsible";
 import { Alert } from "../ui/Alert";
+import { Badge } from "../ui/Badge";
 import { TaskListSkeleton } from "../shared/SpecSkeleton";
 import { toast } from "sonner";
 
@@ -74,15 +75,15 @@ function FeedbackSection({ label, items, icon }: { label: string; items?: (strin
   if (!items || items.length === 0) return null;
   return (
     <div className="space-y-2">
-      <div className="text-sm font-semibold text-base-content/70 flex items-center gap-1.5">
+      <div className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
         <span>{icon}</span> {label}
-        <span className="badge badge-xs badge-ghost">{items.length}</span>
+        <Badge variant="ghost" size="xs">{items.length}</Badge>
       </div>
       <ul className="space-y-1.5 text-sm">
         {items.map((item, i) => (
           <li key={i} className="flex gap-2 items-start">
-            <span className="text-base-content/40 mt-0.5">•</span>
-            <span className="text-base-content/80">{formatFeedbackItem(item)}</span>
+            <span className="text-muted-foreground/40 mt-0.5">•</span>
+            <span className="text-foreground/80">{formatFeedbackItem(item)}</span>
           </li>
         ))}
       </ul>
@@ -102,7 +103,7 @@ function ReviewFeedbackPanel({ feedback }: { feedback: DecomposeFeedback }) {
   if (!hasFeedback) return null;
 
   return (
-    <div className="bg-base-200 border border-error/20 rounded-lg p-4 my-3 space-y-4">
+    <div className="bg-muted border border-error/20 rounded-lg p-4 my-3 space-y-4">
       <div className="text-sm font-bold text-error/80">Review Feedback</div>
       <FeedbackSection label="Missing Requirements" items={feedback.missingRequirements} icon="⚠" />
       <FeedbackSection label="Contradictions" items={feedback.contradictions} icon="⊘" />
@@ -609,16 +610,16 @@ export function SpecDecomposeTab({
 
   const getComplexityBadge = (complexity?: string) => {
     if (!complexity) return null;
-    const complexityClasses: Record<string, string> = {
-      low: "badge-success",
-      medium: "badge-warning",
-      high: "badge-error",
+    const complexityVariants: Record<string, "success" | "warning" | "error" | "ghost"> = {
+      low: "success",
+      medium: "warning",
+      high: "error",
     };
     return (
-      <span
-        className={`badge badge-xs ${complexityClasses[complexity] || "badge-ghost"}`}
-      >
-      </span>
+      <Badge
+        variant={complexityVariants[complexity] || "ghost"}
+        size="xs"
+      />
     );
   };
 
@@ -731,29 +732,29 @@ export function SpecDecomposeTab({
 
       {/* Review verdict + retry */}
       {reviewVerdict && reviewVerdict !== 'SKIPPED' && (
-        <div className={`alert my-3 ${reviewVerdict === 'PASS' ? 'alert-success' : reviewVerdict === 'FAIL' ? 'alert-error' : 'alert-warning'}`}>
-          <span>{reviewVerdict === 'PASS' ? '✓' : reviewVerdict === 'FAIL' ? '✗' : '○'}</span>
-          <span className="font-medium">
-            Review {reviewVerdict === 'PASS' ? 'passed' : reviewVerdict === 'FAIL' ? 'failed' : 'inconclusive'}
-          </span>
-          {reviewVerdict === 'FAIL' && hasBeenDecomposed && (
-            <button
-              className="btn btn-sm btn-outline"
-              onClick={handleRetryReview}
-              disabled={retryLoading || isLoading}
-            >
-              {retryLoading ? (
-                <>
-                  <span className="loading loading-spinner loading-xs" /> Retrying...
-                </>
-              ) : (
-                <>
-                  <ArrowPathIcon className="h-4 w-4" /> Retry Review
-                </>
-              )}
-            </button>
-          )}
-        </div>
+        <Alert
+          variant={reviewVerdict === 'PASS' ? 'success' : reviewVerdict === 'FAIL' ? 'error' : 'warning'}
+          className="my-3"
+        >
+          <div className="flex items-center gap-2 w-full">
+            <span>{reviewVerdict === 'PASS' ? '✓' : reviewVerdict === 'FAIL' ? '✗' : '○'}</span>
+            <span className="font-medium flex-1">
+              Review {reviewVerdict === 'PASS' ? 'passed' : reviewVerdict === 'FAIL' ? 'failed' : 'inconclusive'}
+            </span>
+            {reviewVerdict === 'FAIL' && hasBeenDecomposed && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRetryReview}
+                disabled={retryLoading || isLoading}
+                isLoading={retryLoading}
+              >
+                {!retryLoading && <ArrowPathIcon className="h-4 w-4" />}
+                {retryLoading ? 'Retrying...' : 'Retry Review'}
+              </Button>
+            )}
+          </div>
+        </Alert>
       )}
 
       {/* Review feedback details */}
@@ -808,12 +809,12 @@ export function SpecDecomposeTab({
                         <div
                           className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                             status === "completed"
-                              ? "bg-success text-success-content"
+                              ? "bg-success text-success-foreground"
                               : status === "blocked"
-                                ? "bg-warning text-warning-content"
+                                ? "bg-warning text-warning-foreground"
                                 : status === "running"
-                                  ? "bg-info text-info-content animate-pulse"
-                                  : "bg-base-300 text-base-content/70"
+                                  ? "bg-info text-info-foreground animate-pulse"
+                                  : "bg-muted text-muted-foreground"
                           }`}
                         >
                           {status === "completed" ? (
@@ -1052,21 +1053,21 @@ export function SpecDecomposeTab({
               <span
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                   selectedTask && getTaskStatus(selectedTask, completedIds) === "completed"
-                    ? "bg-success text-success-content"
+                    ? "bg-success text-success-foreground"
                     : selectedTask && getTaskStatus(selectedTask, completedIds) === "blocked"
-                      ? "bg-warning text-warning-content"
+                      ? "bg-warning text-warning-foreground"
                       : selectedTask && getTaskStatus(selectedTask, completedIds) === "running"
-                        ? "bg-info text-info-content animate-pulse"
-                        : "bg-base-300 text-base-content/70"
+                        ? "bg-info text-info-foreground animate-pulse"
+                        : "bg-muted text-muted-foreground"
                 }`}
               >
                 {selectedTask ? getStatusIcon(getTaskStatus(selectedTask, completedIds)) : null}
               </span>
               <DrawerTitle>Edit Task</DrawerTitle>
               <div className="flex items-center gap-2">
-                <span className="badge badge-outline font-mono text-xs">
+                <Badge variant="outline" size="xs" className="font-mono">
                   {selectedTask?.id}
-                </span>
+                </Badge>
                 {getComplexityBadge(selectedTask?.complexity)}
               </div>
             </div>

@@ -28,7 +28,7 @@ export function ExecutionHeader({
   const percentage = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
 
   return (
-    <header className="bg-base-200/50 border-b border-base-300">
+    <header className="bg-secondary/50 border-b border-border">
       <div className="px-6 py-4">
         {/* Top row: Project info + Controls */}
         <div className="flex items-center justify-between gap-6 mb-4">
@@ -36,20 +36,24 @@ export function ExecutionHeader({
           <div className="flex items-center gap-4 min-w-0">
             <div className="min-w-0">
               <div className="flex items-center gap-3">
-                <h1 className="text-xl font-bold text-base-content truncate">{projectName}</h1>
+                <h1 className="text-xl font-bold text-foreground truncate">{projectName}</h1>
                 {ralphStatus.running ? (
                   <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
                     <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                     Running
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-base-300 text-base-content/60 text-sm">
+                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted text-muted-foreground text-sm">
                     Idle
                   </span>
                 )}
               </div>
               {branchName && (
-                <p className="text-sm text-base-content/50 font-mono mt-0.5">{branchName}</p>
+                <div className="mt-1">
+                  <span className="text-xs text-muted-foreground font-mono bg-muted/50 px-2 py-0.5 rounded-full">
+                    {branchName}
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -57,7 +61,7 @@ export function ExecutionHeader({
           {/* Right: Start/Stop button */}
           <div className="flex items-center gap-3 shrink-0">
             {ralphStatus.running && ralphStatus.currentStory && (
-              <div className="text-sm text-base-content/60 max-w-[200px] truncate hidden lg:block">
+              <div className="text-sm text-muted-foreground max-w-[200px] truncate hidden lg:block">
                 Working on <span className="text-primary font-medium">{ralphStatus.currentStory}</span>
               </div>
             )}
@@ -107,7 +111,7 @@ export function ExecutionHeader({
               <span className="text-sm font-semibold text-error">{stats.blocked}</span>
               <span className="text-xs text-error/70">blocked</span>
             </div>
-            <div className="text-sm text-base-content/50 pl-2">
+            <div className="text-sm text-muted-foreground pl-2">
               {stats.total} total
             </div>
           </div>
@@ -115,13 +119,13 @@ export function ExecutionHeader({
           {/* Progress bar */}
           <div className="flex-1 max-w-md">
             <div className="flex items-center gap-3">
-              <div className="flex-1 h-2 bg-base-300 rounded-full overflow-hidden">
+              <div className="flex-1 h-2 bg-border rounded-full overflow-hidden">
                 <div
                   className="h-full bg-success rounded-full transition-all duration-500"
                   style={{ width: `${percentage}%` }}
                 />
               </div>
-              <span className="text-sm font-medium text-base-content/70 w-12 text-right">{percentage}%</span>
+              <span className="text-sm font-semibold text-foreground tracking-tight">{percentage}%</span>
             </div>
           </div>
         </div>

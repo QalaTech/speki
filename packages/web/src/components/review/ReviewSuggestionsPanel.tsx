@@ -11,6 +11,8 @@ import { BatchNavigation } from './BatchNavigation';
 import { GodSpecWarning } from './GodSpecWarning';
 import { ReviewChat } from './ReviewChat';
 import { Button } from '../ui/Button';
+import { Badge } from '../ui/Badge';
+import { Loading } from '../ui/Loading';
 
 interface DiscussingContext {
   suggestionId: string;
@@ -110,12 +112,15 @@ export function ReviewSuggestionsPanel({
       style={{ width: `${width}%` }}
       data-testid="right-panel"
     >
-      <div className="flex items-center justify-between px-4 py-2 border-b border-base-300 bg-base-200">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted">
         <span className="text-sm font-semibold">Review Panel</span>
         {reviewResult && (
-          <span className={`badge ${reviewResult.verdict === 'PASS' ? 'badge-success' : reviewResult.verdict === 'FAIL' ? 'badge-error' : 'badge-warning'} badge-sm`}>
+          <Badge
+            variant={reviewResult.verdict === 'PASS' ? 'success' : reviewResult.verdict === 'FAIL' ? 'error' : 'warning'}
+            size="sm"
+          >
             {reviewResult.verdict}
-          </span>
+          </Badge>
         )}
       </div>
       <div className="flex-1 overflow-auto p-4">
@@ -157,12 +162,12 @@ export function ReviewSuggestionsPanel({
           <div className="flex flex-col items-center justify-center py-12 text-center" data-testid="no-suggestions">
             {loadingSession ? (
               <div className="flex flex-col items-center gap-3" data-testid="loading-session">
-                <span className="loading loading-spinner loading-md"></span>
+                <Loading size="md" />
                 <p className="text-sm opacity-70">Loading review data...</p>
               </div>
             ) : isStartingReview || sessionStatus === 'in_progress' ? (
               <div className="flex flex-col items-center gap-3" data-testid="review-in-progress">
-                <span className="loading loading-spinner loading-md text-primary"></span>
+                <Loading size="md" className="text-primary" />
                 <p className="font-medium">Running AI Review...</p>
                 <p className="text-sm opacity-60">This may take 2-5 minutes as multiple prompts are analyzed.</p>
               </div>
@@ -193,8 +198,8 @@ export function ReviewSuggestionsPanel({
 
         {/* Review Chat */}
         {sessionId && (
-          <div className="mt-4 border-t border-base-300 pt-4" data-testid="review-chat-section">
-            <div className="text-sm font-semibold mb-3 opacity-70">Chat</div>
+          <div className="mt-4 border-t border-border pt-4" data-testid="review-chat-section">
+            <div className="text-sm font-semibold mb-3 text-muted-foreground">Chat</div>
             <ReviewChat
               messages={chatMessages}
               sessionId={sessionId}

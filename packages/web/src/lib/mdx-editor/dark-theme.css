@@ -55,14 +55,14 @@
   --baseTextHighContrast: #f0f6fc;
   --baseTextMuted: #8b949e;
 
-  /* Bridge editor variables to DaisyUI theme */
-  --color-bg: var(--color-base-100);
-  --color-text: var(--color-base-content);
-  --color-text-muted: oklch(60% 0.02 256);
-  --color-border: oklch(32% 0.015 253);
-  --color-surface: var(--color-base-200);
-  --color-surface-hover: var(--color-base-300);
-  --color-accent: var(--color-primary);
+  /* Bridge editor variables to theme */
+  --color-bg: oklch(8% 0.01 260);
+  --color-text: oklch(98% 0.005 260);
+  --color-text-muted: oklch(65% 0.01 260);
+  --color-border: oklch(22% 0.02 260);
+  --color-surface: oklch(12% 0.015 260);
+  --color-surface-hover: oklch(18% 0.015 260);
+  --color-accent: oklch(58% 0.233 277);
 
   background: var(--color-bg) !important;
   color: var(--color-text) !important;

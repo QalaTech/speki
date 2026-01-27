@@ -1,13 +1,20 @@
 import type { UserStory } from '../../types';
 import { getStoryStatus } from '../../types';
 import { TaskInfoPanel } from '../shared/TaskInfoPanel';
+import { 
+  Drawer, 
+  DrawerContent, 
+  DrawerHeader, 
+  DrawerTitle, 
+  DrawerBody 
+} from '../ui/Drawer';
 import { Button } from '../ui/Button';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 
 interface TaskDrawerProps {
   story: UserStory | null;
   completedIds: Set<string>;
   blocksMap: Map<string, string[]>;
-  logContent: string;
   onClose: () => void;
 }
 
@@ -15,7 +22,7 @@ const STATUS_CONFIG = {
   completed: { label: 'Completed', color: 'text-success', bg: 'bg-success/10', icon: '✓' },
   ready: { label: 'Ready', color: 'text-info', bg: 'bg-info/10', icon: '▶' },
   blocked: { label: 'Blocked', color: 'text-error', bg: 'bg-error/10', icon: '⏸' },
-  pending: { label: 'Pending', color: 'text-base-content/60', bg: 'bg-base-300', icon: '○' },
+  pending: { label: 'Pending', color: 'text-muted-foreground/60', bg: 'bg-muted', icon: '○' },
 };
 
 const COMPLEXITY_CONFIG = {
@@ -25,75 +32,70 @@ const COMPLEXITY_CONFIG = {
 };
 
 export function TaskDrawer({ story, completedIds, blocksMap, onClose }: TaskDrawerProps) {
-  if (!story) return null;
-
-  const status = getStoryStatus(story, completedIds);
-  const blocks = blocksMap.get(story.id) || [];
-  const statusConfig = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
-  const complexityConfig = story.complexity ? COMPLEXITY_CONFIG[story.complexity] : null;
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
+  const isOpen = !!story;
+  
+  // Always render the Drawer root for Vaul animations, but content conditionally or handle via isOpen
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex justify-end"
-      onClick={handleBackdropClick}
-    >
-      <div className="w-full max-w-lg h-full bg-base-100 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-        {/* Header */}
-        <div className="px-6 py-5 border-b border-base-300 bg-base-200/50">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${statusConfig.bg} ${statusConfig.color}`}>
-                <span>{statusConfig.icon}</span>
-                {statusConfig.label}
-              </span>
-              {complexityConfig && (
-                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${complexityConfig.bg} ${complexityConfig.color}`}>
-                  {story.complexity}
+    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()} direction="right">
+      <DrawerContent side="right" className="w-[500px] sm:w-[600px]">
+        {story && (
+          <>
+            <DrawerHeader>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(() => {
+                    const status = getStoryStatus(story, completedIds);
+                    const statusConfig = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+                    return (
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${statusConfig.bg} ${statusConfig.color}`}>
+                        <span>{statusConfig.icon}</span>
+                        {statusConfig.label}
+                      </span>
+                    );
+                  })()}
+                  {story.complexity && (
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${COMPLEXITY_CONFIG[story.complexity].bg} ${COMPLEXITY_CONFIG[story.complexity].color}`}>
+                      {story.complexity}
+                    </span>
+                  )}
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                    story.priority === 1 ? 'bg-error/10 text-error' :
+                    story.priority === 2 ? 'bg-warning/10 text-warning' :
+                    'bg-info/10 text-info'
+                  }`}>
+                    P{story.priority}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-full hover:bg-muted"
+                  onClick={onClose}
+                  aria-label="Close drawer"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-mono text-xs text-muted-foreground/50 bg-muted/50 px-2 py-0.5 rounded">
+                  {story.id}
                 </span>
-              )}
-              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                story.priority === 1 ? 'bg-error/10 text-error' :
-                story.priority === 2 ? 'bg-warning/10 text-warning' :
-                'bg-info/10 text-info'
-              }`}>
-                P{story.priority}
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 rounded-full hover:bg-base-300"
-              onClick={onClose}
-              aria-label="Close drawer"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </Button>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-sm text-base-content/50 bg-base-300/50 px-2 py-0.5 rounded">
-              {story.id}
-            </span>
-          </div>
-          <h2 className="text-lg font-bold mt-2">{story.title}</h2>
-        </div>
+              </div>
+              <DrawerTitle className="text-xl font-bold text-foreground">
+                {story.title}
+              </DrawerTitle>
+            </DrawerHeader>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <TaskInfoPanel
-            story={story}
-            completedIds={completedIds}
-            blocks={blocks}
-          />
-        </div>
-      </div>
-    </div>
+            <DrawerBody>
+              <TaskInfoPanel
+                story={story}
+                completedIds={completedIds}
+                blocks={blocksMap.get(story.id) || []}
+              />
+            </DrawerBody>
+          </>
+        )}
+      </DrawerContent>
+    </Drawer>
   );
 }

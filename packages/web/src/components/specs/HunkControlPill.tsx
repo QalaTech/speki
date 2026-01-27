@@ -88,19 +88,19 @@ export function HunkControlPill({
     hunk.modifiedEndLineNumber - hunk.modifiedStartLineNumber + 1
   );
 
-  const actionBase = "flex items-center gap-[5px] py-1.5 px-2.5 bg-transparent border-none rounded-[14px] text-base-content/60 text-[11px] font-medium cursor-pointer transition-all duration-150 whitespace-nowrap hover:bg-base-300 hover:text-base-content active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/40";
+  const actionBase = "flex items-center gap-[5px] py-1.5 px-2.5 bg-transparent border-none rounded-[14px] text-muted-foreground/60 text-[11px] font-medium cursor-pointer transition-all duration-150 whitespace-nowrap hover:bg-muted hover:text-foreground active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 
   return (
-      <div
-        ref={pillRef}
-        className="inline-flex items-center gap-1 py-1 px-1.5 bg-[rgba(22,27,33,0.92)] backdrop-blur-md border border-white/10 rounded-[20px] shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_0_0_1px_rgba(255,255,255,0.05)] text-[11px] z-100 select-none animate-hunk-pill hover:border-white/20 hover:shadow-[0_4px_20px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)]"
-        style={{
-          position: 'absolute',
-          top: `${position.top}px`,
-          left: `${position.left}px`,
-        }}
-      >
-        <span className="py-1 px-2 text-base-content/60 font-medium text-[10px] uppercase tracking-[0.03em] max-lg:hidden">
+    <div
+      ref={pillRef}
+      className="inline-flex items-center gap-1 py-1 px-1.5 bg-background/90 backdrop-blur-md border border-border rounded-[20px] shadow-[0_4px_16px_rgba(0,0,0,0.4)] text-[11px] z-100 select-none animate-hunk-pill hover:border-border/50 hover:shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
+      style={{
+        position: 'absolute',
+        top: `${position.top}px`,
+        left: `${position.left}px`,
+      }}
+    >
+        <span className="py-1 px-2 text-muted-foreground/60 font-medium text-[10px] uppercase tracking-[0.03em] max-lg:hidden">
           {linesChanged} {linesChanged === 1 ? 'line' : 'lines'}
         </span>
 

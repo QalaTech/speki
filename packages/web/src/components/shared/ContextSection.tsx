@@ -33,8 +33,8 @@ function ContextGroup({ title, entries, headingLevel, badge }: ContextGroupProps
           {title}
           {badge && <Badge variant={BADGE_VARIANTS[badge]} size="xs">{badge}</Badge>}
         </Heading>
-        <div className="bg-base-200 rounded-lg p-3">
-          <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto">{entries}</pre>
+        <div className="bg-secondary rounded-lg p-3">
+          <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto text-foreground">{entries}</pre>
         </div>
       </div>
     );
@@ -50,9 +50,9 @@ function ContextGroup({ title, entries, headingLevel, badge }: ContextGroupProps
         {badge && <Badge variant={BADGE_VARIANTS[badge]} size="xs">{badge}</Badge>}
       </Heading>
       {Object.entries(entries).map(([name, content]) => (
-        <div key={name} className="bg-base-200 rounded-lg p-3 space-y-1">
-          <div className="text-xs font-semibold opacity-70">{name}</div>
-          <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+        <div key={name} className="bg-secondary rounded-lg p-3 space-y-1">
+          <div className="text-xs font-semibold text-muted-foreground">{name}</div>
+          <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto text-foreground">
             {typeof content === 'string' ? content : JSON.stringify(content, null, 2)}
           </pre>
         </div>
@@ -76,7 +76,7 @@ function ReferencesGroup({ references, headingLevel }: ReferencesGroupProps): Re
       <ul className="space-y-1">
         {references.map((ref, idx) => (
           <li key={idx}>
-            <code className="text-xs bg-base-300 px-2 py-1 rounded font-mono">{ref}</code>
+            <code className="text-xs bg-muted px-2 py-1 rounded font-mono text-foreground">{ref}</code>
           </li>
         ))}
       </ul>

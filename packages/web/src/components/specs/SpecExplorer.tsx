@@ -29,6 +29,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
 import { Button } from "../ui/Button";
+import { Badge } from "../ui/Badge";
 import { Drawer, DrawerContent } from "../ui/Drawer";
 import { SpecContentSkeleton } from '../shared/SpecSkeleton';
 
@@ -264,12 +265,12 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     if (!selectedPath) {
       if (files.length === 0) {
         return (
-          <div className="flex flex-col items-center justify-center h-full text-base-content/60 text-sm text-center p-10 gap-4 max-w-[400px] mx-auto animate-in fade-in zoom-in-95 duration-700">
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm text-center p-10 gap-4 max-w-[400px] mx-auto animate-in fade-in zoom-in-95 duration-700">
             <div className="p-5 rounded-3xl bg-linear-to-br from-primary/25 to-secondary/15 shadow-glass animate-bounce-slow">
               <RocketLaunchIcon className="w-14 h-14 text-primary" />
             </div>
-            <h2 className="m-0 text-2xl font-semibold text-base-content">Welcome to SPEKI!</h2>
-            <p className="m-0 text-sm text-base-content/60 leading-relaxed">
+            <h2 className="m-0 text-2xl font-semibold text-foreground">Welcome to SPEKI!</h2>
+            <p className="m-0 text-sm text-muted-foreground leading-relaxed">
               Create your first spec to start building with iterative AI development.
               Specs define what you want to build - Ralph will help you refine and implement them.
             </p>
@@ -284,7 +285,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
         );
       }
       return (
-        <div className="flex flex-col items-center justify-center h-full text-base-content/60 text-sm text-center p-10">
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm text-center p-10">
           <p>Select a spec from the tree to view it</p>
         </div>
       );
@@ -319,7 +320,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   };
 
   return (
-    <div className="flex h-full bg-base-100">
+    <div className="flex h-full bg-card">
         {/* Tree Panel (Left) */}
         <div className="shrink-0 min-w-[180px] max-w-[500px] h-full overflow-hidden" style={{ width: treeWidth }}>
           <SpecTree
@@ -333,15 +334,16 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
         {/* Resize Handle */}
         <div
-          className="shrink-0 w-1 h-full bg-linear-to-b from-transparent via-base-content/10 to-transparent cursor-col-resize relative z-10 transition-all duration-200 hover:bg-primary/30 hover:w-1.5 hover:shadow-lg hover:shadow-primary/30 group"
+          className="shrink-0 w-px h-full bg-border cursor-col-resize relative z-10 transition-all duration-200 hover:bg-primary hover:shadow-[0_0_10px_rgba(88,166,255,0.3)] group"
           onMouseDown={handleResizeStart}
           title="Drag to resize"
         >
-          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-base-content/5 group-hover:bg-primary/50 transition-colors" />
+          {/* Invisible hit area for easier grabbing */}
+          <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize" />
         </div>
 
         {/* Document Area (Center) */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-base-100">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-card">
           {selectedPath && (
             <SpecHeader
               fileName={selectedFileName}
@@ -391,23 +393,23 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
           ) : (
             /* Collapsed Review Tab */
             <button
-              className="flex flex-col items-center justify-center gap-4 w-12 h-full bg-linear-to-l from-base-200/80 to-base-200/30 border-l border-border/30 hover:from-secondary/15 hover:to-secondary/5 transition-all duration-500 cursor-pointer group shadow-glass"
+              className="flex flex-col items-center justify-center gap-4 w-12 h-full bg-linear-to-l from-muted/80 to-muted/30 border-l border-border/30 hover:from-secondary/15 hover:to-secondary/5 transition-all duration-500 cursor-pointer group shadow-glass"
               onClick={() => setIsReviewPanelOpen(true)}
               title="Open Review Panel"
             >
-              <ChevronLeftIcon className="h-4 w-4 text-base-content/40 group-hover:text-secondary group-hover:-translate-x-0.5 transition-all duration-200" />
+              <ChevronLeftIcon className="h-4 w-4 text-muted-foreground/40 group-hover:text-secondary group-hover:-translate-x-0.5 transition-all duration-200" />
               <div className="flex flex-col items-center gap-2">
                 <div className="p-2 rounded-lg bg-secondary/10 group-hover:bg-secondary/20 transition-colors ring-1 ring-secondary/20">
                   <MagnifyingGlassIcon className="h-4 w-4 text-secondary" />
                 </div>
-                <span className="text-[11px] font-medium text-base-content/50 group-hover:text-secondary/80 [writing-mode:vertical-rl] rotate-180 tracking-wide transition-colors">
+                <span className="text-[11px] font-medium text-muted-foreground group-hover:text-secondary/80 [writing-mode:vertical-rl] rotate-180 tracking-wide transition-colors">
                   Review
                 </span>
               </div>
               {session && session.suggestions.filter(s => s.status === 'pending').length > 0 && (
-                <span className="badge badge-xs badge-secondary shadow-sm animate-pulse">
+                <Badge variant="secondary" size="xs" className="shadow-sm animate-pulse">
                   {session.suggestions.filter(s => s.status === 'pending').length}
-                </span>
+                </Badge>
               )}
             </button>
           )

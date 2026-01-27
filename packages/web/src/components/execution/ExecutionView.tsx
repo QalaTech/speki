@@ -5,6 +5,7 @@ import { ExecutionHeader } from './ExecutionHeader';
 import { ExecutionTabs } from './ExecutionTabs';
 import { ExecutionContent } from './ExecutionContent';
 import { Button } from '../ui/Button';
+import { Loading } from '../ui/Loading';
 import type { ParsedEntry } from '../../utils/parseJsonl';
 
 export interface ExecutionViewProps {
@@ -43,10 +44,10 @@ export function ExecutionView({
   // Loading state
   if (!prdData && sseStatus === 'connecting') {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-base-100">
-        <span className="loading loading-spinner loading-lg text-primary"></span>
-        <h2 className="mt-4 text-xl font-semibold text-base-content">Loading...</h2>
-        <p className="mt-2 text-sm text-base-content/60">Connecting to project...</p>
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-background">
+        <Loading size="lg" className="text-primary" />
+        <h2 className="mt-4 text-xl font-semibold text-foreground">Loading...</h2>
+        <p className="mt-2 text-sm text-muted-foreground/60">Connecting to project...</p>
       </div>
     );
   }
@@ -54,12 +55,12 @@ export function ExecutionView({
   // No tasks state (show for any non-loading state when there's no data)
   if (!prdData) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-base-100">
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-background">
         <div className="p-4 rounded-2xl bg-linear-to-br from-primary/20 to-secondary/20 mb-4">
           <ClipboardDocumentListIcon className="w-14 h-14 text-primary" />
         </div>
-        <h2 className="text-xl font-semibold text-base-content">No Tasks Yet</h2>
-        <p className="mt-2 text-sm text-base-content/60 max-w-md">
+        <h2 className="text-xl font-semibold text-foreground">No Tasks Yet</h2>
+        <p className="mt-2 text-sm text-muted-foreground/60 max-w-md">
           No tasks have been generated for this project yet. Create a spec and decompose it into tasks to get started.
         </p>
         <div className="flex gap-3 mt-6">
