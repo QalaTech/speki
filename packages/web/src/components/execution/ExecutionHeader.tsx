@@ -1,4 +1,5 @@
 import type { RalphStatus } from '../../types';
+import { Button } from '../ui/Button';
 
 interface Stats {
   total: number;
@@ -61,8 +62,9 @@ export function ExecutionHeader({
               </div>
             )}
             {!ralphStatus.running ? (
-              <button
-                className="btn btn-primary gap-2"
+              <Button
+                variant="primary"
+                className="gap-2 shadow-sm shadow-primary/20"
                 onClick={onStartRalph}
                 disabled={stats.ready === 0}
               >
@@ -70,17 +72,18 @@ export function ExecutionHeader({
                   <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                 </svg>
                 Start Run
-              </button>
+              </Button>
             ) : (
-              <button
-                className="btn btn-error gap-2"
+              <Button
+                variant="destructive"
+                className="gap-2"
                 onClick={onStopRalph}
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M5.25 3A2.25 2.25 0 003 5.25v9.5A2.25 2.25 0 005.25 18h9.5A2.25 2.25 0 0017 15.75v-9.5A2.25 2.25 0 0014.75 3h-9.5z" />
                 </svg>
                 Stop
-              </button>
+              </Button>
             )}
           </div>
         </div>

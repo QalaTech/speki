@@ -29,61 +29,58 @@ describe('ActionButton', () => {
   });
 
   describe('variants', () => {
-    it('renders primary variant with glass-primary class', () => {
+    it('renders primary variant with btn-glass-primary class', () => {
       render(<ActionButton variant="primary" onClick={() => {}}>Primary</ActionButton>);
       const button = screen.getByText('Primary');
-      expect(button).toHaveClass('btn');
       expect(button).toHaveClass('btn-glass-primary');
     });
 
-    it('renders danger variant with glass-error class', () => {
+    it('renders danger variant with btn-glass-error class', () => {
       render(<ActionButton variant="danger" onClick={() => {}}>Danger</ActionButton>);
       const button = screen.getByText('Danger');
-      expect(button).toHaveClass('btn');
       expect(button).toHaveClass('btn-glass-error');
     });
 
-    it('renders secondary variant with DaisyUI btn-ghost btn-outline classes', () => {
+    it('renders secondary variant with btn-glass-secondary class', () => {
       render(<ActionButton variant="secondary" onClick={() => {}}>Secondary</ActionButton>);
       const button = screen.getByText('Secondary');
-      expect(button).toHaveClass('btn');
-      expect(button).toHaveClass('btn-ghost');
-      expect(button).toHaveClass('btn-outline');
+      expect(button).toHaveClass('btn-glass-secondary');
     });
 
-    it('renders success variant with glass-success class', () => {
+    it('renders success variant with btn-glass-success class', () => {
       render(<ActionButton variant="success" onClick={() => {}}>Success</ActionButton>);
       const button = screen.getByText('Success');
-      expect(button).toHaveClass('btn');
       expect(button).toHaveClass('btn-glass-success');
     });
 
-    it('renders approve variant with glass-success class', () => {
+    it('renders approve variant with btn-glass-success class', () => {
       render(<ActionButton variant="approve" onClick={() => {}}>Approve</ActionButton>);
       const button = screen.getByText('Approve');
-      expect(button).toHaveClass('btn');
       expect(button).toHaveClass('btn-glass-success');
     });
 
-    it('renders reject variant with glass-error class', () => {
+    it('renders reject variant with btn-glass-error class', () => {
       render(<ActionButton variant="reject" onClick={() => {}}>Reject</ActionButton>);
       const button = screen.getByText('Reject');
-      expect(button).toHaveClass('btn');
       expect(button).toHaveClass('btn-glass-error');
     });
   });
 
   describe('sizes', () => {
-    it('applies sm size correctly with DaisyUI btn-sm class', () => {
+    it('applies sm size correctly', () => {
       render(<ActionButton variant="primary" onClick={() => {}} size="sm">Small</ActionButton>);
       const button = screen.getByText('Small');
-      expect(button).toHaveClass('btn-sm');
+      // ShadCN uses Tailwind classes for sizing
+      expect(button).toHaveClass('h-8');
+      expect(button).toHaveClass('px-3');
     });
 
-    it('applies md size correctly (default) with DaisyUI btn-md class', () => {
+    it('applies md size correctly (default)', () => {
       render(<ActionButton variant="primary" onClick={() => {}} size="md">Medium</ActionButton>);
       const button = screen.getByText('Medium');
-      expect(button).toHaveClass('btn-md');
+      // ShadCN uses Tailwind classes for sizing
+      expect(button).toHaveClass('h-9');
+      expect(button).toHaveClass('px-4');
     });
   });
 

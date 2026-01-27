@@ -10,6 +10,7 @@ import { SuggestionCard } from './SuggestionCard';
 import { BatchNavigation } from './BatchNavigation';
 import { GodSpecWarning } from './GodSpecWarning';
 import { ReviewChat } from './ReviewChat';
+import { Button } from '../ui/Button';
 
 interface DiscussingContext {
   suggestionId: string;
@@ -173,14 +174,16 @@ export function ReviewSuggestionsPanel({
                     {reviewError}
                   </p>
                 )}
-                <button
-                  className="btn btn-glass-primary"
+                <Button
+                  variant="high-contrast"
                   onClick={onStartReview}
                   disabled={!selectedFile || isStartingReview}
+                  isLoading={isStartingReview}
                   data-testid="start-review-button"
+                  className="px-8 shadow-glow-white"
                 >
-                  {isStartingReview ? 'Starting...' : 'Start Review'}
-                </button>
+                  Start Review
+                </Button>
               </div>
             ) : (
               <p className="opacity-70">All critical/warning suggestions have been reviewed.</p>

@@ -2,6 +2,7 @@ import type React from "react";
 import type { SuggestionCard } from "@speki/core";
 import { SpecEditor } from "../shared/SpecEditor";
 import { MonacoDiffReview, type HunkAction } from "./MonacoDiffReview";
+import { Button } from "../ui/Button";
 
 interface DiffState {
   originalContent: string;
@@ -70,13 +71,15 @@ export function SpecEditorPanel({
           )}
         </span>
         {isInDiffMode && (
-          <button
-            className="btn btn-ghost btn-xs"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onCancel}
             data-testid="exit-diff-button"
+            className="h-7 text-xs"
           >
             Exit Diff View
-          </button>
+          </Button>
         )}
       </div>
       <div

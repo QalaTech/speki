@@ -2,7 +2,7 @@
  * DiffApprovalBar component - displays approve/reject/edit buttons when in diff view mode.
  * Shown when viewing a suggestion's diff and allows user to take action.
  */
-import { ActionButton } from '../ui/ActionButton';
+import { Button } from '../ui/Button';
 
 export interface DiffApprovalBarProps {
   /** Whether the bar is visible */
@@ -36,15 +36,9 @@ export function DiffApprovalBar({
 
   return (
     <div
-      className="flex items-center justify-between py-2 px-4 bg-info/10 border-b border-info/30 shadow-sm animate-[slideDown_0.2s_ease-out]"
+      className="flex items-center justify-between py-2 px-4 bg-info/10 border-b border-info/30 shadow-sm animate-diff-bar"
       data-testid="diff-approval-bar"
     >
-      <style>{`
-        @keyframes slideDown {
-          from { opacity: 0; transform: translateY(-100%); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
       <div className="flex items-center gap-2 flex-1 min-w-0">
         <span className="text-sm font-medium text-info whitespace-nowrap">Reviewing change:</span>
         {suggestionIssue && (
@@ -55,50 +49,48 @@ export function DiffApprovalBar({
       </div>
 
       <div className="flex items-center gap-2 shrink-0" data-testid="diff-approval-buttons">
-        <ActionButton
-          variant="approve"
+        <Button
+          variant="primary"
           onClick={onApprove}
           disabled={isLoading}
           size="sm"
-          className="whitespace-nowrap"
+          className="whitespace-nowrap h-8"
           data-testid="approve-button"
+          isLoading={isLoading}
         >
-          {isLoading ? 'Applying...' : 'Approve'}
-        </ActionButton>
-
-        <ActionButton
-          variant="reject"
+          Approve
+        </Button>
+        <Button
+          variant="destructive"
           onClick={onReject}
           disabled={isLoading}
           size="sm"
-          className="whitespace-nowrap"
+          className="whitespace-nowrap h-8"
           data-testid="reject-button"
         >
           Reject
-        </ActionButton>
-
-        <ActionButton
+        </Button>
+        <Button
           variant="primary"
           onClick={onEdit}
           disabled={isLoading}
           size="sm"
-          className="whitespace-nowrap"
+          className="whitespace-nowrap h-8"
           data-testid="edit-button"
         >
           Edit
-        </ActionButton>
-
+        </Button>
         {onCancel && (
-          <ActionButton
-            variant="secondary"
+          <Button
+            variant="ghost"
             onClick={onCancel}
             disabled={isLoading}
             size="sm"
-            className="whitespace-nowrap"
+            className="whitespace-nowrap h-8"
             data-testid="cancel-button"
           >
             Cancel
-          </ActionButton>
+          </Button>
         )}
       </div>
     </div>

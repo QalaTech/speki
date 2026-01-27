@@ -1,6 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects, useInitProject, type ProjectEntry } from '@features/projects';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Alert } from '../components/ui/Alert';
+import { Spinner } from '../components/ui/Loading';
+import { cn } from '../lib/utils';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '../components/ui/Drawer';
+import {
+  PlusIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  DocumentTextIcon,
+  ChevronRightIcon,
+  XMarkIcon,
+  SparklesIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  RocketLaunchIcon,
+} from '@heroicons/react/24/outline';
 
 interface DirectoryEntry {
   name: string;
@@ -150,18 +169,18 @@ export function HomePage() {
       case 'error':
         return 'text-error';
       default:
-        return 'text-base-content/60';
+        return 'text-muted-foreground';
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusDot = (status: string) => {
     switch (status) {
       case 'running':
-        return <span className="inline-block w-2 h-2 rounded-full bg-success animate-pulse" />;
+        return <span className="w-2 h-2 rounded-full bg-success animate-pulse" />;
       case 'error':
-        return <span className="inline-block w-2 h-2 rounded-full bg-error" />;
+        return <span className="w-2 h-2 rounded-full bg-error" />;
       default:
-        return <span className="inline-block w-2 h-2 rounded-full bg-base-content/30" />;
+        return <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />;
     }
   };
 
@@ -186,84 +205,94 @@ export function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-base-100">
-      {/* Header */}
-      <header className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 border-b border-base-300">
-        <div className="max-w-7xl mx-auto px-6 py-12 flex items-center justify-center gap-6">
-          <img src="/avatar.png" alt="Speki" className="h-48 w-auto" />
+    <div className="min-h-screen bg-background">
+      <header className="relative overflow-hidden">
+        {/* Subtle gradient background */}
+        <div className="absolute inset-0 bg-linear-to-b from-primary/5 to-transparent" />
+        
+        <div className="relative max-w-5xl mx-auto px-6 py-10 flex items-center gap-8">
+          <img 
+            src="/avatar.png" 
+            alt="Speki" 
+            className="h-20 w-auto opacity-90" 
+          />
           <div>
-            <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-              Welcome to SPEKI
+            <h1 className="text-3xl font-bold tracking-tight text-foreground mb-1">
+              SPEKI
             </h1>
-            <p className="text-lg text-base-content/70 max-w-2xl">
-              Multi-tenant AI development orchestration. Manage your projects, review specs, and execute tasks with intelligent automation.
+            <p className="text-base text-muted-foreground">
+              AI-powered development orchestration
             </p>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-6 py-8">
         {/* New Project Section */}
-        <section className="mb-12">
+        <section className="mb-10">
           {!showNewProject ? (
             <button
               onClick={() => setShowNewProject(true)}
-              className="w-full p-6 border-2 border-dashed border-primary/30 rounded-xl hover:border-primary/60 hover:bg-primary/5 transition-all duration-200 group"
+              className="w-full group relative overflow-hidden rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 transition-all duration-300 hover:border-primary/30 hover:bg-card/80 hover:shadow-lg hover:shadow-primary/5 active:scale-[0.995]"
             >
-              <div className="flex items-center justify-center gap-3">
-                <span className="text-3xl text-primary group-hover:scale-110 transition-transform">+</span>
-                <span className="text-lg font-medium text-primary">Create New Project</span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-105">
+                  <PlusIcon className="h-6 w-6" />
+                </div>
+                <div className="text-left">
+                  <span className="block text-base font-semibold text-foreground">
+                    New Project
+                  </span>
+                  <span className="block text-sm text-muted-foreground">
+                    Initialize a new SPEKI workspace
+                  </span>
+                </div>
               </div>
             </button>
           ) : (
-            <div className="bg-base-200 rounded-xl p-6 border border-base-300">
+            <div className="bg-card rounded-2xl p-6 border border-border/50 shadow-xl shadow-black/5">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold">Initialize New Project</h2>
-                <button
-                  onClick={() => setShowNewProject(false)}
-                  className="btn btn-ghost btn-sm"
-                >
-                  Cancel
-                </button>
+                <h2 className="text-lg font-semibold">Initialize Project</h2>
+                <Button variant="ghost" size="sm" onClick={() => setShowNewProject(false)}>
+                  <XMarkIcon className="h-4 w-4" />
+                </Button>
               </div>
 
-              <div className="grid gap-4">
+              <div className="grid gap-5">
                 {/* Path Input */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">Project Directory</label>
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
+                    Project Directory
+                  </label>
                   <div className="flex gap-2">
                     <div className="flex-1 relative">
-                      <input
-                        type="text"
+                      <Input
                         value={projectPath}
                         onChange={(e) => setProjectPath(e.target.value)}
-                        placeholder="~/projects/my-app or /full/path/to/project"
-                        className={`input input-bordered w-full font-mono text-sm ${
-                          pathError ? 'input-error' : pathInfo?.isDirectory && !pathInfo.isSpekiProject ? 'input-success' : ''
+                        placeholder="~/projects/my-app"
+                        className={`font-mono text-sm pr-10 ${
+                          pathError ? 'border-error/50 focus:border-error' : pathInfo?.isDirectory && !pathInfo.isSpekiProject ? 'border-success/50 focus:border-success' : ''
                         }`}
                       />
                       {pathInfo && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="absolute right-3 top-[18px] -translate-y-1/2">
                           {pathInfo.isDirectory && !pathInfo.isSpekiProject ? (
-                            <span className="text-success text-lg">✓</span>
+                            <CheckCircleIcon className="h-5 w-5 text-success" />
                           ) : pathError ? (
-                            <span className="text-error text-lg">✗</span>
+                            <ExclamationCircleIcon className="h-5 w-5 text-error" />
                           ) : null}
                         </div>
                       )}
                     </div>
-                    <button
-                      onClick={() => setShowBrowser(true)}
-                      className="btn btn-outline"
-                    >
+                    <Button variant="secondary" onClick={() => setShowBrowser(true)}>
                       Browse
-                    </button>
+                    </Button>
                   </div>
                   {pathError && (
-                    <p className="text-error text-sm mt-1">{pathError}</p>
+                    <p className="text-error text-sm mt-1.5">{pathError}</p>
                   )}
                   {pathInfo && !pathError && (
-                    <p className="text-base-content/60 text-sm mt-1 font-mono">
+                    <p className="text-muted-foreground text-sm mt-1.5 font-mono opacity-70">
                       {pathInfo.expandedPath}
                     </p>
                   )}
@@ -271,240 +300,284 @@ export function HomePage() {
 
                 {/* Project Name */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">Project Name</label>
-                  <input
-                    type="text"
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
+                    Project Name
+                  </label>
+                  <Input
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
-                    placeholder="my-awesome-project"
-                    className="input input-bordered w-full"
+                    placeholder="my-project"
                   />
                 </div>
 
                 {/* Branch and Language */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Default Branch</label>
-                    <input
-                      type="text"
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
+                      Default Branch
+                    </label>
+                    <Input
                       value={branch}
                       onChange={(e) => setBranch(e.target.value)}
-                      className="input input-bordered w-full"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Primary Language</label>
-                    <select
+                    <label className="block text-sm font-medium text-muted-foreground mb-2">
+                      Primary Language
+                    </label>
+                    <Select
                       value={language}
                       onChange={(e) => setLanguage(e.target.value as typeof language)}
-                      className="select select-bordered w-full"
                     >
                       <option value="nodejs">Node.js / TypeScript</option>
                       <option value="python">Python</option>
                       <option value="dotnet">.NET / C#</option>
                       <option value="go">Go</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
 
                 {/* Submit */}
-                <div className="flex justify-end gap-3 mt-4">
-                  <button
-                    onClick={() => setShowNewProject(false)}
-                    className="btn btn-ghost"
-                  >
+                <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-border/50">
+                  <Button variant="ghost" onClick={() => setShowNewProject(false)}>
                     Cancel
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={handleInitProject}
                     disabled={!projectPath || !!pathError || !pathInfo?.isDirectory || initProject.isPending}
-                    className="btn btn-primary"
+                    isLoading={initProject.isPending}
                   >
-                    {initProject.isPending ? (
-                      <>
-                        <span className="loading loading-spinner loading-sm" />
-                        Initializing...
-                      </>
-                    ) : (
-                      'Initialize Project'
-                    )}
-                  </button>
+                    {!initProject.isPending && <SparklesIcon className="h-4 w-4" />}
+                    Initialize
+                  </Button>
                 </div>
 
                 {initProject.isError && (
-                  <div className="alert alert-error mt-4">
-                    <span>Failed to initialize project: {(initProject.error as Error)?.message}</span>
-                  </div>
+                  <Alert variant="error" className="mt-2">
+                    Failed to initialize: {(initProject.error as Error)?.message}
+                  </Alert>
                 )}
               </div>
             </div>
           )}
         </section>
 
-        {/* Divider */}
-        <div className="divider text-base-content/40 mb-8">
-          <span className="px-4">Your Projects</span>
-        </div>
+        {/* Projects Section */}
+        <section>
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4">
+            Your Projects
+          </h2>
 
-        {/* Projects Grid */}
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <span className="loading loading-spinner loading-lg text-primary" />
-          </div>
-        ) : projects.length === 0 ? (
-          <div className="text-center py-12 text-base-content/60">
-            <p className="text-lg mb-2">No projects yet</p>
-            <p className="text-sm">Create your first project to get started</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
-              <button
-                key={project.path}
-                onClick={() => handleSelectProject(project)}
-                className="bg-base-200 rounded-xl border border-base-300 overflow-hidden hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-200 text-left group"
+          {isLoading ? (
+            <div className="flex justify-center py-16">
+              <Spinner size="lg" className="text-primary" />
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="text-center py-20 rounded-2xl border border-dashed border-border/30 bg-linear-to-b from-muted/10 to-transparent">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <RocketLaunchIcon className="h-8 w-8 text-primary" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">Ready to launch?</h3>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
+                Create your first project and start orchestrating AI-powered development workflows.
+              </p>
+              <Button
+                variant="primary"
+                onClick={() => setShowNewProject(true)}
+                className="px-6"
               >
-                {/* Project stats overview */}
-                <div className="h-32 bg-gradient-to-br from-base-200 to-base-300 p-4 flex items-center justify-around">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">{project.specCount ?? 0}</div>
-                    <div className="text-xs text-base-content/60">Specs</div>
+                <PlusIcon className="h-4 w-4" />
+                Get Started
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {projects.map((project) => {
+                const previewUrl = `${window.location.origin}/execution/kanban?project=${encodeURIComponent(project.path)}`;
+                
+                return (
+                <button
+                  key={project.path}
+                  onClick={() => handleSelectProject(project)}
+                  className="group relative bg-card rounded-xl border border-border/50 overflow-hidden transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 active:translate-y-0 text-left"
+                >
+                  {/* Project Preview - Scaled iframe */}
+                  <div className="relative h-32 overflow-hidden border-b border-border/20 bg-background">
+                    <iframe
+                      src={previewUrl}
+                      title={`Preview of ${project.name}`}
+                      className="w-[200%] h-[200%] border-none bg-card scale-50 origin-top-left pointer-events-none"
+                      sandbox="allow-same-origin allow-scripts"
+                    />
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-card/80 pointer-events-none" />
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-warning">{project.activeSpec ? 1 : 0}</div>
-                    <div className="text-xs text-base-content/60">Active</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-success">{project.ralphStatus?.completedTasks ?? 0}</div>
-                    <div className="text-xs text-base-content/60">Done</div>
-                  </div>
-                </div>
 
-                {/* Project Info */}
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    {getStatusIcon(project.status)}
-                    <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-                      {project.name}
-                    </h3>
+                  {/* Card Content */}
+                  <div className="p-4">
+                    {/* Header */}
+                    <div className="flex items-center gap-2 mb-1">
+                      {getStatusDot(project.status)}
+                      <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+                        {project.name}
+                      </h3>
+                      <ChevronRightIcon className="h-4 w-4 text-muted-foreground/50 ml-auto shrink-0 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                    </div>
+
+                    {/* Path */}
+                    <p className="text-xs text-muted-foreground font-mono truncate mb-3 opacity-70">
+                      {project.path}
+                    </p>
+
+                    {/* Stats Row */}
+                    <div className="flex items-center gap-4 mb-3 py-2 border-y border-border/20">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base font-semibold text-primary">{project.specCount ?? 0}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase">Specs</span>
+                      </div>
+                      <div className="w-px h-4 bg-border/30" />
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base font-semibold text-warning">{project.activeSpec ? 1 : 0}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase">Active</span>
+                      </div>
+                      <div className="w-px h-4 bg-border/30" />
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base font-semibold text-success">{project.ralphStatus?.completedTasks ?? 0}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase">Done</span>
+                      </div>
+                    </div>
+
+                    {/* Footer - Status and Activity */}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className={getStatusColor(project.status)}>
+                        {project.status === 'running' ? 'Running' : project.status === 'error' ? 'Error' : 'Idle'}
+                      </span>
+                      <span className="text-muted-foreground/70">
+                        {formatLastActivity(project.lastActivity)}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-sm text-base-content/60 font-mono truncate mb-3">
-                    {project.path}
-                  </p>
-                  <div className="flex items-center justify-between text-xs text-base-content/50">
-                    <span className={getStatusColor(project.status)}>
-                      {project.status === 'running' ? 'Running' : project.status === 'error' ? 'Error' : 'Idle'}
-                    </span>
-                    <span>{formatLastActivity(project.lastActivity)}</span>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+                </button>
+              );
+              })}
+            </div>
+          )}
+        </section>
       </main>
 
-      {/* Folder Browser Modal */}
-      {showBrowser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-base-200 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-base-300">
-              <h3 className="font-semibold">Select Project Directory</h3>
-              <button
-                onClick={() => setShowBrowser(false)}
-                className="btn btn-ghost btn-sm btn-circle"
-              >
-                ✕
-              </button>
-            </div>
+      {/* Folder Browser Drawer */}
+      <Drawer open={showBrowser} onClose={() => setShowBrowser(false)} direction="right">
+        <DrawerContent side="right" className="w-full sm:max-w-xl h-full flex flex-col font-poppins">
+          <DrawerHeader className="border-b border-border/30 px-6 py-4">
+            <DrawerTitle>Select Directory</DrawerTitle>
+          </DrawerHeader>
 
-            {/* Current Path */}
-            <div className="px-4 py-2 bg-base-300 font-mono text-sm flex items-center gap-2">
-              <span className="text-base-content/60">Path:</span>
-              <span className="truncate">{browserPath}</span>
-            </div>
+          {/* Current Path */}
+          <div className="px-6 py-4 bg-muted/20 border-b border-border/10">
+            <p className="font-mono text-xs text-muted-foreground/70 truncate">
+              {browserPath}
+            </p>
+          </div>
 
-            {/* Directory List */}
-            <div className="flex-1 overflow-y-auto p-2">
-              {browserLoading ? (
-                <div className="flex justify-center py-8">
-                  <span className="loading loading-spinner" />
-                </div>
-              ) : (
-                <>
-                  {/* Parent Directory */}
-                  {browserData?.parentPath && (
+          {/* Directory List */}
+          <div className="flex-1 overflow-y-auto px-4 py-2">
+            {browserLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <Spinner />
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {/* Parent Directory */}
+                {browserData?.parentPath && (
+                  <button
+                    onClick={() => handleBrowserNavigate(browserData.parentPath!)}
+                    className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-muted/50 transition-all group"
+                  >
+                    <div className="p-2 rounded-lg bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                      <FolderIcon className="h-5 w-5" />
+                    </div>
+                    <span className="font-medium text-muted-foreground group-hover:text-foreground">..</span>
+                  </button>
+                )}
+
+                {/* Directories */}
+                {browserData?.directories.map((dir) => (
+                  <div key={dir.path} className="flex items-center gap-2 group/row">
                     <button
-                      onClick={() => handleBrowserNavigate(browserData.parentPath!)}
-                      className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-base-300 transition-colors"
+                      onClick={() => dir.hasSubdirs ? handleBrowserNavigate(dir.path) : handleBrowserSelect(dir)}
+                      className="flex items-center gap-3 flex-1 p-3 rounded-xl hover:bg-muted/50 transition-all group"
                     >
-                      <span className="text-xl">📁</span>
-                      <span className="font-medium">..</span>
-                      <span className="text-sm text-base-content/60 ml-auto">Parent directory</span>
-                    </button>
-                  )}
-
-                  {/* Directories */}
-                  {browserData?.directories.map((dir) => (
-                    <div key={dir.path} className="flex items-center">
-                      <button
-                        onClick={() => dir.hasSubdirs ? handleBrowserNavigate(dir.path) : handleBrowserSelect(dir)}
-                        className="flex items-center gap-3 flex-1 p-3 rounded-lg hover:bg-base-300 transition-colors"
-                      >
-                        <span className="text-xl">
-                          {dir.isSpekiProject ? '📋' : '📁'}
-                        </span>
-                        <span className={`font-medium ${dir.isSpekiProject ? 'text-warning' : ''}`}>
+                      <div className={cn(
+                        "p-2 rounded-lg transition-colors shadow-sm",
+                        dir.isSpekiProject ? "bg-warning/10 text-warning" : "bg-primary/10 text-primary"
+                      )}>
+                        {dir.isSpekiProject ? (
+                          <DocumentTextIcon className="h-5 w-5" />
+                        ) : (
+                          <FolderIcon className="h-5 w-5" />
+                        )}
+                      </div>
+                      <div className="flex flex-col items-start min-w-0">
+                        <span className={cn(
+                          "font-medium truncate",
+                          dir.isSpekiProject ? 'text-warning' : 'text-foreground'
+                        )}>
                           {dir.name}
                         </span>
                         {dir.isSpekiProject && (
-                          <span className="text-xs text-warning bg-warning/10 px-2 py-0.5 rounded">
-                            Already initialized
+                          <span className="text-[10px] font-bold text-warning tracking-wider uppercase">
+                            Speki Project
                           </span>
                         )}
-                        {dir.hasSubdirs && !dir.isSpekiProject && (
-                          <span className="text-base-content/40 ml-auto">▸</span>
-                        )}
-                      </button>
-                      {!dir.isSpekiProject && (
-                        <button
-                          onClick={() => handleBrowserSelect(dir)}
-                          className="btn btn-primary btn-sm mr-2"
-                        >
-                          Select
-                        </button>
+                      </div>
+                      {dir.hasSubdirs && !dir.isSpekiProject && (
+                        <ChevronRightIcon className="h-4 w-4 text-muted-foreground/30 ml-auto group-hover:translate-x-0.5 transition-transform" />
                       )}
-                    </div>
-                  ))}
+                    </button>
+                    {!dir.isSpekiProject && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleBrowserSelect(dir)}
+                        className="text-primary hover:bg-primary/10 rounded-lg transition-all"
+                      >
+                        Select
+                      </Button>
+                    )}
+                  </div>
+                ))}
 
-                  {browserData?.directories.length === 0 && (
-                    <div className="text-center py-8 text-base-content/60">
-                      No subdirectories found
+                {browserData?.directories.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-20 text-muted-foreground animate-in fade-in zoom-in duration-300">
+                    <div className="p-4 rounded-full bg-muted/30 mb-4">
+                      <FolderOpenIcon className="h-8 w-8 opacity-20" />
                     </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-base-300 flex justify-between items-center">
-              <button
-                onClick={() => handleBrowserSelect({ name: '', path: browserPath, hasSubdirs: false, isSpekiProject: false })}
-                className="btn btn-primary"
-              >
-                Select Current Directory
-              </button>
-              <button
-                onClick={() => setShowBrowser(false)}
-                className="btn btn-ghost"
-              >
-                Cancel
-              </button>
-            </div>
+                    <p className="text-sm font-medium">No subdirectories</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+
+          {/* Footer */}
+          <DrawerFooter className="p-6 border-t border-border/30 bg-muted/5 backdrop-blur-xl">
+            <Button
+              variant="primary"
+              onClick={() => handleBrowserSelect({ name: '', path: browserPath, hasSubdirs: false, isSpekiProject: false })}
+              className="flex-1 h-11 rounded-xl font-semibold shadow-lg shadow-primary/20"
+            >
+              Select Current Directory
+            </Button>
+            <Button 
+              variant="ghost" 
+              onClick={() => setShowBrowser(false)}
+              className="px-6 h-11 rounded-xl text-muted-foreground hover:bg-muted/50"
+            >
+              Cancel
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

@@ -91,16 +91,9 @@ export function HunkControlPill({
   const actionBase = "flex items-center gap-[5px] py-1.5 px-2.5 bg-transparent border-none rounded-[14px] text-base-content/60 text-[11px] font-medium cursor-pointer transition-all duration-150 whitespace-nowrap hover:bg-base-300 hover:text-base-content active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/40";
 
   return (
-    <>
-      <style>{`
-        @keyframes hunkPillFadeIn {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
       <div
         ref={pillRef}
-        className="inline-flex items-center gap-1 py-1 px-1.5 bg-[rgba(22,27,34,0.92)] backdrop-blur-[12px] border border-[rgba(48,54,61,0.8)] rounded-[20px] shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_0_0_1px_rgba(255,255,255,0.05)] text-[11px] z-[100] select-none animate-[hunkPillFadeIn_0.2s_ease-out] hover:border-[rgba(88,166,255,0.3)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(88,166,255,0.1)]"
+        className="inline-flex items-center gap-1 py-1 px-1.5 bg-[rgba(22,27,33,0.92)] backdrop-blur-md border border-white/10 rounded-[20px] shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_0_0_1px_rgba(255,255,255,0.05)] text-[11px] z-100 select-none animate-hunk-pill hover:border-white/20 hover:shadow-[0_4px_20px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)]"
         style={{
           position: 'absolute',
           top: `${position.top}px`,
@@ -151,7 +144,6 @@ export function HunkControlPill({
           <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
           <span className="text-[11px] font-medium tracking-[0.01em] max-lg:hidden">Comment</span>
         </button>
-      </div>
-    </>
+    </div>
   );
 }

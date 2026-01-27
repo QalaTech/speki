@@ -1,4 +1,5 @@
 import type { GodSpecIndicators, SplitProposal } from '@speki/core';
+import { Button } from '../ui/Button';
 
 export interface GodSpecWarningProps {
   /** God spec detection indicators */
@@ -23,13 +24,13 @@ export function GodSpecWarning({
   return (
     <div className="flex flex-col p-4 bg-warning/20 border border-warning border-l-4 rounded-lg gap-3" data-testid="god-spec-warning">
       <div className="flex items-center gap-2.5">
-        <span className="text-2xl text-warning-content" aria-hidden="true">
+        <span className="text-2xl text-warning" aria-hidden="true">
           &#x26A0;
         </span>
         <h3 className="m-0 text-lg font-semibold text-warning">God Spec Detected</h3>
       </div>
 
-      <div className="flex flex-col gap-3 text-base-content">
+      <div className="flex flex-col gap-3 text-foreground">
         <p className="m-0 text-sm leading-relaxed">
           This specification covers too many concerns and should be split into smaller, focused specs.
         </p>
@@ -56,13 +57,13 @@ export function GodSpecWarning({
             <p className="m-0 mb-2.5 text-sm font-semibold">Proposed split:</p>
             <ul className="m-0 p-0 list-none">
               {splitProposal.proposedSpecs.map((spec, idx) => (
-                <li key={idx} className="flex flex-col py-2.5 px-3 mb-2 last:mb-0 bg-base-100/50 rounded-md gap-1" data-testid="split-spec">
+                <li key={idx} className="flex flex-col py-2.5 px-3 mb-2 last:mb-0 bg-card/50 rounded-md gap-1" data-testid="split-spec">
                   <span className="font-semibold text-sm text-warning font-mono">{spec.filename}</span>
-                  <span className="text-[13px] text-base-content/60">
+                  <span className="text-[13px] text-muted-foreground">
                     ~{spec.estimatedStories} {spec.estimatedStories === 1 ? 'story' : 'stories'}
                   </span>
                   {spec.description && (
-                    <span className="text-[13px] text-base-content/70 italic">{spec.description}</span>
+                    <span className="text-[13px] text-muted-foreground italic">{spec.description}</span>
                   )}
                 </li>
               ))}
@@ -74,32 +75,32 @@ export function GodSpecWarning({
       <div className="flex gap-2.5 flex-wrap mt-1 pt-3 border-t border-warning/30" data-testid="warning-actions">
         {splitProposal !== undefined && splitProposal.proposedSpecs.length > 0 && (
           <>
-            <button
-              type="button"
-              className="btn btn-success"
+            <Button
+              variant="primary"
               onClick={() => onAcceptSplit?.(splitProposal)}
               data-testid="accept-split-button"
+              className="h-10"
             >
               Accept Split
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-outline"
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => onModify?.(splitProposal)}
               data-testid="modify-button"
+              className="h-10 border-warning/30 text-warning hover:bg-warning/10"
             >
               Modify
-            </button>
+            </Button>
           </>
         )}
-        <button
-          type="button"
-          className="btn btn-warning btn-outline"
+        <Button
+          variant="ghost"
           onClick={() => onSkip?.()}
           data-testid="skip-button"
+          className="text-warning hover:bg-warning/10 h-10"
         >
           Skip
-        </button>
+        </Button>
       </div>
     </div>
   );

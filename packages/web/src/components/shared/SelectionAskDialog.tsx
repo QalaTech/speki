@@ -6,6 +6,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ChatBubbleLeftRightIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Button } from '../ui/Button';
 
 interface SelectionAskDialogProps {
   selectedText: string;
@@ -103,25 +104,23 @@ export function SelectionAskDialog({
     return createPortal(
       <div
         data-selection-ask-dialog
-        className="fixed z-[9999] transform -translate-x-1/2"
+        className="fixed z-3000 transform -translate-x-1/2"
         style={{
           top: position.top,
           left: position.left,
         }}
       >
-        <button
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg
-                     bg-primary text-primary-content shadow-lg shadow-primary/30
-                     hover:bg-primary-focus hover:shadow-xl hover:shadow-primary/40
-                     transition-all duration-200
-                     animate-in fade-in slide-in-from-bottom-2 duration-150"
+        <Button
+          variant="primary"
+          size="sm"
+          className="flex items-center gap-1.5 shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={handleExpand}
           title="Ask about selected text"
         >
           <ChatBubbleLeftRightIcon className="h-4 w-4" />
           Ask about this
-        </button>
+        </Button>
       </div>,
       document.body
     );
@@ -132,9 +131,9 @@ export function SelectionAskDialog({
     <div
       ref={dialogRef}
       data-selection-ask-dialog
-      className="fixed z-[9999] w-80 rounded-xl bg-base-100 border border-base-content/10
+      className="fixed z-3000 w-80 rounded-xl bg-base-100 border border-base-content/10
                  shadow-2xl shadow-black/20 transform -translate-x-1/2
-                 animate-in fade-in zoom-in-95 duration-150"
+                 animate-in fade-in zoom-in-95 duration-300"
       style={{
         top: position.top,
         left: position.left,
@@ -149,12 +148,14 @@ export function SelectionAskDialog({
           </div>
           <span className="text-sm font-semibold text-base-content">Ask about selection</span>
         </div>
-        <button
-          className="btn btn-ghost btn-xs btn-circle hover:bg-base-300"
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0 rounded-full hover:bg-base-300"
           onClick={onClose}
         >
           <XMarkIcon className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
 
       {/* Selected text preview */}
@@ -180,14 +181,16 @@ export function SelectionAskDialog({
           <span className="text-xs text-base-content/40">
             Press Enter to send
           </span>
-          <button
-            className="btn btn-primary btn-sm gap-2"
+          <Button
+            variant="primary"
+            size="sm"
+            className="gap-2"
             onClick={handleSubmit}
             disabled={!question.trim()}
           >
             <ChatBubbleLeftRightIcon className="h-4 w-4" />
             Ask
-          </button>
+          </Button>
         </div>
       </div>
     </div>,

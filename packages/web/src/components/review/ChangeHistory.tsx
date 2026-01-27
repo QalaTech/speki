@@ -1,5 +1,6 @@
 import type { ChangeHistoryEntry } from '@speki/core';
 import { Badge } from '../ui';
+import { Button } from '../ui/Button';
 
 export interface ChangeHistoryProps {
   changes: ChangeHistoryEntry[];
@@ -37,23 +38,24 @@ export function ChangeHistory({
   const hasUnrevertedChanges = unrevertedChanges.length > 0;
 
   return (
-    <div className="flex flex-col h-full bg-base-200 border border-base-300 rounded-lg overflow-hidden" data-testid="change-history">
-      <div className="flex items-center justify-between py-3 px-4 border-b border-base-300 bg-base-300">
+    <div className="flex flex-col h-full bg-muted border border-border rounded-lg overflow-hidden" data-testid="change-history">
+      <div className="flex items-center justify-between py-3 px-4 border-b border-border bg-card">
         <h3 className="m-0 text-sm font-semibold">Change History</h3>
         {hasUnrevertedChanges && (
-          <button
-            type="button"
-            className="btn btn-outline btn-error btn-xs"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => onRevertAll?.()}
             data-testid="revert-all-button"
+            className="text-error hover:bg-error/10 h-8"
           >
             Revert All
-          </button>
+          </Button>
         )}
       </div>
 
       {changes.length === 0 ? (
-        <div className="flex items-center justify-center flex-1 p-6 text-sm opacity-60 text-center" data-testid="change-history-empty">
+        <div className="flex items-center justify-center flex-1 p-6 text-sm text-muted-foreground text-center" data-testid="change-history-empty">
           No changes have been applied yet.
         </div>
       ) : (
@@ -61,13 +63,13 @@ export function ChangeHistory({
           {changes.map((change) => (
             <div
               key={change.id}
-              className={`card card-compact bg-base-200 border border-base-300 mb-2 last:mb-0 border-l-4 ${change.reverted ? 'bg-base-300 border-l-base-content/30 opacity-70 reverted' : 'border-l-success'}`}
+              className={`rounded-lg bg-muted border border-border mb-2 last:mb-0 border-l-4 p-3 ${change.reverted ? 'bg-card/50 border-l-muted-foreground opacity-70' : 'border-l-success'}`}
               data-testid="change-item"
               data-change-id={change.id}
             >
-              <div className="card-body gap-2">
+              <div className="space-y-2">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className="text-xs opacity-60 font-mono" data-testid="change-timestamp">
+                  <span className="text-xs text-muted-foreground font-mono" data-testid="change-timestamp">
                     {formatTimestamp(change.timestamp)}
                   </span>
                   <Badge variant="neutral" size="xs" data-testid="change-section">
@@ -85,15 +87,15 @@ export function ChangeHistory({
                 </div>
 
                 {!change.reverted && (
-                  <div className="card-actions justify-start mt-1">
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-xs"
+                  <div className="flex items-center gap-2 mt-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => onRevert?.(change.id)}
                       data-testid="revert-button"
                     >
                       Revert
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>

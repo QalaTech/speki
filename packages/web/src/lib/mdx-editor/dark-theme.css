@@ -66,7 +66,7 @@
 
   background: var(--color-bg) !important;
   color: var(--color-text) !important;
-  border: 1px solid var(--color-border);
+  border: none !important;
   border-radius: 8px;
 }
 
@@ -663,8 +663,8 @@
 
 /* ===== Focus States ===== */
 .mdxeditor:focus-within {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.1);
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 /* ===== Scrollbar Styling ===== */

@@ -4,6 +4,7 @@ import { calculateStats } from '../../types';
 import { ExecutionHeader } from './ExecutionHeader';
 import { ExecutionTabs } from './ExecutionTabs';
 import { ExecutionContent } from './ExecutionContent';
+import { Button } from '../ui/Button';
 import type { ParsedEntry } from '../../utils/parseJsonl';
 
 export interface ExecutionViewProps {
@@ -54,7 +55,7 @@ export function ExecutionView({
   if (!prdData) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-base-100">
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 mb-4">
+        <div className="p-4 rounded-2xl bg-linear-to-br from-primary/20 to-secondary/20 mb-4">
           <ClipboardDocumentListIcon className="w-14 h-14 text-primary" />
         </div>
         <h2 className="text-xl font-semibold text-base-content">No Tasks Yet</h2>
@@ -62,12 +63,13 @@ export function ExecutionView({
           No tasks have been generated for this project yet. Create a spec and decompose it into tasks to get started.
         </p>
         <div className="flex gap-3 mt-6">
-          <button
-            className="btn btn-primary"
+          <Button
+            variant="primary"
             onClick={() => onNavigate('/spec-review')}
+            className="px-8 shadow-sm shadow-primary/20"
           >
             Create a Spec
-          </button>
+          </Button>
         </div>
       </div>
     );

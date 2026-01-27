@@ -191,16 +191,7 @@ export function DiffOverlay({
   const btnBase = "flex items-center gap-1.5 py-2 px-3.5 bg-base-300 border border-base-300 rounded-lg text-base-content text-[13px] font-medium cursor-pointer transition-all duration-150 hover:bg-base-100 hover:border-text-muted";
 
   return (
-    <>
-      <style>{`
-        .diff-editor-container .monaco-editor, .diff-editor-container .monaco-diff-editor { background-color: var(--color-bg) !important; }
-        .diff-editor-container .monaco-editor .margin { background-color: var(--color-bg) !important; }
-        .diff-editor-container .monaco-editor .line-insert, .diff-editor-container .monaco-diff-editor .line-insert { background-color: rgba(35, 134, 54, 0.12) !important; }
-        .diff-editor-container .monaco-editor .line-delete, .diff-editor-container .monaco-diff-editor .line-delete { background-color: rgba(218, 54, 51, 0.12) !important; }
-        .diff-editor-container .monaco-editor .char-insert { background-color: rgba(35, 134, 54, 0.35) !important; border-radius: 2px; }
-        .diff-editor-container .monaco-editor .char-delete { background-color: rgba(218, 54, 51, 0.35) !important; border-radius: 2px; }
-      `}</style>
-      <div className="fixed inset-0 z-[1000] flex items-center justify-center">
+      <div className="fixed inset-0 z-1000 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/75 backdrop-blur-[4px]" onClick={onCancel} />
 
         <div className="relative flex flex-col w-[calc(100vw-80px)] h-[calc(100vh-80px)] max-w-[1600px] bg-base-100 border border-base-300 rounded-xl shadow-[0_24px_48px_rgba(0,0,0,0.5)] overflow-hidden">
@@ -258,6 +249,5 @@ export function DiffOverlay({
           </footer>
         </div>
       </div>
-    </>
   );
 }

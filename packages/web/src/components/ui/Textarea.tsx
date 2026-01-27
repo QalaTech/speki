@@ -1,11 +1,10 @@
-import { forwardRef, type TextareaHTMLAttributes } from 'react';
+import * as React from "react";
+import { cn } from "../../lib/utils";
 
-type TextareaSize = 'xs' | 'sm' | 'md' | 'lg';
-type TextareaVariant = 'bordered' | 'ghost' | 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error';
+type TextareaSize = "xs" | "sm" | "md" | "lg";
 
-interface TextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'size'> {
+export interface TextareaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "size"> {
   textareaSize?: TextareaSize;
-  variant?: TextareaVariant;
   label?: string;
   helperText?: string;
   error?: string;
@@ -13,42 +12,35 @@ interface TextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>
 }
 
 const sizeClasses: Record<TextareaSize, string> = {
-  xs: 'textarea-xs',
-  sm: 'textarea-sm',
-  md: 'textarea-md',
-  lg: 'textarea-lg',
+  xs: "text-xs min-h-[60px]",
+  sm: "text-sm min-h-[80px]",
+  md: "text-sm min-h-[100px]",
+  lg: "text-base min-h-[120px]",
 };
 
-const variantClasses: Record<TextareaVariant, string> = {
-  bordered: 'textarea-bordered',
-  ghost: 'textarea-ghost',
-  primary: 'textarea-primary',
-  secondary: 'textarea-secondary',
-  accent: 'textarea-accent',
-  info: 'textarea-info',
-  success: 'textarea-success',
-  warning: 'textarea-warning',
-  error: 'textarea-error',
-};
-
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
+const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   (
     {
-      textareaSize = 'md',
-      variant = 'bordered',
+      className,
+      textareaSize = "md",
       label,
       helperText,
       error,
       fullWidth = true,
-      className = '',
       ...props
     },
     ref
   ) => {
     const textareaElement = (
       <textarea
+        className={cn(
+          "flex w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-y",
+          sizeClasses[textareaSize],
+          error && "border-error focus-visible:ring-error",
+          fullWidth ? "w-full" : "",
+          className
+        )}
         ref={ref}
-        className={`textarea ${variantClasses[variant]} ${sizeClasses[textareaSize]} ${error ? 'textarea-error' : ''} ${fullWidth ? 'w-full' : ''} ${className}`}
         {...props}
       />
     );
@@ -58,23 +50,23 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     }
 
     return (
-      <div className={`form-control ${fullWidth ? 'w-full' : ''}`}>
+      <div className={cn("space-y-2", fullWidth ? "w-full" : "")}>
         {label && (
-          <label className="label">
-            <span className="label-text">{label}</span>
+          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+            {label}
           </label>
         )}
         {textareaElement}
         {(helperText || error) && (
-          <label className="label">
-            <span className={`label-text-alt ${error ? 'text-error' : ''}`}>
-              {error || helperText}
-            </span>
-          </label>
+          <p className={cn("text-xs", error ? "text-error" : "text-muted-foreground")}>
+            {error || helperText}
+          </p>
         )}
       </div>
     );
   }
 );
 
-Textarea.displayName = 'Textarea';
+Textarea.displayName = "Textarea";
+
+export { Textarea };

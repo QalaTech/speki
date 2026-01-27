@@ -1,6 +1,7 @@
 import type { UserStory } from '../../types';
 import { getStoryStatus } from '../../types';
 import { TaskInfoPanel } from '../shared/TaskInfoPanel';
+import { Button } from '../ui/Button';
 
 interface TaskDrawerProps {
   story: UserStory | null;
@@ -64,15 +65,17 @@ export function TaskDrawer({ story, completedIds, blocksMap, onClose }: TaskDraw
                 P{story.priority}
               </span>
             </div>
-            <button
-              className="btn btn-ghost btn-sm btn-circle hover:bg-base-300"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 rounded-full hover:bg-base-300"
               onClick={onClose}
               aria-label="Close drawer"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-            </button>
+            </Button>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-mono text-sm text-base-content/50 bg-base-300/50 px-2 py-0.5 rounded">

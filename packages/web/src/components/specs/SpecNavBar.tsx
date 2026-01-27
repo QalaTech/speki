@@ -83,24 +83,7 @@ export function SpecNavBar({ files, selectedPath, onSelect, onCreateNew }: SpecN
 
   return (
     <>
-      <style>{`
-        @keyframes dropdown-enter {
-          from { opacity: 0; transform: translateY(-8px) scale(0.98); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        .spec-dropdown-tree .spec-tree { border-right: none; background: transparent; height: auto; max-height: 100%; }
-        .spec-dropdown-tree .spec-tree-header { display: none; }
-        .spec-dropdown-tree .spec-tree-filter { padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); background: rgba(0, 0, 0, 0.2); }
-        .spec-dropdown-tree .spec-tree-filter-input { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.1); }
-        .spec-dropdown-tree .spec-tree-filter-input:focus { background: rgba(255, 255, 255, 0.08); border-color: var(--color-accent); }
-        .spec-dropdown-tree .spec-tree-content { max-height: 400px; padding: 8px; }
-        .spec-dropdown-tree .tree-node { border-radius: 8px; margin: 2px 0; }
-        .spec-dropdown-tree .tree-node:hover { background: rgba(255, 255, 255, 0.06); }
-        .spec-dropdown-tree .tree-node--selected { background: rgba(88, 166, 255, 0.15) !important; }
-        .spec-dropdown-tree .tree-node--focused { outline-color: var(--color-accent); }
-        .spec-dropdown-tree .spec-tree-footer { padding: 8px 16px; background: rgba(0, 0, 0, 0.2); border-top: 1px solid rgba(255, 255, 255, 0.06); }
-      `}</style>
-      <nav className="relative z-[100]">
+      <nav className="relative z-50">
         <div className="flex items-center justify-between gap-4 py-3 px-6 bg-gradient-to-b from-[rgba(22,27,34,0.95)] to-[rgba(22,27,34,0.85)] backdrop-blur-[12px] border-b border-[rgba(255,255,255,0.06)] shadow-[0_4px_24px_rgba(0,0,0,0.3)] max-md:py-2.5 max-md:px-4">
           {/* Left side: Breadcrumbs and file selector */}
           <div className="flex items-center gap-4 min-w-0 flex-1">
@@ -153,7 +136,7 @@ export function SpecNavBar({ files, selectedPath, onSelect, onCreateNew }: SpecN
 
         {/* Dropdown tree */}
         {isDropdownOpen && (
-          <div className="absolute top-full left-6 right-6 max-w-[500px] z-[1000] pt-2 max-md:left-4 max-md:right-4 max-md:max-w-none" ref={dropdownRef}>
+          <div className="absolute top-full left-6 right-6 max-w-[500px] z-100 pt-2 max-md:left-4 max-md:right-4 max-md:max-w-none" ref={dropdownRef}>
             <div className="fixed inset-0 -z-10" />
             <div className="spec-dropdown-tree bg-gradient-to-b from-[rgba(22,27,34,0.98)] to-[rgba(13,17,23,0.98)] backdrop-blur-[20px] border border-white/[0.08] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_0_0_1px_rgba(255,255,255,0.05)] overflow-hidden animate-[dropdown-enter_0.2s_ease-out] max-h-[60vh] flex flex-col">
               <SpecTree

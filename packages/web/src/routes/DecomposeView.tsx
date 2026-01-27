@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { QueueListIcon } from '@heroicons/react/24/outline';
 import type { DecomposeState, DecomposeFeedback, PrdFile, PRDData, UserStory, FeedbackItem, DecomposeErrorType } from '../types';
 import { ContextSection } from '../components/shared/ContextSection';
-import { Badge, Alert, Loading, apiFetch } from '../components/ui';
+import { Badge, Alert, apiFetch } from '../components/ui';
+import { Button } from '../components/ui/Button';
 
 interface DecomposeViewProps {
   onTasksActivated: () => void;
@@ -448,17 +449,18 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
           </div>
 
           <div className="flex gap-2">
-            <button
-              className="btn btn-glass-primary btn-sm"
+            <Button
+              variant="high-contrast"
+              size="sm"
               onClick={handleStartDecompose}
               disabled={loading || isInProgress || !selectedFile}
+              isLoading={isInProgress}
             >
-              {isInProgress ? <Loading size="xs" /> : null}
-              {isInProgress ? 'Processing...' : 'Start'}
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={openLogs}>
+              Start
+            </Button>
+            <Button variant="ghost" size="sm" onClick={openLogs}>
               View Logs
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -500,13 +502,15 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                 </div>
               )}
               {(errorType === 'TIMEOUT' || errorType === 'CRASH') && draft && (
-                <button
-                  className="btn btn-sm btn-outline"
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleRetryReview}
                   disabled={retrying}
+                  isLoading={retrying}
                 >
-                  {retrying ? 'Retrying...' : 'Retry Peer Review'}
-                </button>
+                  Retry Peer Review
+                </Button>
               )}
             </div>
           </Alert>
@@ -526,13 +530,15 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                 </div>
               </div>
               {canActivate && (
-                <button
-                  className="btn btn-glass-primary btn-sm"
+                <Button
+                  variant="high-contrast"
+                  size="sm"
                   onClick={handleActivateAndRun}
                   disabled={loading}
+                  isLoading={loading}
                 >
                   Activate & Run All
-                </button>
+                </Button>
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -590,9 +596,14 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
               <h3 className="font-bold">
                 {drawerMode === 'logs' ? 'Decomposition Logs' : selectedTask?.id}
               </h3>
-              <button className="btn btn-ghost btn-circle btn-sm" onClick={() => setDrawerOpen(false)}>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 rounded-full" 
+                onClick={() => setDrawerOpen(false)}
+              >
                 ×
-              </button>
+              </Button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {drawerMode === 'logs' && (
@@ -719,20 +730,24 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                     </div>
                     <h2 className="text-xl font-bold">{selectedTask.title}</h2>
                     <div className="flex gap-2">
-                      <button
-                        className="btn btn-glass-primary btn-sm"
+                      <Button
+                        variant="high-contrast"
+                        size="sm"
                         onClick={handleExecuteTask}
                         disabled={executeLoading || deleteLoading || selectedTask.inPrd}
+                        isLoading={executeLoading}
                       >
-                        {executeLoading ? 'Adding...' : selectedTask.inPrd ? 'Already Queued' : 'Execute This Task'}
-                      </button>
-                      <button
-                        className="btn btn-error btn-outline btn-sm"
+                        {selectedTask.inPrd ? 'Already Queued' : 'Execute This Task'}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
                         onClick={handleDeleteTask}
                         disabled={deleteLoading || executeLoading}
+                        isLoading={deleteLoading}
                       >
-                        {deleteLoading ? 'Deleting...' : 'Delete'}
-                      </button>
+                        Delete
+                      </Button>
                     </div>
                   </div>
 
@@ -812,13 +827,15 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                     />
                     {feedbackError && <Alert variant="error">{feedbackError}</Alert>}
                     {feedbackSuccess && <Alert variant="success">Task updated successfully!</Alert>}
-                    <button
-                      className="btn btn-glass-primary btn-sm"
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={handleSubmitFeedback}
                       disabled={feedbackLoading || !taskFeedback.trim()}
+                      isLoading={feedbackLoading}
                     >
-                      {feedbackLoading ? 'Updating...' : 'Submit Feedback'}
-                    </button>
+                      Submit Feedback
+                    </Button>
                   </section>
                 </div>
               )}

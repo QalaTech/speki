@@ -16,6 +16,7 @@ import '../../lib/mdx-editor/dark-theme.css';
 import { createEditorPlugins } from '../../lib/mdx-editor/config';
 import { sanitizeForMdx } from '../../features/editor';
 import { SelectionAskDialog } from './SelectionAskDialog';
+import { Button } from '../ui/Button';
 
 interface SelectionState {
   text: string;
@@ -528,7 +529,14 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
       {parseError && (
         <div className="alert alert-warning mb-2 py-2 text-sm">
           <span>⚠️ Some content couldn't be parsed in rich-text mode. Showing source view.</span>
-          <button className="btn btn-ghost btn-xs" onClick={() => setParseError(null)}>Try Again</button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-7 text-xs" 
+            onClick={() => setParseError(null)}
+          >
+            Try Again
+          </Button>
         </div>
       )}
       <MDXEditor

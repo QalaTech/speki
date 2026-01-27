@@ -12,6 +12,7 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon, ExclamationTriangleIcon, ClockIcon } from '@heroicons/react/20/solid';
+import { Button } from '../ui/Button';
 
 export type SpecType = 'prd' | 'tech-spec' | 'bug';
 
@@ -71,13 +72,13 @@ function getStatusIcon(status?: string) {
 
 const typeIconColors: Record<SpecType, string> = {
   'prd': 'text-info',
-  'tech-spec': 'text-secondary',
+  'tech-spec': 'text-primary',
   'bug': 'text-error',
 };
 
 const typeBadgeStyles: Record<SpecType, string> = {
   'prd': 'badge badge-xs badge-outline badge-info',
-  'tech-spec': 'badge badge-xs badge-outline badge-secondary',
+  'tech-spec': 'badge badge-xs badge-outline badge-primary',
   'bug': 'badge badge-xs badge-outline badge-error',
 };
 
@@ -170,9 +171,9 @@ function TreeNode({
     <>
       <li>
         <a
-          className={`gap-2 rounded-lg transition-all duration-200 ${
+          className={`gap-2 rounded-lg transition-all duration-200 hover-lift-sm active-press ${
             isSelected 
-              ? 'bg-primary/15 text-primary font-medium ring-1 ring-primary/20 shadow-sm' 
+              ? 'bg-primary/15 text-primary font-medium ring-1 ring-primary/20 shadow-sm inner-glow-primary' 
               : 'hover:bg-base-300/50'
           } ${isGenerating ? 'opacity-50 pointer-events-none' : ''}`}
           onClick={(e) => {
@@ -307,23 +308,25 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
   }, [filter, filteredFiles]);
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-base-200 to-base-200/80 border-r border-base-content/5">
+    <div className="flex flex-col h-full frosted-sidebar">
       {/* Header */}
-      <div className="flex items-center justify-between py-3.5 px-4 border-b border-base-content/5 bg-base-200/50 backdrop-blur-sm">
+      <div className="flex items-center justify-between py-3.5 px-4 border-b border-base-content/5 bg-base-200/30 backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-gradient-to-br from-warning/20 to-warning/10 ring-1 ring-warning/20">
+          <div className="p-1.5 rounded-lg bg-linear-to-br from-warning/20 to-warning/10 ring-1 ring-warning/20">
             <FolderIcon className="h-4 w-4 text-warning" />
           </div>
           <span className="text-sm font-semibold text-base-content tracking-tight">Specs</span>
         </div>
         {onCreateNew && (
-          <button
-            className="btn btn-ghost btn-xs btn-square hover:bg-primary/10 hover:text-primary transition-all duration-200"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 rounded-lg hover:bg-primary/10 hover:text-primary transition-all duration-200"
             onClick={onCreateNew}
             title="Create new spec"
           >
             <PlusIcon className="h-4 w-4" />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -338,13 +341,15 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
             onChange={(e) => setFilter(e.target.value)}
           />
           {filter && (
-            <button
-              className="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs btn-circle hover:bg-error/10 hover:text-error transition-colors"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 rounded-full hover:bg-error/10 hover:text-error transition-colors"
               onClick={() => setFilter('')}
               title="Clear filter"
             >
               <XMarkIcon className="h-3.5 w-3.5" />
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -359,7 +364,7 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-10 px-4 text-center gap-4">
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-base-300/50 to-base-300/30 ring-1 ring-base-content/5">
+              <div className="p-4 rounded-2xl bg-linear-to-br from-base-300/50 to-base-300/30 ring-1 ring-base-content/5">
                 <DocumentTextIcon className="h-10 w-10 text-base-content/30" />
               </div>
               <div className="space-y-1">
@@ -369,18 +374,19 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
                 </p>
               </div>
               {onCreateNew && (
-                <button 
-                  className="btn btn-glass-primary btn-sm gap-2 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-200"
+                <Button 
+                  size="sm"
+                  className="gap-2 shadow-md"
                   onClick={onCreateNew}
                 >
                   <PlusIcon className="h-4 w-4" />
                   Create Spec
-                </button>
+                </Button>
               )}
             </div>
           )
         ) : (
-          <ul ref={treeRef} className="menu bg-transparent w-full p-2" role="tree">
+          <ul ref={treeRef} className="menu bg-transparent w-full p-2 animate-stagger-in" role="tree">
             {filteredFiles.map((node) => (
               <TreeNode
                 key={node.path}

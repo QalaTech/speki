@@ -328,22 +328,8 @@ export function MonacoDiffReview({
   }, [originalText, modifiedText]);
 
   return (
-    <>
-      <style>{`
-        .monaco-hunk-widget { display: inline-flex; gap: 6px; align-items: center; padding: 4px 8px; border-radius: 6px; background: oklch(var(--b2)); border: 1px solid oklch(var(--b3)); box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-size: 12px; user-select: none; z-index: 100; }
-        .hunk-label { color: oklch(var(--bc) / 0.6); font-weight: 500; margin-right: 4px; }
-        .hunk-btn { cursor: pointer; border: 1px solid oklch(var(--b3)); border-radius: 4px; padding: 2px 8px; background: oklch(var(--b3)); color: oklch(var(--bc)); font-size: 11px; font-weight: 500; transition: all 0.15s ease; }
-        .hunk-btn:hover { border-color: oklch(var(--a)); }
-        .hunk-btn-accept { background: oklch(var(--su) / 0.2); border-color: oklch(var(--su)); color: oklch(var(--su)); }
-        .hunk-btn-accept:hover { background: oklch(var(--su) / 0.3); }
-        .hunk-btn-reject { background: oklch(var(--er) / 0.2); border-color: oklch(var(--er)); color: oklch(var(--er)); }
-        .hunk-btn-reject:hover { background: oklch(var(--er) / 0.3); }
-        .hunk-btn-comment { background: oklch(var(--in) / 0.2); border-color: oklch(var(--in)); color: oklch(var(--in)); }
-        .hunk-btn-comment:hover { background: oklch(var(--in) / 0.3); }
-      `}</style>
       <div className="flex flex-col h-full w-full bg-base-200 rounded-lg overflow-hidden" data-testid="monaco-diff-review">
         <div ref={containerRef} className="flex-1 min-h-[400px]" />
       </div>
-    </>
   );
 }

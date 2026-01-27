@@ -1,50 +1,28 @@
-import type { ButtonHTMLAttributes } from 'react';
+import { Button, type ButtonProps } from "./Button";
 
-type ActionButtonVariant = 'primary' | 'danger' | 'secondary' | 'success' | 'approve' | 'reject';
-
-interface ActionButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> {
-  variant: ActionButtonVariant;
-  onClick: () => void;
-  disabled?: boolean;
-  children: React.ReactNode;
-  className?: string;
-  size?: 'sm' | 'md';
-  type?: 'button' | 'submit' | 'reset';
+/**
+ * Legacy ActionButton wrapper to maintain backward compatibility 
+ * while transitioning to the new premium Button primitive.
+ */
+interface ActionButtonProps extends Omit<ButtonProps, "variant"> {
+  variant: "primary" | "secondary" | "danger" | "success" | "approve" | "reject" | "ghost" | "high-contrast";
 }
 
-const variantClasses: Record<ActionButtonVariant, string> = {
-  primary: 'btn-glass-primary',
-  danger: 'btn-glass-error',
-  secondary: 'btn-ghost btn-outline',
-  success: 'btn-glass-success',
-  approve: 'btn-glass-success',
-  reject: 'btn-glass-error',
-};
-
-const sizeClasses = {
-  sm: 'btn-sm',
-  md: 'btn-md',
-};
-
-export function ActionButton({
-  variant,
-  onClick,
-  disabled = false,
-  children,
-  className = '',
-  size = 'md',
-  type = 'button',
-  ...rest
-}: ActionButtonProps) {
+export function ActionButton({ variant, className, ...props }: ActionButtonProps) {
+  let effectiveVariant: any = variant;
+  
+  // Map legacy variants to new primitive variants
+  if (variant === "danger" || variant === "reject") effectiveVariant = "destructive";
+  if (variant === "success" || variant === "approve") effectiveVariant = "accent";
+  if (variant === "secondary") effectiveVariant = "secondary";
+  
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      className={`btn ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
-      {...rest}
-    >
-      {children}
-    </button>
+    <Button 
+      variant={effectiveVariant} 
+      className={className}
+      {...props} 
+    />
   );
 }
+
+export { Button };

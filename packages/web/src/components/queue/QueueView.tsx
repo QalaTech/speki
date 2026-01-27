@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { QueuedTaskReference, QueueStats, UserStory } from '../../types';
-import { ActionButton, Badge, Alert, Loading, apiFetch } from '../ui';
+import { Button } from '../ui/Button';
+import { Badge, Alert, Loading, apiFetch } from '../ui';
 
 interface QueuedTaskWithData extends QueuedTaskReference {
   task?: UserStory;
@@ -186,18 +187,19 @@ export function QueueView({ projectPath, onNavigateToSpec }: QueueViewProps) {
 
         <div className="flex gap-2">
           {isRunning ? (
-            <ActionButton variant="danger" onClick={handleStop} size="sm">
+            <Button variant="destructive" onClick={handleStop} size="sm">
               Stop
-            </ActionButton>
+            </Button>
           ) : (
-            <ActionButton
-              variant="success"
+            <Button
+              variant="primary"
               onClick={handleRun}
               disabled={runLoading || pendingTasks.length === 0}
               size="sm"
+              isLoading={runLoading}
             >
-              {runLoading ? 'Starting...' : 'Run Queue'}
-            </ActionButton>
+              Run Queue
+            </Button>
           )}
         </div>
       </div>
@@ -279,13 +281,15 @@ export function QueueView({ projectPath, onNavigateToSpec }: QueueViewProps) {
                   {item.task && (
                     <span className="flex-1 text-sm truncate">{item.task.title}</span>
                   )}
-                  <button
-                    className="btn btn-ghost btn-xs btn-circle"
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-full"
                     onClick={() => handleRemove(item.specId, item.taskId)}
                     title="Remove from queue"
                   >
                     ✕
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -302,18 +306,22 @@ export function QueueView({ projectPath, onNavigateToSpec }: QueueViewProps) {
               Completed ({completedTasks.length})
             </h3>
             <div className="flex gap-2 mb-3">
-              <button
-                className="btn btn-ghost btn-xs"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
                 onClick={() => setShowCompleted(!showCompleted)}
               >
                 {showCompleted ? 'Hide' : 'Show'}
-              </button>
-              <button
-                className="btn btn-ghost btn-xs"
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
                 onClick={handleClearCompleted}
               >
                 Clear
-              </button>
+              </Button>
             </div>
           </div>
           {showCompleted && (
