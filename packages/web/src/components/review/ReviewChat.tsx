@@ -445,7 +445,7 @@ export function ReviewChat({
             data-testid="discussing-context"
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="font-semibold text-secondary uppercase tracking-wide text-[10px]">Discussing suggestion:</span>
+              <span className="font-semibold text-secondary-foreground uppercase tracking-wide text-[10px]">Discussing suggestion:</span>
               <button
                 type="button"
                 className="bg-transparent border-none text-muted-foreground cursor-pointer px-1 text-xs opacity-70 transition-opacity hover:opacity-100 hover:text-error"

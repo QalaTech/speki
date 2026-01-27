@@ -119,7 +119,7 @@ export function ChatLogView({ entries, isRunning }: ChatLogViewProps) {
                 <div className={`${bubbleBase} bg-secondary/20 text-base-content rounded-br border border-secondary/20 min-w-[120px]`}>
                   <div className="flex items-center gap-1.5 mb-1 pb-1.5 border-b border-base-content/10">
                     <span className="text-sm">{icon}</span>
-                    <span className="font-semibold text-xs uppercase tracking-wide text-secondary">{title}</span>
+                    <span className="font-semibold text-xs uppercase tracking-wide text-secondary-foreground">{title}</span>
                   </div>
                   <div className="font-mono text-[11px] text-base-content/70 break-all">{detail}</div>
                 </div>
