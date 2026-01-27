@@ -38,6 +38,10 @@ export interface RunOptions {
   model?: string;
   /** Permission mode (e.g., 'plan' for deep planning mode) */
   permissionMode?: PermissionMode;
+  /** Session ID for session continuity */
+  sessionId?: string;
+  /** If true, resume an existing session rather than creating a new one */
+  resumeSession?: boolean;
 }
 
 export interface RunResult {
@@ -74,6 +78,8 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
     skipPermissions = true,
     model,
     permissionMode,
+    sessionId,
+    resumeSession,
   } = options;
 
   // Ensure log directory exists
@@ -102,6 +108,15 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
   // Add permission mode if provided (e.g., 'plan' for deep planning mode)
   if (permissionMode) {
     args.push('--permission-mode', permissionMode);
+  }
+
+  // Add session flags for session continuity
+  if (sessionId) {
+    if (resumeSession) {
+      args.push('--resume', sessionId);
+    } else {
+      args.push('--session-id', sessionId);
+    }
   }
 
   // Resolve Claude CLI path - handles cases where claude is an alias not in PATH

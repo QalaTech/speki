@@ -178,7 +178,7 @@ function createPassFeedback(): ReviewFeedback {
 function createFailFeedback(): ReviewFeedback {
   return {
     verdict: 'FAIL',
-    missingRequirements: ['Missing requirement 1'],
+    missingRequirements: [{ id: 'missing-1', severity: 'critical', description: 'Missing requirement 1' }],
     contradictions: [],
     dependencyErrors: [],
     duplicates: [],

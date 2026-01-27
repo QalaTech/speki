@@ -1,7 +1,7 @@
 import { ChildProcess, spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import { Engine, EngineAvailability, RunStreamOptions, RunStreamResult, RunChatOptions, RunChatResult } from '../engine.js';
-import type { ReviewOptions, ReviewResult, ReviewFeedback } from '../../types/index.js';
+import type { ReviewOptions, ReviewResult, ReviewFeedback, DecomposeIssue } from '../../types/index.js';
 import { detectCli } from '../../cli-detect.js';
 import { runClaude } from '../../claude/runner.js';
 import { resolveCliPath } from '../../cli-path.js';
@@ -40,6 +40,8 @@ export class ClaudeCliEngine implements Engine {
       skipPermissions: options.skipPermissions ?? true,
       model: options.model,
       permissionMode: options.permissionMode,
+      sessionId: options.sessionId,
+      resumeSession: options.resumeSession,
     });
     return {
       success: result.success,
@@ -50,6 +52,7 @@ export class ClaudeCliEngine implements Engine {
       stderrPath: result.stderrPath,
       exitCode: result.exitCode,
       claudePid: result.claudePid,
+      sessionId: options.sessionId,
     };
   }
 
@@ -590,34 +593,53 @@ The spec file you are reviewing is at this EXACT path: ${specPath}
       throw new Error(`Invalid verdict: ${data.verdict}. Must be 'PASS' or 'FAIL'`);
     }
 
-    // Helper to convert item to string - handles both string and object formats
-    const itemToString = (item: unknown): string => {
-      if (typeof item === 'string') return item;
+    // Helper to convert item to DecomposeIssue
+    const itemToIssue = (item: unknown, index: number): DecomposeIssue => {
+      if (typeof item === 'string') {
+        return { id: `auto-${index}`, severity: 'warning', description: item };
+      }
       if (typeof item === 'object' && item !== null) {
         const obj = item as Record<string, unknown>;
-        // Build a readable string from object properties
-        const parts: string[] = [];
-        if (obj.taskId) parts.push(`[${obj.taskId}]`);
-        if (obj.taskIds && Array.isArray(obj.taskIds)) parts.push(`[${obj.taskIds.join(', ')}]`);
-        if (obj.requirement) parts.push(String(obj.requirement));
-        if (obj.issue) parts.push(String(obj.issue));
-        if (obj.reason) parts.push(String(obj.reason));
-        if (obj.action) parts.push(String(obj.action));
-        if (obj.prdSection) parts.push(`(PRD: ${obj.prdSection})`);
-        if (obj.dependsOn) parts.push(`(depends on: ${obj.dependsOn})`);
-        return parts.join(' ') || JSON.stringify(item);
+        const severity = obj.severity;
+        const validSeverity = severity === 'critical' || severity === 'warning' || severity === 'info'
+          ? severity as 'critical' | 'warning' | 'info'
+          : 'warning';
+
+        // Build description from available fields
+        let description = (obj.description as string) || '';
+        if (!description) {
+          const parts: string[] = [];
+          if (obj.taskId) parts.push(`[${obj.taskId}]`);
+          if (obj.taskIds && Array.isArray(obj.taskIds)) parts.push(`[${obj.taskIds.join(', ')}]`);
+          if (obj.requirement) parts.push(String(obj.requirement));
+          if (obj.issue) parts.push(String(obj.issue));
+          if (obj.reason) parts.push(String(obj.reason));
+          if (obj.action) parts.push(String(obj.action));
+          if (obj.prdSection) parts.push(`(PRD: ${obj.prdSection})`);
+          if (obj.dependsOn) parts.push(`(depends on: ${obj.dependsOn})`);
+          description = parts.join(' ') || JSON.stringify(item);
+        }
+
+        return {
+          id: (obj.id as string) || `auto-${index}`,
+          severity: validSeverity,
+          description,
+          specSection: obj.specSection as string | undefined,
+          affectedTasks: obj.affectedTasks as string[] | undefined,
+          suggestedFix: obj.suggestedFix as string | undefined,
+        };
       }
-      return String(item);
+      return { id: `auto-${index}`, severity: 'warning', description: String(item) };
     };
 
     // Build validated feedback with defaults for optional arrays
     const feedback: ReviewFeedback = {
       verdict: data.verdict,
-      missingRequirements: Array.isArray(data.missingRequirements) ? data.missingRequirements.map(itemToString) : [],
-      contradictions: Array.isArray(data.contradictions) ? data.contradictions.map(itemToString) : [],
-      dependencyErrors: Array.isArray(data.dependencyErrors) ? data.dependencyErrors.map(itemToString) : [],
-      duplicates: Array.isArray(data.duplicates) ? data.duplicates.map(itemToString) : [],
-      suggestions: Array.isArray(data.suggestions) ? data.suggestions.map(itemToString) : [],
+      missingRequirements: Array.isArray(data.missingRequirements) ? data.missingRequirements.map(itemToIssue) : [],
+      contradictions: Array.isArray(data.contradictions) ? data.contradictions.map(itemToIssue) : [],
+      dependencyErrors: Array.isArray(data.dependencyErrors) ? data.dependencyErrors.map(itemToIssue) : [],
+      duplicates: Array.isArray(data.duplicates) ? data.duplicates.map(itemToIssue) : [],
+      suggestions: Array.isArray(data.suggestions) ? data.suggestions.map((s: unknown) => String(s)) : [],
       taskGroupings: Array.isArray(data.taskGroupings)
         ? data.taskGroupings.map((g: unknown) => {
             const grouping = g as Record<string, unknown>;

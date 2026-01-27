@@ -481,12 +481,21 @@ export interface StandaloneTask {
   reason: string;
 }
 
+export interface DecomposeIssue {
+  id: string;
+  severity: 'critical' | 'warning' | 'info';
+  description: string;
+  specSection?: string;
+  affectedTasks?: string[];
+  suggestedFix?: string;
+}
+
 export interface ReviewFeedback {
   verdict: 'PASS' | 'FAIL';
-  missingRequirements: string[];
-  contradictions: string[];
-  dependencyErrors: string[];
-  duplicates: string[];
+  missingRequirements: DecomposeIssue[];
+  contradictions: DecomposeIssue[];
+  dependencyErrors: DecomposeIssue[];
+  duplicates: DecomposeIssue[];
   suggestions: string[];
   /**
    * Suggested task groupings for efficiency.
@@ -670,7 +679,7 @@ export interface SpecReviewCategory {
   /** Category verdict */
   verdict: SpecReviewVerdict;
   /** List of issues found in this category */
-  issues: string[];
+  issues: DecomposeIssue[];
 }
 
 /**
@@ -684,7 +693,7 @@ export interface FocusedPromptResult {
   /** Result verdict */
   verdict: SpecReviewVerdict;
   /** Issues discovered */
-  issues: string[];
+  issues: DecomposeIssue[];
   /** Suggestions generated */
   suggestions: SuggestionCard[];
   /** Raw AI response (for debugging) */

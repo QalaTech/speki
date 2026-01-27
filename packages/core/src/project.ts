@@ -1,6 +1,10 @@
-import { join, dirname } from 'path';
+import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { mkdir, readFile, writeFile, access, copyFile, readdir, stat } from 'fs/promises';
+
+const execFileAsync = promisify(execFile);
 import type {
   ProjectConfig,
   PRDData,
@@ -87,6 +91,9 @@ export class Project {
     branchName?: string;
     language?: string;
   }): Promise<void> {
+    // Ensure the project directory is a git repository
+    await this.ensureGitRepo();
+
     // Create directories
     await mkdir(this.spekiDir, { recursive: true });
     await mkdir(this.tasksDir, { recursive: true });
@@ -121,6 +128,20 @@ export class Project {
 
     // Copy templates
     await this.copyTemplates(options.language || 'nodejs');
+  }
+
+  /**
+   * Ensure the project directory is a git repository.
+   * Runs `git init` if no .git directory exists.
+   */
+  private async ensureGitRepo(): Promise<void> {
+    const gitDir = join(this.projectPath, '.git');
+    try {
+      await access(gitDir);
+    } catch {
+      // Not a git repo — initialize one
+      await execFileAsync('git', ['init'], { cwd: this.projectPath });
+    }
   }
 
   /**
@@ -184,16 +205,132 @@ export class Project {
         `# ${language} Standards\n\nAdd your coding standards here.\n`
       );
     }
+
+    // Copy skills files to both .speki/skills/ and .claude/skills/<name>/SKILL.md
+    await this.deploySkills(templatesDir);
+  }
+
+  /**
+   * Deploy skill files to both .speki/skills/ and .claude/skills/<name>/SKILL.md
+   * Returns list of deployed skill paths for update tracking.
+   */
+  private async deploySkills(templatesDir: string): Promise<string[]> {
+    const deployed: string[] = [];
+    const skillEntries: Array<{ name: string; description: string }> = [];
+
+    try {
+      const skillsSrcDir = join(templatesDir, 'skills');
+      await access(skillsSrcDir);
+      const files = await readdir(skillsSrcDir);
+      const skillFiles = files.filter(f => f.endsWith('.md'));
+
+      if (skillFiles.length === 0) return deployed;
+
+      // Deploy to .speki/skills/
+      const spekiSkillsDir = join(this.spekiDir, 'skills');
+      await mkdir(spekiSkillsDir, { recursive: true });
+
+      // Deploy to .claude/skills/<name>/SKILL.md
+      const claudeSkillsDir = join(this.projectPath, '.claude', 'skills');
+      await mkdir(claudeSkillsDir, { recursive: true });
+
+      for (const file of skillFiles) {
+        const srcPath = join(skillsSrcDir, file);
+        const skillName = basename(file, '.md');
+
+        // Copy to .speki/skills/<name>.md
+        await copyFile(srcPath, join(spekiSkillsDir, file));
+
+        // Copy to .claude/skills/<name>/SKILL.md
+        const claudeSkillDir = join(claudeSkillsDir, skillName);
+        await mkdir(claudeSkillDir, { recursive: true });
+        await copyFile(srcPath, join(claudeSkillDir, 'SKILL.md'));
+
+        // Extract description from first line (format: "# name — description")
+        let description = skillName;
+        try {
+          const content = await readFile(srcPath, 'utf-8');
+          const firstLine = content.split('\n')[0];
+          const dashMatch = firstLine.match(/—\s*(.+)/);
+          if (dashMatch) {
+            description = dashMatch[1].trim();
+          } else if (firstLine.startsWith('# ')) {
+            description = firstLine.slice(2).trim();
+          }
+        } catch {
+          // Use filename as fallback
+        }
+
+        skillEntries.push({ name: skillName, description });
+        deployed.push(`skills/${file}`);
+      }
+
+      // Update AGENTS.md with skills section
+      await this.updateAgentsSkillsSection(skillEntries);
+    } catch {
+      // Skills directory doesn't exist, skip
+    }
+
+    return deployed;
+  }
+
+  /**
+   * Update the skills section in AGENTS.md using marker comments.
+   * Creates AGENTS.md if it doesn't exist. Only touches the managed section.
+   */
+  private async updateAgentsSkillsSection(
+    skills: Array<{ name: string; description: string }>
+  ): Promise<void> {
+    const agentsPath = join(this.projectPath, 'AGENTS.md');
+    const startMarker = '<!-- qala:skills:start -->';
+    const endMarker = '<!-- qala:skills:end -->';
+
+    const skillLines = skills.map(
+      s => `- [${s.name}](.speki/skills/${s.name}.md) — ${s.description}`
+    );
+    const section = [
+      startMarker,
+      '',
+      '## Available Skills',
+      '',
+      'Skills are invoked when referenced in the execution prompt. Do not use them unless instructed.',
+      '',
+      ...skillLines,
+      '',
+      endMarker,
+    ].join('\n');
+
+    let content: string;
+    try {
+      content = await readFile(agentsPath, 'utf-8');
+      // Replace existing managed section
+      const startIdx = content.indexOf(startMarker);
+      const endIdx = content.indexOf(endMarker);
+      if (startIdx !== -1 && endIdx !== -1) {
+        content = content.slice(0, startIdx) + section + content.slice(endIdx + endMarker.length);
+      } else {
+        // Markers not found — append section
+        content = content.trimEnd() + '\n\n' + section + '\n';
+      }
+    } catch {
+      // AGENTS.md doesn't exist — create with just the skills section
+      content = section + '\n';
+    }
+
+    await writeFile(agentsPath, content);
   }
 
   /**
    * Update template files from the package templates.
-   * Only updates: prompt.md, decompose-prompt.md, standards/*.md
+   * Only updates: prompt.md, decompose-prompt.md, standards/*.md, skills/*.md
    * Does NOT touch: config.json, prd.json, progress.txt, peer_feedback.json, logs/, tasks/
    *
    * @returns List of files that were updated
    */
   async updateTemplates(): Promise<string[]> {
+    // Ensure the project directory is a git repository
+    await this.ensureGitRepo();
+
     const updated: string[] = [];
     const templatesDir = await this.resolveTemplatesDir();
 
@@ -239,25 +376,9 @@ export class Project {
       // Standards directory doesn't exist
     }
 
-    // Update skills files if they exist
-    try {
-      const skillsSrcDir = join(templatesDir, 'skills');
-      await access(skillsSrcDir);
-      const skillsDestDir = join(this.spekiDir, 'skills');
-      await mkdir(skillsDestDir, { recursive: true });
-      const files = await readdir(skillsSrcDir);
-      for (const file of files) {
-        if (file.endsWith('.md')) {
-          await copyFile(
-            join(skillsSrcDir, file),
-            join(skillsDestDir, file)
-          );
-          updated.push(`skills/${file}`);
-        }
-      }
-    } catch {
-      // Skills directory doesn't exist
-    }
+    // Deploy skills to both .speki/skills/ and .claude/skills/<name>/SKILL.md
+    const skillFiles = await this.deploySkills(templatesDir);
+    updated.push(...skillFiles);
 
     return updated;
   }

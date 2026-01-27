@@ -233,27 +233,25 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   const selectedFileName = selectedPath?.split('/').pop() || '';
   const selectedSpecType = getSpecTypeFromFilename(selectedFileName);
 
-  console.log(selectedPath);
-
-  // Fetch decompose state when a PRD is selected
-  useEffect(() => {
+  // Fetch decompose story count for the selected PRD
+  const fetchDecomposeStoryCount = useCallback(async () => {
     if (!selectedPath || selectedSpecType !== 'prd') {
       setDecomposeStoryCount(0);
       return;
     }
-
-    const fetchDecomposeState = async () => {
-      try {
-        const res = await apiFetch(`/api/decompose/draft?specPath=${encodeURIComponent(selectedPath)}&project=${encodeURIComponent(projectPath)}`);
-        const data = await res.json();
-        setDecomposeStoryCount(data.draft?.userStories?.length || 0);
-      } catch {
-        setDecomposeStoryCount(0);
-      }
-    };
-
-    fetchDecomposeState();
+    try {
+      const res = await apiFetch(`/api/decompose/draft?specPath=${encodeURIComponent(selectedPath)}&project=${encodeURIComponent(projectPath)}`);
+      const data = await res.json();
+      setDecomposeStoryCount(data.draft?.userStories?.length || 0);
+    } catch {
+      setDecomposeStoryCount(0);
+    }
   }, [selectedPath, selectedSpecType, projectPath]);
+
+  // Fetch on mount and when selection changes
+  useEffect(() => {
+    fetchDecomposeStoryCount();
+  }, [fetchDecomposeStoryCount]);
 
   // Compute progress for PRDs (needed for Generate Tech Spec button)
   // We only need total > 0 to show the button, completed count not used in header
@@ -317,6 +315,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
             onCreateTechSpec={handleOpenCreateTechSpec}
             onQuickExecute={handleQuickExecute}
             isGeneratingTechSpec={isGeneratingTechSpec}
+            onDecomposeComplete={fetchDecomposeStoryCount}
           />
         </div>
       </>

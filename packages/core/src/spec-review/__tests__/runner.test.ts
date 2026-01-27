@@ -242,13 +242,13 @@ That's my assessment.`;
   });
 
   it('runDecomposeReview_ChecksMissingRequirements', async () => {
-    // Arrange - first prompt returns a missing requirements error
+    // Arrange - first prompt returns a missing requirements error with critical severity
     const missingReqResponse = `Analysis:
 
 \`\`\`json
 {
   "verdict": "FAIL",
-  "issues": ["Requirement R1 is not covered by any task"],
+  "issues": [{"id": "missing-1", "severity": "critical", "description": "Requirement R1 is not covered by any task"}],
   "suggestions": []
 }
 \`\`\``;
@@ -262,17 +262,19 @@ That's my assessment.`;
 
     // Assert
     expect(result.verdict).toBe('FAIL');
-    expect(result.missingRequirements).toContain('Requirement R1 is not covered by any task');
+    expect(result.missingRequirements).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: 'critical', description: 'Requirement R1 is not covered by any task' })])
+    );
   });
 
   it('runDecomposeReview_ChecksContradictions', async () => {
-    // Arrange - second prompt returns a contradiction error
+    // Arrange - second prompt returns a contradiction error with critical severity
     const contradictionResponse = `Analysis:
 
 \`\`\`json
 {
   "verdict": "FAIL",
-  "issues": ["Task US-001 contradicts spec requirement for Feature A"],
+  "issues": [{"id": "contra-1", "severity": "critical", "description": "Task US-001 contradicts spec requirement for Feature A"}],
   "suggestions": []
 }
 \`\`\``;
@@ -287,17 +289,19 @@ That's my assessment.`;
 
     // Assert
     expect(result.verdict).toBe('FAIL');
-    expect(result.contradictions).toContain('Task US-001 contradicts spec requirement for Feature A');
+    expect(result.contradictions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: 'critical', description: 'Task US-001 contradicts spec requirement for Feature A' })])
+    );
   });
 
   it('runDecomposeReview_ChecksDependencies', async () => {
-    // Arrange - third prompt returns a dependency error
+    // Arrange - third prompt returns a dependency error with critical severity
     const dependencyResponse = `Analysis:
 
 \`\`\`json
 {
   "verdict": "FAIL",
-  "issues": ["Circular dependency detected: US-001 -> US-002 -> US-001"],
+  "issues": [{"id": "dep-1", "severity": "critical", "description": "Circular dependency detected: US-001 -> US-002 -> US-001"}],
   "suggestions": []
 }
 \`\`\``;
@@ -313,17 +317,19 @@ That's my assessment.`;
 
     // Assert
     expect(result.verdict).toBe('FAIL');
-    expect(result.dependencyErrors).toContain('Circular dependency detected: US-001 -> US-002 -> US-001');
+    expect(result.dependencyErrors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: 'critical', description: 'Circular dependency detected: US-001 -> US-002 -> US-001' })])
+    );
   });
 
   it('runDecomposeReview_ChecksDuplicates', async () => {
-    // Arrange - fourth prompt returns a duplicate error
+    // Arrange - fourth prompt returns a duplicate error with critical severity
     const duplicateResponse = `Analysis:
 
 \`\`\`json
 {
   "verdict": "FAIL",
-  "issues": ["Tasks US-001 and US-003 appear to be duplicates"],
+  "issues": [{"id": "dup-1", "severity": "critical", "description": "Tasks US-001 and US-003 appear to be duplicates"}],
   "suggestions": []
 }
 \`\`\``;
@@ -339,6 +345,33 @@ That's my assessment.`;
 
     // Assert
     expect(result.verdict).toBe('FAIL');
-    expect(result.duplicates).toContain('Tasks US-001 and US-003 appear to be duplicates');
+    expect(result.duplicates).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: 'critical', description: 'Tasks US-001 and US-003 appear to be duplicates' })])
+    );
+  });
+
+  it('runDecomposeReview_WarningOnlyIssues_ResultsInPass', async () => {
+    // Arrange - prompt returns warning-only issues (no critical) — should PASS
+    const warningOnlyResponse = `Analysis:
+
+\`\`\`json
+{
+  "verdict": "FAIL",
+  "issues": [{"id": "warn-1", "severity": "warning", "description": "Secondary requirement not fully covered"}],
+  "suggestions": []
+}
+\`\`\``;
+
+    mockRunStream
+      .mockResolvedValueOnce({ output: warningOnlyResponse, isComplete: true, durationMs: 100 })
+      .mockResolvedValue({ output: mockDecomposeResponse, isComplete: true, durationMs: 100 });
+
+    // Act
+    const result = await runDecomposeReview(mockSpecContent, mockTasksJson, { cwd: '/test/project' });
+
+    // Assert - verdict should be PASS because no critical issues
+    expect(result.verdict).toBe('PASS');
+    expect(result.missingRequirements.length).toBe(1);
+    expect(result.missingRequirements[0].severity).toBe('warning');
   });
 });

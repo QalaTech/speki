@@ -17,6 +17,10 @@ export interface RunStreamOptions {
   model?: string;
   /** Permission mode to use (e.g., 'plan' for deep planning mode) */
   permissionMode?: 'acceptEdits' | 'bypassPermissions' | 'default' | 'delegate' | 'dontAsk' | 'plan';
+  /** Session ID for session continuity. Creates a new named session on first use. */
+  sessionId?: string;
+  /** If true, resume an existing session rather than creating a new one. */
+  resumeSession?: boolean;
 }
 
 export interface RunStreamResult {
@@ -28,6 +32,8 @@ export interface RunStreamResult {
   stderrPath: string;
   exitCode: number | null;
   claudePid?: number; // driver-specific
+  /** Session ID if session was used (for reuse in subsequent calls) */
+  sessionId?: string;
 }
 
 export interface RunChatOptions {
