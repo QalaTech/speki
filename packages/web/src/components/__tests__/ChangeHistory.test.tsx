@@ -57,9 +57,10 @@ describe('ChangeHistory', () => {
       expect(screen.getByTestId('change-reverted-badge')).toHaveTextContent('Reverted');
     });
 
-    it('should apply reverted class to reverted changes', () => {
+    it('should apply reverted styling to reverted changes', () => {
       render(<ChangeHistory changes={[mockChange({ reverted: true })]} />);
-      expect(screen.getByTestId('change-item')).toHaveClass('reverted');
+      // Reverted changes have opacity styling
+      expect(screen.getByTestId('change-item')).toHaveClass('opacity-70');
     });
   });
 

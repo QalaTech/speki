@@ -1,4 +1,5 @@
 import type { RalphStatus } from '../../types';
+import { Button } from '../ui/Button';
 
 interface Stats {
   total: number;
@@ -27,7 +28,7 @@ export function ExecutionHeader({
   const percentage = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
 
   return (
-    <header className="bg-base-200/50 border-b border-base-300">
+    <header className="bg-main/50 ">
       <div className="px-6 py-4">
         {/* Top row: Project info + Controls */}
         <div className="flex items-center justify-between gap-6 mb-4">
@@ -35,20 +36,24 @@ export function ExecutionHeader({
           <div className="flex items-center gap-4 min-w-0">
             <div className="min-w-0">
               <div className="flex items-center gap-3">
-                <h1 className="text-xl font-bold text-base-content truncate">{projectName}</h1>
+                <h1 className="text-xl font-bold text-foreground truncate">{projectName}</h1>
                 {ralphStatus.running ? (
                   <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
                     <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                     Running
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-base-300 text-base-content/60 text-sm">
+                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted text-muted-foreground text-sm">
                     Idle
                   </span>
                 )}
               </div>
               {branchName && (
-                <p className="text-sm text-base-content/50 font-mono mt-0.5">{branchName}</p>
+                <div className="mt-1">
+                  <span className="text-xs text-muted-foreground font-mono bg-muted/50 px-2 py-0.5 rounded-full">
+                    {branchName}
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -56,13 +61,14 @@ export function ExecutionHeader({
           {/* Right: Start/Stop button */}
           <div className="flex items-center gap-3 shrink-0">
             {ralphStatus.running && ralphStatus.currentStory && (
-              <div className="text-sm text-base-content/60 max-w-[200px] truncate hidden lg:block">
+              <div className="text-sm text-muted-foreground max-w-[200px] truncate hidden lg:block">
                 Working on <span className="text-primary font-medium">{ralphStatus.currentStory}</span>
               </div>
             )}
             {!ralphStatus.running ? (
-              <button
-                className="btn btn-primary gap-2"
+              <Button
+                variant="primary"
+                className="gap-2 shadow-sm shadow-primary/20"
                 onClick={onStartRalph}
                 disabled={stats.ready === 0}
               >
@@ -70,17 +76,18 @@ export function ExecutionHeader({
                   <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                 </svg>
                 Start Run
-              </button>
+              </Button>
             ) : (
-              <button
-                className="btn btn-error gap-2"
+              <Button
+                variant="destructive"
+                className="gap-2"
                 onClick={onStopRalph}
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M5.25 3A2.25 2.25 0 003 5.25v9.5A2.25 2.25 0 005.25 18h9.5A2.25 2.25 0 0017 15.75v-9.5A2.25 2.25 0 0014.75 3h-9.5z" />
                 </svg>
                 Stop
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -104,7 +111,7 @@ export function ExecutionHeader({
               <span className="text-sm font-semibold text-error">{stats.blocked}</span>
               <span className="text-xs text-error/70">blocked</span>
             </div>
-            <div className="text-sm text-base-content/50 pl-2">
+            <div className="text-sm text-muted-foreground pl-2">
               {stats.total} total
             </div>
           </div>
@@ -112,13 +119,13 @@ export function ExecutionHeader({
           {/* Progress bar */}
           <div className="flex-1 max-w-md">
             <div className="flex items-center gap-3">
-              <div className="flex-1 h-2 bg-base-300 rounded-full overflow-hidden">
+              <div className="flex-1 h-2 bg-border rounded-full overflow-hidden">
                 <div
                   className="h-full bg-success rounded-full transition-all duration-500"
                   style={{ width: `${percentage}%` }}
                 />
               </div>
-              <span className="text-sm font-medium text-base-content/70 w-12 text-right">{percentage}%</span>
+              <span className="text-sm font-semibold text-foreground tracking-tight">{percentage}%</span>
             </div>
           </div>
         </div>

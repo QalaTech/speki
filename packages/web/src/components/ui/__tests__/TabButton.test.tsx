@@ -18,15 +18,17 @@ describe('TabButton', () => {
   it('applies active styles when active is true', () => {
     render(<TabButton active={true} onClick={() => {}}>Active Tab</TabButton>);
     const button = screen.getByText('Active Tab');
-    expect(button).toHaveClass('tab');
-    expect(button).toHaveClass('tab-active');
+    // ShadCN active tab uses bg-primary
+    expect(button).toHaveClass('bg-primary');
+    expect(button).toHaveClass('text-primary-foreground');
   });
 
   it('applies inactive styles when active is false', () => {
     render(<TabButton active={false} onClick={() => {}}>Inactive Tab</TabButton>);
     const button = screen.getByText('Inactive Tab');
-    expect(button).toHaveClass('tab');
-    expect(button).not.toHaveClass('tab-active');
+    // Inactive tabs use muted foreground
+    expect(button).toHaveClass('text-muted-foreground');
+    expect(button).not.toHaveClass('bg-primary');
   });
 
   it('accepts custom className for overrides', () => {
@@ -35,24 +37,26 @@ describe('TabButton', () => {
     expect(button).toHaveClass('ml-4');
   });
 
-  it('applies sm size correctly with DaisyUI tab-sm class', () => {
+  it('applies sm size correctly', () => {
     render(<TabButton active={false} onClick={() => {}} size="sm">Small Tab</TabButton>);
     const button = screen.getByText('Small Tab');
-    expect(button).toHaveClass('tab-sm');
+    // ShadCN uses Tailwind classes for sizing
+    expect(button).toHaveClass('px-3');
+    expect(button).toHaveClass('py-1.5');
   });
 
-  it('applies md size correctly (default) without tab-sm class', () => {
+  it('applies md size correctly (default)', () => {
     render(<TabButton active={false} onClick={() => {}} size="md">Medium Tab</TabButton>);
     const button = screen.getByText('Medium Tab');
-    expect(button).toHaveClass('tab');
-    expect(button).not.toHaveClass('tab-sm');
+    expect(button).toHaveClass('px-4');
+    expect(button).toHaveClass('py-2');
   });
 
   it('defaults to md size when size is not specified', () => {
     render(<TabButton active={false} onClick={() => {}}>Default Tab</TabButton>);
     const button = screen.getByText('Default Tab');
-    expect(button).toHaveClass('tab');
-    expect(button).not.toHaveClass('tab-sm');
+    expect(button).toHaveClass('px-4');
+    expect(button).toHaveClass('py-2');
   });
 
   it('has role="tab" for accessibility', () => {

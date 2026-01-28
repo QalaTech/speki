@@ -2,6 +2,7 @@ import { useEffect, useCallback } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { TopNav } from './components/nav/TopNav';
 import { AppRoutes } from './routes';
+import { Toaster } from './components/ui/sonner';
 import type { ExecutionViewProps } from './components/execution/ExecutionView';
 import {
   useProjects,
@@ -47,7 +48,10 @@ function App() {
     const currentPath = window.location.pathname;
     const requiresProject = currentPath !== '/' && currentPath !== '';
     if (!selectedProject && projects.length > 0 && requiresProject) {
-      setSearchParams({ project: projects[0].path });
+      setSearchParams(prev => {
+        prev.set('project', projects[0].path);
+        return prev;
+      });
     }
   }, [selectedProject, projects, setSearchParams]);
 
@@ -67,7 +71,11 @@ function App() {
 
   // Update project in URL
   const setSelectedProject = useCallback((projectPath: string) => {
-    setSearchParams({ project: projectPath });
+    setSearchParams(prev => {
+      prev.set('project', projectPath);
+      prev.delete('spec'); // Clear spec when switching projects
+      return prev;
+    });
   }, [setSearchParams]);
 
   const handleTasksActivated = useCallback(() => {
@@ -128,6 +136,18 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen max-h-screen overflow-hidden">
+      <Toaster 
+        position="top-center" 
+        toastOptions={{
+          className: "z-2000",
+          classNames: {
+            toast: "!bg-card/98 !backdrop-blur-2xl !border-white/5 !ring-1 !ring-white/[0.03] !shadow-[0_12px_48px_rgba(0,0,0,0.7)] !rounded-2xl !px-6 !py-4",
+            title: "!text-foreground !font-semibold !text-sm",
+            description: "!text-muted-foreground !text-xs",
+            icon: "!w-5 !h-5 !mt-0.5",
+          }
+        }}
+      />
       {/* Top Navigation */}
       <TopNav
         projects={projects}
@@ -140,8 +160,8 @@ function App() {
       {/* Main Content */}
       <main className="flex-1 w-full max-h-[calc(100vh-56px)] overflow-hidden flex flex-col relative">
         {loading && (
-          <div className="absolute inset-0 bg-base-100/80 flex items-center justify-center z-[100]">
-            <div className="text-xl text-base-content/60">Loading...</div>
+          <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-100">
+            <div className="text-xl text-muted-foreground">Loading...</div>
           </div>
         )}
 

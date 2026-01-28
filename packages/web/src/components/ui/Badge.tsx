@@ -1,99 +1,93 @@
-import type { ReactNode, HTMLAttributes } from 'react';
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "../../lib/utils";
 
-type BadgeVariant =
-  | 'success'
-  | 'error'
-  | 'warning'
-  | 'info'
-  | 'primary'
-  | 'secondary'
-  | 'ghost'
-  | 'neutral';
+const badgeVariants = cva(
+  "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 font-[Poppins,system-ui,sans-serif]",
+  {
+    variants: {
+      variant: {
+        default: "border-transparent bg-primary text-primary-foreground shadow",
+        primary: "border-transparent bg-primary text-primary-foreground shadow",
+        secondary: "border-transparent bg-secondary text-secondary-foreground",
+        destructive: "border-transparent bg-destructive text-destructive-foreground shadow",
+        outline: "text-foreground",
+        success: "border-transparent bg-success/20 text-success",
+        error: "border-transparent bg-error/20 text-error",
+        warning: "border-transparent bg-warning/20 text-warning-foreground",
+        info: "border-transparent bg-info/20 text-info",
+        ghost: "border-transparent bg-muted text-muted-foreground",
+        neutral: "border-transparent bg-muted text-muted-foreground",
+      },
+      size: {
+        default: "px-2.5 py-0.5 text-xs",
+        xs: "px-1.5 py-0 text-[10px]",
+        sm: "px-2 py-0.5 text-xs",
+        md: "px-2.5 py-0.5 text-xs",
+        lg: "px-3 py-1 text-sm",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+);
 
-type BadgeSize = 'xs' | 'sm' | 'md' | 'lg';
-
-interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-  variant?: BadgeVariant;
-  size?: BadgeSize;
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {
   outline?: boolean;
-  className?: string;
-  children: ReactNode;
 }
 
-const variantClasses: Record<BadgeVariant, string> = {
-  success: 'badge-success',
-  error: 'badge-error',
-  warning: 'badge-warning',
-  info: 'badge-info',
-  primary: 'badge-primary',
-  secondary: 'badge-secondary',
-  ghost: 'badge-ghost',
-  neutral: 'badge-neutral',
-};
+function Badge({ className, variant, size, outline, ...props }: BadgeProps) {
+  return (
+    <div
+      className={cn(
+        badgeVariants({ variant, size }),
+        outline && "bg-transparent",
+        className
+      )}
+      {...props}
+    />
+  );
+}
 
-const sizeClasses: Record<BadgeSize, string> = {
-  xs: 'badge-xs',
-  sm: 'badge-sm',
-  md: 'badge-md',
-  lg: 'badge-lg',
-};
-
-/**
- * Status badge variants mapped to DaisyUI badge classes
- */
+// Status variants mapping for StatusBadge
 export const statusVariants = {
-  completed: 'success',
-  done: 'success',
-  passed: 'success',
-  approved: 'success',
-  ready: 'info',
-  pending: 'ghost',
-  running: 'primary',
-  active: 'primary',
-  blocked: 'error',
-  failed: 'error',
-  rejected: 'error',
-  warning: 'warning',
-  edited: 'warning',
-  draft: 'neutral',
-  reviewed: 'secondary',
-  decomposed: 'info',
+  completed: "success",
+  done: "success",
+  passed: "success",
+  approved: "success",
+  ready: "info",
+  pending: "ghost",
+  running: "primary",
+  active: "primary",
+  blocked: "error",
+  failed: "error",
+  rejected: "error",
+  warning: "warning",
+  edited: "warning",
+  draft: "neutral",
+  reviewed: "secondary",
+  decomposed: "info",
 } as const;
 
 export type StatusType = keyof typeof statusVariants;
 
-export function Badge({
-  variant = 'neutral',
-  size = 'sm',
-  outline = false,
-  className = '',
-  children,
-  ...props
-}: BadgeProps) {
-  return (
-    <span
-      className={`badge ${variantClasses[variant]} ${sizeClasses[size]} ${outline ? 'badge-outline' : ''} ${className}`}
-      {...props}
-    >
-      {children}
-    </span>
-  );
-}
-
-/**
- * Convenience component for status badges
- */
 interface StatusBadgeProps {
   status: StatusType | string;
-  size?: BadgeSize;
+  size?: "xs" | "sm" | "md" | "lg";
   className?: string;
 }
 
-export function StatusBadge({ status, size = 'sm', className = '' }: StatusBadgeProps) {
-  const variant = statusVariants[status as StatusType] || 'neutral';
+function StatusBadge({ status, size = "sm", className = "" }: StatusBadgeProps) {
+  const variant = statusVariants[status as StatusType] || "neutral";
   return (
-    <Badge variant={variant} size={size} className={className}>
+    <Badge variant={variant as BadgeProps["variant"]} size={size} className={className}>
       {status}
     </Badge>
   );
 }
+
+export { Badge, StatusBadge, badgeVariants };

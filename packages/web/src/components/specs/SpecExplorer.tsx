@@ -20,9 +20,18 @@ import { ReviewChat } from '../review/ReviewChat';
 import { CreateTechSpecModal } from './CreateTechSpecModal';
 import { SpecExplorerPreviewTab } from './SpecExplorerPreviewTab';
 import { ReviewPanel } from './ReviewPanel';
-import { NewSpecModal } from './NewSpecModal';
-import { MagnifyingGlassIcon, ChevronLeftIcon, RocketLaunchIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { NewSpecDrawer } from './NewSpecDrawer';
+import { 
+  MagnifyingGlassIcon, 
+  ChevronLeftIcon, 
+  RocketLaunchIcon, 
+  XMarkIcon 
+} from '@heroicons/react/24/outline';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
+import { Button } from "../ui/Button";
+import { Badge } from "../ui/Badge";
+import { Drawer, DrawerContent } from "../ui/Drawer";
+import { SpecContentSkeleton } from '../shared/SpecSkeleton';
 
 // Hooks
 import { useResizablePanel } from '../../hooks/useResizablePanel';
@@ -40,44 +49,14 @@ interface SpecExplorerProps {
   projectPath: string;
 }
 
-// CSS keyframes (moved to separate style block)
-const animationStyles = `
-  @keyframes spec-review-spin {
-    to { transform: rotate(360deg); }
-  }
-  @keyframes chat-pulse {
-    0%, 100% { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
-    50% { box-shadow: 0 4px 20px rgba(88, 166, 255, 0.4); }
-  }
-  @keyframes chat-popup-enter {
-    from { opacity: 0; transform: translateY(20px) scale(0.95); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  @keyframes modal-overlay-enter {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-  @keyframes modal-enter {
-    from { opacity: 0; transform: scale(0.95) translateY(-10px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
-  }
-  .animate-spin-slow { animation: spec-review-spin 1s linear infinite; }
-  .animate-chat-pulse { animation: chat-pulse 2s infinite; }
-  .animate-chat-popup { animation: chat-popup-enter 0.2s ease; }
-  .animate-modal-overlay { animation: modal-overlay-enter 0.15s ease; }
-  .animate-modal { animation: modal-enter 0.2s ease; }
-`;
 
 export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   // URL state management
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedPath, setSelectedPathState] = useState<string | null>(
-    () => searchParams.get('spec') || null
-  );
+  const selectedPath = searchParams.get('spec');
 
   // Sync selectedPath with URL
   const setSelectedPath = useCallback((path: string | null) => {
-    setSelectedPathState(path);
     setSearchParams(prev => {
       if (path) {
         prev.set('spec', path);
@@ -219,9 +198,26 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     handleSendChatMessage(messageWithContext, selectedText);
   }, [setDiscussStartTimestamp, setIsChatOpen, handleSendChatMessage]);
 
+  // Use refs to track state values to avoid stale closure issues in callbacks
+  // This ensures we always have the latest values even during rapid re-renders
+  const isSendingChatRef = useRef(isSendingChat);
+  isSendingChatRef.current = isSendingChat;
+
+  const isChatOpenRef = useRef(isChatOpen);
+  isChatOpenRef.current = isChatOpen;
+
+  // Stable handler for drawer open/close that prevents closing during message sending
+  // Using refs instead of dependencies to avoid callback recreation during streaming
+  const handleChatDrawerOpenChange = useCallback((open: boolean) => {
+    // Skip if value isn't actually changing (prevents unnecessary re-renders)
+    if (open === isChatOpenRef.current) return;
+    // Never allow closing while sending - vaul can trigger onOpenChange spuriously
+    if (!open && isSendingChatRef.current) return;
+    setIsChatOpen(open);
+  }, [setIsChatOpen]);
+
   // Reset state when project changes
   useEffect(() => {
-    setSelectedPathState(null);
     setActiveTab('preview');
     setIsChatOpen(false);
     setDiscussingContext(null);
@@ -263,32 +259,33 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   // Render tab content
   const renderTabContent = () => {
     if (isLoadingContent) {
-      return <div className="flex items-center justify-center h-full text-base-content/60 text-sm">Loading...</div>;
+      return <SpecContentSkeleton />;
     }
 
     if (!selectedPath) {
       if (files.length === 0) {
         return (
-          <div className="flex flex-col items-center justify-center h-full text-base-content/60 text-sm text-center p-10 gap-3 max-w-[400px] mx-auto">
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 mb-2">
-              <RocketLaunchIcon className="w-12 h-12 text-primary" />
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm text-center p-10 gap-4 max-w-[400px] mx-auto animate-in fade-in zoom-in-95 duration-700">
+            <div className="p-5 rounded-3xl bg-linear-to-br from-primary/25 to-secondary/15 shadow-glass animate-bounce-slow">
+              <RocketLaunchIcon className="w-14 h-14 text-primary" />
             </div>
-            <h2 className="m-0 text-2xl font-semibold text-base-content">Welcome to SPEKI!</h2>
-            <p className="m-0 text-sm text-base-content/60 leading-relaxed">
+            <h2 className="m-0 text-2xl font-semibold text-foreground">Welcome to SPEKI!</h2>
+            <p className="m-0 text-sm text-muted-foreground leading-relaxed">
               Create your first spec to start building with iterative AI development.
               Specs define what you want to build - Ralph will help you refine and implement them.
             </p>
-            <button
-              className="mt-4 py-3 px-6 bg-primary border-none rounded-lg text-white text-[15px] font-medium cursor-pointer transition-all duration-150 hover:bg-primary-hover hover:-translate-y-px hover:shadow-lg active:translate-y-0 active:shadow-none"
+            <Button
+              variant="primary"
+              className="mt-4 rounded-full px-8 h-12 shadow-lg shadow-primary/20"
               onClick={handleOpenNewSpecModal}
             >
-              + Create Your First Spec
-            </button>
+              Launch Your First Spec
+            </Button>
           </div>
         );
       }
       return (
-        <div className="flex flex-col items-center justify-center h-full text-base-content/60 text-sm text-center p-10">
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm text-center p-10">
           <p>Select a spec from the tree to view it</p>
         </div>
       );
@@ -323,11 +320,9 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   };
 
   return (
-    <>
-      <style>{animationStyles}</style>
-      <div className="flex h-full bg-base-100">
+    <div className="flex h-full bg-card">
         {/* Tree Panel (Left) */}
-        <div className="flex-shrink-0 min-w-[180px] max-w-[500px] h-full overflow-hidden" style={{ width: treeWidth }}>
+        <div className="shrink-0 min-w-[180px] max-w-[500px] h-full overflow-hidden" style={{ width: treeWidth }}>
           <SpecTree
             files={files}
             selectedPath={selectedPath}
@@ -339,15 +334,16 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
         {/* Resize Handle */}
         <div
-          className="flex-shrink-0 w-1 h-full bg-gradient-to-b from-transparent via-base-content/10 to-transparent cursor-col-resize relative z-10 transition-all duration-200 hover:bg-primary/30 hover:w-1.5 hover:shadow-lg hover:shadow-primary/20 group"
+          className="shrink-0 w-px h-full bg-border/50 cursor-col-resize relative z-10 transition-all duration-200 hover:bg-primary hover:shadow-[0_0_10px_rgba(88,166,255,0.3)] group"
           onMouseDown={handleResizeStart}
           title="Drag to resize"
         >
-          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-base-content/5 group-hover:bg-primary/50 transition-colors" />
+          {/* Invisible hit area for easier grabbing */}
+          <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize" />
         </div>
 
         {/* Document Area (Center) */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-base-100">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-card">
           {selectedPath && (
             <SpecHeader
               fileName={selectedFileName}
@@ -368,7 +364,6 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
               progress={prdProgress}
             />
           )}
-
           <div className="flex-1 overflow-hidden min-h-0">
             {renderTabContent()}
           </div>
@@ -398,23 +393,23 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
           ) : (
             /* Collapsed Review Tab */
             <button
-              className="flex flex-col items-center justify-center gap-3 w-12 h-full bg-gradient-to-l from-base-200 to-base-200/50 border-l border-base-content/5 hover:from-secondary/10 hover:to-secondary/5 transition-all duration-300 cursor-pointer group shadow-inner"
+              className="flex flex-col items-center justify-center gap-4 w-12 h-full bg-surface border-l border-border hover:bg-surface/80 transition-all duration-500 cursor-pointer group"
               onClick={() => setIsReviewPanelOpen(true)}
               title="Open Review Panel"
             >
-              <ChevronLeftIcon className="h-4 w-4 text-base-content/40 group-hover:text-secondary group-hover:-translate-x-0.5 transition-all duration-200" />
+              <ChevronLeftIcon className="h-4 w-4 text-muted-foreground/40 group-hover:text-secondary group-hover:-translate-x-0.5 transition-all duration-200" />
               <div className="flex flex-col items-center gap-2">
                 <div className="p-2 rounded-lg bg-secondary/10 group-hover:bg-secondary/20 transition-colors ring-1 ring-secondary/20">
                   <MagnifyingGlassIcon className="h-4 w-4 text-secondary" />
                 </div>
-                <span className="text-[11px] font-medium text-base-content/50 group-hover:text-secondary/80 [writing-mode:vertical-rl] rotate-180 tracking-wide transition-colors">
+                <span className="text-[11px] font-medium text-muted-foreground group-hover:text-secondary/80 [writing-mode:vertical-rl] rotate-180 tracking-wide transition-colors">
                   Review
                 </span>
               </div>
               {session && session.suggestions.filter(s => s.status === 'pending').length > 0 && (
-                <span className="badge badge-xs badge-secondary shadow-sm animate-pulse">
+                <Badge variant="secondary" size="xs" className="shadow-sm animate-pulse">
                   {session.suggestions.filter(s => s.status === 'pending').length}
-                </span>
+                </Badge>
               )}
             </button>
           )
@@ -432,110 +427,119 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
           />
         )}
 
-        {/* Chat Popup */}
-        {selectedPath && (
-          <>
-            {/* Chat Toggle Button */}
+        {/* Chat Toggle Button - Outside Drawer to avoid vaul interference */}
+
+          <div className="fixed bottom-6 right-6 z-50">
             <button
-              className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-2xl flex items-center justify-center text-xl transition-all duration-300 ${
-                isChatOpen
-                  ? 'bg-gradient-to-br from-error to-error/80 text-error-content shadow-lg shadow-error/30 hover:shadow-xl hover:shadow-error/40 hover:scale-105'
-                  : 'bg-gradient-to-br from-primary to-primary/80 text-primary-content shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:scale-105 animate-chat-pulse'
-              }`}
               onClick={() => setIsChatOpen(!isChatOpen)}
+              className={`relative flex items-center justify-center transition-all duration-300 active-press rounded-full ${
+                isChatOpen
+                  ? 'w-14 h-14 bg-error text-error-foreground shadow-lg'
+                  : 'w-20 h-20 bg-card border border-primary/30 shadow-[0_0_25px_rgba(139,92,246,0.4)] hover:shadow-[0_0_35px_rgba(139,92,246,0.6)] hover:scale-105'
+              }`}
               title={isChatOpen ? 'Close chat' : 'Open chat'}
             >
-              {isChatOpen ? <XMarkIcon className="w-5 h-5" /> : <ChatBubbleLeftRightIcon className="w-5 h-5" />}
+              {isChatOpen ? (
+                <XMarkIcon className="w-5 h-5" />
+              ) : (
+                <img src="/in-chat-icon.png" alt="Chat" className="w-16 h-16 object-contain" />
+              )}
               {!isChatOpen && (session?.chatMessages?.length ?? 0) > 0 && (
-                <span className="absolute -top-1 -right-1 badge badge-sm badge-secondary ring-2 ring-base-100 shadow-md">
+                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground ring-2 ring-background">
                   {session?.chatMessages?.length}
                 </span>
               )}
             </button>
+          </div>
+        
 
-            {/* Chat Popup Panel */}
-            {isChatOpen && (
-              <div className="fixed top-16 bottom-24 right-6 z-50 w-[768px] bg-gradient-to-b from-base-200 to-base-200/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-base-content/5 ring-1 ring-base-content/10 flex flex-col overflow-hidden animate-chat-popup">
-                <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-base-300/80 to-base-300/60 border-b border-base-content/5 backdrop-blur-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="p-1.5 rounded-lg bg-primary/10 ring-1 ring-primary/20">
-                      <ChatBubbleLeftRightIcon className="w-4 h-4 text-primary" />
-                    </div>
-                    <span className="text-sm font-semibold text-base-content">Review Chat</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {filteredChatMessages.length > 0 && (
-                      <button
-                        className="px-2.5 py-1 rounded-lg text-xs font-medium text-base-content/60 hover:text-primary hover:bg-primary/10 transition-all duration-200"
-                        onClick={handleNewChat}
-                        title="Start a new chat session"
-                      >
-                        New Chat
-                      </button>
-                    )}
-                    <button
-                      className="w-7 h-7 rounded-lg flex items-center justify-center text-base-content/50 hover:text-error hover:bg-error/10 transition-all duration-200"
-                      onClick={() => setIsChatOpen(false)}
-                    >
-                      ✕
-                    </button>
-                  </div>
+        {/* Chat Drawer - Always mounted to prevent unmount/remount flicker, controlled via open prop */}
+        <Drawer
+          open={isChatOpen}
+          onOpenChange={handleChatDrawerOpenChange}
+          direction="right"
+        >
+          <DrawerContent
+            side="right"
+            hideOverlay
+            className="w-[500px] sm:w-[600px] p-0 border-l border-white/5 bg-background/80 backdrop-blur-xl shadow-2xl h-full mt-0"
+            data-testid="review-chat-drawer"
+          >
+            <div className="flex items-center justify-between px-6 py-4 bg-muted/20 backdrop-blur-md border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 rounded-lg bg-primary/10 ring-1 ring-primary/20">
+                  <ChatBubbleLeftRightIcon className="w-4 h-4 text-primary" />
                 </div>
-                <div className="flex-1 overflow-hidden">
-                  <ReviewChat
-                    messages={filteredChatMessages}
-                    sessionId={session?.sessionId}
-                    discussingContext={discussingContext}
-                    onSendMessage={handleSendChatMessage}
-                    onClearDiscussingContext={() => {
-                      setDiscussingContext(null);
-                      setDiscussStartTimestamp(null);
-                    }}
-                    isSending={isSendingChat}
-                    projectPath={projectPath}
-                  />
-                </div>
+                <span className="text-[14px] font-bold text-foreground tracking-tight font-poppins capitalize">Spec Review Chat</span>
               </div>
-            )}
-          </>
-        )}
+              <div className="flex items-center gap-2">
+                {filteredChatMessages.length > 0 && (
+                  <Button
+                    size="sm"
+                    className="h-8 px-3 rounded-full text-xs hover:bg-white/5"
+                    onClick={handleNewChat}
+                  >
+                    New session
+                  </Button>
+                )}
+                <button
+                  onClick={() => setIsChatOpen(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-foreground/40 hover:text-foreground hover:bg-white/10 transition-all duration-200"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <ReviewChat
+                messages={filteredChatMessages}
+                sessionId={session?.sessionId}
+                discussingContext={discussingContext}
+                onSendMessage={handleSendChatMessage}
+                onClearDiscussingContext={() => {
+                  setDiscussingContext(null);
+                  setDiscussStartTimestamp(null);
+                }}
+                isSending={isSendingChat}
+                projectPath={projectPath}
+              />
+            </div>
+          </DrawerContent>
+        </Drawer>
 
-        {/* New Spec Modal */}
-        {isNewSpecModalOpen && (
-          <NewSpecModal
-            name={newSpecName}
-            type={newSpecType}
-            isCreating={isCreatingSpec}
-            onNameChange={setNewSpecName}
-            onTypeChange={setNewSpecType}
-            onCreate={handleCreateNewSpec}
-            onCancel={handleCancelNewSpec}
-          />
-        )}
+        {/* New Spec Drawer */}
+        <NewSpecDrawer
+          isOpen={isNewSpecModalOpen}
+          name={newSpecName}
+          type={newSpecType}
+          isCreating={isCreatingSpec}
+          onNameChange={setNewSpecName}
+          onTypeChange={setNewSpecType}
+          onCreate={handleCreateNewSpec}
+          onClose={handleCancelNewSpec}
+        />
 
         {/* Create Tech Spec Modal */}
-        {isCreateTechSpecModalOpen && selectedPath && (
-          <CreateTechSpecModal
-            isOpen={isCreateTechSpecModalOpen}
-            onClose={handleCloseTechSpecModal}
-            prdSpecId={selectedPath.replace(/^.*\//, '').replace(/\.md$/, '')}
-            prdName={selectedFileName}
-            userStories={prdUserStories}
-            projectPath={projectPath}
-            onCreated={(path) => {
-              handleTechSpecCreated(path);
-              setSelectedPath(path);
-            }}
-            onGenerationStart={(specName) => {
-              setIsGeneratingTechSpec(true);
-              setGeneratingTechSpecInfo({
-                parentPath: selectedPath,
-                name: specName,
-              });
-            }}
-          />
-        )}
+        {/* Create Tech Spec Modal */}
+        <CreateTechSpecModal
+          isOpen={isCreateTechSpecModalOpen}
+          onClose={handleCloseTechSpecModal}
+          prdSpecId={selectedPath?.replace(/^.*\//, '').replace(/\.md$/, '') || ''}
+          prdName={selectedFileName || ''}
+          userStories={prdUserStories}
+          projectPath={projectPath}
+          onCreated={(path) => {
+            handleTechSpecCreated(path);
+            setSelectedPath(path);
+          }}
+          onGenerationStart={(specName) => {
+            setIsGeneratingTechSpec(true);
+            setGeneratingTechSpecInfo({
+              parentPath: selectedPath || '',
+              name: specName,
+            });
+          }}
+        />
       </div>
-    </>
   );
 }

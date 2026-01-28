@@ -6,7 +6,8 @@ import type {
   CliType,
   ReasoningEffort
 } from '../types.js';
-import { ActionButton, Alert, apiFetch } from '../components/ui';
+import { Alert, Loading, apiFetch } from '../components/ui';
+import { Button } from '../components/ui/Button';
 
 /** Valid reasoning effort levels for Codex */
 const REASONING_EFFORTS: ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
@@ -45,14 +46,14 @@ function ConfigField({
   children: React.ReactNode;
 }) {
   return (
-    <div className="form-control w-full">
-      <label className="label py-1">
-        <span className="label-text text-xs font-medium">{label}</span>
+    <div className="flex flex-col gap-1 w-full">
+      <label className="flex py-1">
+        <span className="text-xs font-medium text-foreground">{label}</span>
       </label>
       {children}
       {description && (
-        <label className="label py-0.5">
-          <span className="label-text-alt text-xs text-base-content/50">{description}</span>
+        <label className="flex py-0.5">
+          <span className="text-xs text-muted-foreground">{description}</span>
         </label>
       )}
     </div>
@@ -70,10 +71,10 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="card bg-base-200 border border-base-300 shadow-sm">
-      <div className="card-body p-4">
-        <h3 className="card-title text-base mb-0">{title}</h3>
-        <p className="text-xs text-base-content/60 mb-3">{description}</p>
+    <div className="rounded-lg bg-card border border-border shadow-sm">
+      <div className="p-4">
+        <h3 className="text-base font-semibold mb-0">{title}</h3>
+        <p className="text-xs text-muted-foreground mb-3">{description}</p>
         <div className="flex flex-col gap-3">{children}</div>
       </div>
     </div>
@@ -83,9 +84,9 @@ function SettingsSection({
 // CLI Status card component
 function CliStatusCard({ cliDetection }: { cliDetection: AllCliDetectionResults | null }) {
   return (
-    <div className="card bg-base-200 border border-base-300 shadow-sm">
-      <div className="card-body p-4">
-        <h3 className="card-title text-base mb-2">CLI Status</h3>
+    <div className="rounded-lg bg-card border border-border shadow-sm">
+      <div className="p-4">
+        <h3 className="text-base font-semibold mb-2">CLI Status</h3>
         <div className="flex gap-4">
           {cliDetection && (
             <>
@@ -95,7 +96,7 @@ function CliStatusCard({ cliDetection }: { cliDetection: AllCliDetectionResults 
               ].map(({ name, data }) => (
                 <div
                   key={name}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-base-300 ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-muted ${
                     data.available ? '' : 'opacity-50'
                   }`}
                 >
@@ -103,7 +104,7 @@ function CliStatusCard({ cliDetection }: { cliDetection: AllCliDetectionResults 
                     className={`w-2 h-2 rounded-full ${data.available ? 'bg-success' : 'bg-error'}`}
                   />
                   <span className="font-medium text-sm">{name}</span>
-                  <span className={`font-mono text-xs ${data.available ? 'text-success' : 'text-base-content/50'}`}>
+                  <span className={`font-mono text-xs ${data.available ? 'text-success' : 'text-muted-foreground'}`}>
                     {data.available ? `v${data.version}` : 'N/A'}
                   </span>
                 </div>
@@ -370,7 +371,7 @@ export function SettingsView() {
     return (
       <div className="flex flex-col gap-6 p-6 overflow-y-auto h-full min-h-0">
         <div className="flex items-center justify-center min-h-[200px]">
-          <span className="loading loading-spinner loading-lg"></span>
+          <Loading size="lg" />
         </div>
       </div>
     );
@@ -383,17 +384,19 @@ export function SettingsView() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h2 className="m-0 mb-1 text-2xl font-semibold">Settings</h2>
-            <p className="m-0 text-sm text-base-content/60">Configure agents and models for different tasks</p>
+            <p className="m-0 text-sm text-muted-foreground">Configure agents and models for different tasks</p>
           </div>
           <div className="flex items-center gap-3">
             <CliStatusCard cliDetection={cliDetection} />
-            <ActionButton
+            <Button
               variant="primary"
               onClick={handleSave}
               disabled={saving || availableClis.length === 0}
+              isLoading={saving}
+              className="shadow-sm shadow-primary/20 px-8"
             >
-              {saving ? 'Saving...' : 'Save'}
-            </ActionButton>
+              Save
+            </Button>
           </div>
         </div>
         {(saveSuccess || saveError) && (

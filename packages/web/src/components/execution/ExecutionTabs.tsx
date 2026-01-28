@@ -23,7 +23,7 @@ function TabItem({ active, onClick, children, badge }: TabItemProps) {
         relative flex items-center gap-2 px-5 py-3 text-sm font-medium transition-all
         ${active
           ? 'text-primary'
-          : 'text-base-content/60 hover:text-base-content hover:bg-base-200/50'
+          : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
         }
       `}
     >
@@ -46,7 +46,7 @@ export function ExecutionTabs({
   const knowledgeCount = peerFeedback?.lessonsLearned?.length || 0;
 
   return (
-    <nav className="flex items-center border-b border-base-300 bg-base-100 px-4">
+    <nav className="flex items-center border-b border-border bg-background px-4">
       <TabItem
         active={executionTab === 'live'}
         onClick={() => onNavigate('/execution/live')}
@@ -65,7 +65,7 @@ export function ExecutionTabs({
         onClick={() => onNavigate('/execution/kanban')}
         badge={
           <span className={`text-xs px-1.5 py-0.5 rounded ${
-            executionTab === 'kanban' ? 'bg-primary/20 text-primary' : 'bg-base-300 text-base-content/60'
+            executionTab === 'kanban' ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground/60'
           }`}>
             {taskCount}
           </span>
@@ -82,7 +82,7 @@ export function ExecutionTabs({
         onClick={() => onNavigate('/execution/knowledge')}
         badge={knowledgeCount > 0 ? (
           <span className={`text-xs px-1.5 py-0.5 rounded ${
-            executionTab === 'knowledge' ? 'bg-secondary/20 text-secondary' : 'bg-base-300 text-base-content/60'
+            executionTab === 'knowledge' ? 'bg-secondary/20 text-secondary' : 'bg-muted text-muted-foreground/60'
           }`}>
             {knowledgeCount}
           </span>

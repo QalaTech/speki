@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useFileVersion } from './useFileWatcher';
 import { apiFetch } from '../components/ui/ErrorContext';
 
@@ -87,8 +88,10 @@ export function useSpecContent({
       setOriginalContent(contentToSave);
       setContent(contentToSave);
       setHasUnsavedChanges(false);
+      toast.success("Spec updated");
       console.log('[useSpecContent] Save successful, unsaved changes cleared');
     } catch (err) {
+      toast.error("Failed to save spec");
       console.error('[useSpecContent] Failed to save spec:', err);
     }
   }, [selectedPath, content, apiUrl]);

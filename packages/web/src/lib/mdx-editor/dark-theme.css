@@ -55,18 +55,18 @@
   --baseTextHighContrast: #f0f6fc;
   --baseTextMuted: #8b949e;
 
-  /* Bridge editor variables to DaisyUI theme */
-  --color-bg: var(--color-base-100);
-  --color-text: var(--color-base-content);
-  --color-text-muted: oklch(60% 0.02 256);
-  --color-border: oklch(32% 0.015 253);
-  --color-surface: var(--color-base-200);
-  --color-surface-hover: var(--color-base-300);
-  --color-accent: var(--color-primary);
+  /* Bridge editor variables to theme */
+  --color-bg: lch(10 1 272);
+  --color-text: oklch(98% 0.005 260);
+  --color-text-muted: oklch(65% 0.01 260);
+  --color-border: lch(20 1 272);
+  --color-surface: lch(16 1.5 272);
+  --color-surface-hover: lch(20 1.5 272);
+  --color-accent: oklch(58% 0.233 277);
 
   background: var(--color-bg) !important;
   color: var(--color-text) !important;
-  border: 1px solid var(--color-border);
+  border: none !important;
   border-radius: 8px;
 }
 
@@ -663,8 +663,8 @@
 
 /* ===== Focus States ===== */
 .mdxeditor:focus-within {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.1);
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 /* ===== Scrollbar Styling ===== */

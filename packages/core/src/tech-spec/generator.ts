@@ -70,12 +70,14 @@ async function validateInputs(
   try {
     prdContent = await fs.readFile(prdPath, 'utf-8');
 
-    // Check frontmatter
-    if (!prdContent.includes('type: prd')) {
-      errors.push({ field: 'prd.frontmatter', error: 'PRD must have frontmatter with type: prd' });
+    // Check frontmatter - but allow .prd.md files without it (filename implies type)
+    const isPrdByFilename = prdPath.endsWith('.prd.md');
+    const hasPrdFrontmatter = prdContent.includes('type: prd');
+    if (!isPrdByFilename && !hasPrdFrontmatter) {
+      errors.push({ field: 'prd.frontmatter', error: 'PRD must have frontmatter with type: prd (or use .prd.md extension)' });
     }
 
-    } catch (err) {
+  } catch (err) {
     errors.push({ field: 'prdPath', error: `Cannot read PRD file: ${(err as Error).message}` });
   }
 

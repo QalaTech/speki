@@ -1,11 +1,10 @@
-import { forwardRef, type InputHTMLAttributes } from 'react';
+import * as React from "react";
+import { cn } from "../../lib/utils";
 
-type InputSize = 'xs' | 'sm' | 'md' | 'lg';
-type InputVariant = 'bordered' | 'ghost' | 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error';
+type InputSize = "xs" | "sm" | "md" | "lg";
 
-interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
+export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> {
   inputSize?: InputSize;
-  variant?: InputVariant;
   label?: string;
   helperText?: string;
   error?: string;
@@ -13,42 +12,37 @@ interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'>
 }
 
 const sizeClasses: Record<InputSize, string> = {
-  xs: 'input-xs',
-  sm: 'input-sm',
-  md: 'input-md',
-  lg: 'input-lg',
+  xs: "h-7 text-xs",
+  sm: "h-8 text-sm",
+  md: "h-9 text-sm",
+  lg: "h-10 text-base",
 };
 
-const variantClasses: Record<InputVariant, string> = {
-  bordered: 'input-bordered',
-  ghost: 'input-ghost',
-  primary: 'input-primary',
-  secondary: 'input-secondary',
-  accent: 'input-accent',
-  info: 'input-info',
-  success: 'input-success',
-  warning: 'input-warning',
-  error: 'input-error',
-};
-
-export const Input = forwardRef<HTMLInputElement, InputProps>(
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
   (
     {
-      inputSize = 'md',
-      variant = 'bordered',
+      className,
+      type,
+      inputSize = "md",
       label,
       helperText,
       error,
       fullWidth = true,
-      className = '',
       ...props
     },
     ref
   ) => {
     const inputElement = (
       <input
+        type={type}
+        className={cn(
+          "flex w-full rounded-md border border-input bg-transparent px-3 py-1 shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+          sizeClasses[inputSize],
+          error && "border-error focus-visible:ring-error",
+          fullWidth ? "w-full" : "",
+          className
+        )}
         ref={ref}
-        className={`input ${variantClasses[variant]} ${sizeClasses[inputSize]} ${error ? 'input-error' : ''} ${fullWidth ? 'w-full' : ''} ${className}`}
         {...props}
       />
     );
@@ -58,23 +52,23 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     }
 
     return (
-      <div className={`form-control ${fullWidth ? 'w-full' : ''}`}>
+      <div className={cn("space-y-2", fullWidth ? "w-full" : "")}>
         {label && (
-          <label className="label">
-            <span className="label-text">{label}</span>
+          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+            {label}
           </label>
         )}
         {inputElement}
         {(helperText || error) && (
-          <label className="label">
-            <span className={`label-text-alt ${error ? 'text-error' : ''}`}>
-              {error || helperText}
-            </span>
-          </label>
+          <p className={cn("text-xs", error ? "text-error" : "text-muted-foreground")}>
+            {error || helperText}
+          </p>
         )}
       </div>
     );
   }
 );
 
-Input.displayName = 'Input';
+Input.displayName = "Input";
+
+export { Input };

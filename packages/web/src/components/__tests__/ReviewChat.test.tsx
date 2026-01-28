@@ -135,7 +135,7 @@ describe('ReviewChat', () => {
 
       expect(screen.getByTestId('chat-input')).toBeDisabled();
       expect(screen.getByTestId('send-button')).toBeDisabled();
-      expect(screen.getByTestId('send-button')).toHaveTextContent('Sending...');
+      expect(screen.getByTestId('send-button')).toHaveTextContent('...');
     });
   });
 
@@ -158,7 +158,7 @@ describe('ReviewChat', () => {
       render(<ReviewChat {...defaultProps} messages={messages} />);
 
       expect(screen.getByText('You')).toBeInTheDocument();
-      expect(screen.getByText('Assistant')).toBeInTheDocument();
+      expect(screen.getByText('Speki')).toBeInTheDocument();
     });
 
     it('should show suggestion context when message has suggestionId', () => {

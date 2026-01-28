@@ -20,7 +20,7 @@ export function ToolCallBubble({ entry }: ToolCallBubbleProps) {
   const icon = TOOL_ICONS[entry.toolName || ''] || '🔧';
 
   const statusClasses = entry.status === 'success' 
-    ? 'border-green-500/40' 
+    ? 'border-success/40' 
     : entry.status === 'error' 
       ? 'border-error/40 bg-error/10'
       : 'border-primary/30';
@@ -33,16 +33,16 @@ export function ToolCallBubble({ entry }: ToolCallBubbleProps) {
       >
         <span className="text-base shrink-0">{icon}</span>
         <span className="font-semibold text-[13px] text-primary uppercase shrink-0">{entry.toolName}</span>
-        <span className="flex-1 font-mono text-xs text-base-content/70 overflow-hidden text-ellipsis whitespace-nowrap">{entry.content}</span>
-        <button className="bg-transparent border-none text-base-content/50 text-[10px] cursor-pointer p-1 shrink-0 hover:text-base-content/70" aria-label={expanded ? 'Collapse' : 'Expand'}>
+        <span className="flex-1 font-mono text-xs text-muted-foreground/70 overflow-hidden text-ellipsis whitespace-nowrap">{entry.content}</span>
+        <button className="bg-transparent border-none text-muted-foreground/50 text-[10px] cursor-pointer p-1 shrink-0 hover:text-muted-foreground/70" aria-label={expanded ? 'Collapse' : 'Expand'}>
           {expanded ? '▼' : '▶'}
         </button>
       </div>
 
       {expanded && (
-        <div className="mt-2 pt-2 border-t border-base-content/10">
-          <div className="text-[11px] text-base-content/50 mb-1 uppercase tracking-wide">Details:</div>
-          <pre className="text-xs text-base-content/80 bg-base-100/50 p-2 rounded overflow-x-auto m-0 font-mono whitespace-pre-wrap break-words">{entry.content}</pre>
+        <div className="mt-2 pt-2 border-t border-border">
+          <div className="text-[11px] text-muted-foreground/50 mb-1 uppercase tracking-wide">Details:</div>
+          <pre className="text-xs text-muted-foreground/80 bg-background/50 p-2 rounded overflow-x-auto m-0 font-mono whitespace-pre-wrap wrap-break-word">{entry.content}</pre>
         </div>
       )}
     </div>

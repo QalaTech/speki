@@ -2,6 +2,7 @@ import type React from "react";
 import type { SuggestionCard } from "@speki/core";
 import { SpecEditor } from "../shared/SpecEditor";
 import { MonacoDiffReview, type HunkAction } from "./MonacoDiffReview";
+import { Button } from "../ui/Button";
 
 interface DiffState {
   originalContent: string;
@@ -55,11 +56,11 @@ export function SpecEditorPanel({
 }: SpecEditorPanelProps): React.ReactElement {
   return (
     <div
-      className="flex flex-col border-r border-base-300"
+      className="flex flex-col border-r border-border bg-card"
       style={{ width: `${width}%` }}
       data-testid="left-panel"
     >
-      <div className="flex items-center justify-between px-4 py-2 border-b border-base-300 bg-base-200">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <span className="text-sm font-semibold">
           {isInDiffMode ? "Review Changes" : "Spec Editor"}
           {isInDiffMode && diffApproval.currentSuggestion && (
@@ -70,13 +71,15 @@ export function SpecEditorPanel({
           )}
         </span>
         {isInDiffMode && (
-          <button
-            className="btn btn-ghost btn-xs"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onCancel}
             data-testid="exit-diff-button"
+            className="h-7 text-xs"
           >
             Exit Diff View
-          </button>
+          </Button>
         )}
       </div>
       <div

@@ -15,16 +15,15 @@ export function getExecutionTab(pathname: string): string {
 /**
  * Hook for managing execution tab navigation while preserving the project query param.
  */
-export function useExecutionNavigation(project: string | null) {
+export function useExecutionNavigation(_project: string | null) {
   const navigate = useNavigate();
   const location = useLocation();
 
   const executionTab = getExecutionTab(location.pathname);
 
   const navigateToTab = useCallback((path: string) => {
-    const params = project ? `?project=${encodeURIComponent(project)}` : '';
-    navigate(`${path}${params}`);
-  }, [navigate, project]);
+    navigate(`${path}${location.search}`);
+  }, [navigate, location.search]);
 
   return { executionTab, navigateToTab };
 }

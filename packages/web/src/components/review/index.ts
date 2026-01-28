@@ -1,4 +1,3 @@
-export { ReviewPanel } from './ReviewPanel';
 export { ReviewChat, type DiscussingContext } from './ReviewChat';
 export { SuggestionCard } from './SuggestionCard';
 export { ChangeHistory } from './ChangeHistory';
@@ -10,5 +9,4 @@ export { SplitPreviewModal, type SplitPreviewFile } from './SplitPreviewModal';
 export { BatchNavigation } from './BatchNavigation';
 export { SplitNavigation } from './SplitNavigation';
 export { SpecReviewHeader } from './SpecReviewHeader';
-export { SpecEditorPanel } from './SpecEditorPanel';
 export { ReviewSuggestionsPanel } from './ReviewSuggestionsPanel';

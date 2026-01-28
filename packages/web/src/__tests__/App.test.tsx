@@ -175,9 +175,9 @@ describe('App - Settings Navigation', () => {
 
       const settingsButton = screen.getByTitle('Settings');
 
-      // Settings button should have active styling (bg-base-300/80 class)
+      // Settings button should have active styling (ShadCN uses bg-muted/80 class)
       await waitFor(() => {
-        expect(settingsButton.className).toContain('bg-base-300/80');
+        expect(settingsButton.className).toContain('bg-muted/80');
       });
     });
 
@@ -200,7 +200,7 @@ describe('App - Settings Navigation', () => {
 
       // Assert - settings should no longer have active styling
       await waitFor(() => {
-        expect(settingsButton.className).not.toContain('bg-base-300/80');
+        expect(settingsButton.className).not.toContain('bg-muted/80');
       });
     });
   });
@@ -226,7 +226,7 @@ describe('App - Settings Navigation', () => {
 
       // Settings button should have active styling
       const settingsButton = screen.getByTitle('Settings');
-      expect(settingsButton.className).toContain('bg-base-300/80');
+      expect(settingsButton.className).toContain('bg-muted/80');
     });
   });
 
@@ -242,13 +242,13 @@ describe('App - Settings Navigation', () => {
         expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument();
       });
 
-      // Assert - Specs button should have active styling
+      // Assert - Specs button should have active styling (ShadCN uses bg-background)
       const specsButton = screen.getAllByText('Specs')[0];
-      expect(specsButton.closest('button')?.className).toContain('bg-base-100');
+      expect(specsButton.closest('button')?.className).toContain('bg-background');
 
       // Settings button should NOT have active styling
       const settingsButton = screen.getByTitle('Settings');
-      expect(settingsButton.className).not.toContain('bg-base-300/80');
+      expect(settingsButton.className).not.toContain('bg-muted/80');
     });
 
     it('should render home page when URL is /', async () => {
@@ -316,7 +316,7 @@ describe('App - Settings Navigation', () => {
 
       // Assert - Specs button should now have active styling
       await waitFor(() => {
-        expect(specsButton.closest('button')?.className).toContain('bg-base-100');
+        expect(specsButton.closest('button')?.className).toContain('bg-background');
       });
     });
 
@@ -335,7 +335,7 @@ describe('App - Settings Navigation', () => {
 
       // Should have active styling
       await waitFor(() => {
-        expect(specsButton.closest('button')?.className).toContain('bg-base-100');
+        expect(specsButton.closest('button')?.className).toContain('bg-background');
       });
     });
   });

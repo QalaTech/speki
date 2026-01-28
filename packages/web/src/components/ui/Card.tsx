@@ -1,67 +1,138 @@
-import type { ReactNode, HTMLAttributes } from 'react';
+import * as React from "react";
+import { cn } from "../../lib/utils";
 
-type CardVariant = 'default' | 'bordered' | 'compact' | 'side';
+// ShadCN-style Card components
+const Card = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & {
+    variant?: "default" | "bordered" | "compact" | "side";
+    image?: string;
+    imageAlt?: string;
+  }
+>(({ className, variant = "default", image, imageAlt, children, ...props }, ref) => {
+  const variantClasses = {
+    default: "",
+    bordered: "border border-border",
+    compact: "p-4",
+    side: "flex-row",
+  };
 
-interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  variant?: CardVariant;
-  image?: string;
-  imageAlt?: string;
-  className?: string;
-  children: ReactNode;
-}
-
-const variantClasses: Record<CardVariant, string> = {
-  default: 'card bg-base-200',
-  bordered: 'card bg-base-200 border border-base-300',
-  compact: 'card card-compact bg-base-200',
-  side: 'card card-side bg-base-200',
-};
-
-export function Card({
-  variant = 'default',
-  image,
-  imageAlt,
-  className = '',
-  children,
-  ...props
-}: CardProps) {
   return (
-    <div className={`${variantClasses[variant]} ${className}`} {...props}>
+    <div
+      ref={ref}
+      className={cn(
+        "rounded-xl bg-card text-card-foreground shadow-sm",
+        variantClasses[variant],
+        className
+      )}
+      {...props}
+    >
       {image && (
-        <figure>
-          <img src={image} alt={imageAlt || ''} />
+        <figure className="overflow-hidden rounded-t-xl">
+          <img src={image} alt={imageAlt || ""} className="w-full object-cover" />
         </figure>
       )}
       {children}
     </div>
   );
+});
+Card.displayName = "Card";
+
+const CardHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col space-y-1.5 p-6", className)}
+    {...props}
+  />
+));
+CardHeader.displayName = "CardHeader";
+
+const CardTitle = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("font-semibold leading-none tracking-tight", className)}
+    {...props}
+  />
+));
+CardTitle.displayName = "CardTitle";
+
+const CardDescription = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("text-sm text-muted-foreground", className)}
+    {...props}
+  />
+));
+CardDescription.displayName = "CardDescription";
+
+const CardContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+));
+CardContent.displayName = "CardContent";
+
+const CardFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex items-center p-6 pt-0", className)}
+    {...props}
+  />
+));
+CardFooter.displayName = "CardFooter";
+
+// Backward-compatible aliases
+const CardBody = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-6", className)} {...props} />
+));
+CardBody.displayName = "CardBody";
+
+interface CardActionsProps extends React.HTMLAttributes<HTMLDivElement> {
+  justify?: "start" | "center" | "end";
 }
 
-interface CardBodyProps {
-  className?: string;
-  children: ReactNode;
-}
+const CardActions = React.forwardRef<HTMLDivElement, CardActionsProps>(
+  ({ className, justify = "end", ...props }, ref) => {
+    const justifyClass = {
+      start: "justify-start",
+      center: "justify-center",
+      end: "justify-end",
+    }[justify];
 
-export function CardBody({ className = '', children }: CardBodyProps) {
-  return <div className={`card-body ${className}`}>{children}</div>;
-}
+    return (
+      <div
+        ref={ref}
+        className={cn("flex items-center gap-2 p-6 pt-0", justifyClass, className)}
+        {...props}
+      />
+    );
+  }
+);
+CardActions.displayName = "CardActions";
 
-interface CardTitleProps {
-  className?: string;
-  children: ReactNode;
-}
-
-export function CardTitle({ className = '', children }: CardTitleProps) {
-  return <h2 className={`card-title ${className}`}>{children}</h2>;
-}
-
-interface CardActionsProps {
-  className?: string;
-  justify?: 'start' | 'center' | 'end';
-  children: ReactNode;
-}
-
-export function CardActions({ className = '', justify = 'end', children }: CardActionsProps) {
-  const justifyClass = justify === 'start' ? 'justify-start' : justify === 'center' ? 'justify-center' : 'justify-end';
-  return <div className={`card-actions ${justifyClass} ${className}`}>{children}</div>;
-}
+export {
+  Card,
+  CardHeader,
+  CardFooter,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardBody,
+  CardActions,
+};

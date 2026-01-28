@@ -1,5 +1,6 @@
 import type { SuggestionCard as SuggestionCardType } from '@speki/core';
 import { Badge } from '../ui';
+import { Button } from '../ui/Button';
 
 export interface SuggestionCardProps {
   suggestion: SuggestionCardType;
@@ -13,7 +14,7 @@ const SEVERITY_CONFIG: Record<string, { label: string; variant: 'error' | 'warni
   critical: { label: 'Critical', variant: 'error', borderColor: 'border-l-error' },
   warning: { label: 'Warning', variant: 'warning', borderColor: 'border-l-warning' },
   info: { label: 'Info', variant: 'info', borderColor: 'border-l-info' },
-  unknown: { label: 'Unknown', variant: 'neutral', borderColor: 'border-l-base-300' },
+  unknown: { label: 'Unknown', variant: 'neutral', borderColor: 'border-l-border' },
 };
 
 const STATUS_CONFIG: Record<string, { label: string; variant: 'success' | 'error' | 'info'; cardBg: string }> = {
@@ -47,17 +48,17 @@ export function SuggestionCard({
 
   return (
     <div
-      className={`card card-compact bg-base-200 border border-base-300 mb-3 border-l-4 ${severityConfig.borderColor} ${statusConfig?.cardBg || ''}`}
+      className={`rounded-xl bg-muted border border-border mb-3 border-l-4 hover-lift-sm transition-all duration-200 ${severityConfig.borderColor} ${statusConfig?.cardBg || ''}`}
       data-testid="suggestion-card"
       data-suggestion-id={id}
     >
-      <div className="card-body gap-2.5">
+      <div className="p-4 space-y-2.5">
         {/* Header with severity and status badges */}
         <div className="flex items-center gap-3 flex-wrap">
           <Badge variant={severityConfig.variant} size="sm" data-testid="severity-indicator">
             {severityConfig.label}
           </Badge>
-          <span className="text-xs opacity-60" data-testid="suggestion-location">
+          <span className="text-xs text-muted-foreground" data-testid="suggestion-location">
             {location}
           </span>
           {!isPending && statusConfig && (
@@ -73,51 +74,52 @@ export function SuggestionCard({
         </div>
 
         {/* Suggested fix preview */}
-        <div className="bg-base-300 rounded-lg p-3 text-sm" data-testid="suggestion-preview">
-          <div className="font-semibold opacity-60 mb-1">
+        <div className="bg-card rounded-lg p-3 text-sm border border-border" data-testid="suggestion-preview">
+          <div className="font-semibold text-muted-foreground mb-1">
             {isChangeType ? 'Suggested fix:' : 'Comment:'}
           </div>
-          <div className="whitespace-pre-wrap break-words leading-snug">{suggestedFix}</div>
+          <div className="whitespace-pre-wrap wrap-break-word leading-snug">{suggestedFix}</div>
         </div>
 
         {/* Action buttons */}
         {isPending && (
-          <div className="card-actions justify-start mt-1" data-testid="suggestion-actions">
+          <div className="flex items-center gap-2 mt-1" data-testid="suggestion-actions">
             {isChangeType ? (
-              <button
-                type="button"
-                className="btn btn-glass-primary btn-sm"
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => onReviewDiff?.(id)}
                 data-testid="review-diff-button"
               >
                 Review Diff
-              </button>
+              </Button>
             ) : (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => onDiscuss?.(id)}
                 data-testid="discuss-button"
               >
                 Discuss
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onShowInEditor?.(id)}
               data-testid="show-in-editor-button"
             >
               Show in Editor
-            </button>
-            <button
-              type="button"
-              className="btn btn-outline btn-error btn-sm"
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => onDismiss?.(id)}
               data-testid="dismiss-button"
+              className="text-error border-error hover:bg-error/10"
             >
               Dismiss
-            </button>
+            </Button>
           </div>
         )}
       </div>

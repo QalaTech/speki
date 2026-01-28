@@ -1,341 +1,71 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@speki/core";
 import { ChatMarkdown } from "../chat/ChatMarkdown";
-import { TextEffect } from "../ui/TextEffect";
-import {
-  SparklesIcon,
-  UserIcon,
-  ChatBubbleLeftRightIcon,
-} from "@heroicons/react/24/solid";
+import { Button } from "../ui/Button";
+import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/solid";
 
-/* Tailwind styles for animations and complex gradients that can't be done inline */
-const reviewChatStyles = `
-  @keyframes chatFadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes shimmer {
-    0% { left: -100%; }
-    100% { left: 100%; }
-  }
-  @keyframes blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
-  }
-  @keyframes iconPulse {
-    0%, 100% { transform: scale(1); opacity: 0.8; }
-    50% { transform: scale(1.1); opacity: 1; }
-  }
-  @keyframes iconBounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-4px); }
-  }
-  @keyframes iconWiggle {
-    0%, 100% { transform: rotate(0deg); }
-    25% { transform: rotate(-10deg); }
-    75% { transform: rotate(10deg); }
-  }
-  @keyframes iconSpin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-  .chat-message-animate { animation: chatFadeIn 0.2s ease-out; }
-  .chat-bubble-streaming-shimmer::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(138, 180, 248, 0.08), transparent);
-    animation: shimmer 2s infinite;
-  }
-  .chat-bubble-compacting-shimmer::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.12), transparent);
-    animation: shimmer 1.2s infinite;
-  }
-  .text-effect-icon-pulse { animation: iconPulse 1.5s ease-in-out infinite; }
-  .text-effect-icon-bounce { animation: iconBounce 0.6s ease-in-out infinite; }
-  .text-effect-icon-wiggle { animation: iconWiggle 0.5s ease-in-out infinite; }
-  .text-effect-icon-spin { animation: iconSpin 1s linear infinite; }
-  /* Custom scrollbar */
-  .chat-scrollbar::-webkit-scrollbar { width: 6px; }
-  .chat-scrollbar::-webkit-scrollbar-track { background: transparent; }
-  .chat-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-  .chat-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-`;
-
-type TextPreset =
-  | "blur"
-  | "shake"
-  | "scale"
-  | "fade"
-  | "slide"
-  | "bounce"
-  | "wave";
-type IconAnimation = "pulse" | "bounce" | "wiggle" | "spin";
-
-/** Fun quirky messages to show while streaming */
 const QUIRKY_MESSAGES: Array<{
   text: string;
   icon: string;
-  preset: TextPreset;
-  iconAnim: IconAnimation;
 }> = [
-  { text: "Thinkering...", icon: "🧠", preset: "blur", iconAnim: "pulse" },
-  {
-    text: "Doing specy things...",
-    icon: "📝",
-    preset: "slide",
-    iconAnim: "bounce",
-  },
-  { text: "Ooooh nasty...", icon: "😬", preset: "shake", iconAnim: "wiggle" },
-  {
-    text: "Hmm, interesting...",
-    icon: "🤔",
-    preset: "fade",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Consulting the oracle...",
-    icon: "🔮",
-    preset: "blur",
-    iconAnim: "spin",
-  },
-  {
-    text: "Reading the tea leaves...",
-    icon: "🍵",
-    preset: "wave",
-    iconAnim: "bounce",
-  },
-  {
-    text: "Pondering deeply...",
-    icon: "💭",
-    preset: "fade",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Having a eureka moment...",
-    icon: "💡",
-    preset: "scale",
-    iconAnim: "bounce",
-  },
-  {
-    text: "Channeling my inner genius...",
-    icon: "🧙",
-    preset: "blur",
-    iconAnim: "wiggle",
-  },
-  {
-    text: "Crunching the bits...",
-    icon: "⚙️",
-    preset: "shake",
-    iconAnim: "spin",
-  },
-  {
-    text: "Summoning the answers...",
-    icon: "✨",
-    preset: "scale",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Decoding the matrix...",
-    icon: "🔢",
-    preset: "blur",
-    iconAnim: "spin",
-  },
-  {
-    text: "Brewing some thoughts...",
-    icon: "☕",
-    preset: "wave",
-    iconAnim: "bounce",
-  },
-  {
-    text: "Connecting the dots...",
-    icon: "🔗",
-    preset: "slide",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Mining for insights...",
-    icon: "⛏️",
-    preset: "bounce",
-    iconAnim: "bounce",
-  },
-  {
-    text: "Untangling spaghetti...",
-    icon: "🍝",
-    preset: "shake",
-    iconAnim: "wiggle",
-  },
-  {
-    text: "Polishing the response...",
-    icon: "💎",
-    preset: "scale",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Assembling brilliance...",
-    icon: "🏗️",
-    preset: "slide",
-    iconAnim: "bounce",
-  },
-  {
-    text: "Consulting the specs...",
-    icon: "📋",
-    preset: "fade",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Doing the thing...",
-    icon: "🎯",
-    preset: "bounce",
-    iconAnim: "bounce",
-  },
-  {
-    text: "Ross was right. They were on a break.",
-    icon: "🛋️",
-    preset: "shake",
-    iconAnim: "wiggle",
-  },
-  {
-    text: "Checking my Bitcoin… still not rich.",
-    icon: "₿",
-    preset: "fade",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Watching Buffy instead of thinking.",
-    icon: "🧛‍♀️",
-    preset: "slide",
-    iconAnim: "bounce",
-  },
-  {
-    text: "Googling something I should know.",
-    icon: "🔍",
-    preset: "blur",
-    iconAnim: "spin",
-  },
-  {
-    text: "Stack Overflow, don’t fail me now.",
-    icon: "🧑‍💻",
-    preset: "wave",
-    iconAnim: "bounce",
-  },
-  {
-    text: "Turning it off and on again.",
-    icon: "🔌",
-    preset: "bounce",
-    iconAnim: "bounce",
-  },
-  {
-    text: "Blaming Mercury in retrograde.",
-    icon: "🪐",
-    preset: "shake",
-    iconAnim: "wiggle",
-  },
-  {
-    text: "Overthinking… again.",
-    icon: "🔄",
-    preset: "slide",
-    iconAnim: "spin",
-  },
-  {
-    text: "This made sense five minutes ago.",
-    icon: "😵‍💫",
-    preset: "blur",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Waiting for inspiration to load…",
-    icon: "⏳",
-    preset: "fade",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Pretending this is intentional.",
-    icon: "😌",
-    preset: "slide",
-    iconAnim: "bounce",
-  },
-  {
-    text: "Ah yes, a bold design choice.",
-    icon: "🎨",
-    preset: "scale",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Explaining it to a rubber duck.",
-    icon: "🦆",
-    preset: "wave",
-    iconAnim: "bounce",
-  },
-  {
-    text: "This is fine. Everything is fine.",
-    icon: "🔥",
-    preset: "shake",
-    iconAnim: "wiggle",
-  },
-  {
-    text: "Consulting past-me (bad idea).",
-    icon: "📜",
-    preset: "fade",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Rolling a D20 for luck.",
-    icon: "🎲",
-    preset: "bounce",
-    iconAnim: "bounce",
-  },
-  {
-    text: "Sacrificing performance for vibes.",
-    icon: "✨",
-    preset: "scale",
-    iconAnim: "pulse",
-  },
-  {
-    text: "One does not simply answer this.",
-    icon: "🧝‍♂️",
-    preset: "slide",
-    iconAnim: "wiggle",
-  },
-  {
-    text: "Loading sarcasm module…",
-    icon: "😏",
-    preset: "blur",
-    iconAnim: "pulse",
-  },
-  {
-    text: "Manifesting a solution.",
-    icon: "🧿",
-    preset: "wave",
-    iconAnim: "pulse",
-  },
+  { text: "Thinkering...", icon: "🧠" },
+  { text: "Doing specy things...", icon: "📝" },
+  { text: "Ooooh nasty...", icon: "😬" },
+  { text: "Hmm, interesting...", icon: "🤔" },
+  { text: "Consulting the oracle...", icon: "🔮" },
+  { text: "Reading the tea leaves...", icon: "🍵" },
+  { text: "Pondering deeply...", icon: "💭" },
+  { text: "Having a eureka moment...", icon: "💡" },
+  { text: "Channeling my inner genius...", icon: "🧙" },
+  { text: "Crunching the bits...", icon: "⚙️" },
+  { text: "Summoning the answers...", icon: "✨" },
+  { text: "Decoding the matrix...", icon: "🔢" },
+  { text: "Brewing some thoughts...", icon: "☕" },
+  { text: "Connecting the dots...", icon: "🔗" },
+  { text: "Mining for insights...", icon: "⛏️" },
+  { text: "Untangling spaghetti...", icon: "🍝" },
+  { text: "Polishing the response...", icon: "💎" },
+  { text: "Assembling brilliance...", icon: "🏗️" },
+  { text: "Consulting the specs...", icon: "📋" },
+  { text: "Doing the thing...", icon: "🎯" },
+  { text: "Ross was right. They were on a break.", icon: "🛋️" },
+  { text: "Checking my Bitcoin… still not rich.", icon: "₿" },
+  { text: "Watching Buffy instead of thinking.", icon: "🧛‍♀️" },
+  { text: "Googling something I should know.", icon: "🔍" },
+  { text: "Stack Overflow, don’t fail me now.", icon: "🧑‍💻" },
+  { text: "Turning it off and on again.", icon: "🔌" },
+  { text: "Blaming Mercury in retrograde.", icon: "🪐" },
+  { text: "Overthinking… again.", icon: "🔄" },
+  { text: "This made sense five minutes ago.", icon: "😵‍💫" },
+  { text: "Waiting for inspiration to load…", icon: "⏳" },
+  { text: "Pretending this is intentional.", icon: "😌" },
+  { text: "Ah yes, a bold design choice.", icon: "🎨" },
+  { text: "Explaining it to a rubber duck.", icon: "🦆" },
+  { text: "This is fine. Everything is fine.", icon: "🔥" },
+  { text: "Consulting past-me (bad idea).", icon: "📜" },
+  { text: "Rolling a D20 for luck.", icon: "🎲" },
+  { text: "Sacrificing performance for vibes.", icon: "✨" },
+  { text: "One does not simply answer this.", icon: "🧝‍♂️" },
+  { text: "Loading sarcasm module…", icon: "😏" },
+  { text: "Manifesting a solution.", icon: "🧿" },
 ];
 
 /** Fun messages to show when Claude is compacting context */
 const COMPACTING_MESSAGES: Array<{
   text: string;
   icon: string;
-  preset: TextPreset;
-  iconAnim: IconAnimation;
 }> = [
-  { text: "Squashing memories together...", icon: "🗜️", preset: "shake", iconAnim: "wiggle" },
-  { text: "Marie Kondo-ing my thoughts...", icon: "✨", preset: "fade", iconAnim: "pulse" },
-  { text: "Packing a suitcase of context...", icon: "🧳", preset: "slide", iconAnim: "bounce" },
-  { text: "Compressing the brain juice...", icon: "🧠", preset: "blur", iconAnim: "spin" },
-  { text: "Tidying up the thought attic...", icon: "🏠", preset: "wave", iconAnim: "bounce" },
-  { text: "Zipping up the context file...", icon: "📦", preset: "scale", iconAnim: "pulse" },
-  { text: "Defragmenting my memories...", icon: "💾", preset: "shake", iconAnim: "spin" },
-  { text: "Folding thoughts into origami...", icon: "🦢", preset: "bounce", iconAnim: "bounce" },
+  { text: "Squashing memories together...", icon: "🗜️" },
+  { text: "Marie Kondo-ing my thoughts...", icon: "✨" },
+  { text: "Packing a suitcase of context...", icon: "🧳" },
+  { text: "Compressing the brain juice...", icon: "🧠" },
+  { text: "Tidying up the thought attic...", icon: "🏠" },
+  { text: "Zipping up the context file...", icon: "📦" },
+  { text: "Defragmenting my memories...", icon: "💾" },
+  { text: "Folding thoughts into origami...", icon: "🦢" },
 ];
+
+
 
 /** Context for discussing a specific suggestion */
 export interface DiscussingContext {
@@ -381,7 +111,6 @@ export function ReviewChat({
   projectPath,
 }: ReviewChatProps): React.ReactElement {
   const [inputValue, setInputValue] = useState("");
-  // Current quirky message to display during streaming
   const [quirkyMessage, setQuirkyMessage] = useState<
     (typeof QUIRKY_MESSAGES)[0] | null
   >(null);
@@ -401,6 +130,7 @@ export function ReviewChat({
     lastQuirkyIndexRef.current = newIndex;
     setQuirkyMessage(QUIRKY_MESSAGES[newIndex]);
   }, []);
+
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -441,30 +171,11 @@ export function ReviewChat({
     });
 
     eventSource.addEventListener("spec-review/chat-stream", (event) => {
-      console.log(
-        "[ReviewChat] Received chat-stream event:",
-        event.data?.substring(0, 200),
-      );
       try {
         const data = JSON.parse(event.data);
-        console.log("[ReviewChat] Parsed data:", {
-          hasLine: !!data.data?.line,
-          dataKeys: Object.keys(data),
-        });
-        // Process any chat stream event for this project (already filtered by project in URL)
         if (data.data?.line) {
-          const line = data.data.line;
-          console.log("[ReviewChat] Processing line:", line.substring(0, 100));
-
-          // Parse JSONL line into ParsedEntry
           try {
-            const obj = JSON.parse(line);
-            console.log(
-              "[ReviewChat] Parsed JSONL object type:",
-              obj.type,
-              "keys:",
-              Object.keys(obj),
-            );
+            const obj = JSON.parse(data.data.line);
 
             // Handle system status events (e.g. compacting)
             if (obj.type === "system" && obj.status === "compacting") {
@@ -473,38 +184,23 @@ export function ReviewChat({
               setQuirkyMessage(msg);
             }
             // Handle direct content blocks (Claude CLI stream-json format)
-            // Pick a new random quirky message for each activity event
+            // Skip Codex agent_reasoning_section_break messages (they spam rapidly)
+            // Only update on meaningful events, not every single one
             else if (
               obj.type === "tool_use" ||
               obj.type === "tool_result" ||
-              obj.type === "thinking" ||
-              obj.type === "text"
+              obj.type === "thinking"
             ) {
               setIsCompacting(false);
               pickRandomQuirky();
             }
-            // Also handle wrapped message format for backwards compatibility
-            else if (obj.type === "assistant" && obj.message?.content) {
-              const content = obj.message.content;
-              if (Array.isArray(content)) {
-                for (const block of content) {
-                  if (block.type === "tool_use" || block.type === "text") {
-                    pickRandomQuirky();
-                  }
-                }
-              }
-            } else if (obj.type === "user" && obj.message?.content) {
-              const content = obj.message.content;
-              if (Array.isArray(content)) {
-                for (const block of content) {
-                  if (block.type === "tool_result") {
-                    pickRandomQuirky();
-                  }
-                }
-              }
+            // For text events, only update if not a section break
+            else if (obj.type === "text" && !obj.text?.includes("agent_reasoning_section_break")) {
+              setIsCompacting(false);
+              // Don't call pickRandomQuirky for every text event - too frequent
             }
           } catch {
-            // Ignore parse errors for individual lines
+            // Ignore parse errors
           }
         }
       } catch {
@@ -531,6 +227,7 @@ export function ReviewChat({
     setTimeout(() => {
       setQuirkyMessage(null);
     }, 100);
+
     // Clear context after sending
     onClearDiscussingContext?.();
   };
@@ -549,9 +246,9 @@ export function ReviewChat({
 
   return (
     <>
-      <style>{reviewChatStyles}</style>
+
       <div
-        className="flex flex-col h-full min-h-[200px] bg-base-200"
+        className="flex flex-col h-full min-h-[200px] bg-transparent"
         data-testid="review-chat"
         data-session-id={sessionId}
       >
@@ -563,31 +260,33 @@ export function ReviewChat({
           {/* Context Banner - shown when discussing a suggestion */}
           {discussingContext && (
             <div
-              className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4 mb-2 shadow-sm"
+              className="bg-primary/10 border border-primary/10 rounded-xl p-4 mb-2 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300"
               data-testid="discussion-context"
             >
-              <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2">
-                  <ChatBubbleLeftRightIcon className="w-5 h-5 text-primary" />
-                  <span className="text-sm font-semibold text-base-content">Discussing Review Item</span>
+                  <div className="p-1.5 rounded-lg bg-primary/20">
+                    <ChatBubbleLeftRightIcon className="w-4 h-4 text-primary" />
+                  </div>
+                  <span className="text-xs font-bold uppercase tracking-widest text-foreground">Discussing Review Item</span>
                 </div>
                 <button
-                  className="btn btn-ghost btn-xs btn-circle hover:bg-primary/10"
+                  className="p-1.5 rounded-full hover:bg-primary/20 transition-all active:scale-95"
                   onClick={onClearDiscussingContext}
                   title="Clear context"
                 >
-                  ✕
+                  <span className="text-xs">✕</span>
                 </button>
               </div>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="font-medium text-base-content/70">Issue:</span>
-                  <p className="mt-0.5 text-base-content/90">{discussingContext.issue}</p>
+              <div className="space-y-3 text-sm">
+                <div className="bg-black/20 p-3 rounded-lg border border-white/5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">Issue</span>
+                  <p className="m-0 text-foreground/90 font-medium leading-relaxed">{discussingContext.issue}</p>
                 </div>
                 {discussingContext.suggestedFix && (
-                  <div>
-                    <span className="font-medium text-base-content/70">Suggested Fix:</span>
-                    <p className="mt-0.5 text-base-content/90">{discussingContext.suggestedFix}</p>
+                  <div className="bg-success/5 p-3 rounded-lg border border-success/10">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-success block mb-1">Suggested Fix</span>
+                    <p className="m-0 text-foreground/90 font-medium leading-relaxed">{discussingContext.suggestedFix}</p>
                   </div>
                 )}
               </div>
@@ -596,15 +295,15 @@ export function ReviewChat({
 
           {messages.length === 0 && !discussingContext ? (
             <div
-              className="flex flex-col items-center justify-center h-full text-base-content/60 gap-2"
+              className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2"
               data-testid="chat-empty"
             >
-              <ChatBubbleLeftRightIcon className="w-8 h-8 opacity-50" />
+              <ChatBubbleLeftRightIcon className="w-8 h-8 opacity-20" />
               <p className="m-0 text-sm">No messages yet. Ask a question about the review.</p>
             </div>
           ) : messages.length === 0 && discussingContext ? (
             <div
-              className="flex flex-col items-center justify-center flex-1 text-base-content/50 gap-2"
+              className="flex flex-col items-center justify-center flex-1 text-muted-foreground gap-2"
               data-testid="chat-context-ready"
             >
               <p className="m-0 text-sm italic">Type your question about this issue below</p>
@@ -623,40 +322,37 @@ export function ReviewChat({
                     data-message-id={msg.id}
                   >
                     {!isUser && (
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 shadow-sm bg-primary">
-                        <SparklesIcon className="w-4 h-4 text-primary-content" />
-                      </div>
+                      <img
+                        src="/in-chat-icon.png"
+                        alt="Speki"
+                        className="w-10 h-10 shrink-0 shadow-sm object-contain"
+                      />
                     )}
                     <div
-                      className={`py-2.5 px-3.5 rounded-2xl text-[13px] leading-relaxed shadow-sm break-words ${
+                      className={`py-3 px-4 rounded-2xl text-[13px] leading-relaxed shadow-sm wrap-break-word ${
                         isUser
-                          ? "bg-secondary/20 text-base-content rounded-br border border-secondary/10"
-                          : "bg-base-300 text-base-content rounded-bl border border-base-content/5"
+                          ? "bg-primary text-primary-foreground rounded-tr-none"
+                          : "bg-white/10 text-foreground rounded-tl-none hover:bg-white/15 transition-colors"
                       }`}
                     >
-                      <div className="flex justify-between items-center mb-1 text-[11px]">
-                        <span className="font-semibold text-base-content/70 uppercase tracking-wide">
-                          {isUser ? "You" : "Assistant"}
+                      <div className="flex justify-between items-center mb-1.5 text-[10px]">
+                        <span className={`font-bold uppercase tracking-widest ${isUser ? 'text-primary-foreground/90' : 'text-muted-foreground'}`}>
+                          {isUser ? "You" : "Speki"}
                         </span>
-                        <span className="text-base-content/40">
+                        <span className={`font-medium ${isUser ? 'text-primary-foreground/60' : 'text-muted-foreground/40'}`}>
                           {formatTimestamp(msg.timestamp)}
                         </span>
                       </div>
                       <ChatMarkdown content={msg.content} />
                       {msg.suggestionId && (
                         <div
-                          className="mt-1.5 text-[10px] text-base-content/50 italic flex items-center gap-1 before:content-['💡'] before:text-[10px]"
+                          className="mt-1.5 text-[10px] text-muted-foreground italic flex items-center gap-1 before:content-['💡'] before:text-[10px]"
                           data-testid="message-context"
                         >
                           Related to suggestion
                         </div>
                       )}
                     </div>
-                    {isUser && (
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 shadow-sm bg-info">
-                        <UserIcon className="w-4 h-4 text-info-content" />
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -664,39 +360,29 @@ export function ReviewChat({
             </>
           )}
 
-          {/* Inline streaming indicator - shows fun quirky messages with TextEffect */}
+          {/* Inline streaming indicator - Simple typing dots */}
           {isSending && (
-            <div className="flex items-start gap-2 max-w-[95%] chat-message-animate self-start">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 shadow-sm ${isCompacting ? 'bg-warning animate-pulse' : 'bg-primary'}`}>
-                <SparklesIcon className={`w-4 h-4 ${isCompacting ? 'text-warning-content' : 'text-primary-content'}`} />
-              </div>
-              <div className={`min-h-[40px] rounded-xl relative overflow-hidden py-2.5 px-3.5 ${
-                isCompacting
-                  ? 'bg-warning/10 border-2 border-dashed border-warning/50 shadow-[0_0_16px_rgba(251,191,36,0.15)] chat-bubble-compacting-shimmer'
-                  : 'bg-primary/5 border border-dashed border-primary/35 shadow-[0_0_12px_rgba(138,180,248,0.08)] chat-bubble-streaming-shimmer'
-              }`}>
+            <div className="flex items-center gap-3 max-w-[95%] chat-message-animate self-start mt-2 py-2 px-3 rounded-lg bg-muted/30 border border-white/5">
+              <img
+                src="/in-chat-icon.png"
+                alt="Speki"
+                className={`w-10 h-10 shrink-0 shadow-md object-contain ${isCompacting ? 'animate-bounce' : 'animate-pulse'}`}
+              />
+              <div className="flex flex-col gap-0.5">
                 {isCompacting && (
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-warning/70 mb-1">
-                    Context Compacting
-                  </div>
-                )}
-                <div
-                  className="flex items-center gap-3 py-2 px-1 min-h-[32px]"
-                  key={quirkyMessage?.text || "init"}
-                >
-                  <span
-                    className={`text-[26px] shrink-0 text-effect-icon-${quirkyMessage?.iconAnim || "pulse"}`}
-                  >
-                    {quirkyMessage?.icon || "✨"}
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-warning">
+                    Compacting
                   </span>
-                  <TextEffect
-                    per="char"
-                    preset={quirkyMessage?.preset || "fade"}
-                    className={`text-[15px] font-medium tracking-wide ${isCompacting ? 'text-warning' : 'text-primary'}`}
-                    delay={0.1}
-                  >
-                    {quirkyMessage?.text || "Warming up..."}
-                  </TextEffect>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-medium ${isCompacting ? 'text-warning' : 'text-foreground/80'}`}>
+                    {quirkyMessage?.icon || "✨"} {quirkyMessage?.text || "Warming up..."}
+                  </span>
+                  <div className="flex items-center gap-1.5 h-5 px-1">
+                    <span className={`w-2 h-2 rounded-full ${isCompacting ? 'bg-warning' : 'bg-primary'} animate-bounce [animation-delay:-0.3s]`}></span>
+                    <span className={`w-2 h-2 rounded-full ${isCompacting ? 'bg-warning' : 'bg-primary'} animate-bounce [animation-delay:-0.15s]`}></span>
+                    <span className={`w-2 h-2 rounded-full ${isCompacting ? 'bg-warning' : 'bg-primary'} animate-bounce`}></span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -710,7 +396,7 @@ export function ReviewChat({
             data-testid="selection-context"
           >
             <span className="font-semibold text-success uppercase tracking-wide text-[10px]">Selection:</span>
-            <span className="text-base-content/70 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px]">
+            <span className="text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px]">
               {selectedText.length > 50
                 ? `${selectedText.slice(0, 50)}...`
                 : selectedText}
@@ -725,17 +411,17 @@ export function ReviewChat({
             data-testid="discussing-context"
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="font-semibold text-secondary uppercase tracking-wide text-[10px]">Discussing suggestion:</span>
+              <span className="font-semibold text-secondary-foreground uppercase tracking-wide text-[10px]">Discussing suggestion:</span>
               <button
                 type="button"
-                className="bg-transparent border-none text-base-content/70 cursor-pointer px-1 text-xs opacity-70 transition-opacity hover:opacity-100 hover:text-error"
+                className="bg-transparent border-none text-muted-foreground cursor-pointer px-1 text-xs opacity-70 transition-opacity hover:opacity-100 hover:text-error"
                 onClick={onClearDiscussingContext}
                 aria-label="Clear discussing context"
               >
                 ✕
               </button>
             </div>
-            <div className="text-base-content/80 text-[11px] leading-snug">
+            <div className="text-foreground/80 text-[11px] leading-snug">
               {discussingContext.issue.length > 100
                 ? `${discussingContext.issue.slice(0, 100)}...`
                 : discussingContext.issue}
@@ -744,10 +430,10 @@ export function ReviewChat({
         )}
 
         {/* Input Area */}
-        <div className="flex gap-2 p-3 border-t border-base-content/5 bg-base-200">
+        <div className="flex gap-2 p-3 border-t border-white/5 bg-transparent">
           <textarea
             ref={inputRef}
-            className="flex-1 min-h-[40px] max-h-[120px] py-2.5 px-3 border border-base-content/10 rounded-lg bg-base-100 text-base-content font-inherit text-[13px] resize-y transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_0_2px] focus:shadow-primary/20 disabled:bg-base-100/50 disabled:text-base-content/40 disabled:cursor-not-allowed placeholder:text-base-content/40"
+            className="flex-1 min-h-[40px] max-h-[120px] py-2.5 px-3 border border-transparent rounded-lg bg-white/5 text-foreground font-inherit text-[13px] resize-y transition-all focus:outline-none focus:bg-white/10 focus:ring-1 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-muted-foreground/50"
             placeholder={
               discussingContext
                 ? "Ask about this suggestion..."
@@ -762,15 +448,15 @@ export function ReviewChat({
             data-testid="chat-input"
             aria-label="Chat input"
           />
-          <button
-            type="button"
-            className="btn btn-glass-primary"
+          <Button
+            variant="primary"
             onClick={handleSubmit}
             disabled={isSending || !inputValue.trim()}
             data-testid="send-button"
+            className="shadow-sm"
           >
-            {isSending ? "Sending..." : "Send"}
-          </button>
+            {isSending ? "..." : "Send"}
+          </Button>
         </div>
       </div>
     </>

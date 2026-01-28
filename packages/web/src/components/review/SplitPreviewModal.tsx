@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import type { SplitProposal, ProposedSpec } from '@speki/core';
 import { Alert } from '../ui';
+import { Button } from '../ui/Button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/Modal';
 
 export interface SplitPreviewFile {
   /** Proposed filename */
@@ -70,33 +72,33 @@ export function SplitPreviewModal({
   if (!isOpen) return null;
 
   return (
-    <div className="modal modal-open" data-testid="split-preview-modal">
-      <div className="modal-box max-w-6xl w-[95%] h-[80vh] max-h-[90vh] flex flex-col p-0" role="dialog" aria-modal="true">
-        <header className="py-4 px-6 border-b border-base-300">
-          <h2 className="m-0 text-xl font-semibold">Review Split Files</h2>
-          <p className="mt-1 mb-0 text-sm text-base-content/60">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="max-w-6xl w-[95%] h-[80vh] max-h-[90vh] flex flex-col p-0" data-testid="split-preview-modal">
+        <DialogHeader className="py-4 px-6 border-b border-border">
+          <DialogTitle>Review Split Files</DialogTitle>
+          <DialogDescription>
             Review and edit the proposed split files before saving.
-          </p>
-        </header>
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="flex flex-1 overflow-hidden">
           {/* File list sidebar */}
-          <nav className="w-[280px] min-w-[200px] border-r border-base-300 overflow-y-auto bg-base-200" data-testid="file-list">
-            <h3 className="m-0 py-3 px-4 text-sm font-semibold text-base-content/60 border-b border-base-300">Files to Create ({files.length})</h3>
-            <ul className="menu p-0">
+          <nav className="w-[280px] min-w-[200px] border-r border-border overflow-y-auto bg-muted" data-testid="file-list">
+            <h3 className="m-0 py-3 px-4 text-sm font-semibold text-muted-foreground border-b border-border">Files to Create ({files.length})</h3>
+            <ul className="p-0 m-0 list-none">
               {files.map((file, idx) => (
                 <li
                   key={file.filename}
-                  className="border-b border-base-300"
+                  className="border-b border-border"
                 >
                   <button
                     type="button"
                     onClick={() => handleFileSelect(idx)}
-                    className={`flex flex-col items-start w-full py-3 px-4 rounded-none ${idx === selectedFileIndex ? "active" : ""}`}
+                    className={`flex flex-col items-start w-full py-3 px-4 text-left transition-colors ${idx === selectedFileIndex ? "bg-primary/10 text-primary" : "hover:bg-accent"}`}
                     data-testid={`file-item-${idx}`}
                   >
                     <span className="text-sm font-medium">{file.filename}</span>
-                    <span className="text-xs text-base-content/60 mt-0.5">{file.description}</span>
+                    <span className="text-xs text-muted-foreground mt-0.5">{file.description}</span>
                   </button>
                 </li>
               ))}
@@ -107,13 +109,13 @@ export function SplitPreviewModal({
           <div className="flex-1 flex flex-col overflow-hidden" data-testid="file-editor">
             {selectedFile && (
               <>
-                <div className="py-3 px-4 border-b border-base-300 bg-base-200">
+                <div className="py-3 px-4 border-b border-border bg-muted">
                   <span className="text-sm font-semibold">{selectedFile.filename}</span>
                 </div>
                 <textarea
                   value={selectedFile.content}
                   onChange={handleContentChange}
-                  className="textarea flex-1 w-full p-4 border-none rounded-none resize-none font-mono text-sm leading-relaxed focus:outline-none disabled:bg-base-200 disabled:text-base-content/50"
+                  className="flex-1 w-full p-4 border-none rounded-none resize-none font-mono text-sm leading-relaxed bg-background text-foreground focus:outline-none focus:ring-0 disabled:bg-muted disabled:text-muted-foreground"
                   data-testid="file-content-editor"
                   disabled={isSaving}
                 />
@@ -128,35 +130,32 @@ export function SplitPreviewModal({
           </div>
         )}
 
-        <footer className="flex justify-between items-center py-4 px-6 border-t border-base-300 bg-base-200">
-          <div className="text-sm text-base-content/60">
+        <DialogFooter className="flex justify-between items-center py-4 px-6 border-t border-border bg-muted">
+          <div className="text-sm text-muted-foreground">
             <span>Original file: {proposal.originalFile}</span>
           </div>
           <div className="flex gap-3">
-            <button
-              type="button"
-              className="btn btn-ghost"
+            <Button
+              variant="ghost"
               onClick={onCancel}
               disabled={isSaving}
               data-testid="cancel-button"
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-glass-primary"
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSaveAll}
               disabled={isSaving}
+              isLoading={isSaving}
               data-testid="save-all-button"
+              className="shadow-sm shadow-primary/20"
             >
-              {isSaving ? "Saving..." : "Save All"}
-            </button>
+              Save All
+            </Button>
           </div>
-        </footer>
-      </div>
-      <div className="modal-backdrop" onClick={onCancel}>
-        <button type="button" className="cursor-default">close</button>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

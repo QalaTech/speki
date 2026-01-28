@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QueueListIcon } from '@heroicons/react/24/outline';
 import type { DecomposeState, DecomposeFeedback, PrdFile, PRDData, UserStory, FeedbackItem, DecomposeErrorType } from '../types';
 import { ContextSection } from '../components/shared/ContextSection';
-import { Badge, Alert, Loading, apiFetch } from '../components/ui';
+import { Badge, Alert, apiFetch } from '../components/ui';
+import { Button } from '../components/ui/Button';
 
 interface DecomposeViewProps {
   onTasksActivated: () => void;
@@ -35,6 +36,8 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'logs' | 'task'>('logs');
+  const [drawerWidth, setDrawerWidth] = useState(576); // Default ~xl (576px)
+  const isResizing = useRef(false);
   const [selectedTask, setSelectedTask] = useState<UserStory | null>(null);
   const [reviewLog, setReviewLog] = useState<string | null>(null);
   const [allReviewLogs, setAllReviewLogs] = useState<{attempt: number; path: string; content: string | null}[]>([]);
@@ -118,6 +121,31 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
       console.error('Failed to fetch state:', err);
     }
   }, [projectPath, lastAttemptCount]);
+
+  // Drawer resize handlers
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    document.body.style.cursor = 'grabbing';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = window.innerWidth - e.clientX;
+      setDrawerWidth(Math.min(Math.max(320, newWidth), window.innerWidth * 0.9));
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, []);
 
   useEffect(() => {
     setSelectedFile('');
@@ -401,20 +429,18 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-base-300 bg-base-200">
+      <div className="p-4 border-b border-border bg-muted">
         <h2 className="text-xl font-bold">PRD Decomposition</h2>
         <p className="text-sm opacity-60">Break down a PRD into atomic user stories</p>
       </div>
 
       {/* Configuration Bar */}
-      <div className="p-4 border-b border-base-300 bg-base-100 space-y-4">
+      <div className="p-4 border-b border-border bg-card space-y-4">
         <div className="flex flex-wrap items-end gap-4">
-          <div className="form-control flex-1 min-w-48">
-            <label className="label">
-              <span className="label-text">PRD File</span>
-            </label>
+          <div className="flex flex-col flex-1 min-w-48 gap-1.5">
+            <label className="text-sm font-medium">PRD File</label>
             <select
-              className="select select-bordered select-sm"
+              className="h-9 px-3 text-sm rounded-md border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary/20"
               value={selectedFile}
               onChange={(e) => setSelectedFile(e.target.value)}
               disabled={isInProgress}
@@ -428,13 +454,11 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
             </select>
           </div>
 
-          <div className="form-control min-w-40">
-            <label className="label">
-              <span className="label-text">Branch</span>
-            </label>
+          <div className="flex flex-col min-w-40 gap-1.5">
+            <label className="text-sm font-medium">Branch</label>
             <input
               type="text"
-              className="input input-bordered input-sm"
+              className="h-9 px-3 text-sm rounded-md border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary/20"
               value={branch}
               onChange={(e) => setBranch(e.target.value)}
               disabled={isInProgress}
@@ -442,31 +466,32 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
             />
           </div>
 
-          <div className="form-control">
-            <label className="label cursor-pointer gap-2">
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                className="checkbox checkbox-sm"
+                className="w-4 h-4 rounded border-border text-primary focus:ring-primary/20"
                 checked={forceRedecompose}
                 onChange={(e) => setForceRedecompose(e.target.checked)}
                 disabled={isInProgress}
               />
-              <span className="label-text">Force re-decomposition</span>
+              <span className="text-sm">Force re-decomposition</span>
             </label>
           </div>
 
           <div className="flex gap-2">
-            <button
-              className="btn btn-glass-primary btn-sm"
+            <Button
+              variant="high-contrast"
+              size="sm"
               onClick={handleStartDecompose}
               disabled={loading || isInProgress || !selectedFile}
+              isLoading={isInProgress}
             >
-              {isInProgress ? <Loading size="xs" /> : null}
-              {isInProgress ? 'Processing...' : 'Start'}
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={openLogs}>
+              Start
+            </Button>
+            <Button variant="ghost" size="sm" onClick={openLogs}>
               View Logs
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -490,20 +515,23 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
             </Badge>
           )}
           {decomposeState.verdict === 'FAIL' && draft && !error && (
-            <button
-              className="btn btn-xs btn-outline btn-error"
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-error border-error hover:bg-error/10"
               onClick={handleRetryReview}
               disabled={retrying}
+              isLoading={retrying}
             >
               {retrying ? 'Retrying...' : 'Retry Review'}
-            </button>
+            </Button>
           )}
         </div>
 
         {/* Inline Review Feedback (visible when verdict is not PASS) */}
         {feedback && decomposeState.verdict && decomposeState.verdict !== 'PASS' && (feedback.missingRequirements?.length || feedback.contradictions?.length ||
           feedback.dependencyErrors?.length || feedback.duplicates?.length || feedback.suggestions?.length || feedback.issues?.length) && (
-          <div className="bg-base-200 border border-error/30 rounded-lg p-4 space-y-3">
+          <div className="bg-muted border border-error/30 rounded-lg p-4 space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-error">Review Feedback</span>
               <Badge variant="error" size="xs">{feedback.verdict}</Badge>
@@ -543,13 +571,15 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                 </div>
               )}
               {(errorType === 'TIMEOUT' || errorType === 'CRASH' || decomposeState.verdict === 'FAIL') && draft && (
-                <button
-                  className="btn btn-sm btn-outline"
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleRetryReview}
                   disabled={retrying}
+                  isLoading={retrying}
                 >
-                  {retrying ? 'Retrying...' : 'Retry Peer Review'}
-                </button>
+                  Retry Peer Review
+                </Button>
               )}
             </div>
           </Alert>
@@ -569,23 +599,25 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                 </div>
               </div>
               {canActivate && (
-                <button
-                  className="btn btn-glass-primary btn-sm"
+                <Button
+                  variant="high-contrast"
+                  size="sm"
                   onClick={handleActivateAndRun}
                   disabled={loading}
+                  isLoading={loading}
                 >
                   Activate & Run All
-                </button>
+                </Button>
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {draft.userStories.map((story) => (
                 <div
                   key={story.id}
-                  className={`card card-compact bg-base-200 border border-base-300 cursor-pointer hover:bg-base-300/50 transition-colors ${story.inPrd ? 'opacity-70 border-l-4 border-l-success' : ''}`}
+                  className={`rounded-xl bg-muted border border-border cursor-pointer hover:bg-muted/80 transition-colors ${story.inPrd ? 'opacity-70 border-l-4 border-l-success' : ''}`}
                   onClick={() => openTaskDetail(story)}
                 >
-                  <div className="card-body gap-2">
+                  <div className="p-4 space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono text-xs opacity-60">{story.id}</span>
                       <Badge variant="neutral" size="xs">P{story.priority}</Badge>
@@ -626,22 +658,33 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
           onClick={() => setDrawerOpen(false)}
         >
           <div
-            className="w-full max-w-xl h-full bg-base-100 shadow-xl flex flex-col"
+            className="h-full bg-card shadow-xl flex flex-col relative"
+            style={{ width: drawerWidth }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-base-300 bg-base-200">
+            {/* Resize handle */}
+            <div
+              className="absolute left-0 top-0 bottom-0 w-2 cursor-grab hover:bg-primary/50 active:cursor-grabbing active:bg-primary transition-colors"
+              onMouseDown={handleResizeStart}
+            />
+            <div className="flex items-center justify-between p-4 border-b border-border bg-muted">
               <h3 className="font-bold">
                 {drawerMode === 'logs' ? 'Decomposition Logs' : selectedTask?.id}
               </h3>
-              <button className="btn btn-ghost btn-circle btn-sm" onClick={() => setDrawerOpen(false)}>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 rounded-full" 
+                onClick={() => setDrawerOpen(false)}
+              >
                 ×
-              </button>
+              </Button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {drawerMode === 'logs' && (
                 <div className="space-y-4">
                   {/* Compact Status Summary */}
-                  <div className="card bg-base-200 p-4 space-y-2">
+                  <div className="rounded-xl bg-muted p-4 space-y-2">
                     <div className="flex flex-wrap gap-4 text-sm">
                       <div>
                         <span className="opacity-60">Status:</span>{' '}
@@ -675,7 +718,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                     {decomposeState.prdFile && (
                       <div className="text-xs">
                         <span className="opacity-60">PRD:</span>{' '}
-                        <code className="bg-base-300 px-1 rounded">{decomposeState.prdFile}</code>
+                        <code className="bg-muted-foreground/10 px-1 rounded">{decomposeState.prdFile}</code>
                       </div>
                     )}
                   </div>
@@ -683,14 +726,15 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                   {/* Feedback Issues (if any) */}
                   {feedback && (feedback.missingRequirements?.length || feedback.contradictions?.length ||
                     feedback.dependencyErrors?.length || feedback.duplicates?.length || feedback.suggestions?.length) && (
-                    <div className="collapse collapse-arrow bg-base-200 border border-base-300">
-                      <input
-                        type="checkbox"
-                        checked={expandedLogs.has(0)}
-                        onChange={() => toggleLogExpanded(0)}
-                      />
-                      <div className="collapse-title font-medium">Review Feedback</div>
-                      <div className="collapse-content space-y-4">
+                    <details className="rounded-xl bg-muted border border-border overflow-hidden">
+                      <summary
+                        className="px-4 py-3 font-medium cursor-pointer hover:bg-muted/80 flex items-center justify-between"
+                        onClick={() => toggleLogExpanded(0)}
+                      >
+                        Review Feedback
+                        <span className={`transition-transform ${expandedLogs.has(0) ? 'rotate-180' : ''}`}>▼</span>
+                      </summary>
+                      <div className="px-4 pb-4 space-y-4">
                         {renderFeedbackSection('Missing Requirements', feedback.missingRequirements)}
                         {renderFeedbackSection('Contradictions', feedback.contradictions)}
                         {renderFeedbackSection('Dependency Errors', feedback.dependencyErrors)}
@@ -707,7 +751,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                           </div>
                         )}
                       </div>
-                    </div>
+                    </details>
                   )}
 
                   {/* Collapsible Review Logs */}
@@ -715,41 +759,43 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                     <div className="space-y-2">
                       <div className="text-sm font-semibold opacity-70">Peer Review Logs</div>
                       {allReviewLogs.map((log) => (
-                        <div key={log.attempt} className="collapse collapse-arrow bg-base-200 border border-base-300">
-                          <input
-                            type="checkbox"
-                            checked={expandedLogs.has(log.attempt)}
-                            onChange={() => toggleLogExpanded(log.attempt)}
-                          />
-                          <div className="collapse-title text-sm font-medium flex items-center gap-2">
-                            Review Attempt {log.attempt}
-                            <span className="text-xs opacity-60">
-                              {log.content ? `${(log.content.length / 1024).toFixed(1)}KB` : 'Not found'}
+                        <details key={log.attempt} className="rounded-xl bg-muted border border-border overflow-hidden">
+                          <summary
+                            className="px-4 py-3 text-sm font-medium cursor-pointer hover:bg-muted/80 flex items-center justify-between"
+                            onClick={() => toggleLogExpanded(log.attempt)}
+                          >
+                            <span className="flex items-center gap-2">
+                              Review Attempt {log.attempt}
+                              <span className="text-xs opacity-60">
+                                {log.content ? `${(log.content.length / 1024).toFixed(1)}KB` : 'Not found'}
+                              </span>
                             </span>
-                          </div>
-                          <div className="collapse-content">
-                            <pre className="text-xs bg-base-300 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-96">
+                            <span className={`transition-transform ${expandedLogs.has(log.attempt) ? 'rotate-180' : ''}`}>▼</span>
+                          </summary>
+                          <div className="px-4 pb-4">
+                            <pre className="text-xs bg-card p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-96">
                               {log.content || 'Log file not found'}
                             </pre>
                           </div>
-                        </div>
+                        </details>
                       ))}
                     </div>
                   )}
                   {!allReviewLogs.length && reviewLog && (
-                    <div className="collapse collapse-arrow bg-base-200 border border-base-300">
-                      <input
-                        type="checkbox"
-                        checked={expandedLogs.has(1)}
-                        onChange={() => toggleLogExpanded(1)}
-                      />
-                      <div className="collapse-title font-medium">Peer Review Log</div>
-                      <div className="collapse-content">
-                        <pre className="text-xs bg-base-300 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-96">
+                    <details className="rounded-xl bg-muted border border-border overflow-hidden">
+                      <summary
+                        className="px-4 py-3 font-medium cursor-pointer hover:bg-muted/80 flex items-center justify-between"
+                        onClick={() => toggleLogExpanded(1)}
+                      >
+                        Peer Review Log
+                        <span className={`transition-transform ${expandedLogs.has(1) ? 'rotate-180' : ''}`}>▼</span>
+                      </summary>
+                      <div className="px-4 pb-4">
+                        <pre className="text-xs bg-card p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-96">
                           {reviewLog}
                         </pre>
                       </div>
-                    </div>
+                    </details>
                   )}
                 </div>
               )}
@@ -762,20 +808,24 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                     </div>
                     <h2 className="text-xl font-bold">{selectedTask.title}</h2>
                     <div className="flex gap-2">
-                      <button
-                        className="btn btn-glass-primary btn-sm"
+                      <Button
+                        variant="high-contrast"
+                        size="sm"
                         onClick={handleExecuteTask}
                         disabled={executeLoading || deleteLoading || selectedTask.inPrd}
+                        isLoading={executeLoading}
                       >
-                        {executeLoading ? 'Adding...' : selectedTask.inPrd ? 'Already Queued' : 'Execute This Task'}
-                      </button>
-                      <button
-                        className="btn btn-error btn-outline btn-sm"
+                        {selectedTask.inPrd ? 'Already Queued' : 'Execute This Task'}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
                         onClick={handleDeleteTask}
                         disabled={deleteLoading || executeLoading}
+                        isLoading={deleteLoading}
                       >
-                        {deleteLoading ? 'Deleting...' : 'Delete'}
-                      </button>
+                        Delete
+                      </Button>
                     </div>
                   </div>
 
@@ -807,7 +857,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                       <ul className="space-y-1">
                         {selectedTask.testCases.map((tc, i) => (
                           <li key={i}>
-                            <code className="text-xs bg-base-300 px-2 py-1 rounded font-mono">{tc}</code>
+                            <code className="text-xs bg-muted px-2 py-1 rounded font-mono">{tc}</code>
                           </li>
                         ))}
                       </ul>
@@ -828,7 +878,7 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                   {selectedTask.notes && (
                     <section className="space-y-2">
                       <h4 className="text-sm font-semibold opacity-70">Notes</h4>
-                      <div className="text-sm bg-base-200 p-3 rounded-lg">{selectedTask.notes}</div>
+                      <div className="text-sm bg-muted p-3 rounded-lg">{selectedTask.notes}</div>
                     </section>
                   )}
 
@@ -840,13 +890,13 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                   )}
 
                   {/* Feedback Section */}
-                  <section className="space-y-3 border-t border-base-300 pt-4">
+                  <section className="space-y-3 border-t border-border pt-4">
                     <h4 className="text-sm font-semibold opacity-70">Update Task</h4>
                     <p className="text-xs opacity-60">
                       Provide feedback to update this task. Claude will revise the task based on your comments.
                     </p>
                     <textarea
-                      className="textarea textarea-bordered w-full"
+                      className="w-full min-h-[100px] px-3 py-2 text-sm rounded-md border border-border bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 resize-y"
                       placeholder="e.g., Add a test case for error handling, clarify the acceptance criteria for edge cases, change the priority to 1..."
                       value={taskFeedback}
                       onChange={(e) => setTaskFeedback(e.target.value)}
@@ -855,13 +905,15 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
                     />
                     {feedbackError && <Alert variant="error">{feedbackError}</Alert>}
                     {feedbackSuccess && <Alert variant="success">Task updated successfully!</Alert>}
-                    <button
-                      className="btn btn-glass-primary btn-sm"
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={handleSubmitFeedback}
                       disabled={feedbackLoading || !taskFeedback.trim()}
+                      isLoading={feedbackLoading}
                     >
-                      {feedbackLoading ? 'Updating...' : 'Submit Feedback'}
-                    </button>
+                      Submit Feedback
+                    </Button>
                   </section>
                 </div>
               )}

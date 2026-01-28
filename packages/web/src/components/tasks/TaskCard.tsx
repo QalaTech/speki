@@ -1,6 +1,7 @@
 import type { UserStory } from '../../types';
 import { getStoryStatus } from '../../types';
 import { Badge } from '../ui';
+import { Button } from '../ui/Button';
 
 interface TaskCardProps {
   story: UserStory;
@@ -54,10 +55,10 @@ export function TaskCard({
   return (
     <div
       id={`task-${story.id}`}
-      className={`card card-compact bg-base-200 border border-base-300 border-l-4 cursor-pointer transition-all hover:bg-base-300/50 ${styles.border} ${isRunning ? 'ring-2 ring-primary ring-offset-2 ring-offset-base-100' : ''} ${highlighted ? 'ring-2 ring-warning animate-pulse' : ''}`}
+      className={`rounded-lg p-3 bg-card border border-border border-l-4 cursor-pointer transition-all hover:bg-muted ${styles.border} ${isRunning ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''} ${highlighted ? 'ring-2 ring-warning animate-pulse' : ''}`}
       onClick={onToggle}
     >
-      <div className="card-body">
+      <div className="flex flex-col gap-2">
         {/* Header */}
         <div className="flex items-center gap-3">
           {/* Status icon */}
@@ -104,7 +105,7 @@ export function TaskCard({
 
         {/* Expanded details */}
         {expanded && (
-          <div className="mt-4 space-y-4 border-t border-base-300 pt-4" onClick={e => e.stopPropagation()}>
+          <div className="mt-4 space-y-4 border-t border-border pt-4" onClick={e => e.stopPropagation()}>
             {/* Description */}
             <section className="space-y-2">
               <h4 className="text-sm font-semibold opacity-70">Description</h4>
@@ -120,19 +121,21 @@ export function TaskCard({
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {story.dependencies.map(dep => (
-                    <button
+                    <Button
                       key={dep}
-                      className={`badge ${completedIds.has(dep) ? 'badge-success' : 'badge-ghost'} badge-sm cursor-pointer hover:opacity-80`}
+                      variant={completedIds.has(dep) ? 'accent' : 'secondary'}
+                      size="sm"
+                      className={`h-6 px-2 text-[10px] font-mono ${completedIds.has(dep) ? 'bg-success/20 text-success hover:bg-success/30' : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'} border-none`}
                       onClick={(e) => handleDepClick(e, dep)}
                       title={`Go to ${dep}`}
                     >
                       {completedIds.has(dep) ? '✓' : '○'} {dep}
-                    </button>
+                    </Button>
                   ))}
                 </div>
                 {missingDeps.length > 0 && (
-                  <div className="alert alert-warning py-2">
-                    <span className="text-sm">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning/10 border border-warning/30">
+                    <span className="text-sm text-warning">
                       Blocked by {missingDeps.length} incomplete {missingDeps.length === 1 ? 'task' : 'tasks'}
                     </span>
                   </div>
@@ -149,19 +152,21 @@ export function TaskCard({
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {blocks.map(blockId => (
-                    <button
+                    <Button
                       key={blockId}
-                      className="badge badge-error badge-outline badge-sm cursor-pointer hover:opacity-80"
+                      variant="destructive"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] font-mono bg-error/10 text-error hover:bg-error/20 border-none"
                       onClick={(e) => handleDepClick(e, blockId)}
                       title={`Go to ${blockId}`}
                     >
                       {blockId}
-                    </button>
+                    </Button>
                   ))}
                 </div>
                 {status !== 'completed' && (
-                  <div className="alert alert-info py-2">
-                    <span className="text-sm">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-info/10 border border-info/30">
+                    <span className="text-sm text-info">
                       Completing this will unblock {blocks.length} {blocks.length === 1 ? 'task' : 'tasks'}
                     </span>
                   </div>
@@ -186,7 +191,7 @@ export function TaskCard({
                 <ul className="space-y-1">
                   {story.testCases.map((test, idx) => (
                     <li key={idx}>
-                      <code className="text-xs bg-base-300 px-2 py-1 rounded font-mono">{test}</code>
+                      <code className="text-xs bg-muted px-2 py-1 rounded font-mono">{test}</code>
                     </li>
                   ))}
                 </ul>
@@ -197,7 +202,7 @@ export function TaskCard({
             {story.notes && (
               <section className="space-y-2">
                 <h4 className="text-sm font-semibold opacity-70">Notes</h4>
-                <p className="text-sm bg-base-300 p-3 rounded-lg">{story.notes}</p>
+                <p className="text-sm bg-muted p-3 rounded-lg">{story.notes}</p>
               </section>
             )}
           </div>

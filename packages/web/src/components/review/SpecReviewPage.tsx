@@ -8,6 +8,8 @@ import { useSpecReviewSession } from "../../hooks/useSpecReviewSession";
 import { useSplitPreview } from "../../hooks/useSplitPreview";
 import { useSuggestionActions } from "../../hooks/useSuggestionActions";
 import { apiFetch } from "../ui/ErrorContext";
+import { Alert } from "../ui/Alert";
+import { Loading } from "../ui/Loading";
 import { DiffApprovalBar } from "./DiffApprovalBar";
 import type { HunkAction } from "./MonacoDiffReview";
 import { ReviewSuggestionsPanel } from "./ReviewSuggestionsPanel";
@@ -327,11 +329,11 @@ export function SpecReviewPage({
   if (loading) {
     return (
       <div
-        className="flex flex-col h-full bg-base-100"
+        className="flex flex-col h-full bg-background"
         data-testid="spec-review-page"
       >
         <div className="flex items-center justify-center flex-1">
-          <span className="loading loading-spinner loading-lg"></span>
+          <Loading size="lg" />
           <span className="ml-3">Loading spec files...</span>
         </div>
       </div>
@@ -340,7 +342,7 @@ export function SpecReviewPage({
 
   return (
     <div
-      className="flex flex-col h-full bg-base-100"
+      className="flex flex-col h-full bg-background"
       data-testid="spec-review-page"
     >
       <SpecReviewHeader
@@ -371,14 +373,14 @@ export function SpecReviewPage({
       />
 
       {diffApproval.error && (
-        <div className="alert alert-error mx-4 my-2" data-testid="diff-error">
+        <Alert variant="error" className="mx-4 my-2" data-testid="diff-error">
           {diffApproval.error}
-        </div>
+        </Alert>
       )}
 
       <div
         ref={containerRef}
-        className="flex flex-1 overflow-hidden"
+        className="flex flex-1 overflow-hidden bg-surface"
         data-testid="split-view"
       >
         <SpecEditorPanel
@@ -399,7 +401,7 @@ export function SpecReviewPage({
         />
 
         <div
-          className="w-1 bg-base-300 cursor-col-resize hover:bg-primary/50 transition-colors"
+          className="w-1 bg-border/50 cursor-col-resize hover:bg-primary/50 transition-colors"
           onMouseDown={handleMouseDown}
           data-testid="resize-handle"
           role="separator"
