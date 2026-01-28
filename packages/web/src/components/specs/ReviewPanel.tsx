@@ -314,7 +314,7 @@ export function ReviewPanel({
                   >
                     <div className="gap-2">
                       {/* Header */}
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex flex-col items-start gap-2 flex-wrap">
                         <Badge
                           variant={severityVariants[suggestion.severity] || "ghost"}
                           size="xs"
