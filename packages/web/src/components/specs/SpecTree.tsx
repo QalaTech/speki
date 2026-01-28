@@ -363,20 +363,34 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     const filterLower = filter.toLowerCase();
 
     function filterNode(node: SpecFileNode): SpecFileNode | null {
-      if (node.type === 'file') {
-        return node.name.toLowerCase().includes(filterLower) ? node : null;
-      }
+      const { title } = formatSpecDisplayName(node.name);
+      const specType = node.specType || '';
+      
+      const selfMatches = title.toLowerCase().includes(filterLower) || 
+                         node.name.toLowerCase().includes(filterLower) ||
+                         node.name.toLowerCase().includes(filterLower.replace(/\s+/g, '-')) ||
+                         specType.toLowerCase().includes(filterLower.replace(/^\./, ''));
 
+      // Check regular children for directories
       const filteredChildren = node.children
         ?.map(filterNode)
         .filter((n): n is SpecFileNode => n !== null);
 
-      if (filteredChildren && filteredChildren.length > 0) {
-        return { ...node, children: filteredChildren };
-      }
+      // Check linked specs (tech specs under PRDs)
+      const filteredLinkedSpecs = node.linkedSpecs
+        ?.map(filterNode)
+        .filter((n): n is SpecFileNode => n !== null);
 
-      if (node.name.toLowerCase().includes(filterLower)) {
-        return node;
+      const hasMatchingChildren = (filteredChildren && filteredChildren.length > 0) || 
+                                 (filteredLinkedSpecs && filteredLinkedSpecs.length > 0);
+
+      // Return node if it matches OR if any of its descendants match
+      if (selfMatches || hasMatchingChildren) {
+        return { 
+          ...node, 
+          children: filteredChildren,
+          linkedSpecs: filteredLinkedSpecs
+        };
       }
 
       return null;
