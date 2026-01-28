@@ -56,12 +56,12 @@
   --baseTextMuted: #8b949e;
 
   /* Bridge editor variables to theme */
-  --color-bg: oklch(8% 0.01 260);
+  --color-bg: lch(10 1 272);
   --color-text: oklch(98% 0.005 260);
   --color-text-muted: oklch(65% 0.01 260);
-  --color-border: oklch(22% 0.02 260);
-  --color-surface: oklch(12% 0.015 260);
-  --color-surface-hover: oklch(18% 0.015 260);
+  --color-border: lch(20 1 272);
+  --color-surface: lch(16 1.5 272);
+  --color-surface-hover: lch(20 1.5 272);
   --color-accent: oklch(58% 0.233 277);
 
   background: var(--color-bg) !important;

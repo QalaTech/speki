@@ -188,7 +188,7 @@ export function LiveExecutionView({
         {selectedStory ? (
           <>
             {/* Content Header */}
-            <div className="px-6 py-5 bg-secondary/50 border-b border-border">
+            <div className="px-6 py-5 bg-main/50 border-b border-border">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${statusConfig[getStoryStatus(selectedStory)].bg} ${statusConfig[getStoryStatus(selectedStory)].color}`}>

@@ -56,11 +56,11 @@ export function SpecEditorPanel({
 }: SpecEditorPanelProps): React.ReactElement {
   return (
     <div
-      className="flex flex-col border-r border-border"
+      className="flex flex-col border-r border-border bg-card"
       style={{ width: `${width}%` }}
       data-testid="left-panel"
     >
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-secondary">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <span className="text-sm font-semibold">
           {isInDiffMode ? "Review Changes" : "Spec Editor"}
           {isInDiffMode && diffApproval.currentSuggestion && (

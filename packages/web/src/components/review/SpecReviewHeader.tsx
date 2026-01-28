@@ -19,7 +19,7 @@ export function SpecReviewHeader({
   disabled = false,
 }: SpecReviewHeaderProps): React.ReactElement {
   return (
-    <header className="flex items-center justify-between p-4 border-b border-border bg-secondary">
+    <header className="flex items-center justify-between p-4 border-b border-border bg-card">
       <h1 className="text-xl font-bold text-foreground">Spec Review</h1>
       <div className="flex items-center gap-3">
         <label htmlFor="file-select" className="text-sm text-muted-foreground/70">

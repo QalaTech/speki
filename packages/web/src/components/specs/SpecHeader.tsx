@@ -160,7 +160,7 @@ export function SpecHeader({
   ];
 
   return (
-    <div className="bg-background/80 backdrop-blur-xl border-b border-white/5 sticky top-0 z-30">
+    <div className="bg-card border-b border-border/50 sticky top-0 z-30">
       {/* Top Section: Breadcrumbs + Title + Status */}
       <div className="flex items-center px-6 pt-5 pb-4">
         <div className="flex flex-col min-w-0">
@@ -219,7 +219,7 @@ export function SpecHeader({
             <div className="flex items-center gap-2">
               {!isEditMode ? (
                 <Button
-                  variant="secondary"
+                  variant="accent"
                   size="sm"
                   onClick={onEditStart}
                   className="rounded-full h-9 px-5 text-xs font-semibold"

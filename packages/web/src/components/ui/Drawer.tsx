@@ -130,8 +130,8 @@ const DrawerHeader = ({
   <div
     className={cn(
       "flex flex-col gap-1.5 px-6 py-4",
-      "border-b border-border",
-      "bg-secondary/50",
+      "border-b border-border/50",
+      "bg-main/50",
       className
     )}
     {...props}

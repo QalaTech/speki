@@ -28,7 +28,7 @@ export function ExecutionHeader({
   const percentage = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
 
   return (
-    <header className="bg-secondary/50 border-b border-border">
+    <header className="bg-main/50 ">
       <div className="px-6 py-4">
         {/* Top row: Project info + Controls */}
         <div className="flex items-center justify-between gap-6 mb-4">

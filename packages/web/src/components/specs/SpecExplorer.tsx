@@ -334,7 +334,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
         {/* Resize Handle */}
         <div
-          className="shrink-0 w-px h-full bg-border cursor-col-resize relative z-10 transition-all duration-200 hover:bg-primary hover:shadow-[0_0_10px_rgba(88,166,255,0.3)] group"
+          className="shrink-0 w-px h-full bg-border/50 cursor-col-resize relative z-10 transition-all duration-200 hover:bg-primary hover:shadow-[0_0_10px_rgba(88,166,255,0.3)] group"
           onMouseDown={handleResizeStart}
           title="Drag to resize"
         >
@@ -393,7 +393,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
           ) : (
             /* Collapsed Review Tab */
             <button
-              className="flex flex-col items-center justify-center gap-4 w-12 h-full bg-linear-to-l from-muted/80 to-muted/30 border-l border-border/30 hover:from-secondary/15 hover:to-secondary/5 transition-all duration-500 cursor-pointer group shadow-glass"
+              className="flex flex-col items-center justify-center gap-4 w-12 h-full bg-surface border-l border-border hover:bg-surface/80 transition-all duration-500 cursor-pointer group"
               onClick={() => setIsReviewPanelOpen(true)}
               title="Open Review Panel"
             >

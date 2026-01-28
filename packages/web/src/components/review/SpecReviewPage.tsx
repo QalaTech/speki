@@ -329,7 +329,7 @@ export function SpecReviewPage({
   if (loading) {
     return (
       <div
-        className="flex flex-col h-full bg-card"
+        className="flex flex-col h-full bg-background"
         data-testid="spec-review-page"
       >
         <div className="flex items-center justify-center flex-1">
@@ -342,7 +342,7 @@ export function SpecReviewPage({
 
   return (
     <div
-      className="flex flex-col h-full bg-card"
+      className="flex flex-col h-full bg-background"
       data-testid="spec-review-page"
     >
       <SpecReviewHeader
@@ -380,7 +380,7 @@ export function SpecReviewPage({
 
       <div
         ref={containerRef}
-        className="flex flex-1 overflow-hidden"
+        className="flex flex-1 overflow-hidden bg-surface"
         data-testid="split-view"
       >
         <SpecEditorPanel
@@ -401,7 +401,7 @@ export function SpecReviewPage({
         />
 
         <div
-          className="w-1 bg-muted cursor-col-resize hover:bg-primary/50 transition-colors"
+          className="w-1 bg-border/50 cursor-col-resize hover:bg-primary/50 transition-colors"
           onMouseDown={handleMouseDown}
           data-testid="resize-handle"
           role="separator"

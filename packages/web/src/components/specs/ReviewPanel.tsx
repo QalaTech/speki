@@ -80,9 +80,9 @@ export function ReviewPanel({
   const allAddressed = totalCount > 0 && pendingCount === 0;
 
   return (
-    <div className="flex flex-col h-full w-80 border-l border-border bg-transparent overflow-hidden animate-slide-in-right">
+    <div className="flex flex-col h-full w-80 border-l border-border bg-surface overflow-hidden animate-slide-in-right">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-background/50 backdrop-blur-sm">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
         <div className="flex items-center gap-3">
           {onCollapse && (
             <button

@@ -309,9 +309,9 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
   }, [filter, filteredFiles]);
 
   return (
-    <div className="flex flex-col h-full frosted-sidebar">
+    <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between py-3.5 px-4 border-b border-border/5 bg-muted/30 backdrop-blur-sm">
+      <div className="flex items-center justify-between py-3.5 px-4 border-b border-border/30">
         <div className="flex items-center gap-2.5">
           <div className="p-1.5 rounded-lg bg-linear-to-br from-warning/20 to-warning/10 ring-1 ring-warning/20">
             <FolderIcon className="h-4 w-4 text-warning" />
@@ -332,7 +332,7 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
       </div>
 
       {/* Filter input */}
-      <div className="relative py-2.5 px-3 border-b border-border/5 bg-muted/30">
+      <div className="relative py-2.5 px-3 border-b border-border/30">
         <div className="relative">
           <input
             type="text"
