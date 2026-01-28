@@ -428,18 +428,22 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
         )}
 
         {/* Chat Toggle Button - Outside Drawer to avoid vaul interference */}
-        
+
           <div className="fixed bottom-6 right-6 z-50">
             <button
               onClick={() => setIsChatOpen(!isChatOpen)}
-              className={`w-14 h-14 rounded-full flex items-center justify-center text-xl transition-all duration-300 active-press shadow-2xl ${
+              className={`relative flex items-center justify-center transition-all duration-300 active-press rounded-full ${
                 isChatOpen
-                  ? 'bg-error text-error-foreground'
-                  : 'bg-foreground text-background scale-100 hover:scale-105'
+                  ? 'w-14 h-14 bg-error text-error-foreground shadow-lg'
+                  : 'w-20 h-20 bg-card border border-primary/30 shadow-[0_0_25px_rgba(139,92,246,0.4)] hover:shadow-[0_0_35px_rgba(139,92,246,0.6)] hover:scale-105'
               }`}
               title={isChatOpen ? 'Close chat' : 'Open chat'}
             >
-              {isChatOpen ? <XMarkIcon className="w-5 h-5" /> : <ChatBubbleLeftRightIcon className="w-5 h-5" />}
+              {isChatOpen ? (
+                <XMarkIcon className="w-5 h-5" />
+              ) : (
+                <img src="/in-chat-icon.png" alt="Chat" className="w-16 h-16 object-contain" />
+              )}
               {!isChatOpen && (session?.chatMessages?.length ?? 0) > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground ring-2 ring-background">
                   {session?.chatMessages?.length}

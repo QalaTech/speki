@@ -2,10 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@speki/core";
 import { ChatMarkdown } from "../chat/ChatMarkdown";
 import { Button } from "../ui/Button";
-import {
-  SparklesIcon,
-  ChatBubbleLeftRightIcon,
-} from "@heroicons/react/24/solid";
+import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/solid";
 
 const QUIRKY_MESSAGES: Array<{
   text: string;
@@ -174,30 +171,11 @@ export function ReviewChat({
     });
 
     eventSource.addEventListener("spec-review/chat-stream", (event) => {
-      console.log(
-        "[ReviewChat] Received chat-stream event:",
-        event.data?.substring(0, 200),
-      );
       try {
         const data = JSON.parse(event.data);
-        console.log("[ReviewChat] Parsed data:", {
-          hasLine: !!data.data?.line,
-          dataKeys: Object.keys(data),
-        });
-        // Process any chat stream event for this project (already filtered by project in URL)
         if (data.data?.line) {
-          const line = data.data.line;
-          console.log("[ReviewChat] Processing line:", line.substring(0, 100));
-
-          // Parse JSONL line into ParsedEntry
           try {
-            const obj = JSON.parse(line);
-            console.log(
-              "[ReviewChat] Parsed JSONL object type:",
-              obj.type,
-              "keys:",
-              Object.keys(obj),
-            );
+            const obj = JSON.parse(data.data.line);
 
             // Handle system status events (e.g. compacting)
             if (obj.type === "system" && obj.status === "compacting") {
@@ -206,38 +184,23 @@ export function ReviewChat({
               setQuirkyMessage(msg);
             }
             // Handle direct content blocks (Claude CLI stream-json format)
-            // Pick a new random quirky message for each activity event
+            // Skip Codex agent_reasoning_section_break messages (they spam rapidly)
+            // Only update on meaningful events, not every single one
             else if (
               obj.type === "tool_use" ||
               obj.type === "tool_result" ||
-              obj.type === "thinking" ||
-              obj.type === "text"
+              obj.type === "thinking"
             ) {
               setIsCompacting(false);
               pickRandomQuirky();
             }
-            // Also handle wrapped message format for backwards compatibility
-            else if (obj.type === "assistant" && obj.message?.content) {
-              const content = obj.message.content;
-              if (Array.isArray(content)) {
-                for (const block of content) {
-                  if (block.type === "tool_use" || block.type === "text") {
-                    pickRandomQuirky();
-                  }
-                }
-              }
-            } else if (obj.type === "user" && obj.message?.content) {
-              const content = obj.message.content;
-              if (Array.isArray(content)) {
-                for (const block of content) {
-                  if (block.type === "tool_result") {
-                    pickRandomQuirky();
-                  }
-                }
-              }
+            // For text events, only update if not a section break
+            else if (obj.type === "text" && !obj.text?.includes("agent_reasoning_section_break")) {
+              setIsCompacting(false);
+              // Don't call pickRandomQuirky for every text event - too frequent
             }
           } catch {
-            // Ignore parse errors for individual lines
+            // Ignore parse errors
           }
         }
       } catch {
@@ -359,9 +322,11 @@ export function ReviewChat({
                     data-message-id={msg.id}
                   >
                     {!isUser && (
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 shadow-sm bg-primary/20 text-primary border border-primary/20">
-                        <SparklesIcon className="w-3.5 h-3.5" />
-                      </div>
+                      <img
+                        src="/in-chat-icon.png"
+                        alt="Speki"
+                        className="w-10 h-10 shrink-0 shadow-sm object-contain"
+                      />
                     )}
                     <div
                       className={`py-3 px-4 rounded-2xl text-[13px] leading-relaxed shadow-sm wrap-break-word ${
@@ -397,25 +362,26 @@ export function ReviewChat({
 
           {/* Inline streaming indicator - Simple typing dots */}
           {isSending && (
-            <div className="flex items-center gap-3 max-w-[95%] chat-message-animate self-start mt-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 shadow-sm ${isCompacting ? 'bg-warning/20 text-warning border-warning/20' : 'bg-primary/20 text-primary border border-primary/20'}`}>
-                <SparklesIcon className={`w-3.5 h-3.5 ${isCompacting ? 'animate-bounce' : 'animate-pulse'}`} />
-              </div>
+            <div className="flex items-center gap-3 max-w-[95%] chat-message-animate self-start mt-2 py-2 px-3 rounded-lg bg-muted/30 border border-white/5">
+              <img
+                src="/in-chat-icon.png"
+                alt="Speki"
+                className={`w-10 h-10 shrink-0 shadow-md object-contain ${isCompacting ? 'animate-bounce' : 'animate-pulse'}`}
+              />
               <div className="flex flex-col gap-0.5">
                 {isCompacting && (
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-warning/70">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-warning">
                     Compacting
                   </span>
                 )}
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium italic ${isCompacting ? 'text-warning/60' : 'text-muted-foreground/60'}`}>
-                    {quirkyMessage?.icon || "✨"}
-                    {quirkyMessage?.text || "Warming up..."}
+                  <span className={`text-sm font-medium ${isCompacting ? 'text-warning' : 'text-foreground/80'}`}>
+                    {quirkyMessage?.icon || "✨"} {quirkyMessage?.text || "Warming up..."}
                   </span>
-                  <div className="flex items-center gap-1 h-5 px-1">
-                    <span className={`w-1.5 h-1.5 rounded-full ${isCompacting ? 'bg-warning/60' : 'bg-primary/60'} animate-bounce [animation-delay:-0.3s]`}></span>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isCompacting ? 'bg-warning/60' : 'bg-primary/60'} animate-bounce [animation-delay:-0.15s]`}></span>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isCompacting ? 'bg-warning/60' : 'bg-primary/60'} animate-bounce`}></span>
+                  <div className="flex items-center gap-1.5 h-5 px-1">
+                    <span className={`w-2 h-2 rounded-full ${isCompacting ? 'bg-warning' : 'bg-primary'} animate-bounce [animation-delay:-0.3s]`}></span>
+                    <span className={`w-2 h-2 rounded-full ${isCompacting ? 'bg-warning' : 'bg-primary'} animate-bounce [animation-delay:-0.15s]`}></span>
+                    <span className={`w-2 h-2 rounded-full ${isCompacting ? 'bg-warning' : 'bg-primary'} animate-bounce`}></span>
                   </div>
                 </div>
               </div>
