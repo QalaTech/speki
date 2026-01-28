@@ -694,7 +694,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden select-text">
               <ReviewChat
                 messages={filteredChatMessages}
                 sessionId={session?.sessionId}

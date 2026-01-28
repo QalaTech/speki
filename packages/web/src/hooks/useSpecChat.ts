@@ -22,7 +22,8 @@ interface UseSpecChatReturn {
   handleSendChatMessage: (
     message: string,
     selectionContext?: string,
-    suggestionId?: string
+    suggestionId?: string,
+    discussingContext?: DiscussingContext | null
   ) => Promise<void>;
   handleDiscussSuggestion: (suggestion: Suggestion) => void;
   handleNewChat: () => void;
@@ -54,7 +55,8 @@ export function useSpecChat({
   const handleSendChatMessage = useCallback(async (
     message: string,
     selectionContext?: string,
-    suggestionId?: string
+    suggestionId?: string,
+    passedDiscussingContext?: DiscussingContext | null
   ): Promise<void> => {
     if (!selectedPath) return;
 
@@ -97,6 +99,11 @@ export function useSpecChat({
           message,
           suggestionId,
           selectedText: selectionContext,
+          // Pass full context for decompose review issues (not stored server-side)
+          discussingContext: passedDiscussingContext ? {
+            issue: passedDiscussingContext.issue,
+            suggestedFix: passedDiscussingContext.suggestedFix,
+          } : undefined,
         }),
       });
 

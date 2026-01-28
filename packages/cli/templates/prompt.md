@@ -285,15 +285,15 @@ If you discover reusable patterns, add them to the TOP of progress.txt under `##
 
 ## Stop Condition
 
-After completing the current task, check if ALL stories in prd.json have `passes: true`.
+After marking the current task complete with `qala tasks complete <id>`, run `qala tasks next` again to check if there are more tasks.
 
-**If ALL stories are complete**, reply with ONLY:
+**If `qala tasks next` returns `{ "complete": true }`**, reply with ONLY:
 
 ```
 <promise>COMPLETE</promise>
 ```
 
-**Otherwise**, end your response normally after completing the current task. The loop will continue with the next task.
+**Otherwise**, end your response normally. The loop will automatically continue with the next task - do NOT start working on the next task yourself.
 
 ---
 
