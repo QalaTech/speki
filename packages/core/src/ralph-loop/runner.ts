@@ -194,7 +194,7 @@ export async function runRalphLoop(
         status: 'running',
         currentIteration: iteration,
         maxIterations: currentMax,
-        currentStory: nextInfo.story ? `${nextInfo.story.id}: ${nextInfo.story.title}` : undefined,
+        currentStory: nextInfo.story?.id,
         startedAt: new Date().toISOString(),
         pid: process.pid,
       });

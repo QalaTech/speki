@@ -148,7 +148,7 @@ function TreeNode({
             )}
             <span className="flex-1 truncate font-medium text-foreground/80">{node.name}</span>
           </summary>
-          <ul>
+          <ul className="pl-4">
             {node.children?.map((child) => (
               <TreeNode
                 key={child.path}
