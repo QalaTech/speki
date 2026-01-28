@@ -22,7 +22,7 @@ import {
 } from "../ui/Drawer";
 import { useDecomposeSSE } from "../../hooks/useDecomposeSSE";
 import { apiFetch } from "../ui/ErrorContext";
-import type { QueuedTaskReference, UserStory, DecomposeFeedback, FeedbackItem } from "../../types";
+import type { QueuedTaskReference, UserStory } from "../../types";
 import { ChatMarkdown } from "../chat/ChatMarkdown";
 import { SpecEditor, type SpecEditorRef } from "../shared/SpecEditor";
 import { Button } from "../ui/Button";
@@ -79,70 +79,7 @@ function getSpecId(specPath: string): string {
   return filename.replace(/\.md$/i, "");
 }
 
-function formatFeedbackItem(item: string | FeedbackItem): string {
-  if (typeof item === "string") return item;
-  const parts: string[] = [];
-  if (item.severity) parts.push(`[${item.severity.toUpperCase()}]`);
-  if (item.taskId) parts.push(`[${item.taskId}]`);
-  if (item.taskIds) parts.push(`[${item.taskIds.join(", ")}]`);
-  if (item.requirement) parts.push(item.requirement);
-  if (item.description) parts.push(item.description);
-  if (item.issue) parts.push(item.issue);
-  if (item.reason) parts.push(item.reason);
-  if (item.action) parts.push(`Action: ${item.action}`);
-  if (item.suggestedFix) parts.push(`Fix: ${item.suggestedFix}`);
-  if (item.prdSection) parts.push(`(PRD: ${item.prdSection})`);
-  if (item.dependsOn) parts.push(`depends on: ${item.dependsOn}`);
-  return parts.join(" ");
-}
-
-function FeedbackSection({ label, items, icon }: { label: string; items?: (string | FeedbackItem)[]; icon: string }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <div className="space-y-2">
-      <div className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
-        <span>{icon}</span> {label}
-        <Badge variant="ghost" size="xs">{items.length}</Badge>
-      </div>
-      <ul className="space-y-1.5 text-sm">
-        {items.map((item, i) => (
-          <li key={i} className="flex gap-2 items-start">
-            <span className="text-muted-foreground/40 mt-0.5">•</span>
-            <span className="text-foreground/80">{formatFeedbackItem(item)}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ReviewFeedbackPanel({ feedback }: { feedback: DecomposeFeedback }) {
-  const hasFeedback =
-    (feedback.missingRequirements?.length ?? 0) > 0 ||
-    (feedback.contradictions?.length ?? 0) > 0 ||
-    (feedback.dependencyErrors?.length ?? 0) > 0 ||
-    (feedback.duplicates?.length ?? 0) > 0 ||
-    (feedback.suggestions?.length ?? 0) > 0 ||
-    (feedback.issues?.length ?? 0) > 0;
-
-  if (!hasFeedback) return null;
-
-  return (
-    <div className="bg-muted border border-error/20 rounded-lg p-4 my-3 space-y-4">
-      <div className="text-sm font-bold text-error/80">Review Feedback</div>
-      <FeedbackSection label="Missing Requirements" items={feedback.missingRequirements} icon="⚠" />
-      <FeedbackSection label="Contradictions" items={feedback.contradictions} icon="⊘" />
-      <FeedbackSection label="Dependency Errors" items={feedback.dependencyErrors} icon="⛓" />
-      <FeedbackSection label="Duplicates" items={feedback.duplicates} icon="⧉" />
-      <FeedbackSection label="Suggestions" items={feedback.suggestions} icon="💡" />
-      {feedback.issues && feedback.issues.length > 0 && (
-        <FeedbackSection label="Other Issues" items={feedback.issues} icon="ℹ" />
-      )}
-    </div>
-  );
-}
-
-function DecomposeReviewPanel({ review }: { review: DecomposeReviewData }) {
+function DecomposeReviewContent({ review }: { review: DecomposeReviewData }) {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   const toggleCategory = (category: string) => {
@@ -166,25 +103,6 @@ function DecomposeReviewPanel({ review }: { review: DecomposeReviewData }) {
     return acc;
   }, {} as Record<string, DecomposeReviewPromptResult[]>);
 
-  // Count total issues by severity
-  const issueStats = review.promptResults.reduce(
-    (acc, r) => {
-      r.issues.forEach(i => {
-        if (i.severity === "critical") acc.critical++;
-        else if (i.severity === "warning") acc.warning++;
-        else acc.info++;
-      });
-      return acc;
-    },
-    { critical: 0, warning: 0, info: 0 }
-  );
-
-  const hasIssues = issueStats.critical > 0 || issueStats.warning > 0;
-
-  if (!hasIssues && review.promptResults.every(r => r.verdict === "PASS")) {
-    return null;
-  }
-
   const getCategoryConfig = (category: string) => {
     const configs: Record<string, { label: string; icon: string }> = {
       coverage: { label: "Coverage", icon: "⬚" },
@@ -196,34 +114,9 @@ function DecomposeReviewPanel({ review }: { review: DecomposeReviewData }) {
   };
 
   return (
-    <div className="rounded-2xl border border-warning/20 bg-linear-to-r from-warning/5 to-transparent ring-1 ring-warning/10 overflow-hidden my-4">
-      {/* Header */}
-      <div className="px-5 py-4 border-b border-warning/10 flex items-center gap-4">
-        <div className="shrink-0 p-2.5 rounded-xl bg-warning/15 text-warning shadow-inner">
-          <QueueListIcon className="h-4 w-4" />
-        </div>
-        <div className="flex-1">
-          <h3 className="text-sm font-semibold text-foreground">Review Findings</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {new Date(review.timestamp).toLocaleString()}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {issueStats.critical > 0 && (
-            <Badge variant="error" size="xs" className="shadow-sm">
-              {issueStats.critical} critical
-            </Badge>
-          )}
-          {issueStats.warning > 0 && (
-            <Badge variant="warning" size="xs" className="shadow-sm">
-              {issueStats.warning} warning{issueStats.warning !== 1 ? "s" : ""}
-            </Badge>
-          )}
-        </div>
-      </div>
-
+    <div className="border-t border-error/10">
       {/* Categories */}
-      <div className="divide-y divide-border/10">
+      <div className="divide-y divide-error/5">
         {Object.entries(resultsByCategory).map(([category, results]) => {
           const categoryIssues = results.flatMap(r => r.issues);
           const config = getCategoryConfig(category);
@@ -341,8 +234,7 @@ export function SpecDecomposeTab({
   const [saveLoading, setSaveLoading] = useState(false);
   const editorRef = useRef<SpecEditorRef>(null);
 
-  // Review feedback state
-  const [reviewFeedback, setReviewFeedback] = useState<DecomposeFeedback | null>(null);
+  // Review state
   const [reviewVerdict, setReviewVerdict] = useState<'PASS' | 'FAIL' | 'UNKNOWN' | 'SKIPPED' | null>(null);
   const [retryLoading, setRetryLoading] = useState(false);
 
@@ -535,13 +427,6 @@ export function SpecDecomposeTab({
         } else {
           setDecomposeProgress(null);
         }
-      }
-
-      // Load review feedback
-      const feedbackRes = await apiFetch(`/api/decompose/feedback?${params}`);
-      if (feedbackRes.ok) {
-        const feedbackData = await feedbackRes.json();
-        setReviewFeedback(feedbackData.feedback || null);
       }
 
       // Load decompose review (detailed review from decompose-review JSON)
@@ -951,7 +836,18 @@ export function SpecDecomposeTab({
 
       {/* Show decompose review during revision (when we have review data and are loading/revising) */}
       {isLoading && decomposeReview && (decomposeProgress?.status === 'REVIEWING' || decomposeProgress?.status === 'REVISING') && (
-        <DecomposeReviewPanel review={decomposeReview} />
+        <div className="rounded-2xl border border-border/30 bg-card/50 overflow-hidden my-4">
+          <div className="px-5 py-3 border-b border-border/20 flex items-center gap-3">
+            <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-muted/50">
+              <QueueListIcon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-foreground/90">Previous Review</h3>
+              <p className="text-xs text-muted-foreground">Being revised...</p>
+            </div>
+          </div>
+          <DecomposeReviewContent review={decomposeReview} />
+        </div>
       )}
 
       {/* Error display */}
@@ -961,17 +857,34 @@ export function SpecDecomposeTab({
         </Alert>
       )}
 
-      {/* Review verdict + retry */}
+      {/* Review verdict + details - integrated view */}
       {reviewVerdict && reviewVerdict !== 'SKIPPED' && (
-        <Alert
-          variant={reviewVerdict === 'PASS' ? 'success' : reviewVerdict === 'FAIL' ? 'error' : 'warning'}
-          className="my-3"
-        >
-          <div className="flex items-center gap-2 w-full">
-            <span>{reviewVerdict === 'PASS' ? '✓' : reviewVerdict === 'FAIL' ? '✗' : '○'}</span>
-            <span className="font-medium flex-1">
-              Review {reviewVerdict === 'PASS' ? 'passed' : reviewVerdict === 'FAIL' ? 'failed' : 'inconclusive'}
-            </span>
+        <div className={`rounded-2xl border overflow-hidden my-4 ${
+          reviewVerdict === 'PASS'
+            ? 'border-success/30 bg-linear-to-r from-success/5 to-transparent'
+            : 'border-error/30 bg-linear-to-r from-error/5 to-transparent'
+        }`}>
+          {/* Header */}
+          <div className="px-5 py-4 flex items-center gap-4">
+            <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-inner ${
+              reviewVerdict === 'PASS' ? 'bg-success/20 text-success' : 'bg-error/20 text-error'
+            }`}>
+              {reviewVerdict === 'PASS' ? (
+                <CheckCircleIcon className="h-5 w-5" />
+              ) : (
+                <span className="text-lg font-bold">✗</span>
+              )}
+            </div>
+            <div className="flex-1">
+              <h3 className={`text-sm font-semibold ${reviewVerdict === 'PASS' ? 'text-success' : 'text-error'}`}>
+                Review {reviewVerdict === 'PASS' ? 'Passed' : 'Failed'}
+              </h3>
+              {decomposeReview && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {new Date(decomposeReview.timestamp).toLocaleString()}
+                </p>
+              )}
+            </div>
             {reviewVerdict === 'FAIL' && hasBeenDecomposed && (
               <Button
                 variant="outline"
@@ -981,21 +894,16 @@ export function SpecDecomposeTab({
                 isLoading={retryLoading}
               >
                 {!retryLoading && <ArrowPathIcon className="h-4 w-4" />}
-                {retryLoading ? 'Retrying...' : 'Retry Review'}
+                {retryLoading ? 'Retrying...' : 'Retry'}
               </Button>
             )}
           </div>
-        </Alert>
-      )}
 
-      {/* Review feedback details */}
-      {reviewFeedback && reviewVerdict && reviewVerdict !== 'PASS' && (
-        <ReviewFeedbackPanel feedback={reviewFeedback} />
-      )}
-
-      {/* Detailed decompose review (when not loading and has review data) */}
-      {!isLoading && decomposeReview && reviewVerdict && reviewVerdict !== 'PASS' && (
-        <DecomposeReviewPanel review={decomposeReview} />
+          {/* Review details - only show when failed */}
+          {reviewVerdict !== 'PASS' && decomposeReview && (
+            <DecomposeReviewContent review={decomposeReview} />
+          )}
+        </div>
       )}
 
       {/* Spec already completed message */}
