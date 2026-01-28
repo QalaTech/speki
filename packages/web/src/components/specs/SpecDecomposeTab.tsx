@@ -166,43 +166,6 @@ function DecomposeReviewPanel({ review }: { review: DecomposeReviewData }) {
     return acc;
   }, {} as Record<string, DecomposeReviewPromptResult[]>);
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "coverage": return "📋";
-      case "consistency": return "⚖️";
-      case "dependencies": return "🔗";
-      case "duplicates": return "📑";
-      default: return "📝";
-    }
-  };
-
-  const getVerdictColor = (verdict: string) => {
-    switch (verdict) {
-      case "PASS": return "text-success";
-      case "FAIL": return "text-error";
-      case "NEEDS_IMPROVEMENT": return "text-warning";
-      default: return "text-muted-foreground";
-    }
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "critical": return "text-error";
-      case "warning": return "text-warning";
-      case "info": return "text-muted-foreground";
-      default: return "text-muted-foreground";
-    }
-  };
-
-  const getSeverityIcon = (severity: string) => {
-    switch (severity) {
-      case "critical": return "🔴";
-      case "warning": return "🟡";
-      case "info": return "🔵";
-      default: return "⚪";
-    }
-  };
-
   // Count total issues by severity
   const issueStats = review.promptResults.reduce(
     (acc, r) => {
@@ -219,91 +182,131 @@ function DecomposeReviewPanel({ review }: { review: DecomposeReviewData }) {
   const hasIssues = issueStats.critical > 0 || issueStats.warning > 0;
 
   if (!hasIssues && review.promptResults.every(r => r.verdict === "PASS")) {
-    return null; // Don't show if everything passed
+    return null;
   }
 
+  const getCategoryConfig = (category: string) => {
+    const configs: Record<string, { label: string; icon: string }> = {
+      coverage: { label: "Coverage", icon: "⬚" },
+      consistency: { label: "Consistency", icon: "⇄" },
+      dependencies: { label: "Dependencies", icon: "↗" },
+      duplicates: { label: "Duplicates", icon: "⧉" },
+    };
+    return configs[category] || { label: category, icon: "○" };
+  };
+
   return (
-    <div className="bg-muted/50 border border-border/30 rounded-lg p-4 my-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-bold text-foreground/90">Review Details</div>
-        <div className="flex items-center gap-2 text-xs">
+    <div className="rounded-2xl border border-warning/20 bg-linear-to-r from-warning/5 to-transparent ring-1 ring-warning/10 overflow-hidden my-4">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-warning/10 flex items-center gap-4">
+        <div className="shrink-0 p-2.5 rounded-xl bg-warning/15 text-warning shadow-inner">
+          <QueueListIcon className="h-4 w-4" />
+        </div>
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-foreground">Review Findings</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {new Date(review.timestamp).toLocaleString()}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
           {issueStats.critical > 0 && (
-            <Badge variant="error" size="xs">{issueStats.critical} critical</Badge>
+            <Badge variant="error" size="xs" className="shadow-sm">
+              {issueStats.critical} critical
+            </Badge>
           )}
           {issueStats.warning > 0 && (
-            <Badge variant="warning" size="xs">{issueStats.warning} warnings</Badge>
+            <Badge variant="warning" size="xs" className="shadow-sm">
+              {issueStats.warning} warning{issueStats.warning !== 1 ? "s" : ""}
+            </Badge>
           )}
         </div>
       </div>
 
-      {Object.entries(resultsByCategory).map(([category, results]) => {
-        const categoryIssues = results.flatMap(r => r.issues);
-        const hasCritical = categoryIssues.some(i => i.severity === "critical");
-        const hasWarning = categoryIssues.some(i => i.severity === "warning");
-        const isExpanded = expandedCategories.has(category);
-        const categoryVerdict = results.some(r => r.verdict === "FAIL") ? "FAIL"
-          : results.some(r => r.verdict === "NEEDS_IMPROVEMENT") ? "NEEDS_IMPROVEMENT"
-          : "PASS";
+      {/* Categories */}
+      <div className="divide-y divide-border/10">
+        {Object.entries(resultsByCategory).map(([category, results]) => {
+          const categoryIssues = results.flatMap(r => r.issues);
+          const config = getCategoryConfig(category);
+          const isExpanded = expandedCategories.has(category);
+          const categoryVerdict = results.some(r => r.verdict === "FAIL") ? "FAIL"
+            : results.some(r => r.verdict === "NEEDS_IMPROVEMENT") ? "NEEDS_IMPROVEMENT"
+            : "PASS";
 
-        return (
-          <div key={category} className="border border-border/20 rounded-md overflow-hidden">
-            <button
-              onClick={() => toggleCategory(category)}
-              className="w-full flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-            >
-              <div className="flex items-center gap-2">
-                <span>{getCategoryIcon(category)}</span>
-                <span className="text-sm font-medium capitalize">{category}</span>
-                <span className={`text-xs font-semibold ${getVerdictColor(categoryVerdict)}`}>
-                  {categoryVerdict === "PASS" ? "✓" : categoryVerdict === "FAIL" ? "✗" : "○"}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
+          if (categoryIssues.length === 0 && categoryVerdict === "PASS") return null;
+
+          return (
+            <div key={category}>
+              <button
+                onClick={() => toggleCategory(category)}
+                className="w-full flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors text-left group"
+              >
+                <span className="text-muted-foreground/60 text-sm font-mono">{config.icon}</span>
+                <span className="flex-1 text-sm font-medium text-foreground/90">{config.label}</span>
+
+                {categoryVerdict !== "PASS" && (
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    categoryVerdict === "FAIL"
+                      ? "bg-error/10 text-error"
+                      : "bg-warning/10 text-warning"
+                  }`}>
+                    {categoryVerdict === "FAIL" ? "Failed" : "Needs Work"}
+                  </span>
+                )}
+
                 {categoryIssues.length > 0 && (
-                  <Badge variant={hasCritical ? "error" : hasWarning ? "warning" : "ghost"} size="xs">
+                  <span className="text-xs text-muted-foreground">
                     {categoryIssues.length} issue{categoryIssues.length !== 1 ? "s" : ""}
-                  </Badge>
+                  </span>
                 )}
-                {isExpanded ? (
-                  <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-            </button>
 
-            {isExpanded && categoryIssues.length > 0 && (
-              <div className="p-3 space-y-3 border-t border-border/20">
-                {categoryIssues.map((issue, idx) => (
-                  <div key={issue.id || idx} className="space-y-1.5">
-                    <div className="flex items-start gap-2">
-                      <span className="text-xs mt-0.5">{getSeverityIcon(issue.severity)}</span>
-                      <div className="flex-1 space-y-1">
-                        <p className={`text-sm ${getSeverityColor(issue.severity)}`}>
-                          {issue.description}
-                        </p>
-                        {issue.affectedTasks && issue.affectedTasks.length > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            Affects: {issue.affectedTasks.join(", ")}
+                <ChevronRightIcon className={`h-4 w-4 text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+              </button>
+
+              {isExpanded && categoryIssues.length > 0 && (
+                <div className="px-5 pb-4 space-y-3">
+                  {categoryIssues.map((issue, idx) => (
+                    <div
+                      key={issue.id || idx}
+                      className={`rounded-lg border-l-2 pl-4 py-2 pr-3 ${
+                        issue.severity === "critical"
+                          ? "border-l-error bg-error/5"
+                          : issue.severity === "warning"
+                          ? "border-l-warning bg-warning/5"
+                          : "border-l-info bg-info/5"
+                      }`}
+                    >
+                      <p className="text-sm text-foreground/90 leading-relaxed">
+                        {issue.description}
+                      </p>
+
+                      {issue.affectedTasks && issue.affectedTasks.length > 0 && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-muted-foreground">Affects:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {issue.affectedTasks.map(taskId => (
+                              <span key={taskId} className="text-xs font-mono px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">
+                                {taskId}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {issue.suggestedFix && (
+                        <div className="mt-3 flex gap-2 items-start">
+                          <SparklesIcon className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                          <p className="text-xs text-primary/80 leading-relaxed">
+                            {issue.suggestedFix}
                           </p>
-                        )}
-                        {issue.suggestedFix && (
-                          <p className="text-xs text-primary/80 bg-primary/5 rounded px-2 py-1 mt-1">
-                            💡 {issue.suggestedFix}
-                          </p>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      <div className="text-xs text-muted-foreground/60 pt-1">
-        Reviewed at {new Date(review.timestamp).toLocaleString()}
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
