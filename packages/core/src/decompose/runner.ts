@@ -154,6 +154,16 @@ function getTechSpecDecomposePrompt(): string {
 
 You are a senior software engineer breaking down a Technical Specification into highly detailed, self-contained implementation tasks.
 
+## Core Principles
+
+**1. SIMPLICITY FIRST** - Prefer the simplest approach that satisfies requirements. Do NOT invent abstractions, patterns, or indirection that the requirements don't demand. Avoid over-engineering.
+
+**2. FOLLOW EXISTING CONVENTIONS** - Match the project's current patterns EXACTLY. If the codebase uses a certain style, naming convention, or architecture, follow it. Don't introduce new patterns unless absolutely necessary.
+
+**3. EXTEND, DON'T REBUILD** - Leverage existing code. Add to what exists rather than building new systems. If a utility, helper, or pattern already exists, use it.
+
+**4. NO SHORTCUTS** - Every task must be complete. No skipping tests, no "TODO later", no partial implementations. If tests exist, they must pass. If integration tests exist, they must be run.
+
 ## Your Goal
 
 Create tasks that an AI coding agent can execute **independently** without needing to discover or explore the codebase. Each task must contain ALL the information needed to implement it.
@@ -293,12 +303,37 @@ Output ONLY valid JSON:
 **BAD**: "TS-001: Change ConsoleInput.Read() signature" → leaves callers broken
 **GOOD**: "TS-001: Add ConsoleInput.ReadWithOptions() alongside existing Read()" → both work
 
-## Testing Requirements
+## Testing Requirements - NO SHORTCUTS
 
-- **Update existing tests**: If unit tests or integration tests already exist for modified code, update them
-- **Add new tests**: Only add new test files if a test project/directory already exists in the codebase
-- **Don't create test infrastructure**: Never create new test projects or testing frameworks from scratch
-- **Test acceptance criteria**: Include specific test updates in acceptance criteria when applicable
+**Testing is NOT optional. Every task must include proper test verification.**
+
+1. **RESEARCH FIRST**: Before implementing, research how tests are run in this project:
+   - Find existing test files and understand the test framework used
+   - Locate test configuration (jest.config, vitest.config, xunit, pytest.ini, etc.)
+   - Understand how to run unit tests AND integration tests
+   - Check CI/CD config for test commands
+
+2. **RUN EXISTING TESTS**: Before making changes, run existing tests to establish baseline:
+   - Unit tests must pass before AND after your changes
+   - Integration tests must pass before AND after your changes
+   - If you don't know how to run them, RESEARCH until you do
+
+3. **UPDATE TESTS FOR CHANGES**: If you modify code that has tests:
+   - Update the tests to cover your changes
+   - Don't delete or skip tests that are now failing - fix the implementation or update the test appropriately
+
+4. **ADD NEW TESTS**: For new functionality:
+   - Add tests using the EXISTING test patterns in the project
+   - Don't create new test infrastructure or frameworks
+   - Follow the project's test naming conventions
+
+5. **ACCEPTANCE CRITERIA MUST INCLUDE**:
+   - "All existing unit tests pass"
+   - "All existing integration tests pass" (if they exist)
+   - "New tests added for [specific functionality]"
+   - "Test coverage maintained or improved"
+
+**If you skip testing, the task is NOT complete.**
 `;
 }
 
