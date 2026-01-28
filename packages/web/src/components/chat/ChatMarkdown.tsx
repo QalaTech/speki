@@ -28,7 +28,7 @@ const chatComponents: Components = {
     const isInline = !className;
     if (isInline) {
       return (
-        <code className="bg-muted py-0.5 px-1.5 rounded font-mono text-[0.85em] text-primary" {...props}>
+        <code className="bg-muted/80 py-0.5 px-1.5 rounded font-mono text-[0.85em] text-amber-300" {...props}>
           {children}
         </code>
       );
@@ -41,29 +41,29 @@ const chatComponents: Components = {
     );
   },
 
-  // Compact lists
-  ul: ({ children }) => <ul className="my-2 pl-6">{children}</ul>,
-  ol: ({ children }) => <ol className="my-2 pl-6">{children}</ol>,
+  // Compact lists with visible bullets
+  ul: ({ children }) => <ul className="my-2 pl-6 list-disc marker:text-muted-foreground">{children}</ul>,
+  ol: ({ children }) => <ol className="my-2 pl-6 list-decimal marker:text-muted-foreground">{children}</ol>,
   li: ({ children }) => <li className="my-1">{children}</li>,
 
-  // Headings - scaled down for chat
-  h1: ({ children }) => <h4 className="my-2 mb-1 font-semibold leading-tight text-[1.1em]">{children}</h4>,
-  h2: ({ children }) => <h5 className="my-2 mb-1 font-semibold leading-tight text-[1.05em]">{children}</h5>,
-  h3: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1em]">{children}</h6>,
-  h4: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1em]">{children}</h6>,
-  h5: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1em]">{children}</h6>,
-  h6: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1em]">{children}</h6>,
+  // Headings - scaled down for chat, high contrast
+  h1: ({ children }) => <h4 className="my-3 mb-1 font-bold leading-tight text-[1.15em] text-foreground">{children}</h4>,
+  h2: ({ children }) => <h5 className="my-2 mb-1 font-bold leading-tight text-[1.1em] text-foreground">{children}</h5>,
+  h3: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1.05em] text-foreground">{children}</h6>,
+  h4: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1em] text-foreground">{children}</h6>,
+  h5: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1em] text-foreground">{children}</h6>,
+  h6: ({ children }) => <h6 className="my-2 mb-1 font-semibold leading-tight text-[1em] text-foreground">{children}</h6>,
 
-  // Links - open in new tab
+  // Links - open in new tab, high contrast cyan
   a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary no-underline border-b border-dotted border-current hover:underline">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-cyan-400 underline decoration-cyan-400/50 hover:decoration-cyan-400">
       {children}
     </a>
   ),
 
-  // Blockquotes
+  // Blockquotes - better contrast
   blockquote: ({ children }) => (
-    <blockquote className="my-2 py-2 px-3 border-l-[3px] border-border bg-muted/30 rounded-r italic text-muted-foreground/60">{children}</blockquote>
+    <blockquote className="my-2 py-2 px-3 border-l-[3px] border-amber-500/50 bg-muted/50 rounded-r italic text-foreground/80">{children}</blockquote>
   ),
 
   // Tables (GFM)

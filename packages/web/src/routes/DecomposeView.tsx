@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QueueListIcon } from '@heroicons/react/24/outline';
 import type { DecomposeState, DecomposeFeedback, PrdFile, PRDData, UserStory, FeedbackItem, DecomposeErrorType } from '../types';
@@ -36,6 +36,8 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<'logs' | 'task'>('logs');
+  const [drawerWidth, setDrawerWidth] = useState(576); // Default ~xl (576px)
+  const isResizing = useRef(false);
   const [selectedTask, setSelectedTask] = useState<UserStory | null>(null);
   const [reviewLog, setReviewLog] = useState<string | null>(null);
   const [allReviewLogs, setAllReviewLogs] = useState<{attempt: number; path: string; content: string | null}[]>([]);
@@ -119,6 +121,31 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
       console.error('Failed to fetch state:', err);
     }
   }, [projectPath, lastAttemptCount]);
+
+  // Drawer resize handlers
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    document.body.style.cursor = 'grabbing';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = window.innerWidth - e.clientX;
+      setDrawerWidth(Math.min(Math.max(320, newWidth), window.innerWidth * 0.9));
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, []);
 
   useEffect(() => {
     setSelectedFile('');
@@ -631,9 +658,15 @@ export function DecomposeView({ onTasksActivated, projectPath }: DecomposeViewPr
           onClick={() => setDrawerOpen(false)}
         >
           <div
-            className="w-full max-w-xl h-full bg-card shadow-xl flex flex-col"
+            className="h-full bg-card shadow-xl flex flex-col relative"
+            style={{ width: drawerWidth }}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Resize handle */}
+            <div
+              className="absolute left-0 top-0 bottom-0 w-2 cursor-grab hover:bg-primary/50 active:cursor-grabbing active:bg-primary transition-colors"
+              onMouseDown={handleResizeStart}
+            />
             <div className="flex items-center justify-between p-4 border-b border-border bg-muted">
               <h3 className="font-bold">
                 {drawerMode === 'logs' ? 'Decomposition Logs' : selectedTask?.id}
