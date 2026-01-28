@@ -316,11 +316,16 @@ export function SpecDecomposeTab({
         }
       }
 
-      // Load decompose state (verdict)
+      // Load decompose state (verdict and active status)
       const stateRes = await apiFetch(`/api/decompose/state?${params}`);
       if (stateRes.ok) {
         const stateData = await stateRes.json();
         setReviewVerdict(stateData.verdict || null);
+        // Restore loading state if decomposition is in progress
+        const activeStatuses = ['STARTING', 'INITIALIZING', 'DECOMPOSING', 'REVIEWING', 'REVISING'];
+        if (activeStatuses.includes(stateData.status)) {
+          setIsLoading(true);
+        }
       }
 
       // Load review feedback
