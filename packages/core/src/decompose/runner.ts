@@ -483,7 +483,7 @@ export async function runDecompose(
     freshStart = false,
     forceRedecompose = false,
     enablePeerReview = true,  // Enabled by default - uses CLI from settings
-    maxReviewAttempts = parseInt(process.env.RALPH_MAX_REVIEW_ATTEMPTS || '3', 10),
+    maxReviewAttempts = parseInt(process.env.RALPH_MAX_REVIEW_ATTEMPTS || '1', 10),
     reviewTimeoutMs,
     onProgress,
   } = options;
