@@ -71,6 +71,7 @@ interface Props {
   isGeneratingTechSpec?: boolean;
   onDecomposeComplete?: () => void;
   onRunQueue?: () => void;
+  onDiscussDecomposeReview?: (context: { issue: string; suggestedFix: string }) => void;
 }
 
 // Derive specId from specPath (filename without .md extension, but keep .tech/.prd/.bug)
@@ -79,128 +80,114 @@ function getSpecId(specPath: string): string {
   return filename.replace(/\.md$/i, "");
 }
 
-function DecomposeReviewContent({ review }: { review: DecomposeReviewData }) {
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+function DecomposeReviewContent({
+  review,
+  onDiscussIssue,
+  dismissedIssues,
+  onDismissIssue,
+}: {
+  review: DecomposeReviewData;
+  onDiscussIssue?: (issue: DecomposeReviewIssue) => void;
+  dismissedIssues?: Set<string>;
+  onDismissIssue?: (issueId: string) => void;
+}) {
+  // Flatten all issues from all prompt results
+  const allIssues = review.promptResults.flatMap(r =>
+    r.issues.map(issue => ({ ...issue, category: r.category }))
+  );
 
-  const toggleCategory = (category: string) => {
-    setExpandedCategories(prev => {
-      const next = new Set(prev);
-      if (next.has(category)) {
-        next.delete(category);
-      } else {
-        next.add(category);
-      }
-      return next;
-    });
-  };
+  // Filter out dismissed issues
+  const visibleIssues = dismissedIssues
+    ? allIssues.filter(issue => !dismissedIssues.has(issue.id))
+    : allIssues;
 
-  // Group results by category
-  const resultsByCategory = review.promptResults.reduce((acc, result) => {
-    if (!acc[result.category]) {
-      acc[result.category] = [];
-    }
-    acc[result.category].push(result);
-    return acc;
-  }, {} as Record<string, DecomposeReviewPromptResult[]>);
+  if (visibleIssues.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-2">
+        <CheckCircleIcon className="w-8 h-8 opacity-30" />
+        <p className="text-sm">All issues reviewed</p>
+      </div>
+    );
+  }
 
-  const getCategoryConfig = (category: string) => {
-    const configs: Record<string, { label: string; icon: string }> = {
-      coverage: { label: "Coverage", icon: "⬚" },
-      consistency: { label: "Consistency", icon: "⇄" },
-      dependencies: { label: "Dependencies", icon: "↗" },
-      duplicates: { label: "Duplicates", icon: "⧉" },
-    };
-    return configs[category] || { label: category, icon: "○" };
+  const SEVERITY_CONFIG: Record<string, { label: string; variant: 'error' | 'warning' | 'info' | 'neutral'; borderColor: string }> = {
+    critical: { label: 'Critical', variant: 'error', borderColor: 'border-l-error' },
+    warning: { label: 'Warning', variant: 'warning', borderColor: 'border-l-warning' },
+    info: { label: 'Info', variant: 'info', borderColor: 'border-l-info' },
   };
 
   return (
-    <div className="border-t border-error/10">
-      {/* Categories */}
-      <div className="divide-y divide-error/5">
-        {Object.entries(resultsByCategory).map(([category, results]) => {
-          const categoryIssues = results.flatMap(r => r.issues);
-          const config = getCategoryConfig(category);
-          const isExpanded = expandedCategories.has(category);
-          const categoryVerdict = results.some(r => r.verdict === "FAIL") ? "FAIL"
-            : results.some(r => r.verdict === "NEEDS_IMPROVEMENT") ? "NEEDS_IMPROVEMENT"
-            : "PASS";
+    <div className="space-y-3">
+      {visibleIssues.map((issue, idx) => {
+        const severityConfig = SEVERITY_CONFIG[issue.severity] || SEVERITY_CONFIG.info;
 
-          if (categoryIssues.length === 0 && categoryVerdict === "PASS") return null;
-
-          return (
-            <div key={category}>
-              <button
-                onClick={() => toggleCategory(category)}
-                className="w-full flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors text-left group"
-              >
-                <span className="text-muted-foreground/60 text-sm font-mono">{config.icon}</span>
-                <span className="flex-1 text-sm font-medium text-foreground/90">{config.label}</span>
-
-                {categoryVerdict !== "PASS" && (
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    categoryVerdict === "FAIL"
-                      ? "bg-error/10 text-error"
-                      : "bg-warning/10 text-warning"
-                  }`}>
-                    {categoryVerdict === "FAIL" ? "Failed" : "Needs Work"}
+        return (
+          <div
+            key={issue.id || idx}
+            className={`rounded-xl bg-muted border border-border mb-3 border-l-4 hover-lift-sm transition-all duration-200 ${severityConfig.borderColor}`}
+            data-testid="decompose-issue-card"
+          >
+            <div className="p-4 space-y-2.5">
+              {/* Header with severity badge and category */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <Badge variant={severityConfig.variant} size="sm">
+                  {severityConfig.label}
+                </Badge>
+                <span className="text-xs text-muted-foreground capitalize">
+                  {issue.category}
+                </span>
+                {issue.affectedTasks && issue.affectedTasks.length > 0 && (
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    Affects: {issue.affectedTasks.join(', ')}
                   </span>
                 )}
+              </div>
 
-                {categoryIssues.length > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {categoryIssues.length} issue{categoryIssues.length !== 1 ? "s" : ""}
-                  </span>
-                )}
+              {/* Issue description */}
+              <div className="text-sm leading-relaxed">
+                {issue.description}
+              </div>
 
-                <ChevronRightIcon className={`h-4 w-4 text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
-              </button>
+              {/* Suggested fix */}
+              {issue.suggestedFix && (
+                <div className="bg-card rounded-lg p-3 text-sm border border-border">
+                  <div className="font-semibold text-muted-foreground mb-1">
+                    Suggested fix:
+                  </div>
+                  <div className="whitespace-pre-wrap break-words leading-snug">
+                    {issue.suggestedFix}
+                  </div>
+                </div>
+              )}
 
-              {isExpanded && categoryIssues.length > 0 && (
-                <div className="px-5 pb-4 space-y-3">
-                  {categoryIssues.map((issue, idx) => (
-                    <div
-                      key={issue.id || idx}
-                      className={`rounded-lg border-l-2 pl-4 py-2 pr-3 ${
-                        issue.severity === "critical"
-                          ? "border-l-error bg-error/5"
-                          : issue.severity === "warning"
-                          ? "border-l-warning bg-warning/5"
-                          : "border-l-info bg-info/5"
-                      }`}
+              {/* Action buttons - matching SuggestionCard style */}
+              {(onDiscussIssue || onDismissIssue) && (
+                <div className="flex items-center gap-2 mt-1">
+                  {onDiscussIssue && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => onDiscussIssue(issue)}
                     >
-                      <p className="text-sm text-foreground/90 leading-relaxed">
-                        {issue.description}
-                      </p>
-
-                      {issue.affectedTasks && issue.affectedTasks.length > 0 && (
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="text-xs text-muted-foreground">Affects:</span>
-                          <div className="flex flex-wrap gap-1">
-                            {issue.affectedTasks.map(taskId => (
-                              <span key={taskId} className="text-xs font-mono px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">
-                                {taskId}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {issue.suggestedFix && (
-                        <div className="mt-3 flex gap-2 items-start">
-                          <SparklesIcon className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                          <p className="text-xs text-primary/80 leading-relaxed">
-                            {issue.suggestedFix}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                      Discuss
+                    </Button>
+                  )}
+                  {onDismissIssue && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onDismissIssue(issue.id)}
+                      className="text-success border-success hover:bg-success/10"
+                    >
+                      Reviewed
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -211,6 +198,7 @@ export function SpecDecomposeTab({
   specType = "prd",
   onDecomposeComplete,
   onRunQueue,
+  onDiscussDecomposeReview,
 }: Props) {
   const specId = useMemo(() => getSpecId(specPath), [specPath]);
   const [stories, setStories] = useState<UserStory[]>([]);
@@ -237,6 +225,9 @@ export function SpecDecomposeTab({
   // Review state
   const [reviewVerdict, setReviewVerdict] = useState<'PASS' | 'FAIL' | 'UNKNOWN' | 'SKIPPED' | null>(null);
   const [retryLoading, setRetryLoading] = useState(false);
+  const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
+  const [reviewDismissed, setReviewDismissed] = useState(false);
+  const [dismissedIssues, setDismissedIssues] = useState<Set<string>>(new Set());
 
   // Decompose progress state (for display during loading)
   const [decomposeProgress, setDecomposeProgress] = useState<{ status: string; message: string } | null>(null);
@@ -433,6 +424,11 @@ export function SpecDecomposeTab({
       const reviewRes = await apiFetch(`/api/decompose/decompose-review?${params}`);
       if (reviewRes.ok) {
         const reviewData = await reviewRes.json();
+        // Reset dismissed state if we have a new review
+        if (reviewData.review) {
+          setReviewDismissed(false);
+          setDismissedIssues(new Set());
+        }
         setDecomposeReview(reviewData.review || null);
       }
     } catch (err) {
@@ -857,53 +853,103 @@ export function SpecDecomposeTab({
         </Alert>
       )}
 
-      {/* Review verdict + details - integrated view */}
-      {reviewVerdict && reviewVerdict !== 'SKIPPED' && (
-        <div className={`rounded-2xl border overflow-hidden my-4 ${
-          reviewVerdict === 'PASS'
-            ? 'border-success/30 bg-linear-to-r from-success/5 to-transparent'
-            : 'border-error/30 bg-linear-to-r from-error/5 to-transparent'
-        }`}>
-          {/* Header */}
-          <div className="px-5 py-4 flex items-center gap-4">
-            <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-inner ${
-              reviewVerdict === 'PASS' ? 'bg-success/20 text-success' : 'bg-error/20 text-error'
-            }`}>
-              {reviewVerdict === 'PASS' ? (
-                <CheckCircleIcon className="h-5 w-5" />
-              ) : (
-                <span className="text-lg font-bold">✗</span>
-              )}
-            </div>
-            <div className="flex-1">
-              <h3 className={`text-sm font-semibold ${reviewVerdict === 'PASS' ? 'text-success' : 'text-error'}`}>
-                Review {reviewVerdict === 'PASS' ? 'Passed' : 'Failed'}
-              </h3>
+      {/* Review verdict badge - opens drawer on click */}
+      {reviewVerdict && reviewVerdict !== 'SKIPPED' && !reviewDismissed && (
+        <Drawer open={reviewDrawerOpen} onOpenChange={setReviewDrawerOpen} direction="right">
+          <div className={`rounded-xl border overflow-hidden my-4 ${
+            reviewVerdict === 'PASS'
+              ? 'border-success/30 bg-success/5'
+              : 'border-border bg-muted'
+          }`}>
+            <div className="px-4 py-3 flex items-center gap-3">
+              <Badge variant={reviewVerdict === 'PASS' ? 'success' : 'error'} size="sm">
+                {reviewVerdict === 'PASS' ? '✓ Passed' : '✗ Failed'}
+              </Badge>
+              <span className="flex-1 text-sm font-medium text-foreground">
+                Task Review
+              </span>
               {decomposeReview && (
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <span className="text-xs text-muted-foreground">
                   {new Date(decomposeReview.timestamp).toLocaleString()}
-                </p>
+                </span>
+              )}
+              {reviewVerdict === 'FAIL' && decomposeReview && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setReviewDrawerOpen(true)}
+                >
+                  View Details
+                  <ChevronRightIcon className="h-4 w-4 ml-1" />
+                </Button>
+              )}
+              {reviewVerdict === 'FAIL' && hasBeenDecomposed && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRetryReview}
+                  disabled={retryLoading || isLoading}
+                  isLoading={retryLoading}
+                >
+                  {!retryLoading && <ArrowPathIcon className="h-4 w-4" />}
+                  {retryLoading ? 'Retrying...' : 'Retry'}
+                </Button>
               )}
             </div>
-            {reviewVerdict === 'FAIL' && hasBeenDecomposed && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRetryReview}
-                disabled={retryLoading || isLoading}
-                isLoading={retryLoading}
-              >
-                {!retryLoading && <ArrowPathIcon className="h-4 w-4" />}
-                {retryLoading ? 'Retrying...' : 'Retry'}
-              </Button>
-            )}
           </div>
 
-          {/* Review details - only show when failed */}
-          {reviewVerdict !== 'PASS' && decomposeReview && (
-            <DecomposeReviewContent review={decomposeReview} />
-          )}
-        </div>
+          <DrawerContent
+            side="right"
+            className="w-[500px] sm:w-[600px] p-0 border-l border-white/5 bg-background/80 backdrop-blur-xl shadow-2xl h-full mt-0 z-40"
+            hideOverlay
+          >
+            {/* Header matching spec review chat style */}
+            <div className="flex items-center justify-between px-6 py-4 bg-muted/20 backdrop-blur-md border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 rounded-lg bg-primary/10 ring-1 ring-primary/20">
+                  <QueueListIcon className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <span className="text-[14px] font-bold text-foreground tracking-tight font-poppins capitalize">Review Findings</span>
+                  {decomposeReview && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {new Date(decomposeReview.timestamp).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setReviewDrawerOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-foreground/40 hover:text-foreground hover:bg-white/10 transition-all duration-200"
+              >
+                <span className="text-lg">×</span>
+              </button>
+            </div>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {decomposeReview && (
+                <DecomposeReviewContent
+                  review={decomposeReview}
+                  dismissedIssues={dismissedIssues}
+                  onDiscussIssue={onDiscussDecomposeReview ? (issue) => {
+                    // Include affected tasks in the issue context
+                    const affectedTasksInfo = issue.affectedTasks && issue.affectedTasks.length > 0
+                      ? `\n\nAffected tasks: ${issue.affectedTasks.join(', ')}`
+                      : '';
+                    onDiscussDecomposeReview({
+                      issue: `${issue.description}${affectedTasksInfo}`,
+                      suggestedFix: issue.suggestedFix || '',
+                    });
+                    setReviewDrawerOpen(false);
+                  } : undefined}
+                  onDismissIssue={(issueId) => {
+                    setDismissedIssues(prev => new Set(prev).add(issueId));
+                  }}
+                />
+              )}
+            </div>
+          </DrawerContent>
+        </Drawer>
       )}
 
       {/* Spec already completed message */}

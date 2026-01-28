@@ -197,6 +197,24 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     handleSendChatMessage(messageWithContext, selectedText);
   }, [setDiscussStartTimestamp, setIsChatOpen, handleSendChatMessage]);
 
+  // Handler for discussing decompose review findings
+  const handleDiscussDecomposeReview = useCallback((context: { issue: string; suggestedFix: string }) => {
+    // Clear old messages by setting a new timestamp
+    setDiscussStartTimestamp(new Date().toISOString());
+
+    // Set the discussing context with a generated ID for decompose reviews
+    setDiscussingContext({
+      suggestionId: `decompose-review-${Date.now()}`,
+      issue: context.issue,
+      suggestedFix: context.suggestedFix,
+    });
+
+    // Open the chat panel
+    setIsChatOpen(true);
+  }, [setDiscussStartTimestamp, setDiscussingContext, setIsChatOpen]);
+
+  // Use refs to track state values to avoid stale closure issues in callbacks
+  // This ensures we always have the latest values even during rapid re-renders
   const isSendingChatRef = useRef(isSendingChat);
   isSendingChatRef.current = isSendingChat;
 
@@ -437,6 +455,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
                 isGeneratingTechSpec={isGeneratingTechSpec}
                 onDecomposeComplete={fetchDecomposeStoryCount}
                 onRunQueue={handleRunQueue}
+                onDiscussDecomposeReview={handleDiscussDecomposeReview}
               />
             </div>
           )}
