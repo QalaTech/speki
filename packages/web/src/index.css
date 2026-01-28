@@ -33,7 +33,7 @@
 
   /* Muted - adjusted for darker base */
   --color-muted: lch(14 0.8 272);
-  --color-muted-foreground: oklch(65% 0.01 260);
+  --color-muted-foreground: oklch(85% 0.01 260);
 
   /* Accent - adjusted for darker base */
   --color-accent: lch(18 1.5 272);

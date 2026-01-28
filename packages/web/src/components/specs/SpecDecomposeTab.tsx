@@ -287,6 +287,10 @@ export function SpecDecomposeTab({
     ];
     if (activeStatuses.includes(decomposeState.status)) {
       setIsLoading(true);
+      // Load tasks when entering review phase so they display during review
+      if (decomposeState.status === 'REVIEWING' || decomposeState.status === 'REVISING') {
+        loadDecomposeState();
+      }
     } else if (
       decomposeState.status === "COMPLETED" ||
       decomposeState.status === "DECOMPOSED"
@@ -724,7 +728,11 @@ export function SpecDecomposeTab({
       {isLoading && hasBeenDecomposed && (
         <div className="flex items-center gap-3 py-4 px-6 rounded-2xl bg-primary/5 text-primary text-sm font-semibold animate-pulse border border-primary/10 mb-4">
           <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <span>{decomposeState?.message || "Running decomposition..."}</span>
+          <span>
+            {decomposeState?.status === 'REVIEWING' || decomposeState?.status === 'REVISING'
+              ? 'Reviewing tasks...'
+              : decomposeState?.message || 'Running decomposition...'}
+          </span>
         </div>
       )}
 
@@ -840,7 +848,7 @@ export function SpecDecomposeTab({
 
                         <div className="flex items-center gap-1.5 shrink-0">
                           {getComplexityBadge(story.complexity)}
-                          {specType === "prd" && story.reviewStatus && (
+                          {story.reviewStatus && (
                             <span
                               className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ring-1 ${
                                 story.reviewStatus === "passed"
