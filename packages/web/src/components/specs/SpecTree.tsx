@@ -223,12 +223,14 @@ function TreeNode({
     <>
       <li className={node.parentSpecId ? 'relative' : ''}>
         {node.parentSpecId && (
-          <div className="absolute -left-3 top-0 bottom-1/2 w-4 border-l border-b border-muted-foreground/20 rounded-bl-lg" />
+          <div className="absolute -left-px top-0 bottom-[15px] w-4 border-l border-b border-muted-foreground/40 rounded-bl-lg" />
         )}
         <a
           role="treeitem"
           aria-selected={isSelected}
           className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 hover-lift-sm active-press cursor-pointer border border-transparent ${
+            node.parentSpecId ? 'ml-4' : ''
+          } ${
             isSelected
               ? 'bg-primary/10 border-primary/20 shadow-[0_2px_10px_rgba(var(--primary-rgb),0.1)]'
               : 'hover:bg-muted/40'
@@ -289,8 +291,8 @@ function TreeNode({
       </li>
       {/* Render linked specs (tech specs under PRDs) */}
       {node.linkedSpecs && node.linkedSpecs.length > 0 && (
-        <li className="ml-5">
-          <ul className="space-y-0.5 relative">
+        <li className="ml-[26px]">
+          <ul className="space-y-0.5 relative border-l border-muted-foreground/15">
             {node.linkedSpecs.map((child) => (
               <TreeNode
                 key={child.path}
