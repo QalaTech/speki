@@ -45,6 +45,49 @@ function detectSpecTypeFromFilename(filename: string): SpecType {
   return 'prd';
 }
 
+/**
+ * Formats a technical filename into a human-readable title and date
+ * Input: "20260127-193651-create-tech-spec.md"
+ * Output: { title: "Create Tech Spec", date: "Jan 27, 19:36" }
+ */
+function formatSpecDisplayName(filename: string) {
+  const basename = filename.replace(/\.md$/, '');
+  const parts = basename.split('-');
+  
+  // Check if it follows the pattern: YYYYMMDD-HHMMSS-title
+  if (parts.length >= 3 && parts[0].length === 8 && parts[1].length === 6) {
+    const dateStr = parts[0];
+    const timeStr = parts[1];
+    const title = parts.slice(2).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    
+    try {
+      const year = parseInt(dateStr.substring(0, 4));
+      const month = parseInt(dateStr.substring(4, 6)) - 1;
+      const day = parseInt(dateStr.substring(6, 8));
+      const hour = parseInt(timeStr.substring(0, 2));
+      const minute = parseInt(timeStr.substring(2, 4));
+      
+      const date = new Date(year, month, day, hour, minute);
+      const formattedDate = date.toLocaleString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      
+      return { title, subtitle: formattedDate };
+    } catch (e) {
+      // Fallback if parsing fails
+      return { title: basename, subtitle: null };
+    }
+  }
+
+  // Fallback for non-standard names
+  const cleanTitle = basename.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+  return { title: cleanTitle, subtitle: null };
+}
+
 interface SpecTreeProps {
   files: SpecFileNode[];
   selectedPath: string | null;
@@ -167,32 +210,65 @@ function TreeNode({
 
   // File node
   const specType = node.specType || detectSpecTypeFromFilename(node.name);
+  const { title, subtitle } = formatSpecDisplayName(node.name);
 
   return (
     <>
       <li>
         <a
-          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 hover-lift-sm active-press cursor-pointer ${
+          role="treeitem"
+          aria-selected={isSelected}
+          className={`group flex items-start gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 hover-lift-sm active-press cursor-pointer border border-transparent ${
             isSelected
-              ? 'bg-primary/15 text-primary font-medium ring-1 ring-primary/20 shadow-sm inner-glow-primary'
-              : 'hover:bg-muted/50'
-          } ${isGenerating ? 'opacity-50 pointer-events-none' : ''}`}
+              ? 'bg-primary/10 border-primary/20 shadow-[0_2px_10px_rgba(var(--primary-rgb),0.1)]'
+              : 'hover:bg-muted/40'
+          } ${isGenerating ? 'opacity-60 pointer-events-none' : ''}`}
           onClick={(e) => {
             e.preventDefault();
             if (!isGenerating) onSelect(node.path);
           }}
         >
-          {getFileIcon(node)}
-          <span className={`flex-1 truncate ${isGenerating ? 'italic' : ''}`}>
-            {node.name}
-          </span>
-          {node.name.endsWith('.md') && (
-            <Badge variant={typeBadgeVariants[specType]} size="xs" outline className="shadow-sm">
-              {specType.replace('tech-spec', 'tech')}
-            </Badge>
-          )}
-          {node.reviewStatus && node.reviewStatus !== 'none' && getStatusIcon(node.reviewStatus)}
-          {isGenerating && <ClockIcon className="h-4 w-4 animate-spin" />}
+          <div className={`mt-0.5 shrink-0 p-1.5 rounded-lg transition-colors ${
+            isSelected ? 'bg-primary/20 text-primary' : 'bg-muted/30 text-muted-foreground group-hover:bg-muted/50'
+          }`}>
+            {getFileIcon(node)}
+          </div>
+          
+          <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className={`text-sm truncate leading-tight ${
+                isSelected ? 'font-semibold text-primary' : 'font-medium text-foreground/90'
+              } ${isGenerating ? 'italic' : ''}`}>
+                {title}
+              </span>
+              <div className="shrink-0 flex items-center gap-1.5">
+                {isGenerating ? (
+                  <ClockIcon className="h-3.5 w-3.5 animate-spin text-primary/60" />
+                ) : (
+                  node.reviewStatus && node.reviewStatus !== 'none' && (
+                    <div className="transition-transform group-hover:scale-110">
+                      {getStatusIcon(node.reviewStatus)}
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 overflow-hidden">
+              <Badge 
+                variant={typeBadgeVariants[specType]} 
+                size="xs" 
+                className="px-1.5 py-0 h-4 uppercase tracking-wider text-[9px] font-bold ring-1 ring-inset ring-current/20"
+              >
+                {specType.replace('tech-spec', 'tech')}
+              </Badge>
+              {subtitle && (
+                <span className="text-[10px] text-muted-foreground/60 truncate font-medium tabular-nums">
+                  {subtitle}
+                </span>
+              )}
+            </div>
+          </div>
         </a>
       </li>
       {/* Render linked specs (tech specs under PRDs) */}
