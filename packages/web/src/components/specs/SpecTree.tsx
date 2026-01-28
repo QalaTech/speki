@@ -223,7 +223,7 @@ function TreeNode({
     <>
       <li className={node.parentSpecId ? 'relative' : ''}>
         {node.parentSpecId && (
-          <div className="absolute -left-px top-0 bottom-[15px] w-4 border-l border-b border-muted-foreground/40 rounded-bl-lg" />
+          <div className="absolute -left-px top-0 bottom-[14px] w-4 border-l border-b border-muted-foreground/30 rounded-bl-lg" />
         )}
         <a
           role="treeitem"
@@ -292,7 +292,7 @@ function TreeNode({
       {/* Render linked specs (tech specs under PRDs) */}
       {node.linkedSpecs && node.linkedSpecs.length > 0 && (
         <li className="ml-[26px]">
-          <ul className="space-y-0.5 relative border-l border-muted-foreground/15">
+          <ul className="space-y-1.5 relative border-l border-muted-foreground/15">
             {node.linkedSpecs.map((child) => (
               <TreeNode
                 key={child.path}
@@ -481,7 +481,7 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
             </div>
           )
         ) : (
-          <ul ref={treeRef} className="w-full p-2 animate-stagger-in space-y-0.5" role="tree">
+          <ul ref={treeRef} className="w-full p-2 animate-stagger-in space-y-1.5" role="tree">
             {filteredFiles.map((node) => (
               <TreeNode
                 key={node.path}
