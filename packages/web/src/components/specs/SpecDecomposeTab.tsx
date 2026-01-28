@@ -38,6 +38,30 @@ import { toast } from "sonner";
 
 type SpecType = "prd" | "tech-spec" | "bug";
 
+// Types for decompose review data (from decompose-review JSON files)
+interface DecomposeReviewIssue {
+  id: string;
+  severity: "critical" | "warning" | "info";
+  description: string;
+  specSection?: string;
+  affectedTasks?: string[];
+  suggestedFix?: string;
+}
+
+interface DecomposeReviewPromptResult {
+  promptName: string;
+  category: string;
+  verdict: "PASS" | "FAIL" | "NEEDS_IMPROVEMENT";
+  issues: DecomposeReviewIssue[];
+  suggestions?: string[];
+  durationMs: number;
+}
+
+interface DecomposeReviewData {
+  timestamp: string;
+  promptResults: DecomposeReviewPromptResult[];
+}
+
 interface Props {
   specPath: string;
   projectPath: string;
@@ -118,6 +142,173 @@ function ReviewFeedbackPanel({ feedback }: { feedback: DecomposeFeedback }) {
   );
 }
 
+function DecomposeReviewPanel({ review }: { review: DecomposeReviewData }) {
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  };
+
+  // Group results by category
+  const resultsByCategory = review.promptResults.reduce((acc, result) => {
+    if (!acc[result.category]) {
+      acc[result.category] = [];
+    }
+    acc[result.category].push(result);
+    return acc;
+  }, {} as Record<string, DecomposeReviewPromptResult[]>);
+
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case "coverage": return "📋";
+      case "consistency": return "⚖️";
+      case "dependencies": return "🔗";
+      case "duplicates": return "📑";
+      default: return "📝";
+    }
+  };
+
+  const getVerdictColor = (verdict: string) => {
+    switch (verdict) {
+      case "PASS": return "text-success";
+      case "FAIL": return "text-error";
+      case "NEEDS_IMPROVEMENT": return "text-warning";
+      default: return "text-muted-foreground";
+    }
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case "critical": return "text-error";
+      case "warning": return "text-warning";
+      case "info": return "text-muted-foreground";
+      default: return "text-muted-foreground";
+    }
+  };
+
+  const getSeverityIcon = (severity: string) => {
+    switch (severity) {
+      case "critical": return "🔴";
+      case "warning": return "🟡";
+      case "info": return "🔵";
+      default: return "⚪";
+    }
+  };
+
+  // Count total issues by severity
+  const issueStats = review.promptResults.reduce(
+    (acc, r) => {
+      r.issues.forEach(i => {
+        if (i.severity === "critical") acc.critical++;
+        else if (i.severity === "warning") acc.warning++;
+        else acc.info++;
+      });
+      return acc;
+    },
+    { critical: 0, warning: 0, info: 0 }
+  );
+
+  const hasIssues = issueStats.critical > 0 || issueStats.warning > 0;
+
+  if (!hasIssues && review.promptResults.every(r => r.verdict === "PASS")) {
+    return null; // Don't show if everything passed
+  }
+
+  return (
+    <div className="bg-muted/50 border border-border/30 rounded-lg p-4 my-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-bold text-foreground/90">Review Details</div>
+        <div className="flex items-center gap-2 text-xs">
+          {issueStats.critical > 0 && (
+            <Badge variant="error" size="xs">{issueStats.critical} critical</Badge>
+          )}
+          {issueStats.warning > 0 && (
+            <Badge variant="warning" size="xs">{issueStats.warning} warnings</Badge>
+          )}
+        </div>
+      </div>
+
+      {Object.entries(resultsByCategory).map(([category, results]) => {
+        const categoryIssues = results.flatMap(r => r.issues);
+        const hasCritical = categoryIssues.some(i => i.severity === "critical");
+        const hasWarning = categoryIssues.some(i => i.severity === "warning");
+        const isExpanded = expandedCategories.has(category);
+        const categoryVerdict = results.some(r => r.verdict === "FAIL") ? "FAIL"
+          : results.some(r => r.verdict === "NEEDS_IMPROVEMENT") ? "NEEDS_IMPROVEMENT"
+          : "PASS";
+
+        return (
+          <div key={category} className="border border-border/20 rounded-md overflow-hidden">
+            <button
+              onClick={() => toggleCategory(category)}
+              className="w-full flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="flex items-center gap-2">
+                <span>{getCategoryIcon(category)}</span>
+                <span className="text-sm font-medium capitalize">{category}</span>
+                <span className={`text-xs font-semibold ${getVerdictColor(categoryVerdict)}`}>
+                  {categoryVerdict === "PASS" ? "✓" : categoryVerdict === "FAIL" ? "✗" : "○"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {categoryIssues.length > 0 && (
+                  <Badge variant={hasCritical ? "error" : hasWarning ? "warning" : "ghost"} size="xs">
+                    {categoryIssues.length} issue{categoryIssues.length !== 1 ? "s" : ""}
+                  </Badge>
+                )}
+                {isExpanded ? (
+                  <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+            </button>
+
+            {isExpanded && categoryIssues.length > 0 && (
+              <div className="p-3 space-y-3 border-t border-border/20">
+                {categoryIssues.map((issue, idx) => (
+                  <div key={issue.id || idx} className="space-y-1.5">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs mt-0.5">{getSeverityIcon(issue.severity)}</span>
+                      <div className="flex-1 space-y-1">
+                        <p className={`text-sm ${getSeverityColor(issue.severity)}`}>
+                          {issue.description}
+                        </p>
+                        {issue.affectedTasks && issue.affectedTasks.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Affects: {issue.affectedTasks.join(", ")}
+                          </p>
+                        )}
+                        {issue.suggestedFix && (
+                          <p className="text-xs text-primary/80 bg-primary/5 rounded px-2 py-1 mt-1">
+                            💡 {issue.suggestedFix}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="text-xs text-muted-foreground/60 pt-1">
+        Reviewed at {new Date(review.timestamp).toLocaleString()}
+      </div>
+    </div>
+  );
+}
+
 export function SpecDecomposeTab({
   specPath,
   projectPath,
@@ -151,6 +342,12 @@ export function SpecDecomposeTab({
   const [reviewFeedback, setReviewFeedback] = useState<DecomposeFeedback | null>(null);
   const [reviewVerdict, setReviewVerdict] = useState<'PASS' | 'FAIL' | 'UNKNOWN' | 'SKIPPED' | null>(null);
   const [retryLoading, setRetryLoading] = useState(false);
+
+  // Decompose progress state (for display during loading)
+  const [decomposeProgress, setDecomposeProgress] = useState<{ status: string; message: string } | null>(null);
+
+  // Decompose review details (structured review from decompose-review JSON)
+  const [decomposeReview, setDecomposeReview] = useState<DecomposeReviewData | null>(null);
 
   // Convert task to markdown for editing
   const taskToMarkdown = (task: UserStory): string => {
@@ -331,6 +528,9 @@ export function SpecDecomposeTab({
         const activeStatuses = ['STARTING', 'INITIALIZING', 'DECOMPOSING', 'REVIEWING', 'REVISING'];
         if (activeStatuses.includes(stateData.status)) {
           setIsLoading(true);
+          setDecomposeProgress({ status: stateData.status, message: stateData.message });
+        } else {
+          setDecomposeProgress(null);
         }
       }
 
@@ -339,6 +539,13 @@ export function SpecDecomposeTab({
       if (feedbackRes.ok) {
         const feedbackData = await feedbackRes.json();
         setReviewFeedback(feedbackData.feedback || null);
+      }
+
+      // Load decompose review (detailed review from decompose-review JSON)
+      const reviewRes = await apiFetch(`/api/decompose/decompose-review?${params}`);
+      if (reviewRes.ok) {
+        const reviewData = await reviewRes.json();
+        setDecomposeReview(reviewData.review || null);
       }
     } catch (err) {
       console.error("Failed to load decompose state:", err);
@@ -734,11 +941,14 @@ export function SpecDecomposeTab({
         <div className="flex items-center gap-3 py-4 px-6 rounded-2xl bg-primary/5 text-primary text-sm font-semibold animate-pulse border border-primary/10 mb-4">
           <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           <span>
-            {decomposeState?.status === 'REVIEWING' || decomposeState?.status === 'REVISING'
-              ? 'Reviewing tasks...'
-              : decomposeState?.message || 'Running decomposition...'}
+            {decomposeState?.message || decomposeProgress?.message || 'Running decomposition...'}
           </span>
         </div>
+      )}
+
+      {/* Show decompose review during revision (when we have review data and are loading/revising) */}
+      {isLoading && decomposeReview && (decomposeProgress?.status === 'REVIEWING' || decomposeProgress?.status === 'REVISING') && (
+        <DecomposeReviewPanel review={decomposeReview} />
       )}
 
       {/* Error display */}
@@ -778,6 +988,11 @@ export function SpecDecomposeTab({
       {/* Review feedback details */}
       {reviewFeedback && reviewVerdict && reviewVerdict !== 'PASS' && (
         <ReviewFeedbackPanel feedback={reviewFeedback} />
+      )}
+
+      {/* Detailed decompose review (when not loading and has review data) */}
+      {!isLoading && decomposeReview && reviewVerdict && reviewVerdict !== 'PASS' && (
+        <DecomposeReviewPanel review={decomposeReview} />
       )}
 
       {/* Spec already completed message */}
