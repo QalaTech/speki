@@ -48,17 +48,26 @@ function detectSpecTypeFromFilename(filename: string): SpecType {
 /**
  * Formats a technical filename into a human-readable title and date
  * Input: "20260127-193651-create-tech-spec.md"
- * Output: { title: "Create Tech Spec", date: "Jan 27, 19:36" }
+ * Output: { title: "Create Tech Spec", subtitle: "Jan 27, 19:36", parentTitle: "..." }
  */
-function formatSpecDisplayName(filename: string) {
+function formatSpecDisplayName(filename: string, parentPath?: string) {
   const basename = filename.replace(/\.md$/, '');
   const parts = basename.split('-');
+  
+  let title = '';
+  let subtitle: string | null = null;
+  let parentTitle: string | null = null;
+
+  if (parentPath) {
+    const parentBasename = parentPath.split('/').pop()?.replace(/\.(prd|tech|bug)\.md$/, '') || '';
+    parentTitle = parentBasename.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+  }
   
   // Check if it follows the pattern: YYYYMMDD-HHMMSS-title
   if (parts.length >= 3 && parts[0].length === 8 && parts[1].length === 6) {
     const dateStr = parts[0];
     const timeStr = parts[1];
-    const title = parts.slice(2).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    title = parts.slice(2).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
     
     try {
       const year = parseInt(dateStr.substring(0, 4));
@@ -68,24 +77,22 @@ function formatSpecDisplayName(filename: string) {
       const minute = parseInt(timeStr.substring(2, 4));
       
       const date = new Date(year, month, day, hour, minute);
-      const formattedDate = date.toLocaleString('en-US', { 
+      subtitle = date.toLocaleString('en-US', { 
         month: 'short', 
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
         hour12: false
       });
-      
-      return { title, subtitle: formattedDate };
     } catch (e) {
-      // Fallback if parsing fails
-      return { title: basename, subtitle: null };
+      title = basename;
     }
+  } else {
+    // Fallback for non-standard names
+    title = basename.split(/[-_.]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
   }
 
-  // Fallback for non-standard names
-  const cleanTitle = basename.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
-  return { title: cleanTitle, subtitle: null };
+  return { title, subtitle, parentTitle };
 }
 
 interface SpecTreeProps {
@@ -210,11 +217,14 @@ function TreeNode({
 
   // File node
   const specType = node.specType || detectSpecTypeFromFilename(node.name);
-  const { title, subtitle } = formatSpecDisplayName(node.name);
+  const { title, subtitle, parentTitle } = formatSpecDisplayName(node.name, node.parentSpecId);
 
   return (
     <>
-      <li>
+      <li className={node.parentSpecId ? 'relative' : ''}>
+        {node.parentSpecId && (
+          <div className="absolute -left-3 top-0 bottom-1/2 w-4 border-l border-b border-muted-foreground/20 rounded-bl-lg" />
+        )}
         <a
           role="treeitem"
           aria-selected={isSelected}
@@ -262,19 +272,25 @@ function TreeNode({
               >
                 {specType.replace('tech-spec', 'tech')}
               </Badge>
-              {subtitle && (
-                <span className="text-[10px] text-muted-foreground/60 truncate font-medium tabular-nums">
-                  {subtitle}
-                </span>
-              )}
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60 truncate font-medium">
+                {subtitle && <span className="shrink-0 tabular-nums">{subtitle}</span>}
+                {parentTitle && (
+                  <>
+                    <span className="shrink-0 text-muted-foreground/30">•</span>
+                    <span className="truncate italic text-muted-foreground/50">
+                      Implements: {parentTitle}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </a>
       </li>
       {/* Render linked specs (tech specs under PRDs) */}
       {node.linkedSpecs && node.linkedSpecs.length > 0 && (
-        <li>
-          <ul className="ml-2 border-l-2 border-dashed border-muted-foreground/10">
+        <li className="ml-5">
+          <ul className="space-y-0.5 relative">
             {node.linkedSpecs.map((child) => (
               <TreeNode
                 key={child.path}
