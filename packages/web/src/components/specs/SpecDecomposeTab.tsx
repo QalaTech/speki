@@ -143,7 +143,7 @@ function DecomposeReviewContent({
               </div>
 
               {/* Issue description */}
-              <div className="text-sm leading-relaxed">
+              <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words">
                 {issue.description}
               </div>
 
@@ -232,6 +232,22 @@ export function SpecDecomposeTab({
 
   // Decompose review details (structured review from decompose-review JSON)
   const [decomposeReview, setDecomposeReview] = useState<DecomposeReviewData | null>(null);
+
+  // Compute effective verdict - if all issues are dismissed, show as PASS
+  const effectiveVerdict = useMemo(() => {
+    if (!reviewVerdict || reviewVerdict === 'PASS' || reviewVerdict === 'SKIPPED') {
+      return reviewVerdict;
+    }
+    // If FAIL but all issues dismissed, treat as PASS
+    if (decomposeReview && dismissedIssues.size > 0) {
+      const allIssues = decomposeReview.promptResults.flatMap(r => r.issues);
+      const allDismissed = allIssues.every(issue => dismissedIssues.has(issue.id));
+      if (allDismissed) {
+        return 'PASS';
+      }
+    }
+    return reviewVerdict;
+  }, [reviewVerdict, decomposeReview, dismissedIssues]);
 
   // Convert task to markdown for editing
   const taskToMarkdown = (task: UserStory): string => {
@@ -849,16 +865,16 @@ export function SpecDecomposeTab({
       )}
 
       {/* Review verdict badge - opens drawer on click */}
-      {reviewVerdict && reviewVerdict !== 'SKIPPED' && !reviewDismissed && (
+      {effectiveVerdict && effectiveVerdict !== 'SKIPPED' && !reviewDismissed && (
         <Drawer open={reviewDrawerOpen} onOpenChange={setReviewDrawerOpen} direction="right">
           <div className={`rounded-xl border overflow-hidden my-4 ${
-            reviewVerdict === 'PASS'
+            effectiveVerdict === 'PASS'
               ? 'border-success/30 bg-success/5'
               : 'border-border bg-muted'
           }`}>
             <div className="px-4 py-3 flex items-center gap-3">
-              <Badge variant={reviewVerdict === 'PASS' ? 'success' : 'error'} size="sm">
-                {reviewVerdict === 'PASS' ? '✓ Passed' : '✗ Failed'}
+              <Badge variant={effectiveVerdict === 'PASS' ? 'success' : 'error'} size="sm">
+                {effectiveVerdict === 'PASS' ? '✓ Passed' : '✗ Failed'}
               </Badge>
               <span className="flex-1 text-sm font-medium text-foreground">
                 Task Review
@@ -868,7 +884,7 @@ export function SpecDecomposeTab({
                   {new Date(decomposeReview.timestamp).toLocaleString()}
                 </span>
               )}
-              {reviewVerdict === 'FAIL' && decomposeReview && (
+              {effectiveVerdict === 'FAIL' && decomposeReview && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -878,7 +894,7 @@ export function SpecDecomposeTab({
                   <ChevronRightIcon className="h-4 w-4 ml-1" />
                 </Button>
               )}
-              {reviewVerdict === 'FAIL' && hasBeenDecomposed && (
+              {effectiveVerdict === 'FAIL' && hasBeenDecomposed && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -921,7 +937,7 @@ export function SpecDecomposeTab({
               </button>
             </div>
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 select-text">
               {decomposeReview && (
                 <DecomposeReviewContent
                   review={decomposeReview}

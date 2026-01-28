@@ -545,6 +545,28 @@ export async function runDecompose(
     } catch {
       // File doesn't exist
     }
+
+    // Clear old review logs so stale review state doesn't persist
+    try {
+      const logsDir = getSpecLogsDir(project.projectPath, specId);
+      const files = await fs.readdir(logsDir);
+      const reviewFiles = files.filter(f => f.startsWith('decompose-review-') && f.endsWith('.json'));
+      for (const file of reviewFiles) {
+        await fs.unlink(join(logsDir, file));
+      }
+      if (reviewFiles.length > 0) {
+        console.log(chalk.yellow(`  Cleared ${reviewFiles.length} old review log(s)`));
+      }
+    } catch {
+      // Logs directory doesn't exist yet
+    }
+
+    // Clear feedback file
+    try {
+      await fs.unlink(project.decomposeFeedbackPath);
+    } catch {
+      // Feedback file doesn't exist
+    }
   } else {
     try {
       const existingContent = await fs.readFile(outputPath, 'utf-8');
