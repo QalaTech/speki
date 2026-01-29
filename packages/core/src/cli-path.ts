@@ -34,6 +34,14 @@ const COMMON_PATHS: Record<CliType, string[]> = {
     join(homedir(), 'AppData', 'Roaming', 'npm', 'codex.cmd'),
     join(homedir(), 'AppData', 'Roaming', 'npm', 'codex.exe'),
   ],
+  gemini: [
+    '/usr/local/bin/gemini',
+    '/opt/homebrew/bin/gemini',
+    join(homedir(), '.local', 'bin', 'gemini'),
+    // Windows global npm bin (common)
+    join(homedir(), 'AppData', 'Roaming', 'npm', 'gemini.cmd'),
+    join(homedir(), 'AppData', 'Roaming', 'npm', 'gemini.exe'),
+  ],
 };
 
 /**
@@ -210,6 +218,12 @@ const INSTALL_INSTRUCTIONS: Record<CliType, string> = {
   npm install -g @openai/codex
 
   For more information: https://github.com/openai/codex`,
+  gemini: `To install Gemini CLI:
+  npm install -g @anthropic-ai/gemini-cli
+  # or
+  npx https://github.com/google-gemini/gemini-cli
+
+  For more information: https://github.com/google-gemini/gemini-cli`,
 };
 
 /**

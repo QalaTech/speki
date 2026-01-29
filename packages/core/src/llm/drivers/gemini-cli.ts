@@ -1,0 +1,748 @@
+import { ChildProcess, spawn } from 'child_process';
+import { promises as fs } from 'fs';
+import { Engine, EngineAvailability, RunStreamOptions, RunStreamResult, RunChatOptions, RunChatResult } from '../engine.js';
+import type { ReviewOptions, ReviewResult, ReviewFeedback } from '../../types/index.js';
+import { detectCli } from '../../cli-detect.js';
+import { resolveCliPath } from '../../cli-path.js';
+import { GeminiStreamNormalizer } from '../normalizers/gemini-normalizer.js';
+import * as logger from '../../logger.js';
+
+/** Timeout for Gemini CLI execution in milliseconds (5 minutes) */
+const GEMINI_TIMEOUT_MS = 300000;
+
+/** Default model to use when none is specified */
+const DEFAULT_GEMINI_MODEL = 'gemini-3-flash-preview';
+
+/**
+ * Parse Gemini CLI output to extract the final assistant response.
+ *
+ * Handles two formats:
+ * 1. JSON format (when using --output-format json):
+ *    {"type":"text","text":"response content"}
+ *
+ * 2. Plain text output (default non-interactive mode)
+ */
+function parseGeminiChatResponse(rawOutput: string): string {
+  const lines = rawOutput.split('\n');
+
+  // Collect assistant message blocks with their indices, tracking tool usage
+  const assistantBlocks: Array<{ index: number; content: string }> = [];
+  let lastToolIndex = -1;
+  let hasJsonl = false;
+  let lineIndex = 0;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    if (trimmed.startsWith('{')) {
+      try {
+        const obj = JSON.parse(trimmed);
+        hasJsonl = true;
+
+        // Track tool usage so we can extract only the final response
+        if (obj.type === 'tool_use' || obj.type === 'tool_result') {
+          lastToolIndex = lineIndex;
+        }
+
+        // Collect assistant text content
+        if (obj.type === 'message' && obj.role === 'assistant' && obj.content) {
+          if (typeof obj.content === 'string') {
+            assistantBlocks.push({ index: lineIndex, content: obj.content });
+          }
+        } else if (obj.type === 'text' && obj.text) {
+          assistantBlocks.push({ index: lineIndex, content: obj.text });
+        }
+
+        lineIndex++;
+      } catch {
+        lineIndex++;
+      }
+    }
+  }
+
+  if (hasJsonl && assistantBlocks.length > 0) {
+    // Only include assistant messages after the last tool result
+    // This gives us the final response, not intermediate "I'll read the file" messages
+    const finalBlocks = lastToolIndex >= 0
+      ? assistantBlocks.filter(b => b.index > lastToolIndex)
+      : assistantBlocks;
+
+    if (finalBlocks.length > 0) {
+      return finalBlocks.map(b => b.content).join('');
+    }
+    // Fallback to all assistant blocks if nothing after tool results
+    return assistantBlocks.map(b => b.content).join('');
+  }
+
+  // Fallback: return raw output
+  return rawOutput.trim();
+}
+
+export class GeminiCliEngine implements Engine {
+  name = 'gemini-cli';
+
+  async isAvailable(): Promise<EngineAvailability> {
+    const d = await detectCli('gemini');
+    return { available: d.available, name: this.name, version: d.version };
+  }
+
+  async runStream(options: RunStreamOptions): Promise<RunStreamResult> {
+    const { promptPath, cwd, logDir, iteration, callbacks, model } = options;
+
+    await fs.mkdir(logDir, { recursive: true });
+
+    const { join } = await import('path');
+    const { createWriteStream } = await import('fs');
+
+    const jsonlPath = join(logDir, `iteration_${iteration}.jsonl`);
+    const normPath = join(logDir, `iteration_${iteration}.norm.jsonl`);
+    const stderrPath = join(logDir, `iteration_${iteration}.err`);
+
+    // Read the prompt content
+    let promptContent = await fs.readFile(promptPath, 'utf-8');
+    const originalPromptContent = promptContent;
+
+    // Emulate session support using conversation history
+    if (options.sessionId && options.resumeSession) {
+      const historyPath = join(logDir, `session_${options.sessionId}_history.json`);
+      try {
+        const historyData = await fs.readFile(historyPath, 'utf-8');
+        const history = JSON.parse(historyData);
+        let contextPrefix = '## Previous conversation context:\n\n';
+        for (const entry of history) {
+          contextPrefix += `### ${entry.role}:\n${entry.content}\n\n`;
+        }
+        promptContent = contextPrefix + '\n---\n\n## Current request:\n\n' + promptContent;
+      } catch {
+        // No history yet
+      }
+    }
+
+    const startTime = Date.now();
+
+    // Build Gemini CLI arguments for non-interactive mode
+    // -p: non-interactive prompt mode (reads from stdin when using -)
+    // --yolo: auto-approve all tool calls
+    // --output-format stream-json: structured output for streaming
+    const args = [
+      '-p', '-',      // Non-interactive, read prompt from stdin
+      '--yolo',       // Auto-approve tool calls
+      '--output-format', 'stream-json',
+    ];
+
+    args.push('-m', model || DEFAULT_GEMINI_MODEL);
+
+    const geminiPath = resolveCliPath('gemini');
+
+    const gemini = spawn(geminiPath, args, {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    const jsonlStream = createWriteStream(jsonlPath);
+    const normStream = createWriteStream(normPath);
+    const stderrStream = createWriteStream(stderrPath);
+
+    // Write initial engine metadata
+    try {
+      const meta = JSON.stringify({ type: 'system', subtype: 'qala-engine', engine: 'gemini-cli' });
+      jsonlStream.write(meta + '\n');
+    } catch {
+      // non-fatal
+    }
+
+    try {
+      const metaEvent = JSON.stringify({ type: 'metadata', data: { engine: 'gemini-cli', timestamp: new Date().toISOString() } });
+      normStream.write(metaEvent + '\n');
+    } catch {
+      // non-fatal
+    }
+
+    let output = '';
+    let isComplete = false;
+    let lineBuffer = '';
+    const seenTools = new Set<string>();
+    const normalizer = new GeminiStreamNormalizer();
+
+    const formatToolDetail = (name: string, input: Record<string, unknown>): string => {
+      switch (name) {
+        case 'Read':
+          return (input.file_path as string) || '';
+        case 'Grep': {
+          const pattern = input.pattern || '';
+          const path = input.path || '.';
+          return `pattern=${JSON.stringify(pattern)} in ${path}`;
+        }
+        case 'Glob':
+          return (input.pattern as string) || '';
+        case 'Bash': {
+          const cmd = (input.command as string) || '';
+          return cmd.length > 80 ? cmd.substring(0, 80) + '...' : cmd;
+        }
+        case 'Task':
+          return (input.description as string) || '';
+        case 'Edit':
+        case 'Write':
+          return (input.file_path as string) || '';
+        default: {
+          const desc = input.description as string;
+          if (desc) return desc;
+          const str = JSON.stringify(input);
+          return str.length > 60 ? str.substring(0, 60) + '...' : str;
+        }
+      }
+    };
+
+    gemini.stdout.on('data', (chunk: Buffer) => {
+      const text = chunk.toString();
+      jsonlStream.write(chunk);
+
+      lineBuffer += text;
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        // Normalize and write to .norm.jsonl
+        try {
+          const events = normalizer.normalize(line);
+          let hasJsonEvents = false;
+          for (const event of events) {
+            normStream.write(JSON.stringify(event) + '\n');
+            
+            if (event.type === 'text') {
+              output += event.content;
+              hasJsonEvents = true;
+              // Relay text to callback for live logs
+              if (callbacks?.onText) {
+                callbacks.onText(event.content);
+              }
+            } else if (event.type === 'tool_call') {
+              const toolId = event.id || `${event.name}-${Date.now()}`;
+              if (!seenTools.has(toolId)) {
+                seenTools.add(toolId);
+                if (callbacks?.onToolCall) {
+                  const detail = formatToolDetail(event.name, event.input);
+                  callbacks.onToolCall(event.name, detail);
+                }
+              }
+            } else if (event.type === 'tool_result') {
+              if (callbacks?.onToolResult) {
+                // For tool results, we just indicate success or brief summary
+                const summary = event.is_error ? `❌ Error in ${event.tool_use_id}` : `  ✓ result received`;
+                callbacks.onToolResult(summary);
+              }
+            }
+          }
+          // If normalizer treated it as text because it wasn't JSON
+          if (!hasJsonEvents && !line.trim().startsWith('{')) {
+            const textContent = line + '\n';
+            output += textContent;
+            if (callbacks?.onText) {
+              callbacks.onText(textContent);
+            }
+          }
+        } catch {
+          // If normalization fails, append raw line as a fallback
+          if (!line.trim().startsWith('{')) {
+            const textContent = line + '\n';
+            output += textContent;
+            if (callbacks?.onText) {
+              callbacks.onText(textContent);
+            }
+          }
+        }
+
+        if (line.includes('<promise>COMPLETE</promise>')) {
+          isComplete = true;
+        }
+      }
+    });
+
+    gemini.stdout.on('end', () => {
+      // Process remaining buffer
+      if (lineBuffer.trim()) {
+        const events = normalizer.normalize(lineBuffer.trim());
+        for (const event of events) {
+          normStream.write(JSON.stringify(event) + '\n');
+          if (event.type === 'text') {
+            output += event.content;
+            if (callbacks?.onText) {
+              callbacks.onText(event.content);
+            }
+          }
+        }
+      }
+      jsonlStream.end();
+      normStream.end();
+    });
+
+    gemini.stderr.pipe(stderrStream);
+
+    // Send prompt to stdin
+    gemini.stdin.write(promptContent);
+    gemini.stdin.end();
+
+    return new Promise((resolve) => {
+      gemini.on('close', async (code) => {
+        const durationMs = Date.now() - startTime;
+
+        // Save conversation history for session emulation
+        if (options.sessionId) {
+          const historyPath = join(logDir, `session_${options.sessionId}_history.json`);
+          let history: Array<{ role: string; content: string }> = [];
+          try {
+            history = JSON.parse(await fs.readFile(historyPath, 'utf-8'));
+          } catch { /* first entry */ }
+          history.push({ role: 'user', content: originalPromptContent });
+          history.push({ role: 'assistant', content: output });
+          await fs.writeFile(historyPath, JSON.stringify(history, null, 2));
+        }
+
+        resolve({
+          success: code === 0,
+          isComplete,
+          durationMs,
+          output,
+          jsonlPath,
+          stderrPath,
+          exitCode: code ?? -1,
+          claudePid: gemini.pid,
+          sessionId: options.sessionId,
+        });
+      });
+
+      gemini.on('error', (err) => {
+        const durationMs = Date.now() - startTime;
+        logger.debug(`Gemini spawn error: ${err.message}`, 'gemini-cli');
+        resolve({
+          success: false,
+          isComplete: false,
+          durationMs,
+          output: '',
+          jsonlPath,
+          stderrPath,
+          exitCode: -1,
+          claudePid: gemini.pid,
+        });
+      });
+    });
+  }
+
+  async runChat(options: RunChatOptions): Promise<RunChatResult> {
+    const { sessionId, message, cwd = process.cwd(), timeoutMs, isFirstMessage, specContent, specPath, onStreamLine, model } = options;
+
+    const { join } = await import('path');
+    const { extractSpecId, getSpecDir } = await import('../../spec-review/spec-metadata.js');
+
+    // Store Gemini conversation history in per-spec directory
+    let geminiDir: string;
+    if (specPath) {
+      const specId = extractSpecId(specPath);
+      const specDir = getSpecDir(cwd, specId);
+      geminiDir = join(specDir, 'gemini');
+    } else {
+      geminiDir = join(cwd, '.speki', 'engines', 'gemini', sessionId);
+    }
+
+    await fs.mkdir(geminiDir, { recursive: true });
+    const historyPath = join(geminiDir, 'history.json');
+    const normJsonlPath = join(geminiDir, `chat_${Date.now()}.norm.jsonl`);
+
+    interface ChatMessage {
+      role: 'user' | 'assistant';
+      content: string;
+    }
+
+    let history: ChatMessage[] = [];
+    try {
+      const historyData = await fs.readFile(historyPath, 'utf-8');
+      history = JSON.parse(historyData);
+    } catch {
+      // No history yet
+    }
+
+    history.push({ role: 'user', content: message });
+
+    // Build conversation prompt
+    let conversationPrompt = '';
+
+    if (specPath && isFirstMessage) {
+      conversationPrompt += `# Context\n\n`;
+      conversationPrompt += `You are helping review and discuss a specification document.\n`;
+      conversationPrompt += `The spec file is located at: ${specPath}\n\n`;
+
+      conversationPrompt += `## CRITICAL: Your Scope is SPEC REFINEMENT ONLY (PLANNING PHASE)\n\n`;
+      conversationPrompt += `You are part of a spec-first development workflow:\n`;
+      conversationPrompt += `1. **Planning Phase** (YOU ARE HERE): Write and refine specs\n`;
+      conversationPrompt += `2. **Decompose Phase**: Spec gets broken into implementation tasks\n`;
+      conversationPrompt += `3. **Execution Phase**: Task runner implements tasks one at a time\n\n`;
+      conversationPrompt += `**ABSOLUTELY FORBIDDEN:**\n`;
+      conversationPrompt += `- NEVER offer to implement: "Want me to implement?", "I can write the code..."\n`;
+      conversationPrompt += `- NEVER write code outside this spec file\n`;
+      conversationPrompt += `- NEVER ask leading questions about implementation\n\n`;
+      conversationPrompt += `**YOUR ALLOWED ACTIONS:** Answer questions, suggest spec improvements, edit THIS spec file when asked.\n\n`;
+      conversationPrompt += `If user mentions implementation, say: "Let's capture that in the spec. Once ready, use Decompose to generate tasks."\n\n`;
+
+      if (specContent) {
+        conversationPrompt += `## Specification Content\n\n${specContent}\n\n`;
+      }
+    }
+
+    conversationPrompt += '# Conversation History\n\n';
+    for (const msg of history) {
+      conversationPrompt += `**${msg.role}**: ${msg.content}\n\n`;
+    }
+
+    conversationPrompt += 'Please respond to the latest user message.';
+
+    // Save prompt for debugging
+    const promptPath = join(geminiDir, `prompt_${Date.now()}.md`);
+    await fs.writeFile(promptPath, conversationPrompt, 'utf-8').catch(() => {});
+
+    // Build Gemini CLI args for non-interactive chat
+    const geminiPath = resolveCliPath('gemini');
+    const args = [
+      '-p', '-',                       // Non-interactive, read from stdin
+      '--yolo',                        // Auto-approve tool calls
+      '--output-format', 'stream-json',
+    ];
+
+    args.push('-m', model || DEFAULT_GEMINI_MODEL);
+
+    const startTime = Date.now();
+
+    const gemini = spawn(geminiPath, args, {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    gemini.stdin?.write(conversationPrompt);
+    gemini.stdin?.end();
+
+    let response = '';
+    let lineBuffer = '';
+
+    const normalizer = new GeminiStreamNormalizer();
+    const normLines: string[] = [];
+
+    gemini.stdout.on('data', (chunk: Buffer) => {
+      const text = chunk.toString();
+      response += text;
+
+      if (onStreamLine) {
+        lineBuffer += text;
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim()) {
+            onStreamLine(line.trim());
+
+            const events = normalizer.normalize(line);
+            for (const event of events) {
+              normLines.push(JSON.stringify(event));
+            }
+          }
+        }
+      }
+    });
+
+    return new Promise((resolve) => {
+      const timeout = timeoutMs ?? 600000;
+      let resolved = false;
+
+      const resolveOnce = (result: RunChatResult) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timeoutId);
+        resolve(result);
+      };
+
+      const timeoutId = setTimeout(() => {
+        gemini.kill('SIGTERM');
+        resolveOnce({
+          content: '',
+          error: 'Chat timed out',
+          durationMs: Date.now() - startTime,
+        });
+      }, timeout);
+
+      gemini.on('close', async (code) => {
+        clearTimeout(timeoutId);
+        const durationMs = Date.now() - startTime;
+
+        // Flush remaining buffer
+        if (onStreamLine && lineBuffer.trim()) {
+          onStreamLine(lineBuffer.trim());
+          const events = normalizer.normalize(lineBuffer);
+          for (const event of events) {
+            normLines.push(JSON.stringify(event));
+          }
+        }
+
+        if (code === 0 && response) {
+          const parsedResponse = parseGeminiChatResponse(response);
+
+          history.push({ role: 'assistant', content: parsedResponse });
+          await fs.writeFile(historyPath, JSON.stringify(history, null, 2), 'utf-8').catch(() => {});
+
+          if (normLines.length > 0) {
+            await fs.writeFile(normJsonlPath, normLines.join('\n') + '\n', 'utf-8').catch(() => {});
+          }
+
+          resolveOnce({ content: parsedResponse, durationMs });
+        } else {
+          resolveOnce({
+            content: '',
+            error: response || 'No response from Gemini',
+            durationMs,
+          });
+        }
+      });
+
+      gemini.on('error', (err) => {
+        clearTimeout(timeoutId);
+        resolveOnce({
+          content: '',
+          error: `Failed to spawn Gemini: ${err.message}`,
+          durationMs: Date.now() - startTime,
+        });
+      });
+    });
+  }
+
+  async runReview(options: ReviewOptions): Promise<ReviewResult> {
+    const { prompt, outputPath, projectPath, timeoutMs, model } = options;
+    const timeout = timeoutMs ?? GEMINI_TIMEOUT_MS;
+
+    logger.debug(`runReview called (prompt length=${prompt.length}, projectPath=${projectPath})`, 'gemini-cli');
+    const startTime = Date.now();
+
+    return new Promise((resolve) => {
+      let stdout = '';
+      let stderr = '';
+      let timedOut = false;
+      let processExited = false;
+
+      logger.debug('Spawning Gemini CLI...', 'gemini-cli');
+      const geminiPath = resolveCliPath('gemini');
+
+      // Non-interactive mode, plain text output for review parsing
+      const args = [
+        '-p', '-',              // Read prompt from stdin
+        '--yolo',               // Auto-approve
+        '--output-format', 'json',
+      ];
+
+      args.push('-m', model || DEFAULT_GEMINI_MODEL);
+
+      const gemini: ChildProcess = spawn(geminiPath, args, {
+        cwd: projectPath,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      const timeoutId = setTimeout(() => {
+        if (!processExited) {
+          timedOut = true;
+          gemini.kill('SIGTERM');
+          setTimeout(() => {
+            if (!processExited) {
+              gemini.kill('SIGKILL');
+            }
+          }, 5000);
+        }
+      }, timeout);
+
+      gemini.stdout?.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString();
+      });
+
+      gemini.stderr?.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+
+      gemini.stdin?.write(prompt);
+      gemini.stdin?.end();
+
+      gemini.on('close', async (code) => {
+        processExited = true;
+        clearTimeout(timeoutId);
+        const durationMs = Date.now() - startTime;
+        const elapsed = (durationMs / 1000).toFixed(1);
+        logger.debug(`Gemini closed after ${elapsed}s, exit code: ${code}, stdout length: ${stdout.length}`, 'gemini-cli');
+
+        // Write raw output to file
+        try {
+          await fs.writeFile(outputPath, stdout);
+        } catch (writeError) {
+          stderr += `\nFailed to write output file: ${writeError}`;
+        }
+
+        if (timedOut) {
+          resolve({
+            success: false,
+            feedback: { verdict: 'FAIL', missingRequirements: [], contradictions: [], dependencyErrors: [], duplicates: [], suggestions: [] },
+            error: `Gemini CLI timed out after ${timeout / 1000} seconds`,
+            stdout,
+            stderr,
+            durationMs,
+          });
+          return;
+        }
+
+        if (code !== 0 && !stdout.trim()) {
+          resolve({
+            success: false,
+            feedback: { verdict: 'FAIL', missingRequirements: [], contradictions: [], dependencyErrors: [], duplicates: [], suggestions: [] },
+            error: `Gemini CLI exited with code ${code}. Stderr: ${stderr}`,
+            stdout,
+            stderr,
+            durationMs,
+          });
+          return;
+        }
+
+        // Extract the text content from Gemini JSON output
+        let textOutput = stdout.trim();
+        if (textOutput.startsWith('{')) {
+          try {
+            // gemini-cli can output multiple JSON objects if it uses tools or has multiple turns
+            // We want to extract all 'text' blocks or the 'response' field
+            const lines = textOutput.split('\n');
+            let combinedText = '';
+            let hasParsedAny = false;
+
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const parsed = JSON.parse(line.trim());
+                hasParsedAny = true;
+                if (parsed.response) {
+                  combinedText += parsed.response;
+                } else if (parsed.text) {
+                  combinedText += parsed.text;
+                }
+              } catch {
+                // Not a JSON line, maybe part of a multi-line JSON or just prose
+              }
+            }
+
+            if (hasParsedAny && combinedText) {
+              textOutput = combinedText;
+            } else {
+              // Try parsing the whole thing if line-by-line failed
+              const parsed = JSON.parse(textOutput);
+              if (parsed.response) textOutput = parsed.response;
+              else if (parsed.text) textOutput = parsed.text;
+            }
+          } catch {
+            // Not valid JSON, use stdout directly
+          }
+        }
+
+        const feedback = this.extractJson(textOutput);
+
+        if (!feedback) {
+          resolve({
+            success: false,
+            feedback: { verdict: 'FAIL', missingRequirements: [], contradictions: [], dependencyErrors: [], duplicates: [], suggestions: [] },
+            error: 'Reviewer output could not be parsed as JSON',
+            stdout,
+            stderr,
+            durationMs,
+          });
+          return;
+        }
+
+        if (!feedback.verdict) {
+          feedback.verdict = 'FAIL';
+        }
+
+        resolve({
+          success: code === 0,
+          feedback,
+          stdout,
+          stderr,
+          durationMs,
+        });
+      });
+
+      gemini.on('error', (err) => {
+        processExited = true;
+        clearTimeout(timeoutId);
+        const durationMs = Date.now() - startTime;
+        resolve({
+          success: false,
+          feedback: { verdict: 'FAIL', missingRequirements: [], contradictions: [], dependencyErrors: [], duplicates: [], suggestions: [] },
+          error: `Failed to spawn Gemini CLI: ${err.message}`,
+          stdout,
+          stderr,
+          durationMs,
+        });
+      });
+    });
+  }
+
+  private *findJsonCandidates(text: string): Generator<string> {
+    yield text.trim();
+
+    const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    if (codeBlockMatch) {
+      yield codeBlockMatch[1];
+    }
+
+    let start = text.indexOf('{');
+    while (start !== -1) {
+      let depth = 0;
+      for (let i = start; i < text.length; i++) {
+        if (text[i] === '{') depth++;
+        else if (text[i] === '}') {
+          depth--;
+          if (depth === 0) {
+            yield text.substring(start, i + 1);
+            break;
+          }
+        }
+      }
+      start = text.indexOf('{', start + 1);
+    }
+  }
+
+  private extractJson(text: string): ReviewFeedback | null {
+    for (const candidate of this.findJsonCandidates(text)) {
+      try {
+        const obj = JSON.parse(candidate) as Partial<ReviewFeedback>;
+        if ('verdict' in obj && obj.verdict) {
+          return {
+            verdict: obj.verdict,
+            missingRequirements: obj.missingRequirements ?? [],
+            contradictions: obj.contradictions ?? [],
+            dependencyErrors: obj.dependencyErrors ?? [],
+            duplicates: obj.duplicates ?? [],
+            suggestions: obj.suggestions ?? [],
+            taskGroupings: obj.taskGroupings,
+            standaloneTasks: obj.standaloneTasks,
+          };
+        }
+      } catch {
+        // Continue to next candidate
+      }
+    }
+
+    if (text.toUpperCase().includes('FAIL')) {
+      return {
+        verdict: 'FAIL',
+        missingRequirements: [{ id: 'parse-error-0', severity: 'critical', description: 'Review indicated failure but JSON not parseable' }],
+        contradictions: [],
+        dependencyErrors: [],
+        duplicates: [],
+        suggestions: [],
+      };
+    }
+
+    return null;
+  }
+}

@@ -774,6 +774,9 @@ export interface DecomposeReviewOptions {
   cwd?: string;
   /** Directory for log files */
   logDir?: string;
+  /** Preferred engine name and model (overrides settings/env) */
+  engineName?: string;
+  model?: string;
 }
 
 function aggregateDecomposeResults(results: FocusedPromptResult[]): ReviewFeedback {
@@ -837,7 +840,12 @@ export async function runDecomposeReview(
 
   for (const promptDef of DECOMPOSE_PROMPTS) {
     const fullPrompt = buildDecomposePrompt(promptDef.template, specContent, tasksJson);
-    const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, { disableTools: true, logDir });
+    const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, {
+      disableTools: true,
+      logDir,
+      engineName: options.engineName,
+      model: options.model,
+    });
     results.push(result);
   }
 
