@@ -162,8 +162,18 @@ export class GeminiCliEngine implements Engine {
     let output = '';
     let isComplete = false;
     let lineBuffer = '';
+    let pendingText = ''; // Buffer for onText callbacks to avoid too many small chunks
     const seenTools = new Set<string>();
     const normalizer = new GeminiStreamNormalizer();
+
+    const flushPendingText = () => {
+      if (pendingText) {
+        if (callbacks?.onText) {
+          callbacks.onText(pendingText);
+        }
+        pendingText = '';
+      }
+    };
 
     const formatToolDetail = (name: string, input: Record<string, unknown>): string => {
       switch (name) {
@@ -215,24 +225,31 @@ export class GeminiCliEngine implements Engine {
             if (event.type === 'text') {
               output += event.content;
               hasJsonEvents = true;
-              // Relay text to callback for live logs
-              if (callbacks?.onText) {
-                callbacks.onText(event.content);
+              
+              // Buffer text and flush on newlines to avoid too many small SSE events
+              pendingText += event.content;
+              if (pendingText.includes('\n')) {
+                flushPendingText();
               }
-            } else if (event.type === 'tool_call') {
-              const toolId = event.id || `${event.name}-${Date.now()}`;
-              if (!seenTools.has(toolId)) {
-                seenTools.add(toolId);
-                if (callbacks?.onToolCall) {
-                  const detail = formatToolDetail(event.name, event.input);
-                  callbacks.onToolCall(event.name, detail);
+            } else {
+              // Non-text event, flush any pending text first
+              flushPendingText();
+
+              if (event.type === 'tool_call') {
+                const toolId = event.id || `${event.name}-${Date.now()}`;
+                if (!seenTools.has(toolId)) {
+                  seenTools.add(toolId);
+                  if (callbacks?.onToolCall) {
+                    const detail = formatToolDetail(event.name, event.input);
+                    callbacks.onToolCall(event.name, detail);
+                  }
                 }
-              }
-            } else if (event.type === 'tool_result') {
-              if (callbacks?.onToolResult) {
-                // For tool results, we just indicate success or brief summary
-                const summary = event.is_error ? `❌ Error in ${event.tool_use_id}` : `  ✓ result received`;
-                callbacks.onToolResult(summary);
+              } else if (event.type === 'tool_result') {
+                if (callbacks?.onToolResult) {
+                  // For tool results, we just indicate success or brief summary
+                  const summary = event.is_error ? `❌ Error in ${event.tool_use_id}` : `  ✓ result received`;
+                  callbacks.onToolResult(summary);
+                }
               }
             }
           }
@@ -240,18 +257,16 @@ export class GeminiCliEngine implements Engine {
           if (!hasJsonEvents && !line.trim().startsWith('{')) {
             const textContent = line + '\n';
             output += textContent;
-            if (callbacks?.onText) {
-              callbacks.onText(textContent);
-            }
+            pendingText += textContent;
+            flushPendingText();
           }
         } catch {
           // If normalization fails, append raw line as a fallback
           if (!line.trim().startsWith('{')) {
             const textContent = line + '\n';
             output += textContent;
-            if (callbacks?.onText) {
-              callbacks.onText(textContent);
-            }
+            pendingText += textContent;
+            flushPendingText();
           }
         }
 
@@ -269,12 +284,11 @@ export class GeminiCliEngine implements Engine {
           normStream.write(JSON.stringify(event) + '\n');
           if (event.type === 'text') {
             output += event.content;
-            if (callbacks?.onText) {
-              callbacks.onText(event.content);
-            }
+            pendingText += event.content;
           }
         }
       }
+      flushPendingText();
       jsonlStream.end();
       normStream.end();
     });
@@ -288,6 +302,7 @@ export class GeminiCliEngine implements Engine {
     return new Promise((resolve) => {
       gemini.on('close', async (code) => {
         const durationMs = Date.now() - startTime;
+        flushPendingText();
 
         // Save conversation history for session emulation
         if (options.sessionId) {
