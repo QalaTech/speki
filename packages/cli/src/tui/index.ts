@@ -145,6 +145,11 @@ async function projectSettingsScreen(projectPath: string) {
   const project = new Project(projectPath);
   const config = await project.loadConfig();
 
+  if (!config) {
+    console.log(chalk.red('No project config found. Run qala init first.'));
+    return;
+  }
+
   console.log('');
   console.log(chalk.bold(`Project Settings: ${config.name}`));
   console.log(`  Project Engine: ${config.llm?.engine ?? '(use global default)'}`);
