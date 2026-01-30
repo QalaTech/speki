@@ -12,9 +12,14 @@ interface GeminiMessage {
   text?: string;
   thinking?: string;
   id?: string;
+  tool_id?: string;
+  tool_name?: string;
   role?: string;
   name?: string;
   input?: Record<string, unknown>;
+  parameters?: Record<string, unknown>;
+  status?: string;
+  output?: string;
   reason?: string;
   content?: string;
   message?: {
@@ -47,8 +52,8 @@ export class GeminiStreamNormalizer implements StreamNormalizer {
 
         if (obj.type === 'text' && obj.text) {
           events.push({ type: 'text', content: obj.text });
-        } else if ((obj.type === 'assistant' || obj.type === 'user' || (obj.type === 'message' && (obj.role === 'assistant' || obj.role === 'user'))) && (obj.content || obj.message?.content)) {
-          // Handle complex message format (similar to Claude) or flat format
+        } else if ((obj.type === 'assistant' || (obj.type === 'message' && obj.role === 'assistant')) && (obj.content || obj.message?.content)) {
+          // Only process assistant messages - ignore user messages that Gemini CLI may echo
           const content = obj.content || obj.message?.content;
           if (Array.isArray(content)) {
             for (const block of content) {
@@ -75,19 +80,22 @@ export class GeminiStreamNormalizer implements StreamNormalizer {
           }
         } else if (obj.type === 'thinking' && obj.thinking) {
           events.push({ type: 'thinking', content: obj.thinking });
-        } else if ((obj.type === 'tool_use' || obj.type === 'tool_call' || obj.type === 'call') && (obj.name || obj.toolCall?.name)) {
+        } else if ((obj.type === 'tool_use' || obj.type === 'tool_call' || obj.type === 'call') && (obj.tool_name || obj.name || obj.toolCall?.name)) {
+          // Handle Gemini CLI's actual field names: tool_name, tool_id, parameters
           events.push({
             type: 'tool_call',
-            id: obj.id || '',
-            name: obj.name || obj.toolCall?.name || '',
-            input: obj.input || obj.toolCall?.args || {},
+            id: obj.tool_id || obj.id || '',
+            name: obj.tool_name || obj.name || obj.toolCall?.name || '',
+            input: obj.parameters || obj.input || obj.toolCall?.args || {},
           });
-        } else if ((obj.type === 'tool_result' || obj.type === 'result' || obj.toolResult) && (obj.tool_use_id || obj.id)) {
+        } else if ((obj.type === 'tool_result' || obj.type === 'result' || obj.toolResult) && (obj.tool_id || obj.tool_use_id || obj.id)) {
+          // Handle Gemini CLI's actual field names: tool_id, status, output
+          const isError = obj.status === 'error' || !!obj.is_error;
           events.push({
             type: 'tool_result',
-            tool_use_id: obj.tool_use_id || obj.id || '',
-            content: typeof obj.content === 'string' ? obj.content : obj.toolResult?.output || '',
-            is_error: !!obj.is_error,
+            tool_use_id: obj.tool_id || obj.tool_use_id || obj.id || '',
+            content: obj.output || (typeof obj.content === 'string' ? obj.content : obj.toolResult?.output || ''),
+            is_error: isError,
           });
         } else if (obj.type === 'turn_complete' || obj.type === 'complete') {
           events.push({ type: 'complete', reason: obj.reason });

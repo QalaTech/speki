@@ -1,17 +1,53 @@
 import { ChildProcess, spawn } from 'child_process';
-import { promises as fs } from 'fs';
+import { promises as fs, createWriteStream } from 'fs';
+import { join } from 'path';
 import { Engine, EngineAvailability, RunStreamOptions, RunStreamResult, RunChatOptions, RunChatResult } from '../engine.js';
 import type { ReviewOptions, ReviewResult, ReviewFeedback } from '../../types/index.js';
 import { detectCli } from '../../cli-detect.js';
 import { resolveCliPath } from '../../cli-path.js';
 import { GeminiStreamNormalizer } from '../normalizers/gemini-normalizer.js';
 import * as logger from '../../logger.js';
+import { extractSpecId, getSpecDir } from '../../spec-review/spec-metadata.js';
 
 /** Timeout for Gemini CLI execution in milliseconds (5 minutes) */
 const GEMINI_TIMEOUT_MS = 300000;
 
 /** Default model to use when none is specified */
 const DEFAULT_GEMINI_MODEL = 'gemini-3-flash-preview';
+
+/** Maximum output size to prevent memory exhaustion (10MB) */
+const MAX_OUTPUT_SIZE = 10 * 1024 * 1024;
+
+/** Maximum stderr size (1MB) */
+const MAX_STDERR_SIZE = 1024 * 1024;
+
+/** Regex for extracting JSON from code blocks - hoisted for performance */
+const CODE_BLOCK_REGEX = /```(?:json)?\s*(\{[\s\S]*?\})\s*```/;
+
+/** Valid model name pattern to prevent command injection */
+const VALID_MODEL_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+
+/** Maximum normalized lines to prevent memory exhaustion in chat */
+const MAX_NORM_LINES = 10000;
+
+/** Maximum session history entries */
+const MAX_SESSION_HISTORY = 100;
+
+/**
+ * Build Gemini CLI spawn arguments
+ */
+function buildGeminiArgs(model?: string, outputFormat: 'stream-json' | 'json' = 'stream-json'): string[] {
+  const args = [
+    '-p', '-',                       // Non-interactive, read from stdin
+    '--yolo',                        // Auto-approve tool calls
+    '--output-format', outputFormat,
+  ];
+
+  const validatedModel = model && VALID_MODEL_PATTERN.test(model) ? model : DEFAULT_GEMINI_MODEL;
+  args.push('-m', validatedModel);
+
+  return args;
+}
 
 /**
  * Parse Gemini CLI output to extract the final assistant response.
@@ -92,9 +128,6 @@ export class GeminiCliEngine implements Engine {
 
     await fs.mkdir(logDir, { recursive: true });
 
-    const { join } = await import('path');
-    const { createWriteStream } = await import('fs');
-
     const jsonlPath = join(logDir, `iteration_${iteration}.jsonl`);
     const normPath = join(logDir, `iteration_${iteration}.norm.jsonl`);
     const stderrPath = join(logDir, `iteration_${iteration}.err`);
@@ -122,16 +155,7 @@ export class GeminiCliEngine implements Engine {
     const startTime = Date.now();
 
     // Build Gemini CLI arguments for non-interactive mode
-    // -p: non-interactive prompt mode (reads from stdin when using -)
-    // --yolo: auto-approve all tool calls
-    // --output-format stream-json: structured output for streaming
-    const args = [
-      '-p', '-',      // Non-interactive, read prompt from stdin
-      '--yolo',       // Auto-approve tool calls
-      '--output-format', 'stream-json',
-    ];
-
-    args.push('-m', model || DEFAULT_GEMINI_MODEL);
+    const args = buildGeminiArgs(model, 'stream-json');
 
     const geminiPath = resolveCliPath('gemini');
 
@@ -144,25 +168,32 @@ export class GeminiCliEngine implements Engine {
     const normStream = createWriteStream(normPath);
     const stderrStream = createWriteStream(stderrPath);
 
+    // Handle stream errors to prevent uncaught exceptions
+    jsonlStream.on('error', (err) => logger.debug(`jsonlStream error: ${err.message}`, 'gemini-cli'));
+    normStream.on('error', (err) => logger.debug(`normStream error: ${err.message}`, 'gemini-cli'));
+    stderrStream.on('error', (err) => logger.debug(`stderrStream error: ${err.message}`, 'gemini-cli'));
+
     // Write initial engine metadata
     try {
       const meta = JSON.stringify({ type: 'system', subtype: 'qala-engine', engine: 'gemini-cli' });
       jsonlStream.write(meta + '\n');
-    } catch {
-      // non-fatal
+    } catch (err) {
+      logger.debug(`Failed to write engine metadata: ${(err as Error).message}`, 'gemini-cli');
     }
 
     try {
       const metaEvent = JSON.stringify({ type: 'metadata', data: { engine: 'gemini-cli', timestamp: new Date().toISOString() } });
       normStream.write(metaEvent + '\n');
-    } catch {
-      // non-fatal
+    } catch (err) {
+      logger.debug(`Failed to write normalizer metadata: ${(err as Error).message}`, 'gemini-cli');
     }
 
     let output = '';
     let isComplete = false;
     let lineBuffer = '';
     let pendingText = ''; // Buffer for onText callbacks to avoid too many small chunks
+    let outputSize = 0;
+    let terminatedDueToSize = false;
     const seenTools = new Set<string>();
     const normalizer = new GeminiStreamNormalizer();
 
@@ -205,6 +236,15 @@ export class GeminiCliEngine implements Engine {
     };
 
     gemini.stdout.on('data', (chunk: Buffer) => {
+      if (terminatedDueToSize) return;
+      outputSize += chunk.length;
+      if (outputSize > MAX_OUTPUT_SIZE) {
+        terminatedDueToSize = true;
+        logger.warn(`Output exceeded ${MAX_OUTPUT_SIZE} bytes, terminating process`, 'gemini-cli');
+        gemini.kill('SIGTERM');
+        return;
+      }
+
       const text = chunk.toString();
       jsonlStream.write(chunk);
 
@@ -221,10 +261,10 @@ export class GeminiCliEngine implements Engine {
           let hasJsonEvents = false;
           for (const event of events) {
             normStream.write(JSON.stringify(event) + '\n');
+            hasJsonEvents = true;
             
             if (event.type === 'text') {
               output += event.content;
-              hasJsonEvents = true;
               
               // Buffer text and flush on newlines to avoid too many small SSE events
               pendingText += event.content;
@@ -246,8 +286,17 @@ export class GeminiCliEngine implements Engine {
                 }
               } else if (event.type === 'tool_result') {
                 if (callbacks?.onToolResult) {
-                  // For tool results, we just indicate success or brief summary
-                  const summary = event.is_error ? `❌ Error in ${event.tool_use_id}` : `  ✓ result received`;
+                  // Format tool result similar to Claude - show actual content when short
+                  const resultContent = event.content || '';
+                  let summary: string;
+                  if (event.is_error) {
+                    summary = `❌ Error: ${resultContent.substring(0, 200)}`;
+                  } else if (resultContent && resultContent.length < 500) {
+                    // Show short results with content
+                    summary = `  ✓ ${resultContent.substring(0, 100)}${resultContent.length > 100 ? '...' : ''}`;
+                  } else {
+                    summary = '  ✓ result received';
+                  }
                   callbacks.onToolResult(summary);
                 }
               }
@@ -304,6 +353,11 @@ export class GeminiCliEngine implements Engine {
         const durationMs = Date.now() - startTime;
         flushPendingText();
 
+        // Mark as incomplete if terminated due to size limit
+        if (terminatedDueToSize) {
+          isComplete = false;
+        }
+
         // Save conversation history for session emulation
         if (options.sessionId) {
           const historyPath = join(logDir, `session_${options.sessionId}_history.json`);
@@ -317,7 +371,7 @@ export class GeminiCliEngine implements Engine {
         }
 
         resolve({
-          success: code === 0,
+          success: code === 0 && !terminatedDueToSize,
           isComplete,
           durationMs,
           output,
@@ -332,6 +386,14 @@ export class GeminiCliEngine implements Engine {
       gemini.on('error', (err) => {
         const durationMs = Date.now() - startTime;
         logger.debug(`Gemini spawn error: ${err.message}`, 'gemini-cli');
+        // Ensure process is killed on error
+        if (!gemini.killed) {
+          gemini.kill('SIGKILL');
+        }
+        // Clean up streams on error
+        jsonlStream.end();
+        normStream.end();
+        stderrStream.end();
         resolve({
           success: false,
           isComplete: false,
@@ -348,9 +410,6 @@ export class GeminiCliEngine implements Engine {
 
   async runChat(options: RunChatOptions): Promise<RunChatResult> {
     const { sessionId, message, cwd = process.cwd(), timeoutMs, isFirstMessage, specContent, specPath, onStreamLine, model } = options;
-
-    const { join } = await import('path');
-    const { extractSpecId, getSpecDir } = await import('../../spec-review/spec-metadata.js');
 
     // Store Gemini conversation history in per-spec directory
     let geminiDir: string;
@@ -375,6 +434,10 @@ export class GeminiCliEngine implements Engine {
     try {
       const historyData = await fs.readFile(historyPath, 'utf-8');
       history = JSON.parse(historyData);
+      // Limit history size to prevent unbounded growth
+      if (history.length > MAX_SESSION_HISTORY) {
+        history = history.slice(-MAX_SESSION_HISTORY);
+      }
     } catch {
       // No history yet
     }
@@ -415,17 +478,13 @@ export class GeminiCliEngine implements Engine {
 
     // Save prompt for debugging
     const promptPath = join(geminiDir, `prompt_${Date.now()}.md`);
-    await fs.writeFile(promptPath, conversationPrompt, 'utf-8').catch(() => {});
+    await fs.writeFile(promptPath, conversationPrompt, 'utf-8').catch((err) => {
+      logger.debug(`Failed to save prompt for debugging: ${(err as Error).message}`, 'gemini-cli');
+    });
 
     // Build Gemini CLI args for non-interactive chat
     const geminiPath = resolveCliPath('gemini');
-    const args = [
-      '-p', '-',                       // Non-interactive, read from stdin
-      '--yolo',                        // Auto-approve tool calls
-      '--output-format', 'stream-json',
-    ];
-
-    args.push('-m', model || DEFAULT_GEMINI_MODEL);
+    const args = buildGeminiArgs(model, 'stream-json');
 
     const startTime = Date.now();
 
@@ -442,6 +501,7 @@ export class GeminiCliEngine implements Engine {
 
     const normalizer = new GeminiStreamNormalizer();
     const normLines: string[] = [];
+    let normLinesTruncated = false;
 
     gemini.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
@@ -458,7 +518,12 @@ export class GeminiCliEngine implements Engine {
 
             const events = normalizer.normalize(line);
             for (const event of events) {
-              normLines.push(JSON.stringify(event));
+              if (normLines.length < MAX_NORM_LINES) {
+                normLines.push(JSON.stringify(event));
+              } else if (!normLinesTruncated) {
+                normLinesTruncated = true;
+                logger.debug(`Normalized lines exceeded ${MAX_NORM_LINES}, truncating`, 'gemini-cli');
+              }
             }
           }
         }
@@ -494,7 +559,9 @@ export class GeminiCliEngine implements Engine {
           onStreamLine(lineBuffer.trim());
           const events = normalizer.normalize(lineBuffer);
           for (const event of events) {
-            normLines.push(JSON.stringify(event));
+            if (normLines.length < MAX_NORM_LINES) {
+              normLines.push(JSON.stringify(event));
+            }
           }
         }
 
@@ -502,10 +569,14 @@ export class GeminiCliEngine implements Engine {
           const parsedResponse = parseGeminiChatResponse(response);
 
           history.push({ role: 'assistant', content: parsedResponse });
-          await fs.writeFile(historyPath, JSON.stringify(history, null, 2), 'utf-8').catch(() => {});
+          await fs.writeFile(historyPath, JSON.stringify(history, null, 2), 'utf-8').catch((err) => {
+            logger.debug(`Failed to write chat history: ${(err as Error).message}`, 'gemini-cli');
+          });
 
           if (normLines.length > 0) {
-            await fs.writeFile(normJsonlPath, normLines.join('\n') + '\n', 'utf-8').catch(() => {});
+            await fs.writeFile(normJsonlPath, normLines.join('\n') + '\n', 'utf-8').catch((err) => {
+              logger.debug(`Failed to write normalized output: ${(err as Error).message}`, 'gemini-cli');
+            });
           }
 
           resolveOnce({ content: parsedResponse, durationMs });
@@ -537,33 +608,31 @@ export class GeminiCliEngine implements Engine {
     const startTime = Date.now();
 
     return new Promise((resolve) => {
-      let stdout = '';
-      let stderr = '';
+      const stdoutChunks: string[] = [];
+      const stderrChunks: string[] = [];
+      const stderrWriteErrors: string[] = [];
+      let stdoutSize = 0;
+      let stderrSize = 0;
       let timedOut = false;
       let processExited = false;
 
       logger.debug('Spawning Gemini CLI...', 'gemini-cli');
       const geminiPath = resolveCliPath('gemini');
 
-      // Non-interactive mode, plain text output for review parsing
-      const args = [
-        '-p', '-',              // Read prompt from stdin
-        '--yolo',               // Auto-approve
-        '--output-format', 'json',
-      ];
-
-      args.push('-m', model || DEFAULT_GEMINI_MODEL);
+      const args = buildGeminiArgs(model, 'json');
 
       const gemini: ChildProcess = spawn(geminiPath, args, {
         cwd: projectPath,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
+      // Ensure process cleanup on timeout
+      let killTimeout: NodeJS.Timeout | null = null;
       const timeoutId = setTimeout(() => {
         if (!processExited) {
           timedOut = true;
           gemini.kill('SIGTERM');
-          setTimeout(() => {
+          killTimeout = setTimeout(() => {
             if (!processExited) {
               gemini.kill('SIGKILL');
             }
@@ -572,11 +641,19 @@ export class GeminiCliEngine implements Engine {
       }, timeout);
 
       gemini.stdout?.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString();
+        const str = chunk.toString();
+        if (stdoutSize < MAX_OUTPUT_SIZE) {
+          stdoutChunks.push(str);
+          stdoutSize += str.length;
+        }
       });
 
       gemini.stderr?.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString();
+        const str = chunk.toString();
+        if (stderrSize < MAX_STDERR_SIZE) {
+          stderrChunks.push(str);
+          stderrSize += str.length;
+        }
       });
 
       gemini.stdin?.write(prompt);
@@ -585,6 +662,10 @@ export class GeminiCliEngine implements Engine {
       gemini.on('close', async (code) => {
         processExited = true;
         clearTimeout(timeoutId);
+        if (killTimeout) clearTimeout(killTimeout);
+        
+        const stdout = stdoutChunks.join('');
+        let stderr = stderrChunks.join('');
         const durationMs = Date.now() - startTime;
         const elapsed = (durationMs / 1000).toFixed(1);
         logger.debug(`Gemini closed after ${elapsed}s, exit code: ${code}, stdout length: ${stdout.length}`, 'gemini-cli');
@@ -593,8 +674,10 @@ export class GeminiCliEngine implements Engine {
         try {
           await fs.writeFile(outputPath, stdout);
         } catch (writeError) {
-          stderr += `\nFailed to write output file: ${writeError}`;
+          stderrWriteErrors.push(`Failed to write output file: ${writeError}`);
         }
+        
+        const fullStderr = stderr + (stderrWriteErrors.length > 0 ? '\n' + stderrWriteErrors.join('\n') : '');
 
         if (timedOut) {
           resolve({
@@ -602,7 +685,7 @@ export class GeminiCliEngine implements Engine {
             feedback: { verdict: 'FAIL', missingRequirements: [], contradictions: [], dependencyErrors: [], duplicates: [], suggestions: [] },
             error: `Gemini CLI timed out after ${timeout / 1000} seconds`,
             stdout,
-            stderr,
+            stderr: fullStderr,
             durationMs,
           });
           return;
@@ -612,9 +695,9 @@ export class GeminiCliEngine implements Engine {
           resolve({
             success: false,
             feedback: { verdict: 'FAIL', missingRequirements: [], contradictions: [], dependencyErrors: [], duplicates: [], suggestions: [] },
-            error: `Gemini CLI exited with code ${code}. Stderr: ${stderr}`,
+            error: `Gemini CLI exited with code ${code}. Stderr: ${fullStderr}`,
             stdout,
-            stderr,
+            stderr: fullStderr,
             durationMs,
           });
           return;
@@ -627,7 +710,7 @@ export class GeminiCliEngine implements Engine {
             // gemini-cli can output multiple JSON objects if it uses tools or has multiple turns
             // We want to extract all 'text' blocks or the 'response' field
             const lines = textOutput.split('\n');
-            let combinedText = '';
+            const textParts: string[] = [];
             let hasParsedAny = false;
 
             for (const line of lines) {
@@ -636,17 +719,17 @@ export class GeminiCliEngine implements Engine {
                 const parsed = JSON.parse(line.trim());
                 hasParsedAny = true;
                 if (parsed.response) {
-                  combinedText += parsed.response;
+                  textParts.push(parsed.response);
                 } else if (parsed.text) {
-                  combinedText += parsed.text;
+                  textParts.push(parsed.text);
                 }
               } catch {
                 // Not a JSON line, maybe part of a multi-line JSON or just prose
               }
             }
 
-            if (hasParsedAny && combinedText) {
-              textOutput = combinedText;
+            if (hasParsedAny && textParts.length > 0) {
+              textOutput = textParts.join('');
             } else {
               // Try parsing the whole thing if line-by-line failed
               const parsed = JSON.parse(textOutput);
@@ -666,7 +749,7 @@ export class GeminiCliEngine implements Engine {
             feedback: { verdict: 'FAIL', missingRequirements: [], contradictions: [], dependencyErrors: [], duplicates: [], suggestions: [] },
             error: 'Reviewer output could not be parsed as JSON',
             stdout,
-            stderr,
+            stderr: fullStderr,
             durationMs,
           });
           return;
@@ -680,7 +763,7 @@ export class GeminiCliEngine implements Engine {
           success: code === 0,
           feedback,
           stdout,
-          stderr,
+          stderr: fullStderr,
           durationMs,
         });
       });
@@ -693,8 +776,8 @@ export class GeminiCliEngine implements Engine {
           success: false,
           feedback: { verdict: 'FAIL', missingRequirements: [], contradictions: [], dependencyErrors: [], duplicates: [], suggestions: [] },
           error: `Failed to spawn Gemini CLI: ${err.message}`,
-          stdout,
-          stderr,
+          stdout: stdoutChunks.join(''),
+          stderr: stderrChunks.join(''),
           durationMs,
         });
       });
@@ -704,7 +787,7 @@ export class GeminiCliEngine implements Engine {
   private *findJsonCandidates(text: string): Generator<string> {
     yield text.trim();
 
-    const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    const codeBlockMatch = CODE_BLOCK_REGEX.exec(text);
     if (codeBlockMatch) {
       yield codeBlockMatch[1];
     }
