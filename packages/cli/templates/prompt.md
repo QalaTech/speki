@@ -283,22 +283,29 @@ If you discover reusable patterns, add them to the TOP of progress.txt under `##
 
 ---
 
-## Stop Condition
+## Stop Condition - CRITICAL
 
-After marking the current task complete with `qala tasks complete <id>`, run `qala tasks next` again to check if there are more tasks.
+**STOP AFTER COMPLETING ONE TASK.** You are running inside an orchestration loop that manages context windows.
 
-**If `qala tasks next` returns `{ "complete": true }`**, reply with ONLY:
+After marking the current task complete with `qala tasks complete <id>`:
 
-```
-<promise>COMPLETE</promise>
-```
+1. Run `qala tasks next` to check if there are more tasks
+2. **If it returns `{ "complete": true }`**, reply with ONLY: `<promise>COMPLETE</promise>`
+3. **If there are more tasks**, reply with a brief summary like "Task [ID] completed. Ready for next iteration." and **STOP IMMEDIATELY**.
 
-**Otherwise**, end your response normally. The loop will automatically continue with the next task - do NOT start working on the next task yourself.
+**DO NOT:**
+- ❌ Start working on the next task
+- ❌ Read the next task's requirements
+- ❌ Write any code for the next task
+- ❌ Run any commands for the next task
+
+**WHY:** The outer loop will start a fresh context window for the next task. Starting it yourself wastes context and causes duplicate work.
 
 ---
 
 ## Critical Reminders
 
+- **ONE TASK PER SESSION** - Complete the current task, commit, then STOP. Do NOT start the next task.
 - Complete the **current task** from `qala tasks next`
 - **READ peer_feedback.json** at start - check for blocking issues and relevant suggestions
 - **TDD: Write tests FIRST, confirm they fail, then implement, then refactor** - this is the workflow
