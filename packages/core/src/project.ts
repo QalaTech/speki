@@ -409,9 +409,16 @@ export class Project {
   }
 
   // Config operations
-  async loadConfig(): Promise<ProjectConfig> {
-    const content = await readFile(this.configPath, 'utf-8');
-    return JSON.parse(content) as ProjectConfig;
+  async loadConfig(): Promise<ProjectConfig | null> {
+    try {
+      const content = await readFile(this.configPath, 'utf-8');
+      return JSON.parse(content) as ProjectConfig;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
   }
 
   async saveConfig(config: ProjectConfig): Promise<void> {
