@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { SpecTree } from './SpecTree';
-import { SpecHeader, type SpecTab } from './SpecHeader';
+import { SpecHeader } from './SpecHeader';
 import { type SpecEditorRef } from '../shared/SpecEditor';
 import { SpecDecomposeTab } from './SpecDecomposeTab';
 import { DiffOverlay } from './DiffOverlay';
@@ -23,7 +23,6 @@ import type { WorkflowPhase } from './SpecStepper';
 import {
   MagnifyingGlassIcon,
   ChevronLeftIcon,
-  ChevronUpIcon,
   ChevronDownIcon,
   RocketLaunchIcon,
   SparklesIcon,
@@ -69,8 +68,6 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     }, { replace: true });
   }, [setSearchParams]);
 
-  // Legacy tab state (kept for SpecHeader interface compatibility)
-  const [activeTab, setActiveTab] = useState<SpecTab>('preview');
   const editorRef = useRef<SpecEditorRef>(null);
 
   // Review panel drawer state
@@ -214,7 +211,6 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
   // Reset state when project or spec changes
   useEffect(() => {
-    setActiveTab('preview');
     setIsChatOpen(false);
     setDiscussingContext(null);
     setShowDecomposeInline(false);
@@ -264,11 +260,14 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
     const specId = selectedPath.split('/').pop()?.replace(/\.md$/i, '') || '';
     const params = new URLSearchParams({ project: projectPath });
+    let isStale = false;
 
     // Check queue for active or completed tasks
     apiFetch(`/api/queue/with-tasks?${params}`)
       .then(res => res.json())
       .then(data => {
+        if (isStale) return;
+        
         const specTasks = (data.queue || []).filter(
           (t: { specId: string }) => t.specId === specId
         );
@@ -283,17 +282,21 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
         setIsExecuting(hasActive);
         setIsSpecCompleted(!hasActive && allCompleted);
       })
-      .catch(() => {});
+      .catch(err => console.error('Failed to fetch queue status:', err));
 
     // Also check decompose draft status for completed specs
     apiFetch(`/api/decompose/draft?specPath=${encodeURIComponent(selectedPath)}&project=${encodeURIComponent(projectPath)}`)
       .then(res => res.json())
       .then(data => {
+        if (isStale) return;
+        
         if (data.draft?.status === 'completed') {
           setIsSpecCompleted(true);
         }
       })
-      .catch(() => {});
+      .catch(err => console.error('Failed to fetch decompose status:', err));
+
+    return () => { isStale = true; };
   }, [selectedPath, projectPath]);
 
   // Compute workflow phase
@@ -308,18 +311,37 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     navigate(`/execution/kanban?project=${encodeURIComponent(projectPath)}`);
   }, [navigate, projectPath]);
 
+  const scrollToPlanContent = useCallback((shouldOpenSection = false) => {
+    const doScroll = () => {
+      const container = document.getElementById('spec-scroll-container');
+      const content = document.getElementById('plan-content');
+      if (!container || !content) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const contentRect = content.getBoundingClientRect();
+      
+      const scrollNeeded = contentRect.top - containerRect.top - 100;
+      const targetScroll = container.scrollTop + scrollNeeded;
+      
+      container.scrollTo({ top: targetScroll, behavior: 'smooth' });
+    };
+
+    if (shouldOpenSection && !isPlanSectionOpen) {
+      setIsPlanSectionOpen(true);
+      requestAnimationFrame(() => setTimeout(doScroll, 150));
+    } else {
+      doScroll();
+    }
+  }, [isPlanSectionOpen]);
+
   const handlePhaseClick = useCallback((phase: WorkflowPhase) => {
     if (phase === "plan") {
-      setIsPlanSectionOpen(true);
-      // Scroll to plan section
-      const planSection = document.getElementById('plan-section');
-      planSection?.scrollIntoView({ behavior: 'smooth' });
+      scrollToPlanContent(true);
     } else if (phase === "write") {
-      // Scroll to top
-      const editorSection = document.getElementById('editor-section');
-      editorSection?.scrollIntoView({ behavior: 'smooth' });
+      const container = document.getElementById('spec-scroll-container');
+      container?.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  }, []);
+  }, [scrollToPlanContent]);
 
   // Render the main content area
   const renderContent = () => {
@@ -362,16 +384,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
       <button
         id="plan-section"
         className="flex items-center justify-between w-full px-6 py-3 hover:bg-muted transition-colors bg-card border-t border-border/30"
-        onClick={() => {
-          if (isPlanSectionOpen) {
-            setIsPlanSectionOpen(false);
-          } else {
-            setIsPlanSectionOpen(true);
-            requestAnimationFrame(() => {
-              document.getElementById('plan-content')?.scrollIntoView({ behavior: 'smooth' });
-            });
-          }
-        }}
+        onClick={() => scrollToPlanContent(!isPlanSectionOpen)}
       >
         <div className="flex items-center gap-3">
           <div className="p-1.5 rounded-lg bg-primary/10 ring-1 ring-primary/20">
@@ -386,18 +399,14 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
             </Badge>
           )}
         </div>
-        {isPlanSectionOpen ? (
-          <ChevronUpIcon className="h-4 w-4 text-muted-foreground" />
-        ) : (
-          <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
-        )}
+        <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
       </button>
     ) : null;
 
     // Single scrollable view with editor + plan sections
     return (
       <div className="relative flex flex-col h-full">
-        <div className="flex flex-col flex-1 overflow-y-auto min-h-0">
+        <div id="spec-scroll-container" className="flex flex-col flex-1 overflow-y-auto min-h-0">
           {/* Editor Section */}
           <div id="editor-section" className="flex-shrink-0">
             <SpecExplorerPreviewTab
@@ -521,8 +530,6 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
             <SpecHeader
               fileName={selectedFileName}
               filePath={selectedPath}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
               reviewStatus={getReviewStatus()}
               hasUnsavedChanges={hasUnsavedChanges}
               isEditMode={isEditing}

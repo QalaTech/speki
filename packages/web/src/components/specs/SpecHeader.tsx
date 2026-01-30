@@ -27,8 +27,6 @@ function formatSpecTitle(filename: string): string {
 interface SpecHeaderProps {
   fileName: string;
   filePath: string;
-  activeTab: SpecTab;
-  onTabChange: (tab: SpecTab) => void;
   reviewStatus?: "reviewed" | "pending" | "god-spec" | "in-progress" | "none";
   hasUnsavedChanges?: boolean;
   isEditMode?: boolean;
@@ -132,8 +130,6 @@ function StatusBadge({ status }: { status?: string }) {
 export function SpecHeader({
   fileName,
   filePath: _filePath,
-  activeTab: _activeTab,
-  onTabChange: _onTabChange,
   reviewStatus,
   hasUnsavedChanges,
   isEditMode,
