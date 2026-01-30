@@ -46,6 +46,7 @@ interface Props {
   onQuickExecute?: () => void;
   isGeneratingTechSpec?: boolean;
   onDecomposeComplete?: () => void;
+  onRunQueue?: () => void;
 }
 
 // Derive specId from specPath (filename without .md extension, but keep .tech/.prd/.bug)
@@ -122,6 +123,7 @@ export function SpecDecomposeTab({
   projectPath,
   specType = "prd",
   onDecomposeComplete,
+  onRunQueue,
 }: Props) {
   const specId = useMemo(() => getSpecId(specPath), [specPath]);
   const [stories, setStories] = useState<UserStory[]>([]);
@@ -447,6 +449,9 @@ export function SpecDecomposeTab({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ specId }),
       });
+
+      // Navigate to execution view
+      onRunQueue?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
