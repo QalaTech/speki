@@ -292,6 +292,46 @@ router.get('/review-log', async (req, res) => {
 });
 
 /**
+ * GET /api/decompose/decompose-review
+ * Get the latest decompose review JSON for a specific spec.
+ * Query params: specPath (required) - path to the spec file
+ */
+router.get('/decompose-review', async (req, res) => {
+  try {
+    const specPath = req.query.specPath as string;
+    if (!specPath) {
+      return res.status(400).json({ error: 'specPath query parameter is required' });
+    }
+
+    const specId = extractSpecId(specPath);
+    const logsDir = getSpecLogsDir(req.projectPath!, specId);
+
+    let files: string[];
+    try {
+      files = await fs.readdir(logsDir);
+    } catch {
+      return res.json({ review: null });
+    }
+
+    // Find decompose-review JSON files and sort by timestamp (newest first)
+    const reviewFiles = files
+      .filter(f => f.startsWith('decompose-review-') && f.endsWith('.json'))
+      .sort()
+      .reverse();
+
+    if (reviewFiles.length === 0) {
+      return res.json({ review: null });
+    }
+
+    const content = await fs.readFile(join(logsDir, reviewFiles[0]), 'utf-8');
+    const review = JSON.parse(content);
+    res.json({ review });
+  } catch {
+    res.json({ review: null });
+  }
+});
+
+/**
  * DELETE /api/decompose/draft/task/:taskId
  * Delete a task from the draft
  * Query params: specPath (required) - path to the spec file

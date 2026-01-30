@@ -312,7 +312,7 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    const projectName = name || (await project.loadConfig()).name;
+    const projectName = name || (await project.loadConfig())?.name || 'Unknown';
     await Registry.register(projectPath, projectName);
     const projects = await Registry.list();
     publishProjects('projects/updated', projects);

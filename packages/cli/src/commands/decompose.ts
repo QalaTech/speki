@@ -42,7 +42,7 @@ export const decomposeCommand = new Command('decompose')
         const result = await runDecompose(project, {
           prdFile: resolvedPrdFile,
           branchName: options.branch,
-          language: options.language || config.language,
+          language: options.language || config?.language,
           outputName: options.output,
           freshStart: options.fresh,
           forceRedecompose: options.redecompose,

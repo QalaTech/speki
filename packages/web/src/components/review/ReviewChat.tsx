@@ -88,6 +88,7 @@ export interface ReviewChatProps {
     message: string,
     selectionContext?: string,
     suggestionId?: string,
+    discussingContext?: DiscussingContext | null,
   ) => Promise<void>;
   /** Callback to clear discussing context */
   onClearDiscussingContext?: () => void;
@@ -221,7 +222,7 @@ export function ReviewChat({
     // Pick initial quirky message for streaming
     pickRandomQuirky();
 
-    await onSendMessage(message, selectedText, discussingContext?.suggestionId);
+    await onSendMessage(message, selectedText, discussingContext?.suggestionId, discussingContext);
 
     // Clear streaming state after response completes
     setTimeout(() => {
