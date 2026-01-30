@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
 import type {
   AllCliDetectionResults,
   AllModelDetectionResults,
@@ -6,7 +7,17 @@ import type {
   CliType,
   ReasoningEffort
 } from '../types.js';
-import { Alert, Loading, apiFetch } from '../components/ui';
+import {
+  Alert,
+  Loading,
+  apiFetch,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Switch
+} from '../components/ui';
 import { Button } from '../components/ui/Button';
 
 /** Valid reasoning effort levels for Codex */
@@ -93,6 +104,7 @@ function CliStatusCard({ cliDetection }: { cliDetection: AllCliDetectionResults 
               {[
                 { name: 'Claude', data: cliDetection.claude },
                 { name: 'Codex', data: cliDetection.codex },
+                ...(cliDetection.gemini ? [{ name: 'Gemini', data: cliDetection.gemini }] : []),
               ].map(({ name, data }) => (
                 <div
                   key={name}
@@ -153,8 +165,6 @@ export function SettingsView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   const fetchCliDetection = useCallback(async (): Promise<AllCliDetectionResults | null> => {
     const cached = getCachedCliDetection();
@@ -228,8 +238,8 @@ export function SettingsView() {
         setKeepAwake(currentSettings.execution?.keepAwake ?? true);
       }
 
-      if (detection && !detection.codex.available && !detection.claude.available) {
-        setError('No CLI tools are available. Please install Codex or Claude CLI.');
+      if (detection && !detection.codex?.available && !detection.claude?.available && !detection.gemini?.available) {
+        setError('No CLI tools are available. Please install Codex, Claude, or Gemini CLI.');
       }
 
       setLoading(false);
@@ -240,8 +250,6 @@ export function SettingsView() {
 
   const handleSave = async () => {
     setSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
 
     try {
       const res = await apiFetch('/api/settings', {
@@ -283,10 +291,9 @@ export function SettingsView() {
       if (!res.ok) throw new Error(data.error || 'Failed to save settings');
 
       setSettings(data.settings);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      toast.success('Settings saved successfully');
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save settings');
+      toast.error(err instanceof Error ? err.message : 'Failed to save settings');
     } finally {
       setSaving(false);
     }
@@ -295,8 +302,9 @@ export function SettingsView() {
   const getAvailableClis = (): CliType[] => {
     if (!cliDetection) return [];
     const available: CliType[] = [];
-    if (cliDetection.codex.available) available.push('codex');
-    if (cliDetection.claude.available) available.push('claude');
+    if (cliDetection.codex?.available) available.push('codex');
+    if (cliDetection.claude?.available) available.push('claude');
+    if (cliDetection.gemini?.available) available.push('gemini');
     return available;
   };
 
@@ -313,55 +321,73 @@ export function SettingsView() {
     placeholder: string
   ) => (
     <>
-      <ConfigField label="Agent">
-        <select
-          className="select select-bordered select-sm w-full"
-          value={agentValue}
-          onChange={(e) => setAgent(e.target.value as CliType)}
-          disabled={availableClis.length === 0 || saving}
-        >
-          {availableClis.length === 0 ? (
-            <option value="">No agents available</option>
-          ) : (
-            availableClis.map((cli) => (
-              <option key={cli} value={cli}>
-                {cli.charAt(0).toUpperCase() + cli.slice(1)}
-              </option>
-            ))
-          )}
-        </select>
-      </ConfigField>
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <ConfigField label="Agent">
+            <SelectRoot
+              value={agentValue}
+              onValueChange={(v) => setAgent(v as CliType)}
+              disabled={availableClis.length === 0 || saving}
+            >
+              <SelectTrigger className="w-full h-8 text-sm">
+                <SelectValue placeholder="Select agent" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableClis.length === 0 ? (
+                  <SelectItem value="none" disabled>No agents available</SelectItem>
+                ) : (
+                  availableClis.map((cli) => (
+                    <SelectItem key={cli} value={cli}>
+                      {cli.charAt(0).toUpperCase() + cli.slice(1)}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </SelectRoot>
+          </ConfigField>
+        </div>
 
-      <ConfigField label="Model">
-        <select
-          className="select select-bordered select-sm w-full"
-          value={modelValue}
-          onChange={(e) => setModel(e.target.value)}
-          disabled={saving}
-        >
-          <option value="">{placeholder}</option>
-          {modelDetection && modelDetection[agentValue]?.models.map((model) => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
-        </select>
-      </ConfigField>
+        <div className="flex-1">
+          <ConfigField label="Model">
+            <SelectRoot
+              value={modelValue || "__default__"}
+              onValueChange={(v) => setModel(v === "__default__" ? "" : v)}
+              disabled={saving}
+            >
+              <SelectTrigger className="w-full h-8 text-sm">
+                <SelectValue placeholder={placeholder} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__default__">{placeholder}</SelectItem>
+                {modelDetection && modelDetection[agentValue]?.models.map((model) => (
+                  <SelectItem key={model} value={model}>
+                    {model}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </SelectRoot>
+          </ConfigField>
+        </div>
+      </div>
 
       {agentValue === 'codex' && (
         <ConfigField label="Reasoning Effort">
-          <select
-            className="select select-bordered select-sm w-full"
+          <SelectRoot
             value={reasoningValue}
-            onChange={(e) => setReasoning(e.target.value as ReasoningEffort)}
+            onValueChange={(v) => setReasoning(v as ReasoningEffort)}
             disabled={saving}
           >
-            {REASONING_EFFORTS.map((effort) => (
-              <option key={effort} value={effort}>
-                {effort.charAt(0).toUpperCase() + effort.slice(1)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full h-8 text-sm">
+              <SelectValue placeholder="Select reasoning effort" />
+            </SelectTrigger>
+            <SelectContent>
+              {REASONING_EFFORTS.map((effort) => (
+                <SelectItem key={effort} value={effort}>
+                  {effort.charAt(0).toUpperCase() + effort.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </SelectRoot>
         </ConfigField>
       )}
     </>
@@ -378,151 +404,200 @@ export function SettingsView() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-6 overflow-y-auto h-full min-h-0">
-      {/* Header with CLI Status and Save Button */}
-      <div className="flex flex-col gap-4 mb-2">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h2 className="m-0 mb-1 text-2xl font-semibold">Settings</h2>
-            <p className="m-0 text-sm text-muted-foreground">Configure agents and models for different tasks</p>
-          </div>
-          <div className="flex items-center gap-3">
+    <div className="flex flex-col h-full min-h-0">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto p-6 pb-24">
+        <div className="flex flex-col gap-4 max-w-5xl mx-auto">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-2">
+            <div>
+              <h2 className="m-0 mb-1 text-2xl font-semibold">Settings</h2>
+              <p className="m-0 text-sm text-muted-foreground">Configure agents and models for different tasks</p>
+            </div>
             <CliStatusCard cliDetection={cliDetection} />
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              disabled={saving || availableClis.length === 0}
-              isLoading={saving}
-              className="shadow-sm shadow-primary/20 px-8"
-            >
-              Save
-            </Button>
+          </div>
+
+          {error && (
+            <Alert variant="warning">{error}</Alert>
+          )}
+
+          {/* Apply to All */}
+          {availableClis.length > 0 && (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+              <span className="text-sm font-medium whitespace-nowrap">Set all agents to:</span>
+              <div className="w-[180px]">
+                <SelectRoot
+                  onValueChange={(v) => {
+                    const cli = v as CliType;
+                    setSpecChatAgent(cli);
+                    setDecomposeAgent(cli);
+                    setSpecGenAgent(cli);
+                    setCondenserAgent(cli);
+                    setTaskRunnerAgent(cli);
+                    // Clear models since they're not cross-compatible
+                    setSpecChatModel('');
+                    setDecomposeModel('');
+                    setSpecGenModel('');
+                    setCondenserModel('');
+                    setTaskRunnerModel('');
+                  }}
+                  disabled={saving}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select agent..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableClis.map((cli) => (
+                      <SelectItem key={cli} value={cli}>
+                        {cli.charAt(0).toUpperCase() + cli.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </SelectRoot>
+              </div>
+            </div>
+          )}
+
+          {/* Settings Grid - 2 columns on larger screens */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Spec Chat Section - Most used, first */}
+            <SettingsSection title="Spec Chat" description="Interactive chat during spec review">
+              {renderAgentFields(
+                specChatAgent, setSpecChatAgent,
+                specChatModel, setSpecChatModel,
+                specChatReasoningEffort, setSpecChatReasoningEffort,
+                'Default (auto-select)'
+              )}
+            </SettingsSection>
+
+                    {/* Task Runner Section */}
+                    <SettingsSection title="Task Runner" description="Agent for executing user stories">
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <ConfigField label="Agent">
+                            <SelectRoot
+                              value={taskRunnerAgent}
+                              onValueChange={(v) => setTaskRunnerAgent(v as 'auto' | CliType)}
+                              disabled={saving}
+                            >
+                              <SelectTrigger className="w-full h-8 text-sm">
+                                <SelectValue placeholder="Select agent" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="auto">Auto (detect first available)</SelectItem>
+                                {cliDetection?.claude.available && <SelectItem value="claude">Claude</SelectItem>}
+                                {cliDetection?.codex.available && <SelectItem value="codex">Codex</SelectItem>}
+                                {cliDetection?.gemini?.available && <SelectItem value="gemini">Gemini</SelectItem>}
+                              </SelectContent>
+                            </SelectRoot>
+                          </ConfigField>
+                        </div>
+            
+                        <div className="flex-1">
+                          <ConfigField label="Model">
+                            <SelectRoot
+                              value={taskRunnerModel || "__default__"}
+                              onValueChange={(v) => setTaskRunnerModel(v === "__default__" ? "" : v)}
+                              disabled={saving || taskRunnerAgent === 'auto'}
+                            >
+                              <SelectTrigger className="w-full h-8 text-sm">
+                                <SelectValue placeholder="Default (auto-select)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__default__">Default (auto-select)</SelectItem>
+                                {modelDetection && taskRunnerAgent !== 'auto' && modelDetection[taskRunnerAgent as CliType]?.models.map((model) => (
+                                  <SelectItem key={model} value={model}>
+                                    {model}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </SelectRoot>
+                          </ConfigField>
+                        </div>
+                      </div>
+            
+                      {taskRunnerAgent === 'codex' && (
+                        <ConfigField label="Reasoning Effort">
+                          <SelectRoot
+                            value={taskRunnerReasoningEffort}
+                            onValueChange={(v) => setTaskRunnerReasoningEffort(v as ReasoningEffort)}
+                            disabled={saving}
+                          >
+                            <SelectTrigger className="w-full h-8 text-sm">
+                              <SelectValue placeholder="Select reasoning effort" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {REASONING_EFFORTS.map((effort) => (
+                                <SelectItem key={effort} value={effort}>
+                                  {effort.charAt(0).toUpperCase() + effort.slice(1)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </SelectRoot>
+                        </ConfigField>
+                      )}
+                    </SettingsSection>
+            {/* Decompose Reviewer Section */}
+            <SettingsSection title="Decompose Reviewer" description="Peer review during PRD decomposition">
+              {renderAgentFields(
+                decomposeAgent, setDecomposeAgent,
+                decomposeModel, setDecomposeModel,
+                decomposeReasoningEffort, setDecomposeReasoningEffort,
+                'Default (auto-select)'
+              )}
+            </SettingsSection>
+
+            {/* Spec Generator Section */}
+            <SettingsSection title="Spec Generator" description="Draft PRDs or technical specs">
+              {renderAgentFields(
+                specGenAgent, setSpecGenAgent,
+                specGenModel, setSpecGenModel,
+                specGenReasoningEffort, setSpecGenReasoningEffort,
+                'Default (auto-select)'
+              )}
+            </SettingsSection>
+
+            {/* Spec Condenser Section */}
+            <SettingsSection title="Spec Condenser" description="Optimize PRD for LLM consumption">
+              {renderAgentFields(
+                condenserAgent, setCondenserAgent,
+                condenserModel, setCondenserModel,
+                condenserReasoningEffort, setCondenserReasoningEffort,
+                'Default (auto-select)'
+              )}
+            </SettingsSection>
+
+            {/* Execution Settings */}
+            <SettingsSection title="Execution" description="Task execution behavior">
+              <ConfigField label="Prevent System Sleep" description="Keep system awake during long tasks">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={keepAwake}
+                    onCheckedChange={(checked) => setKeepAwake(checked)}
+                    disabled={saving}
+                  />
+                  <span className="text-sm font-medium">{keepAwake ? 'Enabled' : 'Disabled'}</span>
+                </div>
+              </ConfigField>
+            </SettingsSection>
           </div>
         </div>
-        {(saveSuccess || saveError) && (
-          <div className="flex items-center gap-2">
-            {saveSuccess && (
-              <span className="text-sm text-success font-medium">Settings saved!</span>
-            )}
-            {saveError && (
-              <span className="text-sm text-error font-medium">{saveError}</span>
-            )}
-          </div>
-        )}
       </div>
 
-      {error && (
-        <Alert variant="warning">{error}</Alert>
-      )}
-
-      {/* Settings Grid - 2 columns on larger screens */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Spec Chat Section - Most used, first */}
-        <SettingsSection title="Spec Chat" description="Interactive chat during spec review">
-          {renderAgentFields(
-            specChatAgent, setSpecChatAgent,
-            specChatModel, setSpecChatModel,
-            specChatReasoningEffort, setSpecChatReasoningEffort,
-            'Default (auto-select)'
-          )}
-        </SettingsSection>
-
-        {/* Task Runner Section */}
-        <SettingsSection title="Task Runner" description="Agent for executing user stories">
-          <ConfigField label="Agent">
-            <select
-              className="select select-bordered select-sm w-full"
-              value={taskRunnerAgent}
-              onChange={(e) => setTaskRunnerAgent(e.target.value as 'auto' | CliType)}
-              disabled={saving}
-            >
-              <option value="auto">Auto (detect first available)</option>
-              {cliDetection?.claude.available && <option value="claude">Claude</option>}
-              {cliDetection?.codex.available && <option value="codex">Codex</option>}
-            </select>
-          </ConfigField>
-
-          <ConfigField label="Model">
-            <select
-              className="select select-bordered select-sm w-full"
-              value={taskRunnerModel}
-              onChange={(e) => setTaskRunnerModel(e.target.value)}
-              disabled={saving || taskRunnerAgent === 'auto'}
-            >
-              <option value="">Default (auto-select)</option>
-              {modelDetection && taskRunnerAgent !== 'auto' && modelDetection[taskRunnerAgent as CliType]?.models.map((model) => (
-                <option key={model} value={model}>
-                  {model}
-                </option>
-              ))}
-            </select>
-          </ConfigField>
-
-          {taskRunnerAgent === 'codex' && (
-            <ConfigField label="Reasoning Effort">
-              <select
-                className="select select-bordered select-sm w-full"
-                value={taskRunnerReasoningEffort}
-                onChange={(e) => setTaskRunnerReasoningEffort(e.target.value as ReasoningEffort)}
-                disabled={saving}
-              >
-                {REASONING_EFFORTS.map((effort) => (
-                  <option key={effort} value={effort}>
-                    {effort.charAt(0).toUpperCase() + effort.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </ConfigField>
-          )}
-        </SettingsSection>
-
-        {/* Decompose Reviewer Section */}
-        <SettingsSection title="Decompose Reviewer" description="Peer review during PRD decomposition">
-          {renderAgentFields(
-            decomposeAgent, setDecomposeAgent,
-            decomposeModel, setDecomposeModel,
-            decomposeReasoningEffort, setDecomposeReasoningEffort,
-            'Default (auto-select)'
-          )}
-        </SettingsSection>
-
-        {/* Spec Generator Section */}
-        <SettingsSection title="Spec Generator" description="Draft PRDs or technical specs">
-          {renderAgentFields(
-            specGenAgent, setSpecGenAgent,
-            specGenModel, setSpecGenModel,
-            specGenReasoningEffort, setSpecGenReasoningEffort,
-            'Default (auto-select)'
-          )}
-        </SettingsSection>
-
-        {/* Spec Condenser Section */}
-        <SettingsSection title="Spec Condenser" description="Optimize PRD for LLM consumption">
-          {renderAgentFields(
-            condenserAgent, setCondenserAgent,
-            condenserModel, setCondenserModel,
-            condenserReasoningEffort, setCondenserReasoningEffort,
-            'Default (auto-select)'
-          )}
-        </SettingsSection>
-
-        {/* Execution Settings */}
-        <SettingsSection title="Execution" description="Task execution behavior">
-          <ConfigField label="Prevent System Sleep" description="Keep system awake during long tasks">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                className="toggle toggle-primary toggle-sm"
-                checked={keepAwake}
-                onChange={(e) => setKeepAwake(e.target.checked)}
-                disabled={saving}
-              />
-              <span className="text-sm">{keepAwake ? 'Enabled' : 'Disabled'}</span>
-            </div>
-          </ConfigField>
-        </SettingsSection>
+      {/* Sticky Footer for Save Action */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t border-border flex justify-end px-8">
+        <div className="max-w-5xl w-full mx-auto flex justify-end">
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            disabled={saving || availableClis.length === 0}
+            isLoading={saving}
+            className="shadow-sm shadow-primary/20 px-12"
+          >
+            Save Settings
+          </Button>
+        </div>
       </div>
-
     </div>
   );
 }

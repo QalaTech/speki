@@ -33,6 +33,13 @@ Use your file write tool to create this file with the following structure:
 - FAIL: Critical issues that must be resolved
 - NEEDS_IMPROVEMENT: Issues that should be addressed but are not blockers
 
+**CRITICAL - Proportionality:**
+Scale your review to the spec's size and complexity. Do NOT over-review simple specs.
+- A 1-3 sentence spec should have at most 2-3 suggestions. A simple spec is allowed to be simple.
+- Only flag issues that would genuinely block or confuse implementation.
+- Do NOT flag: missing error handling for trivial scripts, missing edge cases that are obvious, style preferences, or "nice to have" improvements.
+- If the spec is clear enough to implement unambiguously, the verdict should be PASS with zero or minimal suggestions.
+
 **Suggestions format** (include when there are issues):
 \`\`\`json
 {
@@ -1730,6 +1737,24 @@ When merging, use the highest severity:
 - If any source is "critical" → merged is "critical"
 - If any source is "warning" → merged is "warning"
 - Otherwise → "info"
+
+### Proportionality
+Scale the number of suggestions to the spec's complexity and size:
+- A simple, short spec (1-2 sentences) should have at most 3-5 suggestions
+- A medium spec (1-2 pages) should have at most 8-12 suggestions
+- Only a large, complex spec warrants 15+ suggestions
+
+**Aggressively filter out:**
+- Nitpicks or style preferences that don't affect implementation clarity
+- Suggestions that are obvious or implied (e.g., "add error handling" for a trivial script)
+- Redundant suggestions that restate the same concern in different ways
+- Suggestions about features or concerns not relevant to the spec's scope
+- "Nice to have" items that don't materially improve the spec
+
+**Only keep suggestions that are:**
+- Genuinely missing requirements that would block implementation
+- Real ambiguities that would cause different developers to implement differently
+- Actual contradictions or dependency issues
 
 Focus on producing a clean, actionable list that a developer can work through without seeing redundant items.`;
 

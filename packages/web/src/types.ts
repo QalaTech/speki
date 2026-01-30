@@ -305,7 +305,7 @@ export interface QueuedTaskWithData extends QueuedTaskReference {
 /**
  * CLI type for agent selection
  */
-export type CliType = 'codex' | 'claude';
+export type CliType = 'codex' | 'claude' | 'gemini';
 
 /**
  * Reasoning effort levels for Codex models
@@ -327,6 +327,7 @@ export interface CliDetectionResult {
 export interface AllCliDetectionResults {
   codex: CliDetectionResult;
   claude: CliDetectionResult;
+  gemini: CliDetectionResult;
 }
 
 /**
@@ -344,6 +345,7 @@ export interface ModelDetectionResult {
 export interface AllModelDetectionResults {
   codex: ModelDetectionResult;
   claude: ModelDetectionResult;
+  gemini: ModelDetectionResult;
 }
 
 /**

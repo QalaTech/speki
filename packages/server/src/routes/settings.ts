@@ -14,7 +14,7 @@ const router = Router();
 /**
  * Valid CLI types for the reviewer configuration
  */
-const VALID_CLI_TYPES: CliType[] = ['codex', 'claude'];
+const VALID_CLI_TYPES: CliType[] = ['codex', 'claude', 'gemini'];
 
 /**
  * Valid reasoning effort levels for Codex

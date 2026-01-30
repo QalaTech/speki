@@ -15,6 +15,15 @@ export function parseCodexVersion(output: string): string {
 }
 
 /**
+ * Parse Gemini version from --version output.
+ * Expected format: "Gemini CLI v0.20.0" or similar
+ */
+export function parseGeminiVersion(output: string): string {
+  const match = output.match(/v?(\d+\.\d+\.\d+)/);
+  return match ? match[1] : '';
+}
+
+/**
  * Parse Claude version from --version output.
  * Expected format: "2.1.2" or similar
  */
@@ -71,7 +80,9 @@ export async function detectCli(cli: CliType): Promise<CliDetectionResult> {
         const output = stdout || stderr;
         const version = cli === 'codex'
           ? parseCodexVersion(output)
-          : parseClaudeVersion(output);
+          : cli === 'gemini'
+            ? parseGeminiVersion(output)
+            : parseClaudeVersion(output);
 
         resolve({
           available: true,
@@ -97,12 +108,13 @@ export async function detectCli(cli: CliType): Promise<CliDetectionResult> {
  * @returns Detection results for both CLIs
  */
 export async function detectAllClis(): Promise<AllCliDetectionResults> {
-  const [codex, claude] = await Promise.all([
+  const [codex, claude, gemini] = await Promise.all([
     detectCli('codex'),
     detectCli('claude'),
+    detectCli('gemini'),
   ]);
 
-  return { codex, claude };
+  return { codex, claude, gemini };
 }
 
 /**
@@ -121,6 +133,10 @@ export interface ModelDetectionResult {
  * Codex: https://developers.openai.com/codex/models/
  */
 const KNOWN_MODELS: Record<CliType, string[]> = {
+  gemini: [
+    'gemini-3-flash-preview',
+    'gemini-3-pro-preview',
+  ],
   claude: [
     // Latest Claude 4.5 models (recommended)
     'claude-sonnet-4-5-20250929',  // Claude Sonnet 4.5 - best balance of intelligence/speed/cost
@@ -169,16 +185,18 @@ export async function detectModels(cli: CliType): Promise<ModelDetectionResult> 
 export interface AllModelDetectionResults {
   codex: ModelDetectionResult;
   claude: ModelDetectionResult;
+  gemini: ModelDetectionResult;
 }
 
 /**
  * Detect models for all CLIs
  */
 export async function detectAllModels(): Promise<AllModelDetectionResults> {
-  const [codex, claude] = await Promise.all([
+  const [codex, claude, gemini] = await Promise.all([
     detectModels('codex'),
     detectModels('claude'),
+    detectModels('gemini'),
   ]);
 
-  return { codex, claude };
+  return { codex, claude, gemini };
 }

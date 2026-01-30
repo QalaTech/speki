@@ -22,7 +22,20 @@ export {
 export { Input } from './Input';
 export { Loading, LoadingOverlay, Skeleton } from './Loading';
 export { Modal, ConfirmModal } from './Modal';
-export { Select } from './Select';
+export {
+  Select,
+  SelectRoot,
+  SelectGroup,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectLabel,
+  SelectItem,
+  SelectSeparator,
+  SelectScrollUpButton,
+  SelectScrollDownButton,
+} from './Select';
+export { Switch } from './Switch';
 export { TabButton } from './TabButton';
 export { Textarea } from './Textarea';
 export { ErrorProvider, useGlobalError, useApiFetch, apiFetch } from './ErrorContext';

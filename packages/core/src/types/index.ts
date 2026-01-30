@@ -196,7 +196,7 @@ export interface RalphStatus {
 }
 
 // CLI type for agent selection
-export type CliType = 'codex' | 'claude';
+export type CliType = 'codex' | 'claude' | 'gemini';
 
 /** Purpose identifier for engine selection - determines which settings to use */
 export type EnginePurpose =
@@ -375,6 +375,7 @@ export interface CliDetectionResult {
 export interface AllCliDetectionResults {
   codex: CliDetectionResult;
   claude: CliDetectionResult;
+  gemini: CliDetectionResult;
 }
 
 // Current task context - focused context for a single iteration

@@ -38,6 +38,12 @@ vi.mock('../drivers/codex-cli.js', () => ({
   },
 }));
 
+vi.mock('../drivers/gemini-cli.js', () => ({
+  GeminiCliEngine: class MockGeminiCliEngine {
+    name = 'gemini-cli';
+  },
+}));
+
 // Import after mocks
 import { selectEngine } from '../engine-factory.js';
 import { detectCli } from '../../cli-detect.js';
@@ -400,6 +406,34 @@ describe('selectEngine with purpose parameter', () => {
       expect(result).toBeDefined();
       expect(result.engine).toBeDefined();
     }
+  });
+
+  it('selectEngine_GeminiAliases_AcceptsAllVariations', async () => {
+    const geminiAliases = ['gemini', 'gemini-cli', 'google', 'GEMINI', 'Google'];
+
+    for (const alias of geminiAliases) {
+      const result = await selectEngine({ engineName: alias });
+
+      expect(result).toBeDefined();
+      expect(result.engine).toBeDefined();
+    }
+  });
+
+  it('selectEngine_AutoDetect_FallsBackToGemini_WhenClaudeAndCodexUnavailable', async () => {
+    const settings = createDefaultSettings();
+    settings.taskRunner.agent = 'auto';
+    mockLoadGlobalSettings.mockResolvedValue(settings);
+
+    vi.mocked(detectCli).mockImplementation((cli: string) => {
+      if (cli === 'claude') return Promise.resolve({ available: false, command: 'claude', version: '' });
+      if (cli === 'codex') return Promise.resolve({ available: false, command: 'codex', version: '' });
+      if (cli === 'gemini') return Promise.resolve({ available: true, command: 'gemini', version: '0.20.0' });
+      return Promise.resolve({ available: false, command: cli, version: '' });
+    });
+
+    const result = await selectEngine({ purpose: 'taskRunner' });
+
+    expect(result.engineName).toBe('gemini-cli');
   });
 
   it('selectEngine_UnknownEngine_DefaultsToSafeFallback', async () => {

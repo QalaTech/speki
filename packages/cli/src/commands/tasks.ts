@@ -309,7 +309,12 @@ tasksCommand
       if (queueRef) {
         // Mark completed in queue (source of truth for status)
         await markTaskCompleted(projectPath, queueRef.specId, id);
-        console.log(chalk.green(`Task ${id} marked complete in queue`));
+        
+        // Also update PRD to sync passes field (needed for decompose view consistency)
+        const { processTaskCompletion } = await import('@speki/core');
+        await processTaskCompletion(projectPath, queueRef.specId, id);
+        
+        console.log(chalk.green(`Task ${id} marked complete`));
         return;
       }
 
