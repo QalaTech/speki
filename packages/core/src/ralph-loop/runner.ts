@@ -3,7 +3,7 @@
  *
  * Orchestrates the iterative development process:
  * 1. Read PRD and find next incomplete story
- * 2. Run Claude with the prompt
+ * 2. Run Engine with the prompt
  * 3. Check for completion
  * 4. Repeat until done or max iterations reached
  */
@@ -222,16 +222,20 @@ export async function runRalphLoop(
         };
       }
 
-      // Generate current task context for Claude to read
+      // Generate current task context for the engine to read
       if (nextInfo.story && specId) {
         await project.generateCurrentTaskContext(nextInfo.story, prd, specId);
       }
 
-      console.log(chalk.yellow('Starting Claude...'));
+      const sel = await selectEngine({ engineName: options.engineName, model: options.model, purpose: 'taskRunner' });
+      const engineDisplayName = sel.engineName.includes('claude') ? 'Claude' : 
+                               sel.engineName.includes('gemini') ? 'Gemini' : 
+                               sel.engineName.includes('codex') ? 'Codex' : 'Engine';
+      
+      console.log(chalk.yellow(`Starting ${engineDisplayName}...`));
       console.log('');
 
       const callbacks = options.streamCallbacks || createConsoleCallbacks();
-      const sel = await selectEngine({ engineName: options.engineName, model: options.model, purpose: 'taskRunner' });
       const result = await sel.engine.runStream({
         promptPath: project.promptPath,
         cwd: project.projectPath,

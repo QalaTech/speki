@@ -786,6 +786,8 @@ export async function runDecompose(
         timeoutMs,
         cwd: project.projectPath,
         logDir: reviewLogsDir,
+        engineName: options.engineName,
+        model: options.model,
       });
 
       verdict = feedback.verdict;

@@ -3,6 +3,7 @@ import { detectCli } from '../cli-detect.js';
 import { loadGlobalSettings } from '../settings.js';
 import { ClaudeCliEngine } from './drivers/claude-cli.js';
 import { CodexCliEngine } from './drivers/codex-cli.js';
+import { GeminiCliEngine } from './drivers/gemini-cli.js';
 import type { EnginePurpose, GlobalSettings } from '../types/index.js';
 
 /**
@@ -16,6 +17,7 @@ import type { EnginePurpose, GlobalSettings } from '../types/index.js';
  * Supported engine names (case-insensitive):
  * - 'claude' or 'claude-cli': Claude Code CLI (preferred)
  * - 'codex' or 'codex-cli' or 'openai': OpenAI Codex CLI
+ * - 'gemini' or 'gemini-cli' or 'google': Google Gemini CLI
  * - 'auto': Auto-detect available CLI (prefers Claude)
  *
  * Backwards compatibility:
@@ -38,6 +40,11 @@ export function getEngineByName(name: string | undefined): Engine {
   // Codex aliases
   if (['codex', 'codex-cli', 'openai'].includes(normalized)) {
     return new CodexCliEngine();
+  }
+
+  // Gemini aliases
+  if (['gemini', 'gemini-cli', 'google'].includes(normalized)) {
+    return new GeminiCliEngine();
   }
 
   // Claude aliases (default for unknown names for backwards-compat)
@@ -132,6 +139,11 @@ export async function selectEngine(opts?: {
     const codex = await detectCli('codex');
     if (codex.available) {
       return { engine: new CodexCliEngine(), engineName: 'codex-cli', model };
+    }
+
+    const gemini = await detectCli('gemini');
+    if (gemini.available) {
+      return { engine: new GeminiCliEngine(), engineName: 'gemini-cli', model };
     }
 
     // Default to Claude even if not available (will error when used)
