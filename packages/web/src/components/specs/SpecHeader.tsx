@@ -4,26 +4,20 @@ import {
   ClipboardDocumentListIcon,
   ClockIcon,
   ExclamationTriangleIcon,
-  EyeIcon,
-  ListBulletIcon,
   PencilIcon,
   SparklesIcon,
   WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
 import { Button } from "../ui/Button";
+import { SpecStepper, type WorkflowPhase } from "./SpecStepper";
 
 export type SpecTab = "preview" | "decompose";
 export type SpecType = "prd" | "tech-spec" | "bug";
 
 // Helper to format filename into readable title
 function formatSpecTitle(filename: string): string {
-  // Remove extension
   const cleanName = filename.replace(/\.(prd|tech|bug)\.md$/, '').replace(/\.md$/, '');
-  
-  // Remove date prefix if present (e.g., "20240320-")
   const withoutDate = cleanName.replace(/^\d{8}-/, '');
-  
-  // Replace dashes/underscores with spaces and title case
   return withoutDate
     .split(/[-_]/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -33,8 +27,6 @@ function formatSpecTitle(filename: string): string {
 interface SpecHeaderProps {
   fileName: string;
   filePath: string;
-  activeTab: SpecTab;
-  onTabChange: (tab: SpecTab) => void;
   reviewStatus?: "reviewed" | "pending" | "god-spec" | "in-progress" | "none";
   hasUnsavedChanges?: boolean;
   isEditMode?: boolean;
@@ -45,10 +37,16 @@ interface SpecHeaderProps {
   onCreateTechSpec?: () => void;
   onNavigateToSpec?: (specId: string) => void;
   isGeneratingTechSpec?: boolean;
-  // Edit mode controls
   onEditStart?: () => void;
   onEditCancel?: () => void;
   onSave?: () => void;
+  // Workflow props
+  currentPhase?: WorkflowPhase;
+  hasContent?: boolean;
+  hasPlan?: boolean;
+  isExecuting?: boolean;
+  isCompleted?: boolean;
+  onPhaseClick?: (phase: WorkflowPhase) => void;
 }
 
 function detectSpecTypeFromFilename(filename: string): SpecType {
@@ -94,7 +92,7 @@ const specTypeConfig: Record<
 
 function StatusBadge({ status }: { status?: string }) {
   const baseClasses = "flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all duration-200";
-  
+
   switch (status) {
     case "reviewed":
       return (
@@ -132,8 +130,6 @@ function StatusBadge({ status }: { status?: string }) {
 export function SpecHeader({
   fileName,
   filePath: _filePath,
-  activeTab,
-  onTabChange,
   reviewStatus,
   hasUnsavedChanges,
   isEditMode,
@@ -147,23 +143,21 @@ export function SpecHeader({
   onEditStart,
   onEditCancel,
   onSave,
+  currentPhase = "write",
+  hasContent = false,
+  hasPlan = false,
+  isExecuting = false,
+  isCompleted = false,
+  onPhaseClick,
 }: SpecHeaderProps) {
   const effectiveType = specType || detectSpecTypeFromFilename(fileName);
   const config = specTypeConfig[effectiveType];
-
-  const tabs: { id: SpecTab; label: string }[] = [
-    { id: "preview", label: "View / Edit" },
-    {
-      id: "decompose",
-      label: effectiveType === "prd" ? "User Stories" : "Tasks",
-    },
-  ];
 
   return (
     <div className="bg-card border-b border-border/50 sticky top-0 z-30">
       {/* Top Section: Breadcrumbs + Title + Status */}
       <div className="flex items-center px-6 pt-5 pb-4">
-        <div className="flex flex-col min-w-0">
+        <div className="flex flex-col min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-muted-foreground/60 mb-0.5">
             <span>Specs</span>
             <span className="text-muted-foreground/30">/</span>
@@ -183,77 +177,56 @@ export function SpecHeader({
         </div>
       </div>
 
-      {/* Bottom Section: Tabs + Actions */}
+      {/* Bottom Section: Stepper + Actions */}
       <div className="flex items-center justify-between px-6 pb-4 pt-1">
-        {/* Navigation Tabs */}
-        <div className="flex p-1 bg-white/3 rounded-full border border-white/5 shadow-inner shrink-0">
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.id;
-            const isPreview = tab.id === "preview";
-            
-            return (
-              <button
-                key={tab.id}
-                className={`flex items-center justify-center gap-2 px-4 py-1.5 rounded-full text-[12px] font-semibold transition-all duration-300 active:scale-[0.96] ${
-                  isActive 
-                    ? "bg-white/10 text-foreground border border-white/10 shadow-sm" 
-                    : "bg-transparent text-muted-foreground border border-transparent hover:text-foreground hover:bg-white/5"
-                }`}
-                onClick={() => onTabChange(tab.id)}
-              >
-                {isPreview ? (
-                  isEditMode ? <PencilIcon className="h-3.5 w-3.5" /> : <EyeIcon className="h-3.5 w-3.5" />
-                ) : (
-                  <ListBulletIcon className="h-3.5 w-3.5" />
-                )}
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* Workflow Stepper */}
+        <SpecStepper
+          currentPhase={currentPhase}
+          hasContent={hasContent}
+          hasPlan={hasPlan}
+          isExecuting={isExecuting}
+          isCompleted={isCompleted}
+          onPhaseClick={onPhaseClick}
+        />
 
         {/* Primary Actions */}
         <div className="flex items-center gap-3">
           {/* Edit mode controls */}
-          {activeTab === "preview" && (
+          {isEditMode ? (
             <div className="flex items-center gap-2">
-              {!isEditMode ? (
-                <Button
-                  variant="accent"
-                  size="sm"
-                  onClick={onEditStart}
-                  className="rounded-full h-9 px-5 text-xs font-semibold"
-                >
-                  <PencilIcon className="h-3.5 w-3.5" />
-                  Edit
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onEditCancel}
-                    className="rounded-full h-9 px-4 text-xs font-semibold"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => onSave?.()}
-                    disabled={!hasUnsavedChanges}
-                    className="rounded-full h-9 px-5 text-xs font-semibold"
-                  >
-                    Save
-                  </Button>
-                </>
-              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onEditCancel}
+                className="rounded-full h-9 px-4 text-xs font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => onSave?.()}
+                disabled={!hasUnsavedChanges}
+                className="rounded-full h-9 px-5 text-xs font-semibold"
+              >
+                Save
+              </Button>
             </div>
+          ) : (
+            <Button
+              variant="accent"
+              size="sm"
+              onClick={onEditStart}
+              className="rounded-full h-9 px-5 text-xs font-semibold"
+            >
+              <PencilIcon className="h-3.5 w-3.5" />
+              Edit
+            </Button>
           )}
 
           {/* PRD actions */}
           {effectiveType === "prd" && onCreateTechSpec && (
-            <div className={`${activeTab === "preview" ? "border-l border-white/5 pl-3 ml-1" : ""}`}>
+            <div className="border-l border-white/5 pl-3 ml-1">
               {!linkedTechSpec &&
                 progress &&
                 progress.total > 0 &&
