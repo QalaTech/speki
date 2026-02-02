@@ -78,7 +78,7 @@ export function SuggestionCard({
           <div className="font-semibold text-muted-foreground mb-1">
             {isChangeType ? 'Suggested fix:' : 'Comment:'}
           </div>
-          <div className="whitespace-pre-wrap wrap-break-word leading-snug">{suggestedFix}</div>
+          <div className="whitespace-pre-wrap break-words leading-snug">{suggestedFix}</div>
         </div>
 
         {/* Action buttons */}

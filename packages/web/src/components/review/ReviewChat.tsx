@@ -329,7 +329,7 @@ export function ReviewChat({
                       />
                     )}
                     <div
-                      className={`py-3 px-4 rounded-2xl text-[13px] leading-relaxed shadow-sm wrap-break-word ${
+                      className={`py-3 px-4 rounded-2xl text-[13px] leading-relaxed shadow-sm break-words min-w-0 ${
                         isUser
                           ? "bg-primary text-primary-foreground rounded-tr-none"
                           : "bg-white/10 text-foreground rounded-tl-none hover:bg-white/15 transition-colors"

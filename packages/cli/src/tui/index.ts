@@ -14,7 +14,7 @@ interface Ctx {
 }
 
 // Valid agent types for task runner
-const VALID_AGENTS = ['auto', 'claude', 'codex'] as const;
+const VALID_AGENTS = ['auto', 'claude', 'codex', 'gemini'] as const;
 type ValidAgent = (typeof VALID_AGENTS)[number];
 
 /**
@@ -190,7 +190,7 @@ export async function settingsScreen() {
 
   console.log(chalk.bold('\nTask Runner Settings'));
   const agentInput = await input({ 
-    message: 'Task runner agent (auto/claude/codex):', 
+    message: 'Task runner agent (auto/claude/codex/gemini):', 
     default: settings.taskRunner.agent 
   });
   const model = await input({ 

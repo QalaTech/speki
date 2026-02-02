@@ -28,7 +28,7 @@ const chatComponents: Components = {
     const isInline = !className;
     if (isInline) {
       return (
-        <code className="bg-muted/80 py-0.5 px-1.5 rounded font-mono text-[0.85em] text-amber-300" {...props}>
+        <code className="bg-muted/80 py-0.5 px-1.5 rounded font-mono text-[0.85em] text-amber-300 break-all whitespace-pre-wrap" {...props}>
           {children}
         </code>
       );
@@ -117,7 +117,7 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps): React.R
   const normalizedContent = normalizeWhitespace(content);
 
   return (
-    <div className={`text-[0.9rem] leading-relaxed wrap-break-word ${className ?? ''}`}>
+    <div className={`text-[0.9rem] leading-relaxed break-words ${className ?? ''}`}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={chatComponents}>
         {normalizedContent}
       </ReactMarkdown>

@@ -42,7 +42,7 @@ export function ToolCallBubble({ entry }: ToolCallBubbleProps) {
       {expanded && (
         <div className="mt-2 pt-2 border-t border-border">
           <div className="text-[11px] text-muted-foreground/50 mb-1 uppercase tracking-wide">Details:</div>
-          <pre className="text-xs text-muted-foreground/80 bg-background/50 p-2 rounded overflow-x-auto m-0 font-mono whitespace-pre-wrap wrap-break-word">{entry.content}</pre>
+          <pre className="text-xs text-muted-foreground/80 bg-background/50 p-2 rounded overflow-x-auto m-0 font-mono whitespace-pre-wrap break-words">{entry.content}</pre>
         </div>
       )}
     </div>

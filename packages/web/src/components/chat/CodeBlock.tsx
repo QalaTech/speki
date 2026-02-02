@@ -115,6 +115,7 @@ export function CodeBlock({ language, children, className }: CodeBlockProps) {
       <SyntaxHighlighter
         language={lang}
         style={vscDarkPlus}
+        wrapLongLines={true}
         customStyle={{
           margin: 0,
           borderRadius: lang !== 'text' ? '0 0 6px 6px' : '6px',
