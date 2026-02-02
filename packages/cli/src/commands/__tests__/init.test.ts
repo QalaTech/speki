@@ -16,9 +16,14 @@ vi.mock('@inquirer/prompts', () => ({
   confirm: vi.fn(),
 }));
 
-vi.mock('child_process', () => ({
-  execSync: vi.fn(),
-}));
+vi.mock('child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('child_process')>();
+  return {
+    ...actual,
+    execSync: vi.fn(),
+    execFile: vi.fn(),
+  };
+});
 
 vi.mock('@speki/core', async (importOriginal) => {
   const original = await importOriginal<typeof import('@speki/core')>();

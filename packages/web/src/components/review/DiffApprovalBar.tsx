@@ -58,7 +58,7 @@ export function DiffApprovalBar({
           data-testid="approve-button"
           isLoading={isLoading}
         >
-          Approve
+          {isLoading ? 'Applying...' : 'Approve'}
         </Button>
         <Button
           variant="destructive"

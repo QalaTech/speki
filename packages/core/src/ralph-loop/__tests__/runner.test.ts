@@ -130,6 +130,7 @@ describe('runRalphLoop', () => {
         runStream: mockRunStream,
       },
       model: 'test-model',
+      engineName: 'codex',
     } as any);
   });
 

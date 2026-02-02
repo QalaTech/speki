@@ -29,40 +29,40 @@ describe('ActionButton', () => {
   });
 
   describe('variants', () => {
-    it('renders primary variant with btn-glass-primary class', () => {
+    it('renders primary variant with bg-primary class', () => {
       render(<ActionButton variant="primary" onClick={() => {}}>Primary</ActionButton>);
       const button = screen.getByText('Primary');
-      expect(button).toHaveClass('btn-glass-primary');
+      expect(button).toHaveClass('bg-primary');
     });
 
-    it('renders danger variant with btn-glass-error class', () => {
+    it('renders danger variant with bg-error class', () => {
       render(<ActionButton variant="danger" onClick={() => {}}>Danger</ActionButton>);
       const button = screen.getByText('Danger');
-      expect(button).toHaveClass('btn-glass-error');
+      expect(button).toHaveClass('bg-error');
     });
 
-    it('renders secondary variant with btn-glass-secondary class', () => {
+    it('renders secondary variant with bg-muted class', () => {
       render(<ActionButton variant="secondary" onClick={() => {}}>Secondary</ActionButton>);
       const button = screen.getByText('Secondary');
-      expect(button).toHaveClass('btn-glass-secondary');
+      expect(button).toHaveClass('bg-muted');
     });
 
-    it('renders success variant with btn-glass-success class', () => {
+    it('renders success variant with bg-foreground class', () => {
       render(<ActionButton variant="success" onClick={() => {}}>Success</ActionButton>);
       const button = screen.getByText('Success');
-      expect(button).toHaveClass('btn-glass-success');
+      expect(button).toHaveClass('bg-foreground');
     });
 
-    it('renders approve variant with btn-glass-success class', () => {
+    it('renders approve variant with bg-foreground class', () => {
       render(<ActionButton variant="approve" onClick={() => {}}>Approve</ActionButton>);
       const button = screen.getByText('Approve');
-      expect(button).toHaveClass('btn-glass-success');
+      expect(button).toHaveClass('bg-foreground');
     });
 
-    it('renders reject variant with btn-glass-error class', () => {
+    it('renders reject variant with bg-error class', () => {
       render(<ActionButton variant="reject" onClick={() => {}}>Reject</ActionButton>);
       const button = screen.getByText('Reject');
-      expect(button).toHaveClass('btn-glass-error');
+      expect(button).toHaveClass('bg-error');
     });
   });
 
@@ -71,16 +71,16 @@ describe('ActionButton', () => {
       render(<ActionButton variant="primary" onClick={() => {}} size="sm">Small</ActionButton>);
       const button = screen.getByText('Small');
       // ShadCN uses Tailwind classes for sizing
-      expect(button).toHaveClass('h-8');
-      expect(button).toHaveClass('px-3');
-    });
-
-    it('applies md size correctly (default)', () => {
-      render(<ActionButton variant="primary" onClick={() => {}} size="md">Medium</ActionButton>);
-      const button = screen.getByText('Medium');
-      // ShadCN uses Tailwind classes for sizing
       expect(button).toHaveClass('h-9');
       expect(button).toHaveClass('px-4');
+    });
+
+    it('applies standard size correctly (default)', () => {
+      render(<ActionButton variant="primary" onClick={() => {}}>Standard</ActionButton>);
+      const button = screen.getByText('Standard');
+      // ShadCN uses Tailwind classes for sizing
+      expect(button).toHaveClass('h-11');
+      expect(button).toHaveClass('px-6');
     });
   });
 

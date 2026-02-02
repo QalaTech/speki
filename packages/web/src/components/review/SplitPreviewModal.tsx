@@ -151,7 +151,7 @@ export function SplitPreviewModal({
               data-testid="save-all-button"
               className="shadow-sm shadow-primary/20"
             >
-              Save All
+              {isSaving ? 'Saving...' : 'Save All'}
             </Button>
           </div>
         </DialogFooter>

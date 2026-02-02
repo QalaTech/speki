@@ -38,59 +38,67 @@ describe('App - Settings Navigation', () => {
     message: '',
   };
 
+  const mockSettings = {
+    decompose: {
+      reviewer: {
+        agent: 'claude',
+        model: 'claude-3-5-sonnet-20241022',
+        reasoningEffort: 'medium'
+      }
+    },
+    condenser: {
+      agent: 'claude',
+      model: 'claude-3-5-sonnet-20241022',
+      reasoningEffort: 'medium'
+    },
+    specGenerator: {
+      agent: 'claude',
+      model: 'claude-3-5-sonnet-20241022',
+      reasoningEffort: 'medium'
+    },
+    taskRunner: {
+      agent: 'auto',
+      model: 'claude-3-5-sonnet-20241022',
+      reasoningEffort: 'medium'
+    },
+    specChat: {
+      agent: 'claude',
+      model: 'claude-3-5-sonnet-20241022',
+      reasoningEffort: 'medium'
+    },
+    execution: {
+      keepAwake: false
+    }
+  };
+
   const setupMocks = () => {
-    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
       if (url.includes('/api/projects')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockProjects),
-        });
+        return new Response(JSON.stringify(mockProjects));
       }
       if (url.includes('/api/ralph/status')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockRalphStatus),
-        });
+        return new Response(JSON.stringify(mockRalphStatus));
       }
       if (url.includes('/api/tasks')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockTasks),
-        });
+        return new Response(JSON.stringify(mockTasks));
       }
       if (url.includes('/api/decompose/state')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockDecomposeState),
-        });
+        return new Response(JSON.stringify(mockDecomposeState));
       }
       if (url.includes('/api/ralph/progress')) {
-        return Promise.resolve({
-          ok: true,
-          text: () => Promise.resolve(''),
-        });
+        return new Response('');
       }
       if (url.includes('/api/settings/cli/detect')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({
-            codex: { available: true, version: '0.39.0', command: 'codex' },
-            claude: { available: true, version: '2.1.2', command: 'claude' },
-          }),
-        });
+        return new Response(JSON.stringify({
+          codex: { available: true, version: '0.39.0', command: 'codex' },
+          claude: { available: true, version: '2.1.2', command: 'claude' },
+        }));
       }
       if (url.includes('/api/settings')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ reviewer: { cli: 'codex' } }),
-        });
+        return new Response(JSON.stringify(mockSettings));
       }
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({}),
-        text: () => Promise.resolve(''),
-      });
+      return new Response(JSON.stringify({}));
     });
   };
 
@@ -260,7 +268,7 @@ describe('App - Settings Navigation', () => {
 
       // Assert - Home page should render (TopNav is not shown on home page)
       await waitFor(() => {
-        expect(screen.getByText('Welcome to SPEKI')).toBeInTheDocument();
+        expect(screen.getByText('SPEKI')).toBeInTheDocument();
       });
     });
   });

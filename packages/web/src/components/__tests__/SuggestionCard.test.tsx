@@ -80,7 +80,7 @@ describe('SuggestionCard', () => {
       render(<SuggestionCard suggestion={mockSuggestion()} />);
       const button = screen.getByText('Review Diff');
       expect(button).toBeInTheDocument();
-      expect(button).toHaveClass('btn-glass-primary');
+      expect(button).toHaveClass('bg-primary');
     });
 
     it('should call onReviewDiff with suggestion id when clicked', () => {
@@ -101,8 +101,8 @@ describe('SuggestionCard', () => {
       render(<SuggestionCard suggestion={mockSuggestion()} />);
       const button = screen.getByText('Show in Editor');
       expect(button).toBeInTheDocument();
-      // ShadCN ghost variant uses hover:bg-accent classes
-      expect(button).toHaveClass('hover:bg-accent');
+      // ShadCN ghost variant uses hover:bg-muted/50 classes
+      expect(button).toHaveClass('hover:bg-muted/50');
     });
 
     it('should call onShowInEditor with suggestion id when clicked', () => {

@@ -223,19 +223,23 @@ describe('cli-detect', () => {
       // Arrange
       const mockCodexChild = createMockChildProcess();
       const mockClaudeChild = createMockChildProcess();
+      const mockGeminiChild = createMockChildProcess();
 
       vi.mocked(spawn)
         .mockReturnValueOnce(mockCodexChild)
-        .mockReturnValueOnce(mockClaudeChild);
+        .mockReturnValueOnce(mockClaudeChild)
+        .mockReturnValueOnce(mockGeminiChild);
 
       const detectPromise = detectAllClis();
 
-      // Simulate both CLIs responding
+      // Simulate all CLIs responding
       setTimeout(() => {
         mockCodexChild.stdout!.emit('data', Buffer.from('OpenAI Codex v0.39.0'));
         mockCodexChild.emit('close', 0);
         mockClaudeChild.stdout!.emit('data', Buffer.from('2.1.2'));
         mockClaudeChild.emit('close', 0);
+        mockGeminiChild.stdout!.emit('data', Buffer.from('Gemini CLI v0.20.0'));
+        mockGeminiChild.emit('close', 0);
       }, 100);
 
       vi.advanceTimersByTime(100);
@@ -255,6 +259,11 @@ describe('cli-detect', () => {
           version: '2.1.2',
           command: 'claude',
         },
+        gemini: {
+          available: true,
+          version: '0.20.0',
+          command: 'gemini',
+        },
       });
     });
 
@@ -262,18 +271,21 @@ describe('cli-detect', () => {
       // Arrange
       const mockCodexChild = createMockChildProcess();
       const mockClaudeChild = createMockChildProcess();
+      const mockGeminiChild = createMockChildProcess();
 
       vi.mocked(spawn)
         .mockReturnValueOnce(mockCodexChild)
-        .mockReturnValueOnce(mockClaudeChild);
+        .mockReturnValueOnce(mockClaudeChild)
+        .mockReturnValueOnce(mockGeminiChild);
 
       const detectPromise = detectAllClis();
 
-      // Simulate codex available, claude unavailable
+      // Simulate status
       setTimeout(() => {
         mockCodexChild.stdout!.emit('data', Buffer.from('OpenAI Codex v0.39.0'));
         mockCodexChild.emit('close', 0);
         mockClaudeChild.emit('error', new Error('spawn ENOENT'));
+        mockGeminiChild.emit('close', 1); // unavailable
       }, 100);
 
       vi.advanceTimersByTime(100);
