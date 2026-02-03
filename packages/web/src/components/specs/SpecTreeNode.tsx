@@ -197,8 +197,8 @@ export function TreeNode({
             node.parentSpecId ? 'ml-3' : ''
           } ${
             isSelected
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-              : 'hover:bg-sidebar-accent/50 text-sidebar-foreground/80'
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
+              : 'hover:bg-sidebar-accent/60 hover:shadow-sm text-sidebar-foreground/80 hover:text-sidebar-foreground'
           } ${isGenerating ? 'opacity-50 pointer-events-none' : ''}`}
           onClick={(e) => {
             e.preventDefault();

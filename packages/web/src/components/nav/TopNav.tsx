@@ -71,48 +71,6 @@ export function TopNav({
           )}
         </div>
 
-        {/* Center: Navigation Tabs */}
-        <div className="flex items-center shrink-0">
-          <div className="flex bg-muted/40 backdrop-blur-sm rounded-xl p-1 ring-1 ring-border/50 shadow-inner">
-            <button
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                isSpecsPage
-                  ? "bg-background text-foreground shadow-md shadow-black/10 ring-1 ring-border/50"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-              }`}
-              onClick={() => onNavigate('/spec-review')}
-            >
-              {isSpecsPage ? (
-                <DocumentTextIconSolid className="w-4 h-4 text-primary" />
-              ) : (
-                <DocumentTextIcon className="w-4 h-4" />
-              )}
-              <span>Specs</span>
-            </button>
-            <button
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                isExecutionPage
-                  ? "bg-background text-foreground shadow-md shadow-black/10 ring-1 ring-border/50"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-              }`}
-              onClick={() => onNavigate('/execution/kanban')}
-            >
-              {isExecutionPage ? (
-                <PlayIconSolid className="w-4 h-4 text-success" />
-              ) : (
-                <PlayIcon className="w-4 h-4" />
-              )}
-              <span>Execution</span>
-              {isRalphRunning && (
-                <span className="relative flex h-2 w-2 ml-1">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-
         {/* Right: Settings */}
         <div className="flex-1 flex items-center justify-end">
           <button

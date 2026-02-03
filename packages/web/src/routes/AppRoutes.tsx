@@ -5,6 +5,7 @@ import { SpecDashboard, SpecExplorer } from "../components/specs";
 import { DecomposeView } from "./DecomposeView";
 import { SettingsView } from "./SettingsView";
 import { HomePage } from "./HomePage";
+import { SpecWorkplace } from "./SpecWorkplace";
 
 // Redirect component that preserves query parameters
 function RedirectWithParams({ to }: { to: string }) {
@@ -51,6 +52,14 @@ export function AppRoutes({
         element={
           selectedProject ? (
             <SpecExplorer projectPath={selectedProject} />
+          ) : null
+        }
+      />
+      <Route
+        path="/workplace"
+        element={
+          selectedProject ? (
+            <SpecWorkplace projectPath={selectedProject} />
           ) : null
         }
       />
