@@ -25,7 +25,7 @@ interface UseSpecReviewReturn {
   diffOverlay: DiffOverlayState;
   setDiffOverlay: React.Dispatch<React.SetStateAction<DiffOverlayState>>;
   getReviewStatus: () => ReviewStatus;
-  handleStartReview: (reuseSession?: boolean) => Promise<void>;
+  handleStartReview: (reuseSession?: boolean, model?: string) => Promise<void>;
   handleReviewDiff: (suggestion: Suggestion) => void;
   handleDiffApprove: (finalContent: string) => Promise<void>;
   handleDiffReject: () => void;
@@ -132,12 +132,12 @@ export function useSpecReview({
   }, [session]);
 
   // Handle start review (or re-review with existing session)
-  const handleStartReview = useCallback(async (reuseSession: boolean = false) => {
+  const handleStartReview = useCallback(async (reuseSession: boolean = false, model?: string) => {
     if (!selectedPath) return;
 
     setIsStartingReview(true);
     try {
-      const requestBody: Record<string, unknown> = { specFile: selectedPath };
+      const requestBody: Record<string, unknown> = { specFile: selectedPath, model };
 
       // If re-reviewing, pass the existing session ID to preserve chat history
       if (reuseSession && session?.sessionId) {

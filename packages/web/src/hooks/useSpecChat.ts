@@ -22,7 +22,8 @@ interface UseSpecChatReturn {
   handleSendChatMessage: (
     message: string,
     selectionContext?: string,
-    suggestionId?: string
+    suggestionId?: string,
+    model?: string
   ) => Promise<void>;
   handleDiscussSuggestion: (suggestion: Suggestion) => void;
   handleNewChat: () => void;
@@ -54,7 +55,8 @@ export function useSpecChat({
   const handleSendChatMessage = useCallback(async (
     message: string,
     selectionContext?: string,
-    suggestionId?: string
+    suggestionId?: string,
+    model?: string
   ): Promise<void> => {
     if (!selectedPath) return;
 
@@ -97,6 +99,7 @@ export function useSpecChat({
           message,
           suggestionId,
           selectedText: selectionContext,
+          model,
         }),
       });
 

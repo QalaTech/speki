@@ -29,56 +29,47 @@ import { SidebarProvider, SidebarInset } from '../components/ui/sidebar';
 import { SpecEditor, type SpecEditorRef } from '../components/shared/SpecEditor';
 import { UseCaseList } from '../components/specs/UseCaseList';
 import { Button } from '../components/ui/Button';
+import { Spinner } from '../components/ui/Loading';
 import { CreateTechSpecModal } from '../components/specs/CreateTechSpecModal';
 import { NewSpecDrawer } from '../components/specs/NewSpecDrawer';
+import { ChatMarkdown } from '../components/chat/ChatMarkdown';
 
 // Hooks
 import { useSpecFileTree } from '../hooks/useSpecFileTree';
 import { useSpecContent } from '../hooks/useSpecContent';
+import { useSpecReview } from '../hooks/useSpecReview';
+import { useSpecChat } from '../hooks/useSpecChat';
 import { useDecomposeSSE } from '../hooks/useDecomposeSSE';
 import { apiFetch } from '../components/ui/ErrorContext';
 
 // Types
 import { getSpecTypeFromFilename } from '../components/specs/types';
 import type { UserStory, QueuedTaskReference } from '../types';
-import { CrossIcon, XIcon } from 'lucide-react';
+import { BotIcon, XIcon, RotateCcw } from 'lucide-react';
 
 interface SpecWorkplaceProps {
   projectPath: string;
 }
 
-// Mock data types for suggestions
-interface Suggestion {
-  id: string;
-  originalText: string;
-  suggestedText: string;
-  reason: string;
-  status: 'pending' | 'accepted' | 'rejected';
-}
+// Types - import real Suggestion type
+import type { Suggestion } from '../components/specs/types';
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-}
-
-// Mock suggestions data
-const MOCK_SUGGESTIONS: Suggestion[] = [
-  {
-    id: '1',
-    originalText: 'The CLI should ask for a location',
-    suggestedText: 'The CLI should prompt the user to enter a location name or coordinates',
-    reason: 'More specific about what input format is expected',
-    status: 'pending',
-  },
-  {
-    id: '2',
-    originalText: 'Find a free api to use',
-    suggestedText: 'Use the OpenWeatherMap free tier API (up to 1000 calls/day)',
-    reason: 'Provides a concrete recommendation with rate limit info',
-    status: 'pending',
-  },
+// Quirky messages shown while AI is thinking (from ReviewChat)
+const QUIRKY_MESSAGES = [
+  { text: "Thinkering...", icon: "🧠" },
+  { text: "Doing specy things...", icon: "📝" },
+  { text: "Hmm, interesting...", icon: "🤔" },
+  { text: "Consulting the oracle...", icon: "🔮" },
+  { text: "Pondering deeply...", icon: "💭" },
+  { text: "Having a eureka moment...", icon: "💡" },
+  { text: "Crunching the bits...", icon: "⚙️" },
+  { text: "Summoning the answers...", icon: "✨" },
+  { text: "Brewing some thoughts...", icon: "☕" },
+  { text: "Connecting the dots...", icon: "🔗" },
+  { text: "Polishing the response...", icon: "💎" },
+  { text: "Consulting the specs...", icon: "📋" },
+  { text: "Explaining it to a rubber duck.", icon: "🦆" },
+  { text: "This is fine. Everything is fine.", icon: "🔥" },
 ];
 
 // Helper to format relative time
@@ -136,6 +127,40 @@ export function SpecWorkplace({ projectPath }: SpecWorkplaceProps) {
   } = useSpecContent({
     projectPath,
     selectedPath,
+  });
+
+  // AI Review workflow
+  const {
+    session,
+    setSession,
+    isStartingReview,
+    handleStartReview,
+    handleSuggestionAction,
+  } = useSpecReview({
+    projectPath,
+    selectedPath,
+    content,
+    onContentChange: setContent,
+    onSave: handleSave,
+  });
+
+  // Chat functionality (uses session from review)
+  const {
+    isSendingChat,
+    handleSendChatMessage,
+    handleDiscussSuggestion,
+    discussingContext,
+    setDiscussingContext,
+    filteredChatMessages,
+    handleNewChat,
+  } = useSpecChat({
+    projectPath,
+    selectedPath,
+    session,
+    setSession,
+    onContentRefetch: async () => {
+      // Content will auto-refresh via file watcher
+    },
   });
 
   // Last saved tracking
@@ -400,16 +425,15 @@ export function SpecWorkplace({ projectPath }: SpecWorkplaceProps) {
     setIsCreateTechSpecModalOpen(false);
   }, [refreshFiles, setSelectedPath]);
 
-  // Chat state
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Chat UI state (functionality comes from useSpecChat hook)
   const [inputValue, setInputValue] = useState('');
   const [isConversationOpen, setIsConversationOpen] = useState(false);
-  const [isSendingChat, setIsSendingChat] = useState(false);
+  const [quirkyMessage, setQuirkyMessage] = useState<typeof QUIRKY_MESSAGES[0] | null>(null);
+  const lastQuirkyIndexRef = useRef<number>(-1);
   
-  // Suggestions state - initialize with mock data
-  const [suggestions, setSuggestions] = useState<Suggestion[]>(MOCK_SUGGESTIONS);
+  // Suggestions from real session (not mock)
+  const suggestions = session?.suggestions || [];
   const [isSuggestionsExpanded, setIsSuggestionsExpanded] = useState(false);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<Suggestion | null>(null);
 
   // Text selection state for "Add to conversation" feature
   const [textSelection, setTextSelection] = useState<{
@@ -431,15 +455,12 @@ export function SpecWorkplace({ projectPath }: SpecWorkplaceProps) {
     if (conversationRef.current && isConversationOpen) {
       conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
     }
-  }, [messages, isConversationOpen]);
+  }, [filteredChatMessages, isConversationOpen]);
 
-  // Reset chat on spec change (but keep suggestions for demo)
+  // Reset chat on spec change
   useEffect(() => {
-    setMessages([]);
     setIsConversationOpen(false);
     setLastSavedAt(null);
-    // Reset suggestions to mock data when spec changes
-    setSuggestions(MOCK_SUGGESTIONS);
   }, [selectedPath]);
 
   // Track tasks section visibility using IntersectionObserver
@@ -460,33 +481,43 @@ export function SpecWorkplace({ projectPath }: SpecWorkplaceProps) {
     return () => observer.disconnect();
   }, [hasStories]);
 
+  // Rotate quirky messages while streaming
+  useEffect(() => {
+    if (!isSendingChat) {
+      setQuirkyMessage(null);
+      return;
+    }
+
+    // Pick initial message
+    const pickRandom = () => {
+      let newIndex: number;
+      do {
+        newIndex = Math.floor(Math.random() * QUIRKY_MESSAGES.length);
+      } while (newIndex === lastQuirkyIndexRef.current && QUIRKY_MESSAGES.length > 1);
+      lastQuirkyIndexRef.current = newIndex;
+      setQuirkyMessage(QUIRKY_MESSAGES[newIndex]);
+    };
+
+    pickRandom();
+    const interval = setInterval(pickRandom, 3000);
+    return () => clearInterval(interval);
+  }, [isSendingChat]);
+
+  // Auto-close suggestions when all reviewed
+  useEffect(() => {
+    if (pendingSuggestions.length === 0 && isSuggestionsExpanded) {
+      setIsSuggestionsExpanded(false);
+    }
+  }, [pendingSuggestions.length, isSuggestionsExpanded]);
+
+  // Send message handler using real hook
   const handleSendMessage = useCallback(async () => {
     if (!inputValue.trim()) return;
     
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: inputValue,
-      timestamp: new Date(),
-    };
-    
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
     setIsConversationOpen(true);
-    setIsSendingChat(true);
-
-    // Simulate AI response (in real impl, call chat API)
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: "I've reviewed your spec. Everything looks good! Let me know if you'd like any suggestions for improvements.",
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, aiResponse]);
-      setIsSendingChat(false);
-    }, 1500);
-  }, [inputValue]);
+    handleSendChatMessage(inputValue);
+    setInputValue('');
+  }, [inputValue, handleSendChatMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -500,18 +531,13 @@ export function SpecWorkplace({ projectPath }: SpecWorkplaceProps) {
     }
   };
 
-  const handleAcceptSuggestion = (id: string) => {
-    setSuggestions(prev => prev.map(s => 
-      s.id === id ? { ...s, status: 'accepted' as const } : s
-    ));
-    setSelectedSuggestion(null);
+  // Suggestion handlers using real hook
+  const handleAcceptSuggestion = async (id: string) => {
+    await handleSuggestionAction(id, 'approved');
   };
 
-  const handleRejectSuggestion = (id: string) => {
-    setSuggestions(prev => prev.map(s => 
-      s.id === id ? { ...s, status: 'rejected' as const } : s
-    ));
-    setSelectedSuggestion(null);
+  const handleRejectSuggestion = async (id: string) => {
+    await handleSuggestionAction(id, 'dismissed');
   };
 
   return (
@@ -782,23 +808,27 @@ export function SpecWorkplace({ projectPath }: SpecWorkplaceProps) {
             {/* Gradient fade from content to chat area */}
             <div className="absolute inset-x-0 -top-16 h-16 bg-gradient-to-t from-background to-transparent pointer-events-none" />
             
-            {/* Visual backdrop overlay for conversation or suggestions - allows scroll through */}
+            {/* Visual backdrop overlay for conversation or suggestions - click to dismiss */}
             {(isConversationOpen || isSuggestionsExpanded) && (
               <div 
-                className="fixed inset-0 bg-black/20 z-30 pointer-events-none"
+                className="fixed inset-0 bg-black/20 z-30 cursor-pointer"
+                onClick={() => {
+                  setIsConversationOpen(false);
+                  setIsSuggestionsExpanded(false);
+                }}
               />
             )}
             
             <div className="max-w-5xl mx-auto px-6 py-4 relative z-40">
               {/* Conversation Popover */}
-              {isConversationOpen && messages.length > 0 && !isSuggestionsExpanded && (
+              {isConversationOpen && filteredChatMessages.length > 0 && !isSuggestionsExpanded && (
                 <div 
                   ref={conversationRef}
-                  className="absolute bottom-full left-0 right-0 mb-2 max-h-80 overflow-y-auto rounded-lg bg-[#1e1e1e] border border-white/5 shadow-2xl"
+                  className="absolute bottom-full left-0 right-0 mb-2 max-h-[28rem] overflow-y-auto rounded-lg bg-[#1e1e1e] border border-white/5 shadow-2xl"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="sticky top-0 flex items-center justify-between px-4 py-2 border-b border-white/5 bg-[#1e1e1e] z-10">
-                    <span className="text-xs font-medium text-muted-foreground">Conversation</span>
+                    <span className="text-sm font-medium text-muted-foreground">Conversation</span>
                     <button 
                       onClick={() => setIsConversationOpen(false)}
                       className="p-1 rounded-md hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
@@ -808,26 +838,45 @@ export function SpecWorkplace({ projectPath }: SpecWorkplaceProps) {
                   </div>
                   
                   <div className="p-4 space-y-4">
-                    {messages.map(msg => (
-                      <div key={msg.id} className={msg.role === 'user' ? 'text-right' : ''}>
-                        {msg.role === 'user' ? (
-                          // User message - speech bubble on right
-                          <div className="inline-block max-w-[85%] bg-[#2a2a2a] rounded-2xl rounded-br-md px-4 py-2.5 text-left">
-                            <p className="text-sm text-foreground">{msg.content}</p>
-                          </div>
-                        ) : (
-                          // AI response - styled text, no bubble
-                          <div className="text-sm text-foreground/90 leading-relaxed">
-                            <p>{msg.content}</p>
-                          </div>
-                        )}
+                    {/* Discussing context banner */}
+                    {discussingContext && (
+                      <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <span className="text-xs font-medium text-primary">Discussing Suggestion</span>
+                          <button
+                            onClick={() => setDiscussingContext(null)}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <XIcon className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{discussingContext.issue}</p>
                       </div>
-                    ))}
+                    )}
+                    
+                    {filteredChatMessages.map((msg: { id: string; role: string; content: string }, index: number) => {
+                      
+                      return (
+                        <div key={msg.id} className={msg.role === 'user' ? 'text-right' : ''}>
+                          {msg.role === 'user' ? (
+                            // User message - speech bubble on right
+                            <div className="inline-block max-w-[85%] bg-[#2a2a2a] rounded-2xl rounded-br-md px-4 py-2.5 text-left">
+                              <p className="text-sm text-foreground">{msg.content}</p>
+                            </div>
+                          ) : (
+                            // AI response - markdown formatted
+                            <div className={`text-sm text-foreground/90 leading-relaxed prose prose-invert prose-sm max-w-none`}>
+                              <ChatMarkdown content={msg.content} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                     {isSendingChat && (
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <div className="text-sm">
+                        <span className="animate-text-shimmer font-medium">
+                          {quirkyMessage?.text || "Thinking..."}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -886,60 +935,104 @@ export function SpecWorkplace({ projectPath }: SpecWorkplaceProps) {
                   {/* Expanded suggestions - floats above */}
                   {isSuggestionsExpanded && (
                     <div className="absolute bottom-full left-0 right-0 mb-2 rounded-lg bg-[#1e1e1e] border border-white/3 shadow-2xl overflow-hidden max-h-80 overflow-y-auto animate-in fade-in slide-in-from-bottom-2 duration-200">
-                      {pendingSuggestions.map((suggestion) => (
-                        <div key={suggestion.id} className="border-b border-white/5 last:border-b-0">
-                          {/* Change header */}
-                          <div className="flex items-center justify-between px-4 py-2 bg-[#252525]">
-                            <span className="text-xs text-muted-foreground font-mono">
-                              spec content
-                            </span>
-                            <span className="text-xs text-success">+1 -1</span>
+                      {pendingSuggestions.map((suggestion) => {
+                        // Check if this is an actionable change (has a concrete fix) or just a comment/advisory
+                        const isActionable = suggestion.type === 'change' || 
+                          (suggestion.suggestedFix && 
+                           suggestion.suggestedFix.trim() !== suggestion.issue.trim() &&
+                           !suggestion.suggestedFix.toLowerCase().includes('consider') &&
+                           !suggestion.suggestedFix.toLowerCase().includes('should') &&
+                           suggestion.suggestedFix.length < 500);
+                        
+                        return (
+                          <div key={suggestion.id} className="border-b border-white/5 last:border-b-0">
+                            {isActionable ? (
+                              <>
+                                {/* Actionable change - show diff view */}
+                                <div className="flex items-center justify-between px-4 py-2 bg-[#252525]">
+                                  <span className="text-xs text-muted-foreground font-mono">
+                                    spec content
+                                  </span>
+                                  <span className="text-xs text-success">+1 -1</span>
+                                </div>
+                                <div className="font-mono text-xs">
+                                  <div className="flex items-start bg-warning/10">
+                                    <span className="w-10 px-2 py-1 text-right text-warning/50 select-none border-r border-white/5">!</span>
+                                    <span className="flex-1 px-3 py-1 text-warning/80">
+                                      {suggestion.issue}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-start bg-success/10">
+                                    <span className="w-10 px-2 py-1 text-right text-success/50 select-none border-r border-white/5">+</span>
+                                    <span className="flex-1 px-3 py-1 text-success">
+                                      {suggestion.suggestedFix}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a1a]">
+                                  <span className="text-xs text-muted-foreground">
+                                    {suggestion.section || 'Document'}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        handleDiscussSuggestion(suggestion);
+                                        setIsSuggestionsExpanded(false);
+                                        setIsConversationOpen(true);
+                                      }}
+                                      className="px-2 py-1 text-xs rounded bg-primary/20 hover:bg-primary/30 text-primary transition-colors"
+                                    >
+                                      Discuss
+                                    </button>
+                                    <button
+                                      onClick={() => handleRejectSuggestion(suggestion.id)}
+                                      className="px-2 py-1 text-xs rounded hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+                                    >
+                                      Dismiss
+                                    </button>
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                {/* Comment/Advisory - show recommendation only */}
+                                <div className="flex items-center justify-between px-4 py-2 bg-[#252525]">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-info">💡 Recommendation</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {suggestion.section || 'Document'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="px-4 py-3 text-sm text-foreground/90 leading-relaxed">
+                                  <p className="font-medium text-foreground mb-1">{suggestion.issue}</p>
+                                  {suggestion.suggestedFix && suggestion.suggestedFix !== suggestion.issue && (
+                                    <p className="text-muted-foreground text-xs mt-2">{suggestion.suggestedFix}</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center justify-end px-4 py-2 bg-[#1a1a1a] gap-1">
+                                  <button
+                                    onClick={() => {
+                                      handleDiscussSuggestion(suggestion);
+                                      setIsSuggestionsExpanded(false);
+                                      setIsConversationOpen(true);
+                                    }}
+                                    className="px-2 py-1 text-xs rounded bg-primary/20 hover:bg-primary/30 text-primary transition-colors"
+                                  >
+                                    Discuss
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectSuggestion(suggestion.id)}
+                                    className="px-2 py-1 text-xs rounded hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+                                  >
+                                    Dismiss
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
-                          {/* Diff content */}
-                          <div className="font-mono text-xs">
-                            {/* Removed line */}
-                            <div className="flex items-start bg-error/10">
-                              <span className="w-10 px-2 py-1 text-right text-error/50 select-none border-r border-white/5">-</span>
-                              <span className="flex-1 px-3 py-1 text-error/80 line-through">
-                                {suggestion.originalText}
-                              </span>
-                            </div>
-                            {/* Added line */}
-                            <div className="flex items-start bg-success/10">
-                              <span className="w-10 px-2 py-1 text-right text-success/50 select-none border-r border-white/5">+</span>
-                              <span className="flex-1 px-3 py-1 text-success">
-                                {suggestion.suggestedText}
-                              </span>
-                            </div>
-                          </div>
-                          {/* Reason + actions */}
-                          <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a1a]">
-                            <span className="text-xs text-muted-foreground">
-                              {suggestion.reason}
-                            </span>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleAcceptSuggestion(suggestion.id)}
-                                className="px-2 py-1 text-xs rounded bg-success/20 hover:bg-success/30 text-success transition-colors"
-                              >
-                                Apply
-                              </button>
-                              <button
-                                onClick={() => setSelectedSuggestion(suggestion)}
-                                className="px-2 py-1 text-xs rounded bg-primary/20 hover:bg-primary/30 text-primary transition-colors"
-                              >
-                                Discuss
-                              </button>
-                              <button
-                                onClick={() => handleRejectSuggestion(suggestion.id)}
-                                className="px-2 py-1 text-xs rounded hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                Dismiss
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -954,7 +1047,7 @@ export function SpecWorkplace({ projectPath }: SpecWorkplaceProps) {
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     onFocus={() => {
-                      if (messages.length > 0) {
+                      if (filteredChatMessages.length > 0) {
                         setIsConversationOpen(true);
                         setIsSuggestionsExpanded(false);
                       }
@@ -982,15 +1075,33 @@ export function SpecWorkplace({ projectPath }: SpecWorkplaceProps) {
                   
                   {/* Right side - icons + send */}
                   <div className="flex items-center gap-1">
-                    <button className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
-                      </svg>
+                    {/* AI Review Button */}
+                    <button 
+                      onClick={() => handleStartReview()}
+                      disabled={isStartingReview || !selectedPath}
+                      className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed group relative"
+                      title="Start AI Review"
+                    >
+                      {isStartingReview ? (
+                        <Spinner size="sm" className='text-white' />
+                      ) : (
+                        <BotIcon className="w-5 h-5" />
+                      )}
+                      {/* Tooltip */}
+                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[10px] bg-black/80 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                        {isStartingReview ? 'Reviewing...' : 'AI Review'}
+                      </span>
                     </button>
-                    <button className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
-                      </svg>
+                    <button 
+                      onClick={handleNewChat}
+                      className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors group relative"
+                      title="New Chat"
+                    >
+                      <RotateCcw className="w-5 h-5 text-muted-foreground" />
+                      {/* Tooltip */}
+                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[10px] bg-black/80 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                        New Chat
+                      </span>
                     </button>
                     <button
                       onClick={handleSendMessage}
@@ -1009,66 +1120,6 @@ export function SpecWorkplace({ projectPath }: SpecWorkplaceProps) {
               </div>
             </div>
           </div>
-        )}
-
-        {/* Changes Panel */}
-        {selectedSuggestion && (
-          <>
-            <div 
-              className="fixed inset-0 bg-black/50 z-50"
-              onClick={() => setSelectedSuggestion(null)}
-            />
-            <div className="fixed top-0 right-0 h-full w-[480px] bg-card border-l border-white/5 z-50 shadow-2xl animate-in slide-in-from-right duration-200">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground">Review Suggestion</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">Accept or reject this change</p>
-                </div>
-                <button
-                  onClick={() => setSelectedSuggestion(null)}
-                  className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <XMarkIcon className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="p-5 space-y-6">
-                <div>
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Original</h4>
-                  <div className="p-3 rounded-lg bg-error/5 border border-error/10">
-                    <p className="text-sm text-foreground/90 line-through">{selectedSuggestion.originalText}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Suggested</h4>
-                  <div className="p-3 rounded-lg bg-success/5 border border-success/10">
-                    <p className="text-sm text-foreground/90">{selectedSuggestion.suggestedText}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Reason</h4>
-                  <p className="text-sm text-muted-foreground">{selectedSuggestion.reason}</p>
-                </div>
-                
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={() => handleAcceptSuggestion(selectedSuggestion.id)}
-                    className="flex-1 py-2.5 rounded-lg bg-success/10 hover:bg-success/20 text-success font-medium text-sm transition-colors"
-                  >
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => handleRejectSuggestion(selectedSuggestion.id)}
-                    className="flex-1 py-2.5 rounded-lg bg-error/10 hover:bg-error/20 text-error font-medium text-sm transition-colors"
-                  >
-                    Reject
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
         )}
       </SidebarInset>
 

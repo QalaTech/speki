@@ -587,6 +587,32 @@ body {
   animation: bounce-subtle 0.6s ease-in-out;
 }
 
+/* Text shimmer effect for "Thinking" messages - Codex style */
+@keyframes text-shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.animate-text-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(70% 0.01 270) 0%,
+    oklch(85% 0.02 270) 25%,
+    oklch(95% 0.03 270) 50%,
+    oklch(85% 0.02 270) 75%,
+    oklch(70% 0.01 270) 100%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: text-shimmer 6s linear infinite;
+}
+
 /* ============================================
    Glassmorphism & Visual Depth Utilities
    ============================================ */
