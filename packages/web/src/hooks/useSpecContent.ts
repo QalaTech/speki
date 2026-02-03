@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { useFileVersion } from './useFileWatcher';
+import { useFileWatcher } from './useFileWatcher';
 import { apiFetch } from '../components/ui/ErrorContext';
 
 interface UseSpecContentOptions {
@@ -33,9 +33,10 @@ export function useSpecContent({
   const [isLoading, setIsLoading] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-
-  // File watcher - triggers refetch when selected file changes on disk
-  const fileVersion = useFileVersion(projectPath, selectedPath);
+  
+  // Track when we're saving to ignore file change events from our own save
+  const ignoreNextFileChangeRef = useRef(false);
+  const ignoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // API helper
   const apiUrl = useCallback((endpoint: string) => {
@@ -75,6 +76,16 @@ export function useSpecContent({
     }
     const contentToSave = newContent ?? content;
 
+    // Set flag to ignore the next file change event (our own save)
+    ignoreNextFileChangeRef.current = true;
+    // Clear flag after 2 seconds in case the event doesn't arrive
+    if (ignoreTimeoutRef.current) {
+      clearTimeout(ignoreTimeoutRef.current);
+    }
+    ignoreTimeoutRef.current = setTimeout(() => {
+      ignoreNextFileChangeRef.current = false;
+    }, 2000);
+
     try {
       const url = apiUrl(`/api/spec-review/content/${encodeURIComponent(selectedPath)}`);
       console.log('[useSpecContent] Saving to:', url);
@@ -86,13 +97,14 @@ export function useSpecContent({
       const data = await res.json();
       console.log('[useSpecContent] Save response:', data);
       setOriginalContent(contentToSave);
-      setContent(contentToSave);
+      // Don't call setContent here - keep editor state as-is to preserve undo history
       setHasUnsavedChanges(false);
-      toast.success("Spec updated");
       console.log('[useSpecContent] Save successful, unsaved changes cleared');
     } catch (err) {
       toast.error("Failed to save spec");
       console.error('[useSpecContent] Failed to save spec:', err);
+      // Reset flag on error
+      ignoreNextFileChangeRef.current = false;
     }
   }, [selectedPath, content, apiUrl]);
 
@@ -108,6 +120,29 @@ export function useSpecContent({
       console.error('Failed to revert changes:', err);
     }
   }, [selectedPath, apiUrl]);
+
+  // Handle file change events from watcher
+  const handleFileChange = useCallback((event: { filePath: string; changeType: string }) => {
+    // Normalize paths for comparison
+    const normalizedEventPath = event.filePath.replace(/\\/g, '/').replace(/\/$/, '');
+    const normalizedFilePath = selectedPath?.replace(/\\/g, '/').replace(/\/$/, '');
+    
+    if (normalizedFilePath && normalizedEventPath === normalizedFilePath) {
+      // Check if this was our own save
+      if (ignoreNextFileChangeRef.current) {
+        console.log('[useSpecContent] Ignoring file change from our own save');
+        ignoreNextFileChangeRef.current = false;
+        return;
+      }
+      
+      // External change - refetch
+      console.log('[useSpecContent] External file change detected, refetching');
+      refetchContent();
+    }
+  }, [selectedPath, refetchContent]);
+
+  // Subscribe to file watcher
+  useFileWatcher({ projectPath, onFileChange: handleFileChange });
 
   // Fetch file content when selection changes
   useEffect(() => {
@@ -150,7 +185,7 @@ export function useSpecContent({
       abortController.abort();
       setIsLoading(false);
     };
-  }, [selectedPath, apiUrl, fileVersion]);
+  }, [selectedPath, apiUrl]); // Removed fileVersion - now handled by file watcher callback
 
   return {
     content,

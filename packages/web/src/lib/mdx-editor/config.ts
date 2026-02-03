@@ -8,6 +8,7 @@ import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { Prec } from '@codemirror/state';
 import { mermaidCodeBlockDescriptor } from './MermaidCodeBlockEditor';
+import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
 import {
   headingsPlugin,
   listsPlugin,
@@ -31,13 +32,11 @@ import {
   BoldItalicUnderlineToggles,
   BlockTypeSelect,
   CreateLink,
-  InsertTable,
   ListsToggle,
   UndoRedo,
   InsertThematicBreak,
   DiffSourceToggleWrapper,
   CodeToggle,
-  InsertCodeBlock,
   Separator,
 } from '@mdxeditor/editor';
 
@@ -154,108 +153,39 @@ export function createEditorPlugins(): RealmPlugin[] {
     }),
     codeMirrorPlugin({
       codeMirrorExtensions: darkCodeMirrorExtensions,
+      // Use primary language names only - MDXEditor shows duplicates for aliased entries
       codeBlockLanguages: {
-        // Default / fallback
         '': 'Plain Text',
-        text: 'Plain Text',
-        plaintext: 'Plain Text',
-        txt: 'Plain Text',
-
-        // JavaScript / TypeScript
         typescript: 'TypeScript',
-        ts: 'TypeScript',
-        tsx: 'TypeScript',
         javascript: 'JavaScript',
-        js: 'JavaScript',
-        jsx: 'JavaScript',
         json: 'JSON',
-        jsonc: 'JSON',
-
-        // Shell
         bash: 'Bash',
-        sh: 'Bash',
-        shell: 'Bash',
-        zsh: 'Bash',
         powershell: 'PowerShell',
-        ps1: 'PowerShell',
-        cmd: 'Bash',
-
-        // Config / Data
         yaml: 'YAML',
-        yml: 'YAML',
         toml: 'TOML',
-        ini: 'INI',
         xml: 'XML',
-
-        // Web
         html: 'HTML',
-        htm: 'HTML',
         css: 'CSS',
-        scss: 'CSS',
-        less: 'CSS',
-
-        // Backend languages
         python: 'Python',
-        py: 'Python',
         csharp: 'C#',
-        cs: 'C#',
-        'c#': 'C#',
         java: 'Java',
         go: 'Go',
-        golang: 'Go',
         rust: 'Rust',
-        rs: 'Rust',
         ruby: 'Ruby',
-        rb: 'Ruby',
         php: 'PHP',
         swift: 'Swift',
         kotlin: 'Kotlin',
-        kt: 'Kotlin',
         scala: 'Scala',
-
-        // C family
         c: 'C',
         cpp: 'C++',
-        'c++': 'C++',
-        h: 'C',
-        hpp: 'C++',
-        objc: 'Objective-C',
-
-        // Database
         sql: 'SQL',
-        mysql: 'SQL',
-        pgsql: 'SQL',
-        postgresql: 'SQL',
         graphql: 'GraphQL',
-        gql: 'GraphQL',
-
-        // Markup / Docs
         markdown: 'Markdown',
-        md: 'Markdown',
-        mdx: 'Markdown',
-
-        // Diagrams
         mermaid: 'Mermaid',
-        mmd: 'Mermaid',
-
-        // DevOps / Config
         dockerfile: 'Docker',
-        docker: 'Docker',
-        nginx: 'Nginx',
-        apache: 'Apache',
-
-        // Data formats
-        csv: 'Plain Text',
         diff: 'Diff',
-        patch: 'Diff',
-
-        // Other
-        regex: 'Plain Text',
         http: 'HTTP',
         makefile: 'Makefile',
-        make: 'Makefile',
-        proto: 'Protocol Buffers',
-        protobuf: 'Protocol Buffers',
       },
     }),
     tablePlugin(),
@@ -263,12 +193,13 @@ export function createEditorPlugins(): RealmPlugin[] {
     diffSourcePlugin({
       viewMode: 'rich-text',
     }),
-    // Toolbar plugin with formatting controls
+    // Toolbar plugin with simplified controls - essential actions visible, overflow menu for rest
     toolbarPlugin({
       toolbarContents: () =>
         createElement(
           'div',
           { style: { display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' } },
+          // Row 1: Essential formatting
           createElement(UndoRedo, null),
           createElement(Separator, null),
           createElement(BoldItalicUnderlineToggles, null),
@@ -279,9 +210,9 @@ export function createEditorPlugins(): RealmPlugin[] {
           createElement(ListsToggle, null),
           createElement(Separator, null),
           createElement(CreateLink, null),
-          createElement(InsertTable, null),
           createElement(InsertThematicBreak, null),
-          createElement(InsertCodeBlock, null),
+          // Overflow menu with secondary actions
+          createElement(ToolbarOverflowMenu, null),
           createElement(Separator, null),
           createElement(DiffSourceToggleWrapper, { children: null })
         ),
