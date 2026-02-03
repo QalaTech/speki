@@ -1,13 +1,9 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { ProjectSelector } from "./ProjectSelector";
 import {
-  DocumentTextIcon,
-  PlayIcon,
   Cog6ToothIcon,
 } from "@heroicons/react/24/outline";
 import {
-  DocumentTextIcon as DocumentTextIconSolid,
-  PlayIcon as PlayIconSolid,
   Cog6ToothIcon as Cog6ToothIconSolid,
 } from "@heroicons/react/24/solid";
 
@@ -31,15 +27,12 @@ export function TopNav({
   selectedProject,
   onProjectChange,
   onNavigate,
-  isRalphRunning,
 }: TopNavProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
 
-  const isSpecsPage = currentPath.startsWith("/specs") || currentPath.startsWith("/spec-review");
   const isSettingsPage = currentPath === "/settings";
-  const isExecutionPage = !isSpecsPage && !isSettingsPage;
 
   return (
     <nav className="sticky top-0 z-50 bg-linear-to-b from-background to-card/50 backdrop-blur-2xl border-b border-border/40 shadow-sm">
