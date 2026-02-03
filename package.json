@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
+    "shadcn": "^3.8.2",
     "typescript": "^5.7.3",
     "vitest": "^4.0.16"
   },

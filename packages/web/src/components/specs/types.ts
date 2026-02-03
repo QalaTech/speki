@@ -55,6 +55,23 @@ export type SpecType = 'prd' | 'tech-spec' | 'bug';
 
 export type ReviewStatus = 'reviewed' | 'pending' | 'god-spec' | 'in-progress' | 'none';
 
+export interface SpecFileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  children?: SpecFileNode[];
+  reviewStatus?: ReviewStatus;
+  specType?: SpecType;
+  /** Progress for PRDs: completed user stories / total */
+  progress?: { completed: number; total: number };
+  /** Linked child specs (tech specs under PRDs) */
+  linkedSpecs?: SpecFileNode[];
+  /** Parent spec ID (for tech specs linked to PRDs) */
+  parentSpecId?: string;
+  /** Whether this is a placeholder for a generating spec */
+  isGenerating?: boolean;
+}
+
 export interface DiffOverlayState {
   isOpen: boolean;
   suggestion: Suggestion | null;
