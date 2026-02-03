@@ -160,7 +160,7 @@ function UseCaseItem({
   };
 
   return (
-    <div className={`use-case-item group ${isCompleted ? "opacity-60" : ""} ${isEditing ? "editing" : ""}`}>
+    <div className={`use-case-item group ${isEditing ? "editing" : ""}`}>
       {/* Header row with grid layout: checkbox | ID | title | status | actions */}
       <div
         className={`grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-3 py-2.5 ${!isEditing && !alwaysExpanded ? "cursor-pointer" : ""}`}
@@ -321,9 +321,9 @@ function UseCaseItem({
 
       {/* Content - always visible when alwaysExpanded, otherwise when expanded */}
       {showContent && !isEditing && (
-        <div className={`pl-8 pb-3 space-y-3 text-sm ${!alwaysExpanded ? "animate-in slide-in-from-top-1 duration-150" : ""}`}>
+        <div className={`pt-3 pb-3 mt-2 space-y-3 text-sm border-t border-border/30 ${!alwaysExpanded ? "animate-in slide-in-from-top-1 duration-150" : ""}`}>
           {/* Description */}
-          <div className="prose prose-sm max-w-none text-muted-foreground">
+          <div className="text-muted-foreground w-full">
             <ChatMarkdown content={story.description} />
           </div>
 
@@ -379,10 +379,10 @@ function UseCaseItem({
             </div>
           )}
 
-          {/* Action buttons */}
-          <div className="flex gap-2 pt-2">
-            {specType === "tech-spec" && !story.passes && (
-              isQueued ? (
+          {/* Action buttons - queue controls only (edit via pencil icon in header) */}
+          {specType === "tech-spec" && !story.passes && (
+            <div className="flex gap-2 pt-2">
+              {isQueued ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -408,20 +408,9 @@ function UseCaseItem({
                 >
                   <PlusIcon className="h-3.5 w-3.5 mr-1" /> Add to Queue
                 </Button>
-              )
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-muted-foreground hover:text-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleStartEdit();
-              }}
-            >
-              <PencilIcon className="h-3.5 w-3.5 mr-1" /> Edit
-            </Button>
-          </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
