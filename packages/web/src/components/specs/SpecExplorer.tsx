@@ -9,12 +9,11 @@
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { SpecTree } from './SpecTree';
+import { AppSidebar } from './AppSidebar';
 import { SpecHeader } from './SpecHeader';
 import { type SpecEditorRef } from '../shared/SpecEditor';
 import { SpecDecomposeTab } from './SpecDecomposeTab';
 import { DiffOverlay } from './DiffOverlay';
-import { ReviewChat } from '../review/ReviewChat';
 import { CreateTechSpecModal } from './CreateTechSpecModal';
 import { SpecExplorerPreviewTab } from './SpecExplorerPreviewTab';
 import { ReviewPanel } from './ReviewPanel';
@@ -28,14 +27,15 @@ import {
   SparklesIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { Drawer, DrawerContent } from "../ui/Drawer";
+import { SidebarProvider, SidebarInset } from "../ui/sidebar";
 import { SpecContentSkeleton } from '../shared/SpecSkeleton';
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
+import { ReviewChat } from '../review/ReviewChat';
 
 // Hooks
-import { useResizablePanel } from '../../hooks/useResizablePanel';
 import { useSpecFileTree } from '../../hooks/useSpecFileTree';
 import { useSpecContent } from '../../hooks/useSpecContent';
 import { useSpecReview } from '../../hooks/useSpecReview';
@@ -78,14 +78,6 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   // Show decompose tab inline (triggered from sticky CTA when no tasks exist yet)
   const [showDecomposeInline, setShowDecomposeInline] = useState(false);
   const [isGeneratingFromCta, setIsGeneratingFromCta] = useState(false);
-
-  // Resizable panel
-  const { width: treeWidth, handleResizeStart } = useResizablePanel({
-    storageKey: 'specExplorerTreeWidth',
-    defaultWidth: 260,
-    minWidth: 180,
-    maxWidth: 500,
-  });
 
   // File tree
   const {
@@ -503,61 +495,48 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
   };
 
   return (
-    <div className="flex h-full bg-card">
-        {/* Tree Panel (Left) */}
-        <div className="shrink-0 min-w-[180px] max-w-[500px] h-full overflow-hidden" style={{ width: treeWidth }}>
-          <SpecTree
-            files={files}
-            selectedPath={selectedPath}
-            onSelect={setSelectedPath}
-            onCreateNew={handleOpenNewSpecModal}
-            generatingSpec={generatingTechSpecInfo || undefined}
-          />
-        </div>
-
-        {/* Resize Handle */}
-        <div
-          className="shrink-0 w-px h-full bg-border/50 cursor-col-resize relative z-10 transition-all duration-200 hover:bg-primary hover:shadow-[0_0_10px_rgba(88,166,255,0.3)] group"
-          onMouseDown={handleResizeStart}
-          title="Drag to resize"
-        >
-          <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize" />
-        </div>
-
-        {/* Document Area (Center) */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-card">
-          {selectedPath && (
-            <SpecHeader
-              fileName={selectedFileName}
-              filePath={selectedPath}
-              reviewStatus={getReviewStatus()}
-              hasUnsavedChanges={hasUnsavedChanges}
-              isEditMode={isEditing}
-              onEditStart={() => setIsEditing(true)}
-              onEditCancel={() => {
-                setIsEditing(false);
-                revertChanges();
-              }}
-              onSave={handleSave}
-              onCreateTechSpec={handleOpenCreateTechSpec}
-              isGeneratingTechSpec={isGeneratingTechSpec}
-              progress={prdProgress}
-              // Workflow stepper props
-              currentPhase={currentPhase}
-              hasContent={Boolean(content && content.trim().length > 50)}
-              hasPlan={decomposeStoryCount > 0}
-              isExecuting={isExecuting}
-              isCompleted={isSpecCompleted}
-              onPhaseClick={handlePhaseClick}
-            />
-          )}
-          <div className="flex-1 overflow-hidden min-h-0">
-            {renderContent()}
-          </div>
-        </div>
-
-        {/* Review Panel (Right) - available regardless of section */}
+    <SidebarProvider>
+      <AppSidebar
+        files={files}
+        selectedPath={selectedPath}
+        onSelect={setSelectedPath}
+        onCreateNew={handleOpenNewSpecModal}
+        generatingSpec={generatingTechSpecInfo || undefined}
+      />
+      <SidebarInset className="flex-1 flex flex-col min-w-0 overflow-hidden bg-card">
+        {/* Document Area Header */}
         {selectedPath && (
+          <SpecHeader
+            fileName={selectedFileName}
+            filePath={selectedPath}
+            reviewStatus={getReviewStatus()}
+            hasUnsavedChanges={hasUnsavedChanges}
+            isEditMode={isEditing}
+            onEditStart={() => setIsEditing(true)}
+            onEditCancel={() => {
+              setIsEditing(false);
+              revertChanges();
+            }}
+            onSave={handleSave}
+            onCreateTechSpec={handleOpenCreateTechSpec}
+            isGeneratingTechSpec={isGeneratingTechSpec}
+            progress={prdProgress}
+            // Workflow stepper props
+            currentPhase={currentPhase}
+            hasContent={Boolean(content && content.trim().length > 50)}
+            hasPlan={decomposeStoryCount > 0}
+            isExecuting={isExecuting}
+            isCompleted={isSpecCompleted}
+            onPhaseClick={handlePhaseClick}
+          />
+        )}
+        <div className="flex-1 overflow-hidden min-h-0">
+          {renderContent()}
+        </div>
+      </SidebarInset>
+
+      {/* Review Panel (Right) - available regardless of section */}
+      {selectedPath && (
           isReviewPanelOpen ? (
             <ReviewPanel
               session={session}
@@ -724,6 +703,6 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
             });
           }}
         />
-      </div>
+    </SidebarProvider>
   );
 }
