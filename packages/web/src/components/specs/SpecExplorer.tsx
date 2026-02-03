@@ -22,7 +22,6 @@ import type { WorkflowPhase } from './SpecStepper';
 import {
   MagnifyingGlassIcon,
   ChevronLeftIcon,
-  ChevronDownIcon,
   RocketLaunchIcon,
   SparklesIcon,
   XMarkIcon
@@ -372,30 +371,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
 
     const showPlanSection = selectedPath && (decomposeStoryCount > 0 || showDecomposeInline);
 
-    const planHeaderButton = showPlanSection ? (
-      <button
-        id="plan-section"
-        className="flex items-center justify-between w-full px-6 py-3 hover:bg-muted transition-colors bg-card border-t border-border/30"
-        onClick={() => scrollToPlanContent(!isPlanSectionOpen)}
-      >
-        <div className="flex items-center gap-3">
-          <div className="p-1.5 rounded-lg bg-primary/10 ring-1 ring-primary/20">
-            <SparklesIcon className="h-4 w-4 text-primary" />
-          </div>
-          <span className="text-sm font-semibold text-foreground">
-            {selectedSpecType === 'prd' ? 'User Stories' : 'Tasks'}
-          </span>
-          {decomposeStoryCount > 0 && (
-            <Badge variant="ghost" size="xs">
-              {decomposeStoryCount}
-            </Badge>
-          )}
-        </div>
-        <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
-      </button>
-    ) : null;
-
-    // Single scrollable view with editor + plan sections
+    // Single scrollable view with editor + plan sections - seamless flow
     return (
       <div className="relative flex flex-col h-full">
         <div id="spec-scroll-container" className="flex flex-col flex-1 overflow-y-auto min-h-0">
@@ -410,16 +386,9 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
             />
           </div>
 
-          {/* Plan header - sticky bottom so it pins when scrolled away */}
+          {/* Use cases / Tasks - seamlessly below editor, no collapsible header */}
           {showPlanSection && (
-            <div className="sticky bottom-0 z-20 shrink-0 shadow-[0_-6px_16px_rgba(0,0,0,0.25)] animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {planHeaderButton}
-            </div>
-          )}
-
-          {/* Plan content - below the header */}
-          {showPlanSection && isPlanSectionOpen && (
-            <div id="plan-content" className="shrink-0 border-t border-border/10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div id="plan-content" className="shrink-0 px-6 pb-6">
               <SpecDecomposeTab
                 specPath={selectedPath}
                 projectPath={projectPath}

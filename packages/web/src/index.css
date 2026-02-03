@@ -1032,6 +1032,41 @@ body {
 .diff-editor-container .monaco-editor .char-insert { background-color: rgba(35, 134, 54, 0.35) !important; border-radius: 2px; }
 .diff-editor-container .monaco-editor .char-delete { background-color: rgba(218, 54, 51, 0.35) !important; border-radius: 2px; }
 
+/* ============================================
+   Use Case List - Markdown-style task list
+   ============================================ */
+
+.use-case-list {
+  @apply space-y-0;
+}
+
+.use-case-item {
+  @apply border-b border-border/20 last:border-b-0;
+  transition: background-color 0.15s ease;
+}
+
+.use-case-item:hover {
+  @apply bg-muted/10 -mx-2 px-2 rounded-lg;
+}
+
+.use-case-checkbox {
+  @apply w-5 h-5 rounded border-2 border-muted-foreground/30
+         flex items-center justify-center shrink-0 mt-0.5
+         transition-all duration-150;
+}
+
+.use-case-checkbox.checked {
+  @apply bg-success border-success text-success-foreground;
+}
+
+.use-case-checkbox.running {
+  @apply bg-primary border-primary text-primary-foreground animate-pulse;
+}
+
+.use-case-checkbox.blocked {
+  @apply bg-warning/20 border-warning/40 text-warning;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
