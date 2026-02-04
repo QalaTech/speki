@@ -146,14 +146,14 @@ export function ReviewPanel({
 
   if (pending.length === 0) {
     return (
-      <div className="w-80 border-l border-white/6 bg-[#141414] flex flex-col animate-in slide-in-from-right duration-200">
+      <div className="w-80 h-full border-l border-white/6 bg-[#141414] flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/6">
           <div className="flex items-center gap-2">
             <BotIcon className="w-4 h-4 text-primary" />
             <span className="text-sm font-medium">Review</span>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-white/5 rounded transition-colors">
-            <XMarkIcon className="w-4 h-4 text-muted-foreground" />
+          <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-md transition-colors text-muted-foreground hover:text-foreground">
+            <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
         <div className="flex-1 flex items-center justify-center p-6">
@@ -164,7 +164,7 @@ export function ReviewPanel({
   }
 
   return (
-    <div className="w-80 border-l border-white/6 bg-[#141414] flex flex-col animate-in slide-in-from-right duration-200">
+    <div className="w-80 h-full border-l border-white/6 bg-[#141414] flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/6 shrink-0">
         <div className="flex items-center gap-2">
@@ -191,8 +191,8 @@ export function ReviewPanel({
               </span>
             )}
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-white/5 rounded transition-colors">
-            <XMarkIcon className="w-4 h-4 text-muted-foreground" />
+          <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-md transition-colors text-muted-foreground hover:text-foreground">
+            <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
       </div>

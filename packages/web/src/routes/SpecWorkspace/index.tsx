@@ -391,19 +391,24 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
           </div>
 
           {/* Right: Review Panel (Codex-style) */}
-          {isReviewPanelOpen && (
-            <ReviewPanel
-              suggestions={suggestions}
-              onResolve={handleResolveSuggestion}
-              onDismiss={handleRejectSuggestion}
-              onDiscuss={(suggestion) => {
-                handleDiscussSuggestion(suggestion);
-                setIsConversationOpen(true);
-              }}
-
-              onClose={() => setIsReviewPanelOpen(false)}
-            />
-          )}
+          <div 
+            className={`shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out ${
+              isReviewPanelOpen ? 'w-80' : 'w-0'
+            }`}
+          >
+            <div className="w-80 h-full"> 
+              <ReviewPanel
+                suggestions={suggestions}
+                onResolve={handleResolveSuggestion}
+                onDismiss={handleRejectSuggestion}
+                onDiscuss={(suggestion) => {
+                  handleDiscussSuggestion(suggestion);
+                  setIsConversationOpen(true);
+                }}
+                onClose={() => setIsReviewPanelOpen(false)}
+              />
+            </div>
+          </div>
         </div>
       </SidebarInset>
 
