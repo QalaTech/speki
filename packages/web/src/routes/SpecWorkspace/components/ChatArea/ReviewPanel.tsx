@@ -9,6 +9,7 @@ interface ReviewPanelProps {
   onResolve: (id: string) => void;
   onDismiss: (id: string) => void;
   onDiscuss: (suggestion: Suggestion) => void;
+  onDismissAll: () => void;
   onClose: () => void;
 }
 
@@ -132,6 +133,7 @@ export function ReviewPanel({
   onResolve,
   onDismiss,
   onDiscuss,
+  onDismissAll,
   onClose,
 }: ReviewPanelProps) {
   const pending = suggestions.filter((s) => s.status === 'pending');
@@ -139,10 +141,6 @@ export function ReviewPanel({
   const warning = pending.filter((s) => s.severity === 'warning');
   const info = pending.filter((s) => s.severity === 'info');
   const grouped = [...critical, ...warning, ...info];
-
-  const handleDismissAll = () => {
-    pending.forEach((s) => onDismiss(s.id));
-  };
 
   if (pending.length === 0) {
     return (
@@ -215,7 +213,7 @@ export function ReviewPanel({
           {pending.length} pending
         </span>
         <button
-          onClick={handleDismissAll}
+          onClick={onDismissAll}
           className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
         >
           Dismiss all
