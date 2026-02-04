@@ -27,6 +27,7 @@ import {
 
 // Sub-components
 import { DocumentHeader, EditorSection, TasksSection, EmptyState, ChatArea } from './components';
+import { ReviewPanel } from './components/ChatArea/ReviewPanel';
 
 // Types
 import type { UserStory } from '../../types';
@@ -114,6 +115,9 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     onSave: handleSave,
   });
 
+  // Chat input state - must be before useSpecChat
+  const [inputValue, setInputValue] = useState('');
+
   // Chat functionality
   const {
     isSendingChat,
@@ -131,6 +135,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     onContentRefetch: async () => {
       // Content will auto-refresh via file watcher
     },
+    setInputValue,
   });
 
   // Decompose state and operations
@@ -236,23 +241,27 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   );
 
   // Chat UI state
-  const [inputValue, setInputValue] = useState('');
   const [isConversationOpen, setIsConversationOpen] = useState(false);
-  const [isSuggestionsExpanded, setIsSuggestionsExpanded] = useState(false);
+  const [isReviewPanelOpen, setIsReviewPanelOpen] = useState(false);
   const [tasksVisible, setTasksVisible] = useState(true);
 
-  // Reset chat on spec change
+  // Reset state on spec change
   useEffect(() => {
     setIsConversationOpen(false);
+    setIsReviewPanelOpen(false);
   }, [selectedPath]);
 
   // Send message handler
   const handleSendMessage = useCallback(() => {
     if (!inputValue.trim()) return;
     setIsConversationOpen(true);
-    handleSendChatMessage(inputValue);
+    handleSendChatMessage(inputValue, undefined, discussingContext?.suggestionId);
     setInputValue('');
-  }, [inputValue, handleSendChatMessage]);
+    // Clear discussing context after sending
+    if (discussingContext) {
+      setDiscussingContext(null);
+    }
+  }, [inputValue, handleSendChatMessage, discussingContext, setDiscussingContext]);
 
   // Add selected text to conversation
   const handleAddToConversation = useCallback(
@@ -263,7 +272,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   );
 
   // Suggestion handlers
-  const handleAcceptSuggestion = useCallback(
+  const handleResolveSuggestion = useCallback(
     async (id: string) => {
       await handleSuggestionAction(id, 'approved');
     },
@@ -276,6 +285,9 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     },
     [handleSuggestionAction]
   );
+
+  // Go to suggestion location in editor
+
 
   // Scroll to tasks
   const scrollToTasks = useScrollToElement();
@@ -299,84 +311,100 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
       />
 
       <SidebarInset className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
-        {/* Scrollable content area */}
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-5xl mx-auto px-6 py-8 pb-4">
-            {selectedPath ? (
-              <>
-                <DocumentHeader
-                  title={documentTitle}
-                  specType={selectedSpecType}
-                  storiesCount={stories.length}
-                  isPrd={isPrd}
-                  isSaving={isSaving}
-                  lastSavedAt={lastSavedAt}
-                  hasUnsavedChanges={hasUnsavedChanges}
-                  onScrollToStories={handleScrollToStories}
-                />
+        {/* Main content + Review Panel in flex row */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left: Scrollable content + Chat */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <div className="flex-1 overflow-auto">
+              <div className="max-w-5xl mx-auto px-6 py-8 pb-4">
+                {selectedPath ? (
+                  <>
+                    <DocumentHeader
+                      title={documentTitle}
+                      specType={selectedSpecType}
+                      storiesCount={stories.length}
+                      isPrd={isPrd}
+                      isSaving={isSaving}
+                      lastSavedAt={lastSavedAt}
+                      hasUnsavedChanges={hasUnsavedChanges}
+                      onScrollToStories={handleScrollToStories}
+                    />
 
-                <EditorSection
-                  ref={editorRef}
-                  content={content}
-                  isLoading={isLoadingContent}
-                  onChange={handleContentChange}
-                  onAddToConversation={handleAddToConversation}
-                />
+                    <EditorSection
+                      ref={editorRef}
+                      content={content}
+                      isLoading={isLoadingContent}
+                      onChange={handleContentChange}
+                      onAddToConversation={handleAddToConversation}
+                    />
 
-                <TasksSection
-                  stories={stories}
-                  completedIds={completedIds}
-                  queueTasks={queueTasks}
-                  queueLoading={queueLoading}
-                  specType={selectedSpecType}
-                  isPrd={isPrd}
-                  isDecomposing={isDecomposing}
-                  isLoadingContent={isLoadingContent}
-                  isGeneratingTechSpec={isGeneratingTechSpec}
-                  onDecompose={handleDecompose}
-                  onAddToQueue={addToQueue}
-                  onRemoveFromQueue={removeFromQueue}
-                  onAddAllToQueue={handleAddAllToQueue}
-                  onSaveTask={handleSaveTask}
-                  onRunQueue={handleRunQueue}
-                  onCreateTechSpec={() => setIsCreateTechSpecModalOpen(true)}
-                  onTasksVisibilityChange={setTasksVisible}
-                />
-              </>
-            ) : (
-              <EmptyState onCreateNew={() => setIsNewSpecDrawerOpen(true)} />
+                    <TasksSection
+                      stories={stories}
+                      completedIds={completedIds}
+                      queueTasks={queueTasks}
+                      queueLoading={queueLoading}
+                      specType={selectedSpecType}
+                      isPrd={isPrd}
+                      isDecomposing={isDecomposing}
+                      isLoadingContent={isLoadingContent}
+                      isGeneratingTechSpec={isGeneratingTechSpec}
+                      onDecompose={handleDecompose}
+                      onAddToQueue={addToQueue}
+                      onRemoveFromQueue={removeFromQueue}
+                      onAddAllToQueue={handleAddAllToQueue}
+                      onSaveTask={handleSaveTask}
+                      onRunQueue={handleRunQueue}
+                      onCreateTechSpec={() => setIsCreateTechSpecModalOpen(true)}
+                      onTasksVisibilityChange={setTasksVisible}
+                    />
+                  </>
+                ) : (
+                  <EmptyState onCreateNew={() => setIsNewSpecDrawerOpen(true)} />
+                )}
+              </div>
+            </div>
+
+            {/* Chat Area */}
+            {selectedPath && (
+              <ChatArea
+                messages={filteredChatMessages}
+                isSending={isSendingChat}
+                discussingContext={discussingContext}
+                onClearDiscussingContext={() => setDiscussingContext(null)}
+                suggestions={suggestions}
+                isReviewPanelOpen={isReviewPanelOpen}
+                onOpenReviewPanel={() => setIsReviewPanelOpen(true)}
+                storiesCount={stories.length}
+                isPrd={isPrd}
+                tasksVisible={tasksVisible}
+                onScrollToTasks={handleScrollToStories}
+                isConversationOpen={isConversationOpen}
+                onSetConversationOpen={setIsConversationOpen}
+                inputValue={inputValue}
+                onInputChange={setInputValue}
+                onSendMessage={handleSendMessage}
+                onNewChat={handleNewChat}
+                onStartReview={handleStartReview}
+                isStartingReview={isStartingReview}
+              />
             )}
           </div>
+
+          {/* Right: Review Panel (Codex-style) */}
+          {isReviewPanelOpen && (
+            <ReviewPanel
+              suggestions={suggestions}
+              onResolve={handleResolveSuggestion}
+              onDismiss={handleRejectSuggestion}
+              onDiscuss={(suggestion) => {
+                handleDiscussSuggestion(suggestion);
+                setIsConversationOpen(true);
+              }}
+
+              onClose={() => setIsReviewPanelOpen(false)}
+            />
+          )}
         </div>
-
-        {/* Floating Chat Area */}
-        {selectedPath && (
-          <ChatArea
-            messages={filteredChatMessages}
-            isSending={isSendingChat}
-
-            discussingContext={discussingContext}
-            onClearDiscussingContext={() => setDiscussingContext(null)}
-            suggestions={suggestions}
-            onAcceptSuggestion={handleAcceptSuggestion}
-            onRejectSuggestion={handleRejectSuggestion}
-            onDiscussSuggestion={handleDiscussSuggestion}
-            storiesCount={stories.length}
-            isPrd={isPrd}
-            tasksVisible={tasksVisible}
-            onScrollToTasks={handleScrollToStories}
-            isConversationOpen={isConversationOpen}
-            isSuggestionsExpanded={isSuggestionsExpanded}
-            onSetConversationOpen={setIsConversationOpen}
-            onSetSuggestionsExpanded={setIsSuggestionsExpanded}
-            inputValue={inputValue}
-            onInputChange={setInputValue}
-            onSendMessage={handleSendMessage}
-            onNewChat={handleNewChat}
-            onStartReview={handleStartReview}
-            isStartingReview={isStartingReview}
-          />
-        )}
       </SidebarInset>
 
       {/* New Spec Drawer */}

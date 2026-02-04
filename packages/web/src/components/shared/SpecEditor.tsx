@@ -287,117 +287,7 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
       scrollToLine: (lineStart: number, _lineEnd?: number) => {
         const container = containerRef.current;
         if (!container) {
-          console.warn('[scrollToLine] No container ref');
-          return;
-        }
-
-        // Try multiple selectors to find the scrollable area
-        const possibleContainers = [
-          container.querySelector('.mdxeditor-root-contenteditable'),
-          container.querySelector('[contenteditable="true"]'),
-          container.querySelector('.mdxeditor'),
-          container.querySelector('.spec-editor-content'),
-        ];
-
-        const scrollableArea = possibleContainers.find(el => el !== null) as HTMLElement;
-
-        if (!scrollableArea) {
-          console.warn('[scrollToLine] No scrollable area found');
-          return;
-        }
-
-        console.log('[scrollToLine] Found scrollable area:', scrollableArea.className);
-
-        // Get the markdown content and extract text at target lines
-        const markdown = editorRef.current?.getMarkdown() ?? '';
-        const lines = markdown.split('\n');
-
-        // Get the text content at the target line (use first 50 chars as search string)
-        const targetLine = lines[lineStart - 1] || '';
-        const searchText = targetLine.trim().substring(0, 50).replace(/[#*_`[\]]/g, ''); // Strip markdown formatting
-
-        console.log('[scrollToLine] Searching for text:', searchText, 'at line', lineStart);
-
-        if (!searchText) {
-          console.warn('[scrollToLine] No text content at target line');
-          return;
-        }
-
-        // Find all text nodes and elements that might contain this text
-        const allElements = scrollableArea.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, th, pre, div');
-        let targetElement: HTMLElement | null = null;
-
-        for (const elem of allElements) {
-          const htmlElem = elem as HTMLElement;
-          const elemText = htmlElem.textContent || '';
-
-          // Check if this element contains our search text
-          if (elemText.includes(searchText)) {
-            targetElement = htmlElem;
-            console.log('[scrollToLine] Found matching element:', htmlElem.tagName, htmlElem.textContent?.substring(0, 50));
-            break;
-          }
-        }
-
-        if (!targetElement) {
-          console.warn('[scrollToLine] Could not find element with text:', searchText);
-          return;
-        }
-
-        // Get scroll parent (might be the element itself or a parent)
-        let scrollParent: HTMLElement | null = scrollableArea;
-        while (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight) {
-          scrollParent = scrollParent.parentElement;
-        }
-
-        if (!scrollParent) {
-          scrollParent = scrollableArea;
-        }
-
-        console.log('[scrollToLine] Scroll parent:', scrollParent.className);
-
-        // Calculate position to center the target element in viewport
-        const elementTop = targetElement.offsetTop;
-        const elementHeight = targetElement.offsetHeight;
-        const viewportHeight = scrollParent.clientHeight;
-        const centeredPosition = Math.max(0, elementTop - (viewportHeight / 2) + (elementHeight / 2));
-
-        console.log('[scrollToLine] Element top:', elementTop, 'height:', elementHeight, 'scrolling to:', centeredPosition);
-
-        // Smooth scroll to position
-        scrollParent.scrollTo({
-          top: centeredPosition,
-          behavior: 'smooth'
-        });
-
-        // Highlight the found element
-        const originalBg = targetElement.style.background;
-        const originalBorder = targetElement.style.border;
-        const originalTransition = targetElement.style.transition;
-
-        targetElement.style.transition = 'all 0.3s ease';
-        targetElement.style.background = 'rgba(88, 166, 255, 0.15)';
-        targetElement.style.border = '2px solid rgba(88, 166, 255, 0.4)';
-        targetElement.style.borderRadius = '4px';
-
-        setTimeout(() => {
-          if (targetElement) {
-            targetElement.style.transition = 'all 1s ease';
-            targetElement.style.background = originalBg;
-            targetElement.style.border = originalBorder;
-
-            setTimeout(() => {
-              if (targetElement) {
-                targetElement.style.transition = originalTransition;
-              }
-            }, 1000);
-          }
-        }, 1500);
-      },
-      scrollToSection: (sectionName: string) => {
-        const container = containerRef.current;
-        if (!container) {
-          console.warn('[scrollToSection] No container ref');
+          console.warn('[scrollToLine-v3] No container ref');
           return;
         }
 
@@ -405,100 +295,136 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
           container.querySelector('.mdxeditor-root-contenteditable'),
           container.querySelector('[contenteditable="true"]'),
           container.querySelector('.mdxeditor'),
+          container.querySelector('.spec-editor-content'),
         ].find(el => el !== null) as HTMLElement;
 
         if (!scrollableArea) {
-          console.warn('[scrollToSection] No scrollable area found');
+          console.warn('[scrollToLine-v3] No scrollable area found');
           return;
         }
 
-        console.log('[scrollToSection] Searching for section:', sectionName);
+        const markdown = editorRef.current?.getMarkdown() ?? '';
+        const lines = markdown.split('\n');
+        const targetLine = lines[lineStart - 1] || '';
+        
+        // Aggressive normalization
+        const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+        const rawText = targetLine.trim().replace(/^#+\s*/, '').replace(/[*_`~\[\](){}]/g, '').trim();
+        const normalizedSearch = normalize(rawText);
 
-        // Try to match section headings - strip common prefixes
-        const searchTerms = [
-          sectionName,
-          sectionName.replace(/^(Feature|Section|Chapter)\s+\d+:\s*/i, ''),
-          sectionName.split(':').pop()?.trim() || sectionName,
-        ];
+        console.log('[scrollToLine-v3] Searching for:', rawText, 'at line', lineStart);
 
-        console.log('[scrollToSection] Search terms:', searchTerms);
-
-        // Search all headings
-        const headings = scrollableArea.querySelectorAll('h1, h2, h3, h4, h5, h6');
-        let targetElement: HTMLElement | null = null;
-
-        for (const heading of headings) {
-          const headingText = (heading.textContent || '').trim();
-
-          for (const term of searchTerms) {
-            if (headingText.toLowerCase().includes(term.toLowerCase())) {
-              targetElement = heading as HTMLElement;
-              console.log('[scrollToSection] Found heading:', headingText);
-              break;
-            }
-          }
-
-          if (targetElement) break;
+        if (!normalizedSearch) {
+          console.warn('[scrollToLine-v3] No searchable text at line', lineStart);
+          return;
         }
 
+        const allElements = scrollableArea.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, th, pre, div, span, strong, em');
+        let targetElement: HTMLElement | null = null;
+
+        // Try exact match first
+        for (const elem of allElements) {
+          if (normalize(elem.textContent || '').includes(normalizedSearch)) {
+            targetElement = elem as HTMLElement;
+            break;
+          }
+        }
+
+        // Fallback: word-based fuzzy match
         if (!targetElement) {
-          // Fallback: search all text content
-          const allElements = scrollableArea.querySelectorAll('p, div, li, td, th');
-          for (const elem of allElements) {
-            const text = (elem.textContent || '').trim();
-            for (const term of searchTerms) {
-              if (text.toLowerCase().includes(term.toLowerCase())) {
+          const words = rawText.split(/\s+/).filter(w => w.length > 3);
+          if (words.length > 0) {
+            for (const elem of allElements) {
+              const text = normalize(elem.textContent || '');
+              const matches = words.filter(w => text.includes(w.toLowerCase())).length;
+              if (matches >= words.length * 0.7) {
                 targetElement = elem as HTMLElement;
-                console.log('[scrollToSection] Found in element:', elem.tagName, text.substring(0, 50));
                 break;
               }
             }
-            if (targetElement) break;
           }
         }
 
         if (!targetElement) {
-          console.warn('[scrollToSection] Could not find section:', sectionName);
+          console.warn('[scrollToLine-v3] Not found:', rawText);
           return;
         }
 
-        // Get scroll parent
-        let scrollParent: HTMLElement | null = scrollableArea;
-        while (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight) {
-          scrollParent = scrollParent.parentElement;
-        }
-        if (!scrollParent) scrollParent = scrollableArea;
+        // Action: Scroll and Highlight
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        const originalOutline = targetElement.style.outline;
+        const originalBoxShadow = targetElement.style.boxShadow;
+        const originalTransition = targetElement.style.transition;
+        const originalZIndex = targetElement.style.zIndex;
 
-        // Center in viewport
-        const elementTop = targetElement.offsetTop;
-        const elementHeight = targetElement.offsetHeight;
-        const viewportHeight = scrollParent.clientHeight;
-        const centeredPosition = Math.max(0, elementTop - (viewportHeight / 2) + (elementHeight / 2));
-
-        console.log('[scrollToSection] Scrolling to:', centeredPosition);
-
-        scrollParent.scrollTo({
-          top: centeredPosition,
-          behavior: 'smooth'
-        });
-
-        // Highlight
-        const originalBg = targetElement.style.background;
-        const originalBorder = targetElement.style.border;
-
-        targetElement.style.transition = 'all 0.3s ease';
-        targetElement.style.background = 'rgba(88, 166, 255, 0.2)';
-        targetElement.style.border = '2px solid rgba(88, 166, 255, 0.6)';
-        targetElement.style.borderRadius = '4px';
-        targetElement.style.padding = '8px';
+        targetElement.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+        targetElement.style.outline = '3px solid #3b82f6';
+        targetElement.style.outlineOffset = '4px';
+        targetElement.style.boxShadow = '0 0 0 1000px rgba(59, 130, 246, 0.05)';
+        targetElement.style.zIndex = '10';
 
         setTimeout(() => {
           if (targetElement) {
-            targetElement.style.transition = 'all 1s ease';
-            targetElement.style.background = originalBg;
-            targetElement.style.border = originalBorder;
+            targetElement.style.outline = '0px solid transparent';
+            targetElement.style.boxShadow = 'none';
+            setTimeout(() => {
+              if (targetElement) {
+                targetElement.style.outline = originalOutline;
+                targetElement.style.boxShadow = originalBoxShadow;
+                targetElement.style.transition = originalTransition;
+                targetElement.style.zIndex = originalZIndex;
+              }
+            }, 600);
           }
-        }, 2000);
+        }, 2500);
+      },
+      scrollToSection: (sectionName: string) => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const scrollableArea = [
+          container.querySelector('.mdxeditor-root-contenteditable'),
+          container.querySelector('[contenteditable="true"]'),
+        ].find(el => el !== null) as HTMLElement;
+
+        if (!scrollableArea) return;
+
+        const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+        const searchTerms = [
+          normalize(sectionName),
+          normalize(sectionName.split(':').pop() || ''),
+          normalize(sectionName.replace(/^(Feature|Section|Chapter)\s+\d+:\s*/i, ''))
+        ].filter(t => t.length > 2);
+
+        console.log('[scrollToSection-v3] Searching for section:', sectionName, 'Terms:', searchTerms);
+
+        const headings = scrollableArea.querySelectorAll('h1, h2, h3, h4, h5, h6, strong, p');
+        let targetElement: HTMLElement | null = null;
+
+        for (const elem of headings) {
+          const text = normalize(elem.textContent || '');
+          if (searchTerms.some(term => text === term || text.includes(term))) {
+            targetElement = elem as HTMLElement;
+            break;
+          }
+        }
+
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          
+          // Flash highlight
+          const originalBg = targetElement.style.background;
+          targetElement.style.transition = 'background 0.3s ease';
+          targetElement.style.background = 'rgba(59, 130, 246, 0.2)';
+          targetElement.style.borderRadius = '4px';
+          
+          setTimeout(() => {
+            if (targetElement) targetElement.style.background = originalBg;
+          }, 2000);
+        } else {
+          console.warn('[scrollToSection-v3] Not found:', sectionName);
+        }
       },
     }),
     []

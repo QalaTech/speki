@@ -9,6 +9,7 @@ interface UseSpecChatOptions {
   session: SpecSession | null;
   setSession: React.Dispatch<React.SetStateAction<SpecSession | null>>;
   onContentRefetch: () => Promise<void>;
+  setInputValue?: (value: string) => void;
 }
 
 interface UseSpecChatReturn {
@@ -39,6 +40,7 @@ export function useSpecChat({
   session,
   setSession,
   onContentRefetch,
+  setInputValue,
 }: UseSpecChatOptions): UseSpecChatReturn {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isSendingChat, setIsSendingChat] = useState(false);
@@ -178,7 +180,7 @@ export function useSpecChat({
   }, [selectedPath, session?.sessionId, apiUrl, onContentRefetch, setSession]);
 
   // Handle discuss suggestion (from review tab)
-  // Opens chat with context banner - doesn't auto-send a message
+  // Opens chat with context banner - user can see the context and type their question
   const handleDiscussSuggestion = useCallback((suggestion: Suggestion) => {
     // Mark the start of this discuss session (hides older messages from view)
     const now = new Date().toISOString();
@@ -190,7 +192,10 @@ export function useSpecChat({
       suggestedFix: suggestion.suggestedFix,
     });
     setIsChatOpen(true);
-  }, []);
+
+    // Clear input so user can type their own question about the suggestion
+    setInputValue?.('');
+  }, [setInputValue]);
 
   // Filter chat messages based on discuss start timestamp
   const filteredChatMessages = discussStartTimestamp && session?.chatMessages

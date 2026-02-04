@@ -51,19 +51,24 @@ describe('ConversationPopover', () => {
 
   it('should show discussing context banner when provided', () => {
     const discussingContext = {
+      suggestionId: 'test-id',
       issue: 'This is the suggestion being discussed',
+      suggestedFix: 'Suggested fix text',
     };
 
     render(<ConversationPopover {...defaultProps} discussingContext={discussingContext} />);
     
-    expect(screen.getByText('Discussing Suggestion')).toBeInTheDocument();
+    expect(screen.getByText('Discussing Review Item')).toBeInTheDocument();
     expect(screen.getByText('This is the suggestion being discussed')).toBeInTheDocument();
+    expect(screen.getByText('Suggested fix text')).toBeInTheDocument();
   });
 
   it('should call onClearDiscussingContext when X clicked on banner', () => {
     const onClearDiscussingContext = vi.fn();
     const discussingContext = {
+      suggestionId: 'test-id',
       issue: 'Test issue',
+      suggestedFix: '',
     };
 
     render(
@@ -74,9 +79,10 @@ describe('ConversationPopover', () => {
       />
     );
 
-    // Get the X button within the discussing context banner
-    const banner = screen.getByText('Discussing Suggestion').closest('div')?.parentElement;
-    const clearButton = banner?.querySelector('button');
+    // Get the X button within the discussing context banner (the clear context button)
+    const clearButtons = screen.getAllByRole('button');
+    // The second button should be the clear context button (first is close button)
+    const clearButton = clearButtons[1];
     if (clearButton) {
       fireEvent.click(clearButton);
     }
