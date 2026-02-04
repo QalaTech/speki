@@ -34,6 +34,10 @@ interface UseSpecReviewReturn {
     action: 'approved' | 'rejected' | 'edited' | 'dismissed' | 'resolved',
     userVersion?: string
   ) => Promise<void>;
+  handleBulkSuggestionAction: (
+    suggestionIds: string[],
+    action: 'approved' | 'rejected' | 'edited' | 'dismissed' | 'resolved'
+  ) => Promise<void>;
 }
 
 /**
@@ -342,6 +346,40 @@ export function useSpecReview({
     };
   }, [session?.status, selectedPath, apiUrl]);
 
+  // Handle bulk suggestion action
+  const handleBulkSuggestionAction = useCallback(async (
+    suggestionIds: string[],
+    action: 'approved' | 'rejected' | 'edited' | 'dismissed' | 'resolved'
+  ) => {
+    if (!session?.sessionId || suggestionIds.length === 0) return;
+
+    // Optimistic update
+    setSession(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        suggestions: prev.suggestions.map(s =>
+          suggestionIds.includes(s.id) ? { ...s, status: action, reviewedAt: new Date().toISOString() } : s
+        ),
+      };
+    });
+
+    // Execute requests in parallel
+    await Promise.all(
+      suggestionIds.map(id => 
+        apiFetch(apiUrl('/api/spec-review/suggestion'), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: session.sessionId,
+            suggestionId: id,
+            action,
+          }),
+        }).catch(err => console.error(`Failed to update suggestion ${id}:`, err))
+      )
+    );
+  }, [session?.sessionId, apiUrl]);
+
   return {
     session,
     setSession,
@@ -356,5 +394,6 @@ export function useSpecReview({
     handleDiffApprove,
     handleDiffReject,
     handleSuggestionAction,
+    handleBulkSuggestionAction,
   };
 }

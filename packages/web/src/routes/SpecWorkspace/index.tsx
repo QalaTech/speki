@@ -107,6 +107,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     isStartingReview,
     handleStartReview,
     handleSuggestionAction,
+    handleBulkSuggestionAction,
   } = useSpecReview({
     projectPath,
     selectedPath,
@@ -404,6 +405,12 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                 onDiscuss={(suggestion) => {
                   handleDiscussSuggestion(suggestion);
                   setIsConversationOpen(true);
+                }}
+                onDismissAll={async () => {
+                  const pendingIds = suggestions
+                    .filter(s => s.status === 'pending')
+                    .map(s => s.id);
+                  await handleBulkSuggestionAction(pendingIds, 'dismissed');
                 }}
                 onClose={() => setIsReviewPanelOpen(false)}
               />
