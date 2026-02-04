@@ -88,10 +88,10 @@ export function ConversationPopover({
         {messages.map((msg) => (
           <div key={msg.id} className={msg.role === 'user' ? 'text-right' : ''}>
             {msg.role === 'user' ? (
-              <div className="inline-block max-w-[85%] bg-primary text-primary-foreground rounded-2xl rounded-br-md px-4 py-2.5 text-left">
+              <div className="inline-block max-w-[85%] bg-tertiary text-tertiary-foreground rounded-2xl rounded-br-md px-4 py-2.5 text-left">
                 <p className="text-sm">{msg.content}</p>
                 {msg.suggestionId && (
-                  <div className="mt-1.5 text-[10px] text-primary-foreground/70 italic flex items-center gap-1">
+                  <div className="mt-1.5 text-[10px] text-tertiary-foreground/70 italic flex items-center gap-1">
                     <span>💡</span>
                     <span>Related to suggestion</span>
                   </div>

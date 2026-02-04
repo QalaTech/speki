@@ -34,6 +34,10 @@
   --color-secondary: lch(18 1 272);
   --color-secondary-foreground: oklch(98% 0.005 260);
 
+  /* Tertiary - User chat bubble background */
+  --color-tertiary: #27272a;
+  --color-tertiary-foreground: oklch(98% 0.005 260);
+
   /* Muted - adjusted for darker base */
   --color-muted: lch(14 0.8 272);
   --color-muted-foreground: oklch(85% 0.01 260);
