@@ -1,4 +1,5 @@
-import { ChevronDownIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { SquareArrowOutUpRightIcon } from 'lucide-react';
 
 interface StatusBarProps {
   storiesCount: number;
@@ -54,7 +55,7 @@ export function StatusBar({
             </span>
             <span className="flex items-center gap-1 transition-colors">
               Review changes
-              <ArrowRightIcon className="w-3.5 h-3.5" />
+              <SquareArrowOutUpRightIcon className="w-3.5 h-3.5" />
             </span>
           </button>
         )}
