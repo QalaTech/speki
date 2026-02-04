@@ -1,15 +1,13 @@
-import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
-import { X } from 'lucide-react';
+import { ChevronDownIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 
 interface StatusBarProps {
   storiesCount: number;
   isPrd: boolean;
   tasksVisible: boolean;
   pendingSuggestionsCount: number;
-  isSuggestionsExpanded: boolean;
+  isReviewPanelOpen: boolean;
   onScrollToTasks: () => void;
-  onToggleSuggestions: () => void;
-  onDismissAllSuggestions: () => void;
+  onOpenReviewPanel: () => void;
 }
 
 export function StatusBar({
@@ -17,14 +15,13 @@ export function StatusBar({
   isPrd,
   tasksVisible,
   pendingSuggestionsCount,
-  isSuggestionsExpanded,
+  isReviewPanelOpen,
   onScrollToTasks,
-  onToggleSuggestions,
-  onDismissAllSuggestions,
+  onOpenReviewPanel,
 }: StatusBarProps) {
   const hasStories = storiesCount > 0;
   const showTasksIndicator = hasStories && !tasksVisible;
-  const showSuggestions = pendingSuggestionsCount > 0;
+  const showSuggestions = pendingSuggestionsCount > 0 && !isReviewPanelOpen;
 
   if (!showTasksIndicator && !showSuggestions) return null;
 
@@ -46,32 +43,20 @@ export function StatusBar({
           )}
         </div>
 
-        {/* Right: Suggestions */}
+        {/* Right: Review changes link (Codex-style) */}
         {showSuggestions && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onToggleSuggestions}
-              className="flex items-center gap-2 text-sm text-foreground hover:text-foreground/80 transition-colors"
-            >
-              <span>
-                {pendingSuggestionsCount} change{pendingSuggestionsCount !== 1 ? 's' : ''} suggested
-              </span>
-              {isSuggestionsExpanded ? (
-                <ChevronDownIcon className="w-4 h-4 text-muted-foreground" />
-              ) : (
-                <ChevronUpIcon className="w-4 h-4 text-muted-foreground" />
-              )}
-            </button>
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                onDismissAllSuggestions();
-              }}
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
+          <button
+            onClick={onOpenReviewPanel}
+            className="flex items-center gap-2 text-sm transition-colors group cursor-pointer"
+          >
+            <span>
+              {pendingSuggestionsCount} change{pendingSuggestionsCount !== 1 ? 's' : ''} suggested
             </span>
-          </div>
+            <span className="flex items-center gap-1 transition-colors">
+              Review changes
+              <ArrowRightIcon className="w-3.5 h-3.5" />
+            </span>
+          </button>
         )}
       </div>
     </div>

@@ -1,6 +1,5 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { useQuirkyMessage } from '../../hooks';
-import { SuggestionsPanel } from './SuggestionsPanel';
 import { StatusBar } from './StatusBar';
 import { ChatInput } from './ChatInput';
 import { ConversationPopover } from './ConversationPopover';
@@ -17,11 +16,12 @@ interface ChatAreaProps {
   discussingContext: DiscussingContext | null;
   onClearDiscussingContext: () => void;
   
-  // Suggestions
+  // Suggestions (for count display)
   suggestions: Suggestion[];
-  onAcceptSuggestion: (id: string) => void;
-  onRejectSuggestion: (id: string) => void;
-  onDiscussSuggestion: (suggestion: Suggestion) => void;
+  
+  // Review panel control
+  isReviewPanelOpen: boolean;
+  onOpenReviewPanel: () => void;
   
   // Tasks indicator
   storiesCount: number;
@@ -31,9 +31,7 @@ interface ChatAreaProps {
   
   // UI state
   isConversationOpen: boolean;
-  isSuggestionsExpanded: boolean;
   onSetConversationOpen: (open: boolean) => void;
-  onSetSuggestionsExpanded: (expanded: boolean) => void;
   
   // Input
   inputValue: string;
@@ -51,16 +49,14 @@ export function ChatArea({
   discussingContext,
   onClearDiscussingContext,
   suggestions,
-  onRejectSuggestion,
-  onDiscussSuggestion,
+  isReviewPanelOpen,
+  onOpenReviewPanel,
   storiesCount,
   isPrd,
   tasksVisible,
   onScrollToTasks,
   isConversationOpen,
-  isSuggestionsExpanded,
   onSetConversationOpen,
-  onSetSuggestionsExpanded,
   inputValue,
   onInputChange,
   onSendMessage,
@@ -71,59 +67,28 @@ export function ChatArea({
   const pendingSuggestions = suggestions.filter((s) => s.status === 'pending');
   const quirkyMessage = useQuirkyMessage({ isActive: isSending });
 
-  // Auto-close suggestions when all reviewed
-  useEffect(() => {
-    if (pendingSuggestions.length === 0 && isSuggestionsExpanded) {
-      onSetSuggestionsExpanded(false);
-    }
-  }, [pendingSuggestions.length, isSuggestionsExpanded, onSetSuggestionsExpanded]);
-
-  const handleDismissAllSuggestions = useCallback(() => {
-    pendingSuggestions.forEach((s) => onRejectSuggestion(s.id));
-  }, [pendingSuggestions, onRejectSuggestion]);
-
-  const handleDiscuss = useCallback(
-    (suggestion: Suggestion) => {
-      onDiscussSuggestion(suggestion);
-      onSetSuggestionsExpanded(false);
-      onSetConversationOpen(true);
-    },
-    [onDiscussSuggestion, onSetSuggestionsExpanded, onSetConversationOpen]
-  );
-
-  const handleToggleSuggestions = useCallback(() => {
-    onSetSuggestionsExpanded(!isSuggestionsExpanded);
-    if (!isSuggestionsExpanded) {
-      onSetConversationOpen(false);
-    }
-  }, [isSuggestionsExpanded, onSetSuggestionsExpanded, onSetConversationOpen]);
-
   const handleInputFocus = useCallback(() => {
     if (messages.length > 0) {
       onSetConversationOpen(true);
-      onSetSuggestionsExpanded(false);
     }
-  }, [messages.length, onSetConversationOpen, onSetSuggestionsExpanded]);
+  }, [messages.length, onSetConversationOpen]);
 
   return (
     <div className="shrink-0 relative">
       {/* Gradient fade from content to chat area */}
-      <div className="absolute inset-x-0 -top-16 h-16 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+      <div className="absolute inset-x-0 bottom-full h-12 bg-linear-to-t from-[#0F0F0F] to-transparent pointer-events-none" />
 
-      {/* Visual backdrop overlay for conversation or suggestions - click to dismiss */}
-      {(isConversationOpen || isSuggestionsExpanded) && (
+      {/* Visual backdrop overlay for conversation - click to dismiss */}
+      {isConversationOpen && (
         <div
           className="fixed inset-0 bg-black/20 z-30 cursor-pointer"
-          onClick={() => {
-            onSetConversationOpen(false);
-            onSetSuggestionsExpanded(false);
-          }}
+          onClick={() => onSetConversationOpen(false)}
         />
       )}
 
       <div className="max-w-5xl mx-auto px-6 py-4 relative z-40">
         {/* Conversation Popover */}
-        {isConversationOpen && messages.length > 0 && !isSuggestionsExpanded && (
+        {isConversationOpen && (messages.length > 0 || discussingContext) && (
           <ConversationPopover
             messages={messages}
             isSending={isSending}
@@ -140,20 +105,10 @@ export function ChatArea({
           isPrd={isPrd}
           tasksVisible={tasksVisible}
           pendingSuggestionsCount={pendingSuggestions.length}
-          isSuggestionsExpanded={isSuggestionsExpanded}
+          isReviewPanelOpen={isReviewPanelOpen}
           onScrollToTasks={onScrollToTasks}
-          onToggleSuggestions={handleToggleSuggestions}
-          onDismissAllSuggestions={handleDismissAllSuggestions}
+          onOpenReviewPanel={onOpenReviewPanel}
         />
-
-        {/* Expanded Suggestions */}
-        {isSuggestionsExpanded && pendingSuggestions.length > 0 && (
-          <SuggestionsPanel
-            suggestions={pendingSuggestions}
-            onReject={onRejectSuggestion}
-            onDiscuss={handleDiscuss}
-          />
-        )}
 
         {/* Chat Input */}
         <ChatInput
@@ -164,10 +119,11 @@ export function ChatArea({
           onStartReview={onStartReview}
           isSending={isSending}
           isStartingReview={isStartingReview}
-
+          isDiscussing={!!discussingContext}
           onFocus={handleInputFocus}
         />
       </div>
     </div>
   );
 }
+

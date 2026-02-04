@@ -17,6 +17,7 @@ interface ChatInputProps {
   isSending: boolean;
   isStartingReview: boolean;
   onFocus?: () => void;
+  isDiscussing?: boolean;
 }
 
 export function ChatInput({
@@ -28,6 +29,7 @@ export function ChatInput({
   isSending,
   isStartingReview,
   onFocus,
+  isDiscussing,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -61,7 +63,7 @@ export function ChatInput({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={onFocus}
-          placeholder="Ask for follow-up changes"
+          placeholder={isDiscussing ? "Ask about this suggestion..." : "Ask for follow-up changes"}
           rows={1}
           className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
           style={{ minHeight: '24px', maxHeight: '120px' }}
