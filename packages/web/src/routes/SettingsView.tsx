@@ -74,13 +74,9 @@ function CliStatusCard({ cliDetection }: { cliDetection: any }) {
       <div className="p-4">
         <h3 className="text-base font-semibold mb-2">CLI Status</h3>
         <div className="flex gap-4">
-          {[
-            { name: 'Claude', data: cliDetection.claude },
-            { name: 'Codex', data: cliDetection.codex },
-            ...(cliDetection.gemini ? [{ name: 'Gemini', data: cliDetection.gemini }] : []),
-          ].map(({ name, data }) => (
+          {Object.entries(cliDetection).map(([key, data]: [string, any]) => (
             <div
-              key={name}
+              key={key}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-muted ${
                 data?.available ? '' : 'opacity-50'
               }`}
@@ -88,7 +84,9 @@ function CliStatusCard({ cliDetection }: { cliDetection: any }) {
               <span
                 className={`w-2 h-2 rounded-full ${data?.available ? 'bg-success' : 'bg-error'}`}
               />
-              <span className="font-medium text-sm">{name}</span>
+              <span className="font-medium text-sm">
+                {key.charAt(0).toUpperCase() + key.slice(1)}
+              </span>
               <span className={`font-mono text-xs ${data?.available ? 'text-success' : 'text-muted-foreground'}`}>
                 {data?.available ? `v${data.version}` : 'N/A'}
               </span>
@@ -199,11 +197,9 @@ export function SettingsView() {
 
   const getAvailableClis = (): CliType[] => {
     if (!cliDetection) return [];
-    const available: CliType[] = [];
-    if (cliDetection.codex?.available) available.push('codex');
-    if (cliDetection.claude?.available) available.push('claude');
-    if (cliDetection.gemini?.available) available.push('gemini');
-    return available;
+    return (Object.keys(cliDetection) as CliType[]).filter(
+      (key) => cliDetection[key]?.available
+    );
   };
 
   const availableClis = getAvailableClis();
@@ -384,9 +380,11 @@ export function SettingsView() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="auto">Auto (detect first available)</SelectItem>
-                                {cliDetection?.claude?.available && <SelectItem value="claude">Claude</SelectItem>}
-                                {cliDetection?.codex?.available && <SelectItem value="codex">Codex</SelectItem>}
-                                {cliDetection?.gemini?.available && <SelectItem value="gemini">Gemini</SelectItem>}
+                                {availableClis.map((cli) => (
+                                  <SelectItem key={cli} value={cli}>
+                                    {cli.charAt(0).toUpperCase() + cli.slice(1)}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </SelectRoot>
                           </ConfigField>

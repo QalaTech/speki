@@ -10,12 +10,32 @@ async function fetchSettings(): Promise<GlobalSettings> {
 
 async function fetchCliDetection(): Promise<AllCliDetectionResults> {
   const response = await apiFetch('/api/settings/cli/detect');
-  return response.json();
+  const data = await response.json();
+
+  // Sort: Available first, then alphabetically
+  const sortedEntries = Object.entries(data).sort(([keyA, valA]: [any, any], [keyB, valB]: [any, any]) => {
+    if (valA.available !== valB.available) {
+      return valA.available ? -1 : 1;
+    }
+    return keyA.localeCompare(keyB);
+  });
+
+  return Object.fromEntries(sortedEntries) as unknown as AllCliDetectionResults;
 }
 
 async function fetchModelDetection(): Promise<AllModelDetectionResults> {
   const response = await apiFetch('/api/settings/models/detect');
-  return response.json();
+  const data = await response.json();
+
+  // Sort: Available first, then alphabetically
+  const sortedEntries = Object.entries(data).sort(([keyA, valA]: [any, any], [keyB, valB]: [any, any]) => {
+    if (valA.available !== valB.available) {
+      return valA.available ? -1 : 1;
+    }
+    return keyA.localeCompare(keyB);
+  });
+
+  return Object.fromEntries(sortedEntries) as unknown as AllModelDetectionResults;
 }
 
 const SETTINGS_CACHE_KEY = 'speki-settings-cache';

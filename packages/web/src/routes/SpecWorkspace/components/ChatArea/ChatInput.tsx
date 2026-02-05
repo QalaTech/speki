@@ -48,10 +48,9 @@ export function ChatInput({
 
   const currentAgent = settings?.specChat?.agent || 'claude';
 
-  const availableClis: CliType[] = [];
-  if (cliDetection?.claude?.available) availableClis.push('claude');
-  if (cliDetection?.codex?.available) availableClis.push('codex');
-  if (cliDetection?.gemini?.available) availableClis.push('gemini');
+  const availableClis = cliDetection
+    ? (Object.keys(cliDetection) as CliType[]).filter((key) => cliDetection[key]?.available)
+    : [];
 
   const handleAgentChange = (newAgent: string) => {
     updateSettingsMutation.mutate({
