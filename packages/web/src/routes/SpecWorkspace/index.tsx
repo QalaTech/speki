@@ -247,6 +247,15 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   const [isReviewPanelOpen, setIsReviewPanelOpen] = useState(false);
   const [tasksVisible, setTasksVisible] = useState(true);
 
+  // Auto-open review panel when review finishes
+  const prevIsStartingReview = useRef(isStartingReview);
+  useEffect(() => {
+    if (prevIsStartingReview.current && !isStartingReview) {
+      setIsReviewPanelOpen(true);
+    }
+    prevIsStartingReview.current = isStartingReview;
+  }, [isStartingReview]);
+
   // Reset state on spec change
   useEffect(() => {
     setIsConversationOpen(false);

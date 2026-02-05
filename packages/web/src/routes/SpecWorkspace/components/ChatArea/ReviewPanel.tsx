@@ -138,7 +138,7 @@ function ReviewItem({
 export function ReviewPanel({
   suggestions,
   onResolve,
-  onDismiss,
+  onDismiss: _onDismiss,
   onDiscuss,
   onDismissAll,
   onClose,
