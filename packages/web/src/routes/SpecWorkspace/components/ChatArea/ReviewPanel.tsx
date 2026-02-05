@@ -3,6 +3,7 @@ import { XMarkIcon, CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outli
 import { BotIcon } from 'lucide-react';
 import type { Suggestion, SuggestionTag } from '../../../../components/specs/types';
 import { getSuggestionLocation } from '../../../../components/specs/types';
+import { Button } from '../../../../components/ui/Button';
 
 interface ReviewPanelProps {
   suggestions: Suggestion[];
@@ -86,13 +87,15 @@ function ReviewItem({
 
               {/* Expand toggle */}
               {hasCodeFix && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="mt-2 text-[11px]  flex items-center gap-1"
+                  className="mt-2 h-auto p-0 text-[11px] hover:bg-transparent text-muted-foreground hover:text-foreground flex items-center gap-1"
                 >
                   <span>{isExpanded ? 'Hide change' : 'Show change'}</span>
                   <ChevronDownIcon className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                </button>
+                </Button>
               )}
 
               {/* Diff */}
@@ -106,19 +109,23 @@ function ReviewItem({
 
               {/* Actions */}
               <div className="flex items-center gap-2 mt-3">
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => onDiscuss(suggestion)}
-                  className="px-2.5 py-1 text-[11px] font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+                  className="h-auto px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-white/5"
                 >
                   Discuss
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={() => onResolve(suggestion.id)}
-                  className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors ml-auto"
+                  className="h-auto px-2.5 py-1 text-[11px] font-medium ml-auto gap-1"
                 >
                   <CheckIcon className="w-3 h-3" />
                   Resolve
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -150,9 +157,14 @@ export function ReviewPanel({
             <BotIcon className="w-4 h-4 text-primary" />
             <span className="text-sm font-medium">Review</span>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-md transition-colors text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          >
             <XMarkIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
         <div className="flex-1 flex items-center justify-center p-6">
           <p className="text-sm text-muted-foreground text-center">All suggestions reviewed ✓</p>
@@ -189,9 +201,14 @@ export function ReviewPanel({
               </span>
             )}
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-md transition-colors text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          >
             <XMarkIcon className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -212,12 +229,14 @@ export function ReviewPanel({
         <span className="text-[11px] text-muted-foreground">
           {pending.length} pending
         </span>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onDismissAll}
-          className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          className="h-auto p-0 text-[11px] text-muted-foreground hover:text-foreground hover:bg-transparent"
         >
           Dismiss all
-        </button>
+        </Button>
       </div>
     </div>
   );
