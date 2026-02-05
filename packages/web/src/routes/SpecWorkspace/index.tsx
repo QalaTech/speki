@@ -502,7 +502,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                 onStartReview={handleStartReview}
                 isStartingReview={isStartingReview}
                 focusTrigger={focusTrigger}
-                queueCount={allQueueTasks.length}
+                queueCount={allQueueTasks.filter(t => !completedIds.has(t.taskId)).length}
                 onOpenQueue={() => setIsExecutionModalOpen(true)}
               />
             )}

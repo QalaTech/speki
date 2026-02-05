@@ -21,7 +21,7 @@ export function useAutoSave({
   content,
   hasUnsavedChanges,
   onSave,
-  debounceMs = 2000,
+  debounceMs = 1000,
 }: UseAutoSaveOptions): UseAutoSaveReturn {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isSaving, setIsSaving] = useState(false);
