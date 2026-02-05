@@ -244,7 +244,18 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
 
   // Chat UI state
   const [isConversationOpen, setIsConversationOpen] = useState(false);
-  const [isReviewPanelOpen, setIsReviewPanelOpen] = useState(false);
+  const isReviewPanelOpen = searchParams.get('panel') === 'open';
+  const setIsReviewPanelOpen = useCallback((open: boolean) => {
+    setSearchParams(prev => {
+      if (open) {
+        prev.set('panel', 'open');
+      } else {
+        prev.delete('panel');
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   const [tasksVisible, setTasksVisible] = useState(true);
 
   // Auto-open review panel when review finishes
