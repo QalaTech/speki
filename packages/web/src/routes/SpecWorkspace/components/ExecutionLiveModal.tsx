@@ -49,10 +49,10 @@ export function ExecutionLiveModal({
   const groupedStories = useMemo(() => {
     const queuedTaskIds = new Set(queueTasks.map(t => t.taskId));
     
-    // Ensure activeTasks are unique by ID
+    // Ensure activeTasks are unique by ID and not completed
     const uniqueActiveTasksMap = new Map<string, UserStory>();
     stories
-      .filter(s => queuedTaskIds.has(s.id) || s.id === currentStoryId || completedIds.has(s.id))
+      .filter(s => (queuedTaskIds.has(s.id) || s.id === currentStoryId) && !completedIds.has(s.id))
       .forEach(s => uniqueActiveTasksMap.set(s.id, s));
     
     const activeTasks = Array.from(uniqueActiveTasksMap.values());
@@ -67,7 +67,7 @@ export function ExecutionLiveModal({
       groups[specId].push(story);
     });
 
-    return Object.entries(groups).map(([specId, stories]) => ({
+    const sortedGroups = Object.entries(groups).map(([specId, stories]) => ({
       specId,
       stories: stories.sort((a, b) => {
         const getOrder = (id: string) => {
@@ -84,6 +84,11 @@ export function ExecutionLiveModal({
       if (bHasRunning) return 1;
       return a.specId.localeCompare(b.specId);
     });
+
+    return {
+      groups: sortedGroups,
+      totalCount: activeTasks.length
+    };
   }, [stories, queueTasks, currentStoryId, completedIds]);
 
   // Scroll to selected task
@@ -120,7 +125,7 @@ export function ExecutionLiveModal({
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                 </span>
-                Iteration {ralphStatus.currentIteration}/{ralphStatus.maxIterations}
+                Iteration {ralphStatus.currentIteration}
               </div>
             ) : (
               <span className="text-xs text-muted-foreground">Execution stopped</span>
@@ -146,20 +151,20 @@ export function ExecutionLiveModal({
         </div>
       }
     >
-      <div className="flex h-full min-h-0 border border-border/30 rounded-lg overflow-hidden bg-card/30">
+      <div className="flex h-full min-h-0 border border-border/30 rounded-lg overflow-hidden bg-card/30 animate-stagger-in">
         {/* Left: Task Queue List */}
         <div className="w-72 border-r border-border/30 flex flex-col bg-secondary/10 shrink-0">
           <div className="px-4 py-3 border-b border-border/30 bg-secondary/20 flex justify-between items-center">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Execution Queue</h3>
             <span className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-muted-foreground">
-              {queueTasks.length} tasks
+              {groupedStories.totalCount} tasks
             </span>
           </div>
           <div ref={listRef} className="flex-1 overflow-y-auto p-2 space-y-4">
-            {groupedStories.length === 0 ? (
+            {groupedStories.groups.length === 0 ? (
               <div className="text-center p-4 text-xs text-muted-foreground">No tasks in queue</div>
             ) : (
-              groupedStories.map(group => {
+              groupedStories.groups.map(group => {
                 const isGroupActive = group.stories.some(s => s.id === currentStoryId);
                 
                 return (
