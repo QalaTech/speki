@@ -2,6 +2,24 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ChatInput } from '../ChatInput';
 
+vi.mock('@/features/settings', () => ({
+  useSettings: vi.fn(() => ({
+    data: { specChat: { agent: 'claude' } },
+    isLoading: false,
+  })),
+  useUpdateSettings: vi.fn(() => ({
+    mutate: vi.fn(),
+  })),
+  useCliDetection: vi.fn(() => ({
+    data: { 
+      claude: { available: true },
+      codex: { available: true },
+      gemini: { available: true }
+    },
+    isLoading: false,
+  })),
+}));
+
 describe('ChatInput', () => {
   const defaultProps = {
     value: '',
