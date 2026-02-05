@@ -148,6 +148,7 @@ export function SplitPreviewModal({
               onClick={handleSaveAll}
               disabled={isSaving}
               isLoading={isSaving}
+              loadingText="Saving..."
               data-testid="save-all-button"
               className="shadow-sm shadow-primary/20"
             >

@@ -57,6 +57,7 @@ export function DiffApprovalBar({
           className="whitespace-nowrap h-8"
           data-testid="approve-button"
           isLoading={isLoading}
+          loadingText="Applying..."
         >
           Approve
         </Button>

@@ -45,7 +45,7 @@ function App() {
 
   // Only auto-select first project if on a route that requires one (not home page)
   useEffect(() => {
-    const currentPath = window.location.pathname;
+    const currentPath = location.pathname;
     const requiresProject = currentPath !== '/' && currentPath !== '';
     if (!selectedProject && projects.length > 0 && requiresProject) {
       setSearchParams(prev => {

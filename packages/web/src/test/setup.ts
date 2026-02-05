@@ -16,17 +16,28 @@ class MockEventSource {
 
   url: string;
   readyState = MockEventSource.CONNECTING;
-  onopen: ((event: Event) => void) | null = null;
+  private _onopen: ((event: Event) => void) | null = null;
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
 
   constructor(url: string) {
     this.url = url;
-    // Simulate connection
-    setTimeout(() => {
-      this.readyState = MockEventSource.OPEN;
-      if (this.onopen) this.onopen(new Event('open'));
-    }, 0);
+    // Immediate connection for tests to avoid act warnings
+    this.readyState = MockEventSource.OPEN;
+  }
+
+  set onopen(fn: ((event: Event) => void) | null) {
+    this._onopen = fn;
+    if (fn && this.readyState === MockEventSource.OPEN) {
+      // Use queueMicrotask to ensure it's called after the current execution context
+      // but still within the same act() boundary if possible.
+      // Actually, immediate call is often better for tests if we want to avoid extra act() wraps.
+      fn(new Event('open'));
+    }
+  }
+
+  get onopen() {
+    return this._onopen;
   }
 
   close() {
@@ -41,6 +52,24 @@ class MockEventSource {
 if (typeof globalThis.EventSource === 'undefined') {
   (globalThis as unknown as { EventSource: typeof MockEventSource }).EventSource = MockEventSource;
 }
+
+// Mock scrollIntoView for jsdom
+Element.prototype.scrollIntoView = vi.fn();
+
+// Mock window.matchMedia for sonner and other components that use it
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
 
 // Mock @mdxeditor/editor to avoid @stitches/core CSS parsing issues in jsdom
 // The MDX editor imports sandpack-react which bundles stitches, causing CSS parse errors

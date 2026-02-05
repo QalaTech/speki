@@ -8,14 +8,15 @@ describe('StatusBar', () => {
     isPrd: true,
     tasksVisible: true,
     pendingSuggestionsCount: 0,
-    isSuggestionsExpanded: false,
+    isReviewPanelOpen: false,
     onScrollToTasks: vi.fn(),
-    onToggleSuggestions: vi.fn(),
-    onDismissAllSuggestions: vi.fn(),
+    onOpenReviewPanel: vi.fn(),
+    queueCount: 0,
+    onOpenQueue: vi.fn(),
   };
 
   it('should return null when no tasks indicator or suggestions', () => {
-    const { container } = render(<StatusBar {...defaultProps} />);
+    const { container } = render(<StatusBar {...defaultProps} storiesCount={0} />);
     expect(container.firstChild).toBeNull();
   });
 
@@ -46,39 +47,30 @@ describe('StatusBar', () => {
     expect(screen.getByText(/3 changes suggested/i)).toBeInTheDocument();
   });
 
-  it('should show singular "change" when only one suggestion', () => {
-    render(<StatusBar {...defaultProps} pendingSuggestionsCount={1} />);
-    expect(screen.getByText(/1 change suggested/i)).toBeInTheDocument();
-  });
-
-  it('should call onToggleSuggestions when suggestions button clicked', () => {
-    const onToggleSuggestions = vi.fn();
+  it('should call onOpenReviewPanel when suggestions button clicked', () => {
+    const onOpenReviewPanel = vi.fn();
     render(
-      <StatusBar {...defaultProps} pendingSuggestionsCount={3} onToggleSuggestions={onToggleSuggestions} />
+      <StatusBar {...defaultProps} pendingSuggestionsCount={3} onOpenReviewPanel={onOpenReviewPanel} />
     );
 
-    const suggestionsButton = screen.getByText(/3 changes suggested/i);
+    const suggestionsButton = screen.getByText(/3 changes/i);
     fireEvent.click(suggestionsButton);
 
-    expect(onToggleSuggestions).toHaveBeenCalledTimes(1);
+    expect(onOpenReviewPanel).toHaveBeenCalledTimes(1);
   });
 
-  it('should call onDismissAllSuggestions when X clicked', () => {
-    const onDismissAllSuggestions = vi.fn();
-    const { container } = render(
-      <StatusBar
-        {...defaultProps}
-        pendingSuggestionsCount={3}
-        onDismissAllSuggestions={onDismissAllSuggestions}
-      />
-    );
+  it('should show queue count', () => {
+    render(<StatusBar {...defaultProps} queueCount={3} onOpenQueue={vi.fn()} />);
+    expect(screen.getByText(/View execution log \(3 total tasks\)/i)).toBeInTheDocument();
+  });
 
-    // Find the X icon span by its cursor-pointer class
-    const dismissSpan = container.querySelector('.cursor-pointer');
-    if (dismissSpan) {
-      fireEvent.click(dismissSpan);
-    }
+  it('should call onOpenQueue when queue indicator clicked', () => {
+    const onOpenQueue = vi.fn();
+    render(<StatusBar {...defaultProps} queueCount={3} onOpenQueue={onOpenQueue} />);
 
-    expect(onDismissAllSuggestions).toHaveBeenCalledTimes(1);
+    const queueIndicator = screen.getByText(/View execution log/i);
+    fireEvent.click(queueIndicator);
+
+    expect(onOpenQueue).toHaveBeenCalledTimes(1);
   });
 });
