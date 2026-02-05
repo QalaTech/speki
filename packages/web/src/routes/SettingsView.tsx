@@ -1,16 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import type {
-  AllCliDetectionResults,
-  AllModelDetectionResults,
-  GlobalSettings,
   CliType,
   ReasoningEffort
 } from '../types.js';
 import {
   Alert,
-  Loading,
-  apiFetch,
   SelectRoot,
   SelectTrigger,
   SelectValue,
@@ -19,32 +14,10 @@ import {
   Switch
 } from '../components/ui';
 import { Button } from '../components/ui/Button';
+import { useSettings, useCliDetection, useModelDetection, useUpdateSettings } from '@/features/settings';
 
 /** Valid reasoning effort levels for Codex */
 const REASONING_EFFORTS: ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
-
-// Session storage key for CLI detection caching
-const CLI_DETECTION_CACHE_KEY = 'qala_cli_detection_cache';
-
-function getCachedCliDetection(): AllCliDetectionResults | null {
-  try {
-    const cached = sessionStorage.getItem(CLI_DETECTION_CACHE_KEY);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  } catch (err) {
-    console.error('Failed to parse cached CLI detection:', err);
-  }
-  return null;
-}
-
-function setCachedCliDetection(detection: AllCliDetectionResults): void {
-  try {
-    sessionStorage.setItem(CLI_DETECTION_CACHE_KEY, JSON.stringify(detection));
-  } catch (err) {
-    console.error('Failed to cache CLI detection:', err);
-  }
-}
 
 // Reusable form field component - compact style
 function ConfigField({
@@ -93,36 +66,34 @@ function SettingsSection({
 }
 
 // CLI Status card component
-function CliStatusCard({ cliDetection }: { cliDetection: AllCliDetectionResults | null }) {
+function CliStatusCard({ cliDetection }: { cliDetection: any }) {
+  if (!cliDetection) return null;
+
   return (
     <div className="rounded-lg bg-card border border-border shadow-sm">
       <div className="p-4">
         <h3 className="text-base font-semibold mb-2">CLI Status</h3>
         <div className="flex gap-4">
-          {cliDetection && (
-            <>
-              {[
-                { name: 'Claude', data: cliDetection.claude },
-                { name: 'Codex', data: cliDetection.codex },
-                ...(cliDetection.gemini ? [{ name: 'Gemini', data: cliDetection.gemini }] : []),
-              ].map(({ name, data }) => (
-                <div
-                  key={name}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-muted ${
-                    data.available ? '' : 'opacity-50'
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${data.available ? 'bg-success' : 'bg-error'}`}
-                  />
-                  <span className="font-medium text-sm">{name}</span>
-                  <span className={`font-mono text-xs ${data.available ? 'text-success' : 'text-muted-foreground'}`}>
-                    {data.available ? `v${data.version}` : 'N/A'}
-                  </span>
-                </div>
-              ))}
-            </>
-          )}
+          {[
+            { name: 'Claude', data: cliDetection.claude },
+            { name: 'Codex', data: cliDetection.codex },
+            ...(cliDetection.gemini ? [{ name: 'Gemini', data: cliDetection.gemini }] : []),
+          ].map(({ name, data }) => (
+            <div
+              key={name}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-muted ${
+                data?.available ? '' : 'opacity-50'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${data?.available ? 'bg-success' : 'bg-error'}`}
+              />
+              <span className="font-medium text-sm">{name}</span>
+              <span className={`font-mono text-xs ${data?.available ? 'text-success' : 'text-muted-foreground'}`}>
+                {data?.available ? `v${data.version}` : 'N/A'}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -130,10 +101,12 @@ function CliStatusCard({ cliDetection }: { cliDetection: AllCliDetectionResults 
 }
 
 export function SettingsView() {
-  const [cliDetection, setCliDetection] = useState<AllCliDetectionResults | null>(null);
-  const [modelDetection, setModelDetection] = useState<AllModelDetectionResults | null>(null);
-  const [_settings, setSettings] = useState<GlobalSettings | null>(null);
+  const { data: settings, error: settingsError } = useSettings();
+  const { data: cliDetection, isLoading: cliLoading } = useCliDetection();
+  const { data: modelDetection, isLoading: modelsLoading } = useModelDetection();
+  const updateSettingsMutation = useUpdateSettings();
 
+  // Local state for form fields
   // Decompose reviewer settings
   const [decomposeAgent, setDecomposeAgent] = useState<CliType>('claude');
   const [decomposeModel, setDecomposeModel] = useState<string>('');
@@ -150,7 +123,7 @@ export function SettingsView() {
   const [specGenReasoningEffort, setSpecGenReasoningEffort] = useState<ReasoningEffort>('medium');
 
   // Task runner settings
-  const [taskRunnerAgent, setTaskRunnerAgent] = useState<'auto' | CliType>('auto');
+  const [taskRunnerAgent, setTaskRunnerAgent] = useState<CliType | 'auto'>('auto');
   const [taskRunnerModel, setTaskRunnerModel] = useState<string>('');
   const [taskRunnerReasoningEffort, setTaskRunnerReasoningEffort] = useState<ReasoningEffort>('medium');
 
@@ -162,141 +135,66 @@ export function SettingsView() {
   // Execution settings
   const [keepAwake, setKeepAwake] = useState<boolean>(true);
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchCliDetection = useCallback(async (): Promise<AllCliDetectionResults | null> => {
-    const cached = getCachedCliDetection();
-    if (cached) return cached;
-
-    try {
-      const res = await apiFetch('/api/settings/cli/detect');
-      if (!res.ok) throw new Error('Failed to fetch CLI detection');
-      const detection = await res.json();
-      setCachedCliDetection(detection);
-      return detection;
-    } catch (err) {
-      console.error('Failed to fetch CLI detection:', err);
-      return null;
-    }
-  }, []);
-
-  const fetchModelDetection = useCallback(async (): Promise<AllModelDetectionResults | null> => {
-    try {
-      const res = await apiFetch('/api/settings/models/detect');
-      if (!res.ok) throw new Error('Failed to fetch model detection');
-      return await res.json();
-    } catch (err) {
-      console.error('Failed to fetch model detection:', err);
-      return null;
-    }
-  }, []);
-
-  const fetchSettings = useCallback(async (): Promise<GlobalSettings | null> => {
-    try {
-      const res = await apiFetch('/api/settings');
-      if (!res.ok) throw new Error('Failed to fetch settings');
-      return await res.json();
-    } catch (err) {
-      console.error('Failed to fetch settings:', err);
-      return null;
-    }
-  }, []);
-
+  // Initialize form state when settings are loaded
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      setError(null);
-
-      const [detection, models, currentSettings] = await Promise.all([
-        fetchCliDetection(),
-        fetchModelDetection(),
-        fetchSettings()
-      ]);
-
-      setCliDetection(detection);
-      setModelDetection(models);
-      setSettings(currentSettings);
-
-      if (currentSettings) {
-        setDecomposeAgent(currentSettings.decompose.reviewer.agent as CliType);
-        setDecomposeModel(currentSettings.decompose.reviewer.model || '');
-        setDecomposeReasoningEffort(currentSettings.decompose.reviewer.reasoningEffort || 'medium');
-        setCondenserAgent(currentSettings.condenser.agent as CliType);
-        setCondenserModel(currentSettings.condenser.model || '');
-        setCondenserReasoningEffort(currentSettings.condenser.reasoningEffort || 'medium');
-        setSpecGenAgent(currentSettings.specGenerator.agent as CliType);
-        setSpecGenModel(currentSettings.specGenerator.model || '');
-        setSpecGenReasoningEffort(currentSettings.specGenerator.reasoningEffort || 'medium');
-        setTaskRunnerAgent(currentSettings.taskRunner.agent);
-        setTaskRunnerModel(currentSettings.taskRunner.model || '');
-        setTaskRunnerReasoningEffort(currentSettings.taskRunner.reasoningEffort || 'medium');
-        setSpecChatAgent(currentSettings.specChat?.agent || 'claude');
-        setSpecChatModel(currentSettings.specChat?.model || '');
-        setSpecChatReasoningEffort(currentSettings.specChat?.reasoningEffort || 'medium');
-        setKeepAwake(currentSettings.execution?.keepAwake ?? true);
-      }
-
-      if (detection && !detection.codex?.available && !detection.claude?.available && !detection.gemini?.available) {
-        setError('No CLI tools are available. Please install Codex, Claude, or Gemini CLI.');
-      }
-
-      setLoading(false);
-    };
-
-    loadData();
-  }, [fetchCliDetection, fetchModelDetection, fetchSettings]);
+    if (settings) {
+      setDecomposeAgent(settings.decompose.reviewer.agent);
+      setDecomposeModel(settings.decompose.reviewer.model || '');
+      setDecomposeReasoningEffort(settings.decompose.reviewer.reasoningEffort || 'medium');
+      setCondenserAgent(settings.condenser.agent);
+      setCondenserModel(settings.condenser.model || '');
+      setCondenserReasoningEffort(settings.condenser.reasoningEffort || 'medium');
+      setSpecGenAgent(settings.specGenerator.agent);
+      setSpecGenModel(settings.specGenerator.model || '');
+      setSpecGenReasoningEffort(settings.specGenerator.reasoningEffort || 'medium');
+      setTaskRunnerAgent(settings.taskRunner.agent);
+      setTaskRunnerModel(settings.taskRunner.model || '');
+      setTaskRunnerReasoningEffort(settings.taskRunner.reasoningEffort || 'medium');
+      setSpecChatAgent(settings.specChat?.agent || 'claude');
+      setSpecChatModel(settings.specChat?.model || '');
+      setSpecChatReasoningEffort(settings.specChat?.reasoningEffort || 'medium');
+      setKeepAwake(settings.execution?.keepAwake ?? true);
+    }
+  }, [settings]);
 
   const handleSave = async () => {
-    setSaving(true);
-
-    try {
-      const res = await apiFetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          decompose: {
-            reviewer: {
-              agent: decomposeAgent,
-              model: decomposeModel || undefined,
-              reasoningEffort: decomposeAgent === 'codex' ? decomposeReasoningEffort : undefined,
-            },
-          },
-          condenser: {
-            agent: condenserAgent,
-            model: condenserModel || undefined,
-            reasoningEffort: condenserAgent === 'codex' ? condenserReasoningEffort : undefined,
-          },
-          specGenerator: {
-            agent: specGenAgent,
-            model: specGenModel || undefined,
-            reasoningEffort: specGenAgent === 'codex' ? specGenReasoningEffort : undefined,
-          },
-          taskRunner: {
-            agent: taskRunnerAgent,
-            model: taskRunnerModel || undefined,
-            reasoningEffort: taskRunnerAgent === 'codex' ? taskRunnerReasoningEffort : undefined,
-          },
-          specChat: {
-            agent: specChatAgent,
-            model: specChatModel || undefined,
-            reasoningEffort: specChatAgent === 'codex' ? specChatReasoningEffort : undefined,
-          },
-          execution: { keepAwake },
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save settings');
-
-      setSettings(data.settings);
-      toast.success('Settings saved successfully');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save settings');
-    } finally {
-      setSaving(false);
-    }
+    updateSettingsMutation.mutate({
+      decompose: {
+        reviewer: {
+          agent: decomposeAgent,
+          model: decomposeModel || undefined,
+          reasoningEffort: decomposeAgent === 'codex' ? decomposeReasoningEffort : undefined,
+        },
+      },
+      condenser: {
+        agent: condenserAgent,
+        model: condenserModel || undefined,
+        reasoningEffort: condenserAgent === 'codex' ? condenserReasoningEffort : undefined,
+      },
+      specGenerator: {
+        agent: specGenAgent,
+        model: specGenModel || undefined,
+        reasoningEffort: specGenAgent === 'codex' ? specGenReasoningEffort : undefined,
+      },
+      taskRunner: {
+        agent: taskRunnerAgent,
+        model: taskRunnerModel || undefined,
+        reasoningEffort: taskRunnerAgent === 'codex' ? taskRunnerReasoningEffort : undefined,
+      },
+      specChat: {
+        agent: specChatAgent,
+        model: specChatModel || undefined,
+        reasoningEffort: specChatAgent === 'codex' ? specChatReasoningEffort : undefined,
+      },
+      execution: { keepAwake },
+    }, {
+      onSuccess: () => {
+        toast.success('Settings saved successfully');
+      },
+      onError: (err: any) => {
+        toast.error(err.message || 'Failed to save settings');
+      }
+    });
   };
 
   const getAvailableClis = (): CliType[] => {
@@ -309,6 +207,7 @@ export function SettingsView() {
   };
 
   const availableClis = getAvailableClis();
+  const saving = updateSettingsMutation.isPending;
 
   // Render agent/model/reasoning fields for a section
   const renderAgentFields = (
@@ -327,13 +226,15 @@ export function SettingsView() {
             <SelectRoot
               value={agentValue}
               onValueChange={(v) => setAgent(v as CliType)}
-              disabled={availableClis.length === 0 || saving}
+              disabled={availableClis.length === 0 || saving || cliLoading}
             >
               <SelectTrigger className="w-full h-8 text-sm">
-                <SelectValue placeholder="Select agent" />
+                <SelectValue placeholder={cliLoading ? "Detecting agents..." : "Select agent"} />
               </SelectTrigger>
               <SelectContent>
-                {availableClis.length === 0 ? (
+                {cliLoading ? (
+                  <SelectItem value="loading" disabled>Detecting agents...</SelectItem>
+                ) : availableClis.length === 0 ? (
                   <SelectItem value="none" disabled>No agents available</SelectItem>
                 ) : (
                   availableClis.map((cli) => (
@@ -352,18 +253,24 @@ export function SettingsView() {
             <SelectRoot
               value={modelValue || "__default__"}
               onValueChange={(v) => setModel(v === "__default__" ? "" : v)}
-              disabled={saving}
+              disabled={saving || modelsLoading}
             >
               <SelectTrigger className="w-full h-8 text-sm">
-                <SelectValue placeholder={placeholder} />
+                <SelectValue placeholder={modelsLoading ? "Detecting models..." : placeholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__default__">{placeholder}</SelectItem>
-                {modelDetection && modelDetection[agentValue]?.models.map((model) => (
-                  <SelectItem key={model} value={model}>
-                    {model}
-                  </SelectItem>
-                ))}
+                {modelsLoading ? (
+                  <SelectItem value="loading" disabled>Detecting models...</SelectItem>
+                ) : (
+                  <>
+                    <SelectItem value="__default__">{placeholder}</SelectItem>
+                    {modelDetection && modelDetection[agentValue]?.models.map((model: string) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
               </SelectContent>
             </SelectRoot>
           </ConfigField>
@@ -393,15 +300,7 @@ export function SettingsView() {
     </>
   );
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-6 p-6 overflow-y-auto h-full min-h-0">
-        <div className="flex items-center justify-center min-h-[200px]">
-          <Loading size="lg" />
-        </div>
-      </div>
-    );
-  }
+  const error = settingsError ? (settingsError as Error).message : null;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -485,8 +384,8 @@ export function SettingsView() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="auto">Auto (detect first available)</SelectItem>
-                                {cliDetection?.claude.available && <SelectItem value="claude">Claude</SelectItem>}
-                                {cliDetection?.codex.available && <SelectItem value="codex">Codex</SelectItem>}
+                                {cliDetection?.claude?.available && <SelectItem value="claude">Claude</SelectItem>}
+                                {cliDetection?.codex?.available && <SelectItem value="codex">Codex</SelectItem>}
                                 {cliDetection?.gemini?.available && <SelectItem value="gemini">Gemini</SelectItem>}
                               </SelectContent>
                             </SelectRoot>
@@ -505,7 +404,7 @@ export function SettingsView() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="__default__">Default (auto-select)</SelectItem>
-                                {modelDetection && taskRunnerAgent !== 'auto' && modelDetection[taskRunnerAgent as CliType]?.models.map((model) => (
+                                {modelDetection && taskRunnerAgent !== 'auto' && (modelDetection as any)[taskRunnerAgent]?.models.map((model: string) => (
                                   <SelectItem key={model} value={model}>
                                     {model}
                                   </SelectItem>

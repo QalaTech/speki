@@ -5,8 +5,15 @@ import {
   ChevronDownIcon,
   PlusIcon,
 } from '@heroicons/react/24/outline';
+import * as SelectPrimitive from '@radix-ui/react-select';
 import { BotIcon, RotateCcw } from 'lucide-react';
 import { Spinner } from '../../../../components/ui/Loading';
+import { useSettings, useUpdateSettings, useCliDetection } from '@/features/settings';
+import { 
+  SelectContent, 
+  SelectItem 
+} from '@/components/ui/Select';
+import type { CliType } from '@/types';
 
 interface ChatInputProps {
   value: string;
@@ -34,6 +41,26 @@ export function ChatInput({
   focusTrigger,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  const { data: settings } = useSettings();
+  const { data: cliDetection } = useCliDetection();
+  const updateSettingsMutation = useUpdateSettings();
+
+  const currentAgent = settings?.specChat?.agent || 'claude';
+
+  const availableClis: CliType[] = [];
+  if (cliDetection?.claude?.available) availableClis.push('claude');
+  if (cliDetection?.codex?.available) availableClis.push('codex');
+  if (cliDetection?.gemini?.available) availableClis.push('gemini');
+
+  const handleAgentChange = (newAgent: string) => {
+    updateSettingsMutation.mutate({
+      specChat: {
+        ...settings?.specChat,
+        agent: newAgent as CliType,
+      }
+    });
+  };
 
   // Auto-resize textarea
   useEffect(() => {
@@ -86,11 +113,25 @@ export function ChatInput({
           <button className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors">
             <PlusIcon className="w-5 h-5" />
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-            <SparklesIcon className="w-4 h-4" />
-            <span>Claude</span>
-            <ChevronDownIcon className="w-3 h-3" />
-          </button>
+          
+          <SelectPrimitive.Root value={currentAgent} onValueChange={handleAgentChange}>
+            <SelectPrimitive.Trigger className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 text-xs text-muted-foreground hover:text-foreground transition-colors border-none focus:outline-none">
+              <SparklesIcon className="w-4 h-4" />
+              <span>{currentAgent.charAt(0).toUpperCase() + currentAgent.slice(1)}</span>
+              <ChevronDownIcon className="w-3 h-3" />
+            </SelectPrimitive.Trigger>
+            <SelectContent className="bg-[#1a1a1a] border-white/10">
+              {availableClis.map((cli) => (
+                <SelectItem 
+                  key={cli} 
+                  value={cli}
+                  className="text-xs text-muted-foreground focus:text-foreground focus:bg-white/5"
+                >
+                  {cli.charAt(0).toUpperCase() + cli.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </SelectPrimitive.Root>
         </div>
 
         {/* Right side - icons + send */}
