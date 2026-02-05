@@ -189,12 +189,12 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
 
   // Save task content
   const handleSaveTask = useCallback(
-    async (task: UserStory, taskContent: string) => {
+    async (task: UserStory) => {
       const params = new URLSearchParams({ project: projectPath });
       await apiFetch(`/api/decompose/update-task?${params}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ specId, task: { ...task, content: taskContent } }),
+        body: JSON.stringify({ specId, task }),
       });
       await loadDecomposeState();
     },

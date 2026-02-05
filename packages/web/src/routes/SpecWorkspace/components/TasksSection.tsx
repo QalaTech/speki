@@ -19,7 +19,7 @@ interface TasksSectionProps {
   onAddToQueue: (taskId: string) => void;
   onRemoveFromQueue: (taskId: string) => void;
   onAddAllToQueue: () => void;
-  onSaveTask: (task: UserStory, content: string) => Promise<void>;
+  onSaveTask: (task: UserStory) => Promise<void>;
   onRunQueue: () => void;
   onCreateTechSpec: () => void;
   onTasksVisibilityChange: (visible: boolean) => void;

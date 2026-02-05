@@ -7,13 +7,13 @@ import {
   PencilIcon,
   PlayIcon,
   PlusIcon,
-  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useRef, useState } from "react";
 import type { UserStory } from "../../types";
 import { ChatMarkdown } from "../chat/ChatMarkdown";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
+import { Modal } from "../ui/Modal";
 import { SpecEditor, type SpecEditorRef } from "../shared/SpecEditor";
 
 interface UseCaseListProps {
@@ -26,7 +26,7 @@ interface UseCaseListProps {
   onAddToQueue: (id: string) => void;
   onRemoveFromQueue: (id: string) => void;
   queueLoading: Set<string>;
-  onSaveTask: (task: UserStory, content: string) => Promise<void>;
+  onSaveTask: (task: UserStory) => Promise<void>;
   alwaysExpanded?: boolean;
 }
 
@@ -90,6 +90,67 @@ function taskToMarkdown(task: UserStory): string {
   return md;
 }
 
+// Parse markdown back to task fields
+function markdownToTask(md: string): Partial<UserStory> {
+  const lines = md.split("\n");
+  const updates: Partial<UserStory> = {};
+
+  let currentSection = "";
+  let title = "";
+  let description: string[] = [];
+  let acceptanceCriteria: string[] = [];
+  let testCases: string[] = [];
+  let dependencies: string[] = [];
+  let notes: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("# ")) {
+      title = line.replace("# ", "").trim();
+    } else if (line.startsWith("## Description")) {
+      currentSection = "description";
+    } else if (line.startsWith("## Acceptance Criteria")) {
+      currentSection = "acceptanceCriteria";
+    } else if (line.startsWith("## Test Cases")) {
+      currentSection = "testCases";
+    } else if (line.startsWith("## Dependencies")) {
+      currentSection = "dependencies";
+    } else if (line.startsWith("## Notes")) {
+      currentSection = "notes";
+    } else if (line.startsWith("## ")) {
+      currentSection = "unknown";
+    } else {
+      const trimmed = line.trim();
+      if (currentSection === "description" && trimmed) {
+        description.push(trimmed);
+      } else if (
+        currentSection === "acceptanceCriteria" &&
+        trimmed.startsWith("- ")
+      ) {
+        acceptanceCriteria.push(trimmed.replace(/^- /, ""));
+      } else if (currentSection === "testCases" && trimmed.startsWith("- ")) {
+        testCases.push(trimmed.replace(/^- `?|`$/g, ""));
+      } else if (
+        currentSection === "dependencies" &&
+        trimmed.startsWith("- ")
+      ) {
+        dependencies.push(trimmed.replace(/^- /, ""));
+      } else if (currentSection === "notes" && trimmed) {
+        notes.push(trimmed);
+      }
+    }
+  }
+
+  if (title) updates.title = title;
+  if (description.length > 0) updates.description = description.join("\n");
+  if (acceptanceCriteria.length > 0)
+    updates.acceptanceCriteria = acceptanceCriteria;
+  if (testCases.length > 0) updates.testCases = testCases;
+  if (dependencies.length > 0) updates.dependencies = dependencies;
+  if (notes.length > 0) updates.notes = notes.join("\n");
+
+  return updates;
+}
+
 interface UseCaseItemProps {
   story: UserStory;
   status: TaskStatus;
@@ -98,7 +159,7 @@ interface UseCaseItemProps {
   onToggle: () => void;
   onStartEdit: () => void;
   onCancelEdit: () => void;
-  onSave: (content: string) => Promise<void>;
+  onSave: (updatedStory: UserStory) => Promise<void>;
   isQueued: boolean;
   queuePosition: number | null;
   queuedStatus: string;
@@ -148,7 +209,9 @@ function UseCaseItem({
     setSaveLoading(true);
     try {
       const content = editorRef.current?.getMarkdown?.() || editContent;
-      await onSave(content);
+      const updates = markdownToTask(content);
+      const updatedStory = { ...story, ...updates };
+      await onSave(updatedStory);
     } finally {
       setSaveLoading(false);
     }
@@ -163,8 +226,8 @@ function UseCaseItem({
     <div className={`use-case-item group ${isEditing ? "editing" : ""}`}>
       {/* Header row with grid layout: checkbox | ID | title | status | actions */}
       <div
-        className={`grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-3 py-2.5 ${!isEditing && !alwaysExpanded ? "cursor-pointer" : ""}`}
-        onClick={!isEditing && !alwaysExpanded ? onToggle : undefined}
+        className={`grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-3 py-2.5 ${!alwaysExpanded ? "cursor-pointer" : ""}`}
+        onClick={!alwaysExpanded ? onToggle : undefined}
       >
         {/* Checkbox */}
         <div
@@ -237,42 +300,23 @@ function UseCaseItem({
 
         {/* Actions column */}
         <div className="flex items-center gap-1 shrink-0">
-          {/* Edit button - only show when not editing */}
-          {!isEditing && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 rounded text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleStartEdit();
-              }}
-              aria-label={`Edit ${story.title}`}
-              title="Edit task"
-            >
-              <PencilIcon className="h-3.5 w-3.5" />
-            </Button>
-          )}
-
-          {/* Close button when editing */}
-          {isEditing && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 rounded text-muted-foreground hover:text-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleCancel();
-              }}
-              aria-label="Cancel editing"
-              title="Cancel"
-            >
-              <XMarkIcon className="h-4 w-4" />
-            </Button>
-          )}
+          {/* Edit button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 rounded text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStartEdit();
+            }}
+            aria-label={`Edit ${story.title}`}
+            title="Edit task"
+          >
+            <PencilIcon className="h-3.5 w-3.5" />
+          </Button>
 
           {/* Chevron - only show when not editing and not always expanded */}
-          {!isEditing && !alwaysExpanded && (
+          {!alwaysExpanded && (
             <div className="text-muted-foreground/50">
               {isExpanded ? (
                 <ChevronDownIcon className="h-4 w-4" />
@@ -284,40 +328,44 @@ function UseCaseItem({
         </div>
       </div>
 
-      {/* Inline Editor - when editing */}
-      {isEditing && (
-        <div className="pl-8 pb-4 animate-in slide-in-from-top-2 duration-200">
-          <div className="border border-border/40 rounded-lg overflow-hidden bg-card/50">
-            <SpecEditor
-              ref={editorRef}
-              content={editContent}
-              onChange={setEditContent}
-              readOnly={saveLoading}
-              className="h-[300px] border-none"
-            />
-            <div className="flex justify-end gap-2 p-3 border-t border-border/20 bg-muted/20">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-4 text-muted-foreground"
-                onClick={handleCancel}
-                disabled={saveLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                className="h-8 px-4"
-                onClick={handleSave}
-                isLoading={saveLoading}
-              >
-                Save Changes
-              </Button>
-            </div>
-          </div>
+      <Modal
+        isOpen={isEditing}
+        onClose={handleCancel}
+        title={`Edit ${story.title}`}
+        size="xl"
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-4 text-muted-foreground"
+              onClick={handleCancel}
+              disabled={saveLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="h-8 px-4"
+              onClick={handleSave}
+              isLoading={saveLoading}
+            >
+              Save Changes
+            </Button>
+          </>
+        }
+      >
+        <div className="border border-border/40 rounded-lg bg-card/50">
+          <SpecEditor
+            ref={editorRef}
+            content={editContent}
+            onChange={setEditContent}
+            readOnly={saveLoading}
+            className="h-[500px] overflow-y-auto border-none"
+          />
         </div>
-      )}
+      </Modal>
 
       {/* Content - always visible when alwaysExpanded, otherwise when expanded */}
       {showContent && !isEditing && (
@@ -462,8 +510,8 @@ export function UseCaseList({
     setEditingId(null);
   };
 
-  const handleSave = async (story: UserStory, content: string) => {
-    await onSaveTask(story, content);
+  const handleSave = async (updatedStory: UserStory) => {
+    await onSaveTask(updatedStory);
     setEditingId(null);
   };
 
@@ -488,7 +536,7 @@ export function UseCaseList({
             onToggle={() => toggleExpand(story.id)}
             onStartEdit={() => startEditing(story.id)}
             onCancelEdit={cancelEditing}
-            onSave={(content) => handleSave(story, content)}
+            onSave={handleSave}
             isQueued={queued}
             queuePosition={queuePos}
             queuedStatus={queuedStatus}

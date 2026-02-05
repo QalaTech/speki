@@ -122,66 +122,6 @@ export function SpecDecomposeTab({
   const [reviewFeedback, setReviewFeedback] = useState<DecomposeFeedback | null>(null);
   const [reviewVerdict, setReviewVerdict] = useState<'PASS' | 'FAIL' | 'UNKNOWN' | 'SKIPPED' | null>(null);
 
-  // Parse markdown back to task fields
-  const markdownToTask = (md: string): Partial<UserStory> => {
-    const lines = md.split("\n");
-    const updates: Partial<UserStory> = {};
-
-    let currentSection = "";
-    let title = "";
-    let description: string[] = [];
-    let acceptanceCriteria: string[] = [];
-    let testCases: string[] = [];
-    let dependencies: string[] = [];
-    let notes: string[] = [];
-
-    for (const line of lines) {
-      if (line.startsWith("# ")) {
-        title = line.replace("# ", "").trim();
-      } else if (line.startsWith("## Description")) {
-        currentSection = "description";
-      } else if (line.startsWith("## Acceptance Criteria")) {
-        currentSection = "acceptanceCriteria";
-      } else if (line.startsWith("## Test Cases")) {
-        currentSection = "testCases";
-      } else if (line.startsWith("## Dependencies")) {
-        currentSection = "dependencies";
-      } else if (line.startsWith("## Notes")) {
-        currentSection = "notes";
-      } else if (line.startsWith("## ")) {
-        currentSection = "unknown";
-      } else {
-        const trimmed = line.trim();
-        if (currentSection === "description" && trimmed) {
-          description.push(trimmed);
-        } else if (
-          currentSection === "acceptanceCriteria" &&
-          trimmed.startsWith("- ")
-        ) {
-          acceptanceCriteria.push(trimmed.replace(/^- /, ""));
-        } else if (currentSection === "testCases" && trimmed.startsWith("- ")) {
-          testCases.push(trimmed.replace(/^- `?|`$/g, ""));
-        } else if (
-          currentSection === "dependencies" &&
-          trimmed.startsWith("- ")
-        ) {
-          dependencies.push(trimmed.replace(/^- /, ""));
-        } else if (currentSection === "notes" && trimmed) {
-          notes.push(trimmed);
-        }
-      }
-    }
-
-    if (title) updates.title = title;
-    if (description.length > 0) updates.description = description.join("\n");
-    if (acceptanceCriteria.length > 0)
-      updates.acceptanceCriteria = acceptanceCriteria;
-    if (testCases.length > 0) updates.testCases = testCases;
-    if (dependencies.length > 0) updates.dependencies = dependencies;
-    if (notes.length > 0) updates.notes = notes.join("\n");
-
-    return updates;
-  };
 
   // Queue state
   const [queueTasks, setQueueTasks] = useState<QueuedTaskReference[]>([]);
@@ -436,16 +376,10 @@ export function SpecDecomposeTab({
     }
   };
 
-  // Handle saving task from inline editor
-  const handleSaveTask = async (task: UserStory, content: string) => {
+  const handleSaveTask = async (updatedTask: UserStory) => {
     if (!specId) return;
 
     try {
-      const updates = markdownToTask(content);
-
-      // Merge updates with original task
-      const updatedTask = { ...task, ...updates };
-
       // Call API to update task
       const params = new URLSearchParams({ project: projectPath });
       const res = await apiFetch(`/api/decompose/update-task?${params}`, {
