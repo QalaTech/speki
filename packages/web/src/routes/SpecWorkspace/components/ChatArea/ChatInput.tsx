@@ -109,9 +109,10 @@ export function ChatInput({
       <div className="flex items-center justify-between px-2 py-2">
         {/* Left side - plus button + model selector */}
         <div className="flex items-center gap-1">
-          <button className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors">
+          {/* Hide temporarily until we have utility for it. */}
+          {/* <button className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors">
             <PlusIcon className="w-5 h-5" />
-          </button>
+          </button> */}
           
           <SelectPrimitive.Root value={currentAgent} onValueChange={handleAgentChange}>
             <SelectPrimitive.Trigger className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 text-xs text-muted-foreground hover:text-foreground transition-colors border-none focus:outline-none">

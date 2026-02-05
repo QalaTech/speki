@@ -6,6 +6,7 @@ import type {
 } from '../types.js';
 import {
   Alert,
+  Loading,
   SelectRoot,
   SelectTrigger,
   SelectValue,
@@ -99,7 +100,7 @@ function CliStatusCard({ cliDetection }: { cliDetection: any }) {
 }
 
 export function SettingsView() {
-  const { data: settings, error: settingsError } = useSettings();
+  const { data: settings, isLoading: settingsLoading, error: settingsError } = useSettings();
   const { data: cliDetection, isLoading: cliLoading } = useCliDetection();
   const { data: modelDetection, isLoading: modelsLoading } = useModelDetection();
   const updateSettingsMutation = useUpdateSettings();
@@ -295,6 +296,16 @@ export function SettingsView() {
       )}
     </>
   );
+
+  if ((settingsLoading && !settings) || (cliLoading && !cliDetection) || (modelsLoading && !modelDetection)) {
+    return (
+      <div className="flex flex-col gap-6 p-6 overflow-y-auto h-full min-h-0">
+        <div className="flex items-center justify-center min-h-[200px]">
+          <Loading size="lg" />
+        </div>
+      </div>
+    );
+  }
 
   const error = settingsError ? (settingsError as Error).message : null;
 
