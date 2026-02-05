@@ -38,7 +38,7 @@ export function StatusBar({
             >
               <ChevronDownIcon className="w-3.5 h-3.5" />
               <span>
-                {storiesCount} {isPrd ? 'stories' : 'tasks'} below
+                {storiesCount} {isPrd ? (storiesCount > 1 ? 'stories' : 'story') : (storiesCount > 1 ? 'tasks' : 'task')} below 
               </span>
             </button>
           )}
