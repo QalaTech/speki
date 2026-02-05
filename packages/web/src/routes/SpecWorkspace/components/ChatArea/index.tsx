@@ -41,6 +41,10 @@ interface ChatAreaProps {
   onStartReview: () => void;
   isStartingReview: boolean;
   focusTrigger?: number;
+
+  // Queue
+  queueCount?: number;
+  onOpenQueue?: () => void;
 }
 
 export function ChatArea({
@@ -65,6 +69,8 @@ export function ChatArea({
   onStartReview,
   isStartingReview,
   focusTrigger,
+  queueCount,
+  onOpenQueue,
 }: ChatAreaProps) {
   const pendingSuggestions = suggestions.filter((s) => s.status === 'pending');
   const quirkyMessage = useQuirkyMessage({ isActive: isSending });
@@ -110,6 +116,8 @@ export function ChatArea({
           isReviewPanelOpen={isReviewPanelOpen}
           onScrollToTasks={onScrollToTasks}
           onOpenReviewPanel={onOpenReviewPanel}
+          queueCount={queueCount}
+          onOpenQueue={onOpenQueue}
         />
 
         {/* Chat Input */}

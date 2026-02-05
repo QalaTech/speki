@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 // Components
 import { AppSidebar } from '../../components/specs/AppSidebar';
@@ -17,6 +17,13 @@ import { useSpecReview } from '../../hooks/useSpecReview';
 import { useSpecChat } from '../../hooks/useSpecChat';
 import { apiFetch } from '../../components/ui/ErrorContext';
 import {
+  useExecutionStatus,
+  useExecutionLogs,
+  defaultRalphStatus,
+  useExecutionTasks,
+} from '../../features/execution';
+import { useStartRalph, useStopRalph } from '../../features/projects';
+import {
   useAutoSave,
   useDocumentTitle,
   useCreateSpec,
@@ -26,7 +33,7 @@ import {
 } from './hooks';
 
 // Sub-components
-import { DocumentHeader, EditorSection, TasksSection, EmptyState, ChatArea } from './components';
+import { DocumentHeader, EditorSection, TasksSection, EmptyState, ChatArea, ExecutionLiveModal } from './components';
 import { ReviewPanel } from './components/ChatArea/ReviewPanel';
 
 // Types
@@ -37,7 +44,6 @@ interface SpecWorkspaceProps {
 }
 
 export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedPath = searchParams.get('spec');
   const editorRef = useRef<SpecEditorRef>(null);
@@ -156,17 +162,57 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   const specId = selectedPath?.split('/').pop()?.replace(/\.md$/i, '') || '';
   const {
     queueTasks,
+    allQueueTasks,
     setQueueTasks,
     queueLoading,
-    completedIds,
+    completedIds: baseCompletedIds,
   
     loadQueueTasks,
     addToQueue,
     removeFromQueue,
+    getQueuedTaskStatus: baseGetQueuedTaskStatus,
   } = useQueueManagement({
     specId,
     projectPath,
   });
+
+  // Execution state
+  const [isExecutionModalOpen, setIsExecutionModalOpen] = useState(false);
+  const { data: ralphStatus } = useExecutionStatus(projectPath);
+  const { data: executionLogs } = useExecutionLogs(projectPath);
+  const { data: prdData } = useExecutionTasks(projectPath);
+  const startRalphMutation = useStartRalph();
+  const stopRalphMutation = useStopRalph();
+
+  // Refresh queue tasks when execution stops
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && ralphStatus?.status === 'stopped') {
+      loadQueueTasks();
+    }
+    wasRunning.current = ralphStatus?.running || false;
+  }, [ralphStatus?.status, ralphStatus?.running, loadQueueTasks]);
+
+  // Update task status to be more live
+  const getQueuedTaskStatus = useCallback((taskId: string) => {
+    if (ralphStatus?.running && ralphStatus.currentStory?.startsWith(taskId)) {
+      return 'running' as const;
+    }
+    return baseGetQueuedTaskStatus(taskId);
+  }, [baseGetQueuedTaskStatus, ralphStatus]);
+
+  // Use completed IDs from live data if available
+  const completedIds = useMemo(() => {
+    if (prdData?.userStories) {
+      const specStoryIds = new Set(stories.map(s => s.id));
+      return new Set(
+        prdData.userStories
+          .filter(s => s.passes && specStoryIds.has(s.id))
+          .map(s => s.id)
+      );
+    }
+    return baseCompletedIds;
+  }, [prdData, baseCompletedIds, stories]);
 
   // Load decompose and queue state on spec change
   useEffect(() => {
@@ -203,8 +249,41 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
 
   // Navigate to queue execution
   const handleRunQueue = useCallback(() => {
-    navigate(`/execution/kanban?project=${encodeURIComponent(projectPath)}`);
-  }, [navigate, projectPath]);
+    startRalphMutation.mutate({ project: projectPath });
+    setIsExecutionModalOpen(true);
+  }, [projectPath, startRalphMutation]);
+
+  const handleStopExecution = useCallback(() => {
+    stopRalphMutation.mutate({ project: projectPath });
+  }, [projectPath, stopRalphMutation]);
+
+  // Navigate to a specific spec from the execution modal
+  const handleNavigateToSpec = useCallback((specId: string) => {
+    // Try to find the file path from the specId (e.g. 'auth.prd' -> 'specs/auth.prd.md')
+    // We search through the files tree flattened
+    const findPath = (nodes: any[]): string | null => {
+      for (const node of nodes) {
+        if (node.type === 'file' && (node.path.includes(specId) || node.name.includes(specId))) {
+          return node.path;
+        }
+        if (node.children) {
+          const childPath = findPath(node.children);
+          if (childPath) return childPath;
+        }
+        if (node.linkedSpecs) {
+          const linkedPath = findPath(node.linkedSpecs);
+          if (linkedPath) return linkedPath;
+        }
+      }
+      return null;
+    };
+
+    const path = findPath(files);
+    if (path) {
+      setSelectedPath(path);
+      setIsExecutionModalOpen(false); // Close modal on navigation
+    }
+  }, [files, setSelectedPath]);
 
   // New spec creation
   const [isNewSpecDrawerOpen, setIsNewSpecDrawerOpen] = useState(false);
@@ -371,14 +450,17 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                       isDecomposing={isDecomposing}
                       isLoadingContent={isLoadingContent}
                       isGeneratingTechSpec={isGeneratingTechSpec}
+                      ralphStatus={ralphStatus || defaultRalphStatus}
                       onDecompose={handleDecompose}
                       onAddToQueue={addToQueue}
                       onRemoveFromQueue={removeFromQueue}
                       onAddAllToQueue={handleAddAllToQueue}
                       onSaveTask={handleSaveTask}
                       onRunQueue={handleRunQueue}
+                      onViewLive={() => setIsExecutionModalOpen(true)}
                       onCreateTechSpec={() => setIsCreateTechSpecModalOpen(true)}
                       onTasksVisibilityChange={setTasksVisible}
+                      getQueuedTaskStatus={getQueuedTaskStatus}
                     />
                   </>
                 ) : (
@@ -410,9 +492,25 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                 onStartReview={handleStartReview}
                 isStartingReview={isStartingReview}
                 focusTrigger={focusTrigger}
+                queueCount={allQueueTasks.length}
+                onOpenQueue={() => setIsExecutionModalOpen(true)}
               />
             )}
           </div>
+
+          {/* Execution Live Modal */}
+          <ExecutionLiveModal
+            isOpen={isExecutionModalOpen}
+            onClose={() => setIsExecutionModalOpen(false)}
+            ralphStatus={ralphStatus || defaultRalphStatus}
+            logEntries={executionLogs?.entries || []}
+            onStopExecution={handleStopExecution}
+            onResumeExecution={handleRunQueue}
+            onNavigateToSpec={handleNavigateToSpec}
+            stories={prdData?.userStories || stories}
+            queueTasks={allQueueTasks}
+            completedIds={completedIds}
+          />
 
           {/* Right: Review Panel (Codex-style) */}
           <div 

@@ -3,3 +3,4 @@ export { DocumentHeader } from './DocumentHeader';
 export { EditorSection } from './EditorSection';
 export { EmptyState } from './EmptyState';
 export { TasksSection } from './TasksSection';
+export { ExecutionLiveModal } from './ExecutionLiveModal';

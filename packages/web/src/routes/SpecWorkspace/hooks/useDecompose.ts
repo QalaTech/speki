@@ -30,16 +30,23 @@ export function useDecompose({ projectPath, selectedPath }: UseDecomposeOptions)
   const loadDecomposeState = useCallback(async () => {
     if (!selectedPath) return;
     try {
+      // Clear stories while loading to avoid stale state
+      setStories([]); 
       const params = new URLSearchParams({ specPath: selectedPath, project: projectPath });
       const res = await apiFetch(`/api/decompose/draft?${params}`);
       if (res.ok) {
         const data = await res.json();
         if (data.draft) {
           setStories(data.draft.userStories || []);
+        } else {
+          setStories([]);
         }
+      } else {
+         setStories([]);
       }
     } catch (err) {
       console.error('Failed to load decompose state:', err);
+      setStories([]);
     }
   }, [selectedPath, projectPath]);
 

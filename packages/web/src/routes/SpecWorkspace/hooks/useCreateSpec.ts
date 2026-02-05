@@ -23,7 +23,7 @@ export function useCreateSpec({ projectPath, onSuccess, refreshFiles }: UseCreat
     setIsCreating(true);
     try {
       const params = new URLSearchParams({ project: projectPath });
-      const res = await apiFetch(`/api/specs?${params}`, {
+      const res = await apiFetch(`/api/spec-review/new?${params}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, type }),
@@ -31,7 +31,7 @@ export function useCreateSpec({ projectPath, onSuccess, refreshFiles }: UseCreat
       if (res.ok) {
         const data = await res.json();
         refreshFiles();
-        onSuccess(data.path);
+        onSuccess(data.filePath);
       }
     } finally {
       setIsCreating(false);
