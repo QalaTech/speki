@@ -9,6 +9,7 @@ interface UseQueueManagementOptions {
 
 interface UseQueueManagementReturn {
   queueTasks: QueuedTaskReference[];
+  allQueueTasks: QueuedTaskReference[];
   setQueueTasks: React.Dispatch<React.SetStateAction<QueuedTaskReference[]>>;
   queueLoading: Set<string>;
   completedIds: Set<string>;
@@ -26,6 +27,7 @@ interface UseQueueManagementReturn {
  */
 export function useQueueManagement({ specId, projectPath }: UseQueueManagementOptions): UseQueueManagementReturn {
   const [queueTasks, setQueueTasks] = useState<QueuedTaskReference[]>([]);
+  const [allQueueTasks, setAllQueueTasks] = useState<QueuedTaskReference[]>([]);
   const [queueLoading, setQueueLoading] = useState<Set<string>>(new Set());
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
 
@@ -37,6 +39,8 @@ export function useQueueManagement({ specId, projectPath }: UseQueueManagementOp
       if (res.ok) {
         const data = await res.json();
         const allTasks: QueuedTaskReference[] = data.queue || [];
+        setAllQueueTasks(allTasks);
+        
         const specTasks = allTasks.filter((t: QueuedTaskReference) => t.specId === specId);
         setQueueTasks(specTasks);
 
@@ -104,6 +108,7 @@ export function useQueueManagement({ specId, projectPath }: UseQueueManagementOp
 
   return {
     queueTasks,
+    allQueueTasks,
     setQueueTasks,
     queueLoading,
     completedIds,

@@ -98,7 +98,7 @@ const typeIconColors: Record<SpecType, string> = {
   'bug': 'text-error',
 };
 
-function getSpecTypeIcon(specType: SpecType) {
+export function getSpecTypeIcon(specType: SpecType) {
   const colorClass = typeIconColors[specType];
   switch (specType) {
     case 'prd':

@@ -14,6 +14,7 @@ import {
   extractSpecId,
   getSpecLogsDir,
   readSpecMetadata,
+  initSpecMetadata,
   detectSpecType,
   getChildSpecs,
   loadPRDForSpec,
@@ -670,6 +671,14 @@ router.post('/new', async (req, res) => {
       .replace(/\{\{parent\}\}/g, parent || '');
 
     await fs.writeFile(fullPath, content, 'utf-8');
+
+    // Initialize metadata so it appears in lists immediately
+    try {
+      await initSpecMetadata(projectPath, fullPath, { type });
+    } catch (metaError) {
+      console.error('[new] Failed to initialize metadata:', metaError);
+      // Don't fail the whole request if only metadata fails
+    }
 
     res.json({
       success: true,

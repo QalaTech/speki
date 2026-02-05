@@ -1,9 +1,9 @@
 import { useRef, useEffect } from 'react';
-import { SparklesIcon, ArrowPathIcon, QueueListIcon, DocumentPlusIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, ArrowPathIcon, QueueListIcon, DocumentPlusIcon, PlayIcon } from '@heroicons/react/24/outline';
 import { Button } from '../../../components/ui/Button';
 import { UseCaseList } from '../../../components/specs/UseCaseList';
 import type { SpecType } from '../../../components/specs/types';
-import type { UserStory, QueuedTaskReference } from '../../../types';
+import type { UserStory, QueuedTaskReference, RalphStatus } from '../../../types';
 
 interface TasksSectionProps {
   stories: UserStory[];
@@ -15,14 +15,17 @@ interface TasksSectionProps {
   isDecomposing: boolean;
   isLoadingContent: boolean;
   isGeneratingTechSpec: boolean;
+  ralphStatus?: RalphStatus;
   onDecompose: (force: boolean) => void;
   onAddToQueue: (taskId: string) => void;
   onRemoveFromQueue: (taskId: string) => void;
   onAddAllToQueue: () => void;
   onSaveTask: (task: UserStory) => Promise<void>;
   onRunQueue: () => void;
+  onViewLive: () => void;
   onCreateTechSpec: () => void;
   onTasksVisibilityChange: (visible: boolean) => void;
+  getQueuedTaskStatus?: (taskId: string) => QueuedTaskReference['status'];
 }
 
 export function TasksSection({
@@ -35,17 +38,21 @@ export function TasksSection({
   isDecomposing,
   isLoadingContent,
   isGeneratingTechSpec,
+  ralphStatus,
   onDecompose,
   onAddToQueue,
   onRemoveFromQueue,
   onAddAllToQueue,
   onSaveTask,
   onRunQueue,
+  onViewLive,
   onCreateTechSpec,
   onTasksVisibilityChange,
+  getQueuedTaskStatus: getQueuedTaskStatusProp,
 }: TasksSectionProps) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const hasStories = stories.length > 0;
+  const isRunning = ralphStatus?.running;
 
   // Track visibility using IntersectionObserver
   useEffect(() => {
@@ -74,7 +81,7 @@ export function TasksSection({
   };
 
   const getQueuedTaskStatus = (taskId: string) =>
-    queueTasks.find(t => t.taskId === taskId)?.status || 'pending';
+    getQueuedTaskStatusProp ? getQueuedTaskStatusProp(taskId) : (queueTasks.find(t => t.taskId === taskId)?.status || 'pending');
 
   const title = isPrd ? 'User Stories' : 'Tasks';
 
@@ -106,6 +113,23 @@ export function TasksSection({
           </div>
         ) : hasStories ? (
           <div className="flex items-center gap-2">
+            {isRunning && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onViewLive}
+                className="h-7 text-xs bg-primary/20 hover:bg-primary/30 text-primary border-none"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                  </span>
+                  View Live
+                </div>
+              </Button>
+            )}
+
             <Button
               variant="ghost"
               size="sm"
@@ -118,18 +142,21 @@ export function TasksSection({
 
             {specType === 'tech-spec' && (
               <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onAddAllToQueue}
-                  disabled={stories.every(s => s.passes || isTaskQueued(s.id))}
-                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <QueueListIcon className="h-3.5 w-3.5 mr-1" />
-                  Queue All
-                </Button>
-                {queueTasks.some(t => t.status === 'queued') && (
+                {!isRunning && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onAddAllToQueue}
+                    disabled={stories.every(s => s.passes || isTaskQueued(s.id))}
+                    className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <QueueListIcon className="h-3.5 w-3.5 mr-1" />
+                    Queue All
+                  </Button>
+                )}
+                {queueTasks.some(t => t.status === 'queued') && !isRunning && (
                   <Button variant="primary" size="sm" onClick={onRunQueue} className="h-7 text-xs">
+                    <PlayIcon className="h-3.5 w-3.5 mr-1" />
                     Run Queue
                   </Button>
                 )}
