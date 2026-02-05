@@ -100,4 +100,14 @@ describe('ChatInput', () => {
 
     expect(onFocus).toHaveBeenCalledTimes(1);
   });
+
+  it('should focus textarea when focusTrigger increases', () => {
+    const { rerender } = render(<ChatInput {...defaultProps} focusTrigger={0} />);
+    const textarea = screen.getByPlaceholderText(/ask for follow-up changes/i);
+    const focusSpy = vi.spyOn(textarea, 'focus');
+
+    // Increment focusTrigger
+    rerender(<ChatInput {...defaultProps} focusTrigger={1} />);
+    expect(focusSpy).toHaveBeenCalledTimes(1);
+  });
 });

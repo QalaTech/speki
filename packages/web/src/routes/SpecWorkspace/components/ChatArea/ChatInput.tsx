@@ -18,6 +18,7 @@ interface ChatInputProps {
   isStartingReview: boolean;
   onFocus?: () => void;
   isDiscussing?: boolean;
+  focusTrigger?: number;
 }
 
 export function ChatInput({
@@ -30,6 +31,7 @@ export function ChatInput({
   isStartingReview,
   onFocus,
   isDiscussing,
+  focusTrigger,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -41,6 +43,13 @@ export function ChatInput({
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
   }, [value]);
+
+  // Handle outside focus trigger
+  useEffect(() => {
+    if (focusTrigger && focusTrigger > 0) {
+      textareaRef.current?.focus();
+    }
+  }, [focusTrigger]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
