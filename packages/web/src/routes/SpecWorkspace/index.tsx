@@ -118,6 +118,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
 
   // Chat input state - must be before useSpecChat
   const [inputValue, setInputValue] = useState('');
+  const [focusTrigger, setFocusTrigger] = useState(0);
 
   // Chat functionality
   const {
@@ -268,6 +269,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   const handleAddToConversation = useCallback(
     (text: string) => {
       setInputValue((prev) => prev + (prev ? '\n\n' : '') + `Regarding: "${text}"`);
+      setFocusTrigger((prev) => prev + 1);
     },
     []
   );
@@ -387,6 +389,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                 onNewChat={handleNewChat}
                 onStartReview={handleStartReview}
                 isStartingReview={isStartingReview}
+                focusTrigger={focusTrigger}
               />
             )}
           </div>

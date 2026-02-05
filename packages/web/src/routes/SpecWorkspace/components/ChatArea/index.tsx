@@ -40,6 +40,7 @@ interface ChatAreaProps {
   onNewChat: () => void;
   onStartReview: () => void;
   isStartingReview: boolean;
+  focusTrigger?: number;
 }
 
 export function ChatArea({
@@ -63,6 +64,7 @@ export function ChatArea({
   onNewChat,
   onStartReview,
   isStartingReview,
+  focusTrigger,
 }: ChatAreaProps) {
   const pendingSuggestions = suggestions.filter((s) => s.status === 'pending');
   const quirkyMessage = useQuirkyMessage({ isActive: isSending });
@@ -121,6 +123,7 @@ export function ChatArea({
           isStartingReview={isStartingReview}
           isDiscussing={!!discussingContext}
           onFocus={handleInputFocus}
+          focusTrigger={focusTrigger}
         />
       </div>
     </div>
