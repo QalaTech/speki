@@ -176,8 +176,18 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     projectPath,
   });
 
-  // Execution state
-  const [isExecutionModalOpen, setIsExecutionModalOpen] = useState(false);
+  // Execution state - controlled via query string
+  const isExecutionModalOpen = searchParams.get('liveViewOpen') === 'true';
+  const setIsExecutionModalOpen = useCallback((open: boolean) => {
+    setSearchParams(prev => {
+      if (open) {
+        prev.set('liveViewOpen', 'true');
+      } else {
+        prev.delete('liveViewOpen');
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
   const { data: ralphStatus } = useExecutionStatus(projectPath);
   const { data: executionLogs } = useExecutionLogs(projectPath);
   const { data: prdData } = useExecutionTasks(projectPath);
