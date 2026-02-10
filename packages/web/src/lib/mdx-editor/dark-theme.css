@@ -71,9 +71,8 @@
 }
 
 /* ===== Content Editable Area ===== */
-.mdxeditor [class*="_contentEditable_"],
-.mdxeditor [contenteditable="true"],
-.mdxeditor .ProseMirror {
+.mdxeditor .mdxeditor-root-contenteditable,
+.mdxeditor .mdxeditor-root-contenteditable.ProseMirror {
   background: var(--color-bg) !important;
   color: var(--color-text) !important;
   caret-color: var(--color-text);
@@ -81,12 +80,13 @@
   min-height: 300px;
 }
 
-.mdxeditor .ProseMirror:focus {
+.mdxeditor .mdxeditor-root-contenteditable:focus,
+.mdxeditor .mdxeditor-root-contenteditable.ProseMirror:focus {
   outline: none;
 }
 
 /* Placeholder text */
-.mdxeditor .ProseMirror p.is-editor-empty:first-child::before,
+.mdxeditor .mdxeditor-root-contenteditable p.is-editor-empty:first-child::before,
 .mdxeditor [class*="_placeholder_"] {
   color: var(--color-text-muted) !important;
 }
@@ -463,13 +463,6 @@
 .mdxeditor .cm-content {
   min-height: unset !important;
   padding: 12px 16px !important;
-}
-
-.mdxeditor .cm-gutters {
-  min-height: unset !important;
-}
-
-.mdxeditor .cm-content {
   color: #e6edf3 !important;
   caret-color: #e6edf3 !important;
 }
@@ -479,6 +472,7 @@
 }
 
 .mdxeditor .cm-gutters {
+  min-height: unset !important;
   background: #161b22 !important;
   border-right: 1px solid var(--color-border) !important;
   color: var(--color-text-muted) !important;
@@ -518,39 +512,310 @@
 
 /* ===== Tables ===== */
 .mdxeditor table {
-  border-collapse: collapse;
+  border-collapse: separate;
   width: 100%;
-  margin: 16px 0;
+  margin: 12px 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
 }
 
-.mdxeditor th,
-.mdxeditor td {
-  border: 1px solid var(--color-border);
-  padding: 8px 12px;
-  text-align: left;
-  color: var(--color-text) !important;
-}
-
-.mdxeditor th {
-  background: oklch(from var(--color-accent) l c h / 10%) !important;
-  color: var(--color-accent) !important;
-  font-weight: 600;
-}
-
-.mdxeditor tr:nth-child(even) td {
-  background: oklch(20% 0.005 256 / 50%);
-}
-
-.mdxeditor tr:hover td {
-  background: oklch(25% 0.01 256 / 50%);
-}
-
-/* Table toolbar */
-.mdxeditor [class*="_tableToolbar_"],
 .mdxeditor [class*="_tableEditor_"] {
-  background: var(--color-surface) !important;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
+  --table-border: rgba(148, 163, 184, 0.38);
+  --table-border-soft: rgba(148, 163, 184, 0.28);
+  --table-bg: rgba(19, 22, 30, 0.98);
+  --table-header-bg: rgba(40, 43, 68, 0.9);
+  --table-row-bg: rgba(28, 30, 36, 0.95);
+  --table-row-alt-bg: rgba(31, 34, 41, 0.95);
+  --table-row-hover-bg: rgba(40, 44, 52, 0.98);
+  --table-active-bg: rgba(84, 96, 146, 0.22);
+  --table-active-outline: rgba(132, 146, 212, 0.72);
+  --baseBgActive: var(--baseBorder);
+  --baseLine: var(--baseBorder);
+  --baseSolid: #a371f7;
+
+  table-layout: auto !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  background: var(--table-bg) !important;
+  border: 1px solid var(--table-border-soft) !important;
+  border-radius: 10px;
+  overflow: visible;
+  position: relative;
+}
+
+.mdxeditor [class*="_tableEditor_"] > colgroup > col:first-child,
+.mdxeditor [class*="_tableEditor_"] > colgroup > col:last-child {
+  width: 0 !important;
+  min-width: 0 !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] > thead > tr > th[data-tool-cell="true"],
+.mdxeditor [class*="_tableEditor_"] > thead > tr > th[class*="_tableToolsColumn_"],
+.mdxeditor [class*="_tableEditor_"] > tbody > tr > [class*="_toolCell_"],
+.mdxeditor [class*="_tableEditor_"] > tbody > tr > [data-tool-cell="true"] {
+  width: 0 !important;
+  min-width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  position: relative;
+  overflow: visible !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] > thead [class*="_iconButton_"] {
+  display: none !important;
+}
+
+.mdxeditor [class*="_tableColumnEditorTrigger_"],
+.mdxeditor [class*="_tableRowEditorTrigger_"] {
+  position: absolute !important;
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(148, 163, 184, 0.45) !important;
+  background: rgba(23, 27, 35, 0.92) !important;
+  color: rgba(219, 227, 255, 0.9) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  line-height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: 3;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
+  transition: opacity 0.14s ease, transform 0.14s ease, background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.mdxeditor [class*="_tableColumnEditorTrigger_"] {
+  top: 5px !important;
+  left: 50% !important;
+  transform: translate(-50%, -100%) scale(0.9) !important;
+}
+
+.mdxeditor [class*="_tableRowEditorTrigger_"] {
+  left: 6px !important;
+  top: 50% !important;
+  transform: translate(0, -50%) scale(0.9) !important;
+}
+
+.mdxeditor [class*="_tableColumnEditorTrigger_"][data-active="true"],
+.mdxeditor [class*="_tableRowEditorTrigger_"][data-active="true"],
+.mdxeditor [class*="_tableColumnEditorTrigger_"][data-state="open"],
+.mdxeditor [class*="_tableRowEditorTrigger_"][data-state="open"] {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.mdxeditor [class*="_tableColumnEditorTrigger_"][data-active="true"],
+.mdxeditor [class*="_tableColumnEditorTrigger_"][data-state="open"] {
+  transform: translate(-50%, -100%) scale(1) !important;
+}
+
+.mdxeditor [class*="_tableRowEditorTrigger_"][data-active="true"],
+.mdxeditor [class*="_tableRowEditorTrigger_"][data-state="open"] {
+  transform: translate(0, -50%) scale(1) !important;
+}
+
+.mdxeditor [class*="_tableColumnEditorTrigger_"]:hover,
+.mdxeditor [class*="_tableRowEditorTrigger_"]:hover {
+  background: rgba(40, 45, 58, 0.98) !important;
+  border-color: rgba(168, 182, 246, 0.75) !important;
+  color: #f1f5ff !important;
+}
+
+.mdxeditor [class*="_tableColumnEditorTrigger_"] svg,
+.mdxeditor [class*="_tableRowEditorTrigger_"] svg {
+  width: 12px !important;
+  height: 12px !important;
+  display: block !important;
+  margin: 0 !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] > tbody > tr > th:not([data-tool-cell="true"]),
+.mdxeditor [class*="_tableEditor_"] > tbody > tr > td:not([data-tool-cell="true"]) {
+  padding: 0 !important;
+  border-right: 1px solid var(--table-border) !important;
+  border-bottom: 1px solid var(--table-border) !important;
+  vertical-align: top;
+  line-height: 1.2 !important;
+  color: var(--color-text) !important;
+  background: var(--table-row-bg);
+  height: auto !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] > tbody > tr > th:not([data-tool-cell="true"]) {
+  background: var(--table-header-bg) !important;
+  color: var(--color-text) !important;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.mdxeditor [class*="_tableEditor_"] [class*="_leftAlignedCell_"] {
+  text-align: left !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] [class*="_centeredCell_"] {
+  text-align: center !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] [class*="_rightAlignedCell_"] {
+  text-align: right !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] > tbody > tr > :last-child {
+  border-right: none !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] > tbody > tr:last-child > th:not([data-tool-cell="true"]),
+.mdxeditor [class*="_tableEditor_"] > tbody > tr:last-child > td:not([data-tool-cell="true"]) {
+  border-bottom: none !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] > tbody > tr:nth-child(even) > td:not([data-tool-cell="true"]) {
+  background: var(--table-row-alt-bg);
+}
+
+.mdxeditor [class*="_tableEditor_"] > tbody > tr:hover > td:not([data-tool-cell="true"]) {
+  background: var(--table-row-hover-bg);
+}
+
+.mdxeditor [class*="_tableEditor_"] > tbody > tr > th[data-active="true"],
+.mdxeditor [class*="_tableEditor_"] > tbody > tr > td[data-active="true"] {
+  outline: 2px solid var(--table-active-outline) !important;
+  outline-offset: -2px !important;
+  background: var(--table-active-bg) !important;
+}
+
+.mdxeditor table[class*="_tableEditor_"] > tbody > tr > td:not([data-tool-cell="true"]) > div[contenteditable="true"],
+.mdxeditor table[class*="_tableEditor_"] > tbody > tr > th:not([data-tool-cell="true"]) > div[contenteditable="true"] {
+  margin: 0 !important;
+  padding: 5px 12px !important;
+  line-height: 1.2 !important;
+  box-sizing: border-box !important;
+  height: auto !important;
+}
+
+.mdxeditor table[class*="_tableEditor_"] > tbody > tr > td:not([data-tool-cell="true"]) > div[contenteditable="true"] > p,
+.mdxeditor table[class*="_tableEditor_"] > tbody > tr > th:not([data-tool-cell="true"]) > div[contenteditable="true"] > p {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.2 !important;
+}
+
+.mdxeditor table[class*="_tableEditor_"] > tbody > tr > td:not([data-tool-cell="true"]) > div[contenteditable="true"] :is(p, div, ul, ol),
+.mdxeditor table[class*="_tableEditor_"] > tbody > tr > th:not([data-tool-cell="true"]) > div[contenteditable="true"] :is(p, div, ul, ol) {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] > tbody > tr > th[data-tool-cell="true"][rowspan] {
+  position: relative;
+  overflow: visible !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] > tfoot,
+.mdxeditor [class*="_tableEditor_"] > tfoot > tr,
+.mdxeditor [class*="_tableEditor_"] > tfoot > tr > th {
+  height: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] > tfoot > tr > th:first-child,
+.mdxeditor [class*="_tableEditor_"] > tfoot > tr > th:last-child {
+  display: none !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] > tfoot > tr > th[colspan] {
+  position: static !important;
+}
+
+.mdxeditor [class*="_addRowButton_"],
+.mdxeditor [class*="_addColumnButton_"] {
+  position: absolute !important;
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(132, 146, 212, 0.62) !important;
+  background: rgba(32, 36, 52, 0.96) !important;
+  color: #dbe3ff !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.38);
+  opacity: 0 !important;
+  transform: scale(0.9);
+  pointer-events: none !important;
+  z-index: 2;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  line-height: 0 !important;
+  transition: opacity 0.14s ease, transform 0.14s ease, color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+
+.mdxeditor [class*="_addRowButton_"] {
+  left: 50% !important;
+  bottom: -28px !important;
+  transform: translateX(-50%) scale(0.9) !important;
+}
+
+.mdxeditor [class*="_addColumnButton_"] {
+  right: -14px !important;
+  top: 50% !important;
+  transform: translateY(-50%) scale(0.9) !important;
+}
+
+.mdxeditor [class*="_tableEditor_"]:hover [class*="_addRowButton_"],
+.mdxeditor [class*="_tableEditor_"]:hover [class*="_addColumnButton_"],
+.mdxeditor [class*="_tableEditor_"]:focus-within [class*="_addRowButton_"],
+.mdxeditor [class*="_tableEditor_"]:focus-within [class*="_addColumnButton_"] {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.mdxeditor [class*="_tableEditor_"]:hover [class*="_addRowButton_"],
+.mdxeditor [class*="_tableEditor_"]:focus-within [class*="_addRowButton_"] {
+  transform: translateX(-50%) scale(1) !important;
+}
+
+.mdxeditor [class*="_tableEditor_"]:hover [class*="_addColumnButton_"],
+.mdxeditor [class*="_tableEditor_"]:focus-within [class*="_addColumnButton_"] {
+  transform: translateY(-50%) scale(1) !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] [class*="_addRowButton_"]:hover,
+.mdxeditor [class*="_tableEditor_"] [class*="_addColumnButton_"]:hover {
+  background: rgba(46, 52, 74, 0.98) !important;
+  color: #f1f5ff !important;
+  border-color: rgba(168, 182, 246, 0.92) !important;
+}
+
+.mdxeditor [class*="_tableEditor_"] [class*="_addRowButton_"] svg,
+.mdxeditor [class*="_tableEditor_"] [class*="_addColumnButton_"] svg {
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0 !important;
+  display: block !important;
+  flex: none !important;
+}
+
+.mdxeditor [class*="_addRowButton_"] > *,
+.mdxeditor [class*="_addColumnButton_"] > * {
+  width: 100%;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mdxeditor table th,
+.mdxeditor table td {
+  border-color: var(--table-border, var(--color-border)) !important;
 }
 
 /* ===== Tooltips ===== */
