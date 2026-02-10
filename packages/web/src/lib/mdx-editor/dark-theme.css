@@ -120,7 +120,11 @@
 
 .mdxeditor [class*="_toolbarButton_"][data-state="on"],
 .mdxeditor [class*="_toolbarButton_"].active,
-.mdxeditor [class*="_iconButton_"][data-state="on"] {
+.mdxeditor [class*="_iconButton_"][data-state="on"],
+.mdxeditor [class*="_toolbarToggleItem_"][data-state="on"],
+.mdxeditor [class*="_toolbarToggleItem_"][aria-pressed="true"],
+.mdxeditor button[class*="_toolbar"][data-state="on"],
+.mdxeditor button[class*="_toolbar"][aria-pressed="true"] {
   background: var(--color-accent) !important;
   color: white !important;
 }
@@ -166,6 +170,37 @@
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   overflow: hidden;
+}
+
+/* MDXEditor select menus are portaled and can otherwise sit under sticky app chrome */
+.mdxeditor-popup-container,
+.mdxeditor [class*="_popupContainer_"] {
+  z-index: 1200 !important;
+}
+
+.mdxeditor-select-content,
+.mdxeditor [class*="_toolbarNodeKindSelectContainer_"],
+.mdxeditor [class*="_toolbarButtonDropdownContainer_"],
+.mdxeditor [class*="_toolbarCodeBlockLanguageSelectContent_"],
+.mdxeditor [class*="_selectContainer_"] {
+  z-index: 1200 !important;
+}
+
+[data-radix-popper-content-wrapper]:has(> .mdxeditor-select-content) {
+  z-index: 1200 !important;
+}
+
+/* Ensure long language lists are scrollable */
+.mdxeditor-select-content {
+  max-height: min(70vh, 420px) !important;
+}
+
+.mdxeditor-select-content [data-editor-dropdown],
+.mdxeditor-select-content [data-radix-select-viewport] {
+  max-height: min(70vh, 420px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
 }
 
 /* Dropdown items */
@@ -354,6 +389,30 @@
   margin: 0 0 16px 0;
 }
 
+.mdxeditor ul {
+  list-style: disc outside !important;
+}
+
+.mdxeditor ol {
+  list-style: decimal outside !important;
+}
+
+.mdxeditor ul ul {
+  list-style-type: circle !important;
+}
+
+.mdxeditor ul ul ul {
+  list-style-type: square !important;
+}
+
+.mdxeditor ol ol {
+  list-style-type: lower-alpha !important;
+}
+
+.mdxeditor ol ol ol {
+  list-style-type: lower-roman !important;
+}
+
 .mdxeditor li {
   color: var(--color-text) !important;
   margin-bottom: 6px;
@@ -400,11 +459,23 @@
 .mdxeditor pre,
 .mdxeditor [class*="_codeBlock_"] {
   background: oklch(16% 0.01 256) !important;
-  border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-accent);
+  border: 1px solid rgba(148, 163, 184, 0.28) !important;
+  border-left: 1px solid rgba(148, 163, 184, 0.38) !important;
   border-radius: 8px;
   margin: 16px 0;
   overflow: hidden;
+}
+
+/* MDXEditor's actual code block wrapper carries its own default border color */
+.mdxeditor [class*="_codeMirrorWrapper_"] {
+  border: 1px solid rgba(148, 163, 184, 0.28) !important;
+  border-left: 1px solid rgba(148, 163, 184, 0.38) !important;
+}
+
+.mdxeditor [class*="_codeMirrorWrapper_"]:focus-within {
+  border-color: rgba(148, 163, 184, 0.38) !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 .mdxeditor pre code {
@@ -421,7 +492,7 @@
 .mdxeditor [class*="_codeBlockHeader_"],
 .mdxeditor [class*="_codeBlockToolbar_"] {
   background: oklch(from var(--color-accent) l c h / 10%) !important;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28) !important;
   padding: 8px 12px;
   display: flex;
   align-items: center;
@@ -489,6 +560,27 @@
 .mdxeditor .cm-selectionBackground,
 .mdxeditor .cm-selection {
   background: rgba(88, 166, 255, 0.2) !important;
+}
+
+.mdxeditor .cm-selectionLayer .cm-selectionBackground {
+  background: rgba(88, 166, 255, 0.22) !important;
+}
+
+/* Keep matched brace pairs visible in dark mode (avoid white block artifacts) */
+.mdxeditor .cm-matchingBracket {
+  color: #c9d1d9 !important;
+  background: rgba(88, 166, 255, 0.18) !important;
+  outline: 1px solid rgba(88, 166, 255, 0.45) !important;
+  outline-offset: -1px;
+  border-radius: 2px;
+}
+
+.mdxeditor .cm-nonmatchingBracket {
+  color: #ff7b72 !important;
+  background: rgba(248, 81, 73, 0.18) !important;
+  outline: 1px solid rgba(248, 81, 73, 0.5) !important;
+  outline-offset: -1px;
+  border-radius: 2px;
 }
 
 /* CodeMirror syntax colors */

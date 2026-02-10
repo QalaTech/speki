@@ -157,7 +157,9 @@ export function createEditorPlugins(): RealmPlugin[] {
       codeBlockLanguages: {
         '': 'Plain Text',
         typescript: 'TypeScript',
+        tsx: 'React (TSX)',
         javascript: 'JavaScript',
+        jsx: 'React (JSX)',
         json: 'JSON',
         bash: 'Bash',
         powershell: 'PowerShell',

@@ -4,7 +4,7 @@
  * Uses portal to escape MDXEditor's overflow:hidden toolbar
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { insertTable$, insertCodeBlock$, usePublisher } from '@mdxeditor/editor';
 
@@ -12,21 +12,56 @@ export function ToolbarOverflowMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   
   const insertTable = usePublisher(insertTable$);
   const insertCodeBlock = usePublisher(insertCodeBlock$);
 
-  // Calculate position when opening
+  const calculateMenuPosition = useCallback(() => {
+    if (!buttonRef.current) return null;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const menuWidth = 160;
+    const viewportPadding = 8;
+    const left = Math.max(
+      viewportPadding,
+      Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - viewportPadding)
+    );
+
+    return {
+      top: rect.bottom + 4,
+      left,
+    };
+  }, []);
+
+  const handleToggleMenu = useCallback(() => {
+    setIsOpen(prev => {
+      const next = !prev;
+      if (next) {
+        setMenuPosition(calculateMenuPosition());
+      } else {
+        setMenuPosition(null);
+      }
+      return next;
+    });
+  }, [calculateMenuPosition]);
+
+  // Keep dropdown anchored on viewport changes while open
   useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setMenuPosition({
-        top: rect.bottom + 4,
-        left: rect.right - 160, // Align right edge with button
-      });
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+
+    const updatePosition = () => {
+      setMenuPosition(calculateMenuPosition());
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen, calculateMenuPosition]);
 
   // Close on outside click
   useEffect(() => {
@@ -39,6 +74,7 @@ export function ToolbarOverflowMenu() {
         buttonRef.current && !buttonRef.current.contains(target)
       ) {
         setIsOpen(false);
+        setMenuPosition(null);
       }
     };
     
@@ -49,18 +85,20 @@ export function ToolbarOverflowMenu() {
   const handleInsertTable = () => {
     insertTable({ rows: 3, columns: 3 });
     setIsOpen(false);
+    setMenuPosition(null);
   };
 
   const handleInsertCodeBlock = () => {
     insertCodeBlock({});
     setIsOpen(false);
+    setMenuPosition(null);
   };
 
   return (
     <>
       <button
         ref={buttonRef}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggleMenu}
         className="flex items-center justify-center w-8 h-8 rounded hover:bg-white/10 transition-colors text-white/60 hover:text-white/90"
         title="More actions"
       >
@@ -69,10 +107,10 @@ export function ToolbarOverflowMenu() {
         </svg>
       </button>
       
-      {isOpen && createPortal(
+      {isOpen && menuPosition && createPortal(
         <div 
           ref={menuRef}
-          className="fixed py-1 min-w-[160px] rounded-lg bg-[#2a2a2a] border border-white/10 shadow-xl animate-in fade-in slide-in-from-top-2 duration-150"
+          className="fixed py-1 min-w-[160px] rounded-lg bg-[#2a2a2a] border border-white/10 shadow-xl animate-in fade-in duration-150"
           style={{ 
             top: menuPosition.top,
             left: menuPosition.left,
@@ -103,4 +141,3 @@ export function ToolbarOverflowMenu() {
     </>
   );
 }
-
