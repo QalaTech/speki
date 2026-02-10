@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { XMarkIcon, CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { BotIcon } from 'lucide-react';
 import type { Suggestion, SuggestionTag } from '../../../../components/specs/types';
 import { getSuggestionLocation } from '../../../../components/specs/types';
@@ -10,6 +10,7 @@ interface ReviewPanelProps {
   onResolve: (id: string) => void;
   onDismiss: (id: string) => void;
   onDiscuss: (suggestion: Suggestion) => void;
+  onReviewDiff?: (suggestion: Suggestion) => void;
   onDismissAll: () => void;
   onClose: () => void;
 }
@@ -39,10 +40,12 @@ function ReviewItem({
   suggestion,
   onResolve,
   onDiscuss,
+  onReviewDiff,
 }: {
   suggestion: Suggestion;
   onResolve: (id: string) => void;
   onDiscuss: (suggestion: Suggestion) => void;
+  onReviewDiff?: (suggestion: Suggestion) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -109,23 +112,32 @@ function ReviewItem({
 
               {/* Actions */}
               <div className="flex items-center gap-2 mt-3">
+                {onReviewDiff && hasCodeFix && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => onReviewDiff(suggestion)}
+                    className="h-auto px-2.5 py-1 text-[11px] font-medium"
+                  >
+                    Review
+                  </Button>
+                )}
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
                   onClick={() => onDiscuss(suggestion)}
                   data-conversation-keep-open
-                  className="h-auto px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-white/5"
+                  className="h-auto px-2.5 py-1 text-[11px] font-medium"
                 >
                   Discuss
                 </Button>
                 <Button
-                  variant="primary"
+                  variant="secondary"
                   size="sm"
                   onClick={() => onResolve(suggestion.id)}
-                  className="h-auto px-2.5 py-1 text-[11px] font-medium ml-auto gap-1"
+                  className="h-auto px-2.5 py-1 text-[11px] font-medium ml-auto"
                 >
-                  <CheckIcon className="w-3 h-3" />
-                  Resolve
+                  Dismiss
                 </Button>
               </div>
             </div>
@@ -140,6 +152,7 @@ export function ReviewPanel({
   suggestions,
   onResolve,
   onDiscuss,
+  onReviewDiff,
   onDismissAll,
   onClose,
 }: ReviewPanelProps) {
@@ -220,6 +233,7 @@ export function ReviewPanel({
             suggestion={suggestion}
             onResolve={onResolve}
             onDiscuss={onDiscuss}
+            onReviewDiff={onReviewDiff}
           />
         ))}
       </div>

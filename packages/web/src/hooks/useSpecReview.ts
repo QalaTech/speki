@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { toast } from 'sonner';
 import { apiFetch } from '../components/ui/ErrorContext';
 import type {
   SpecSession,
@@ -14,6 +15,7 @@ interface UseSpecReviewOptions {
   content: string;
   onContentChange: (content: string) => void;
   onSave: (content: string) => Promise<void>;
+  onContentRefetch?: () => Promise<void>;
   onReviewStatusChanged?: () => Promise<unknown> | unknown;
 }
 
@@ -29,7 +31,7 @@ interface UseSpecReviewReturn {
   handleStartReview: (reuseSession?: boolean, model?: string) => Promise<void>;
   handleReviewDiff: (suggestion: Suggestion) => void;
   handleDiffApprove: (finalContent: string) => Promise<void>;
-  handleDiffReject: () => void;
+  handleDiffReject: () => Promise<void>;
   handleSuggestionAction: (
     suggestionId: string,
     action: 'approved' | 'rejected' | 'edited' | 'dismissed' | 'resolved',
@@ -108,6 +110,7 @@ export function useSpecReview({
   content,
   onContentChange,
   onSave,
+  onContentRefetch,
   onReviewStatusChanged,
 }: UseSpecReviewOptions): UseSpecReviewReturn {
   const [session, setSession] = useState<SpecSession | null>(null);
@@ -133,6 +136,10 @@ export function useSpecReview({
       console.error('Failed to refresh review status indicators:', error);
     }
   }, [onReviewStatusChanged]);
+
+  const closeDiffOverlay = useCallback(() => {
+    setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' });
+  }, []);
 
   // Get review status for current file
   const getReviewStatus = useCallback((): ReviewStatus => {
@@ -195,67 +202,12 @@ export function useSpecReview({
     }
   }, [selectedPath, session?.sessionId, apiUrl, notifyReviewStatusChanged]);
 
-  // Handle review diff for a suggestion
-  const handleReviewDiff = useCallback((suggestion: Suggestion) => {
-    const proposedContent = applySuggestion(content, suggestion);
-
-    setDiffOverlay({
-      isOpen: true,
-      suggestion,
-      originalText: content,
-      proposedText: proposedContent,
-    });
-  }, [content]);
-
-  // Handle diff approval
-  const handleDiffApprove = useCallback(async (finalContent: string) => {
-    if (!diffOverlay.suggestion || !session) return;
-
-    // Update content
-    await onSave(finalContent);
-    onContentChange(finalContent);
-
-    // Mark suggestion as approved
-    const updatedSuggestions = session.suggestions.map(s =>
-      s.id === diffOverlay.suggestion?.id ? { ...s, status: 'approved' as const } : s
-    );
-    setSession({ ...session, suggestions: updatedSuggestions });
-
-    // Close overlay
-    setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' });
-  }, [diffOverlay.suggestion, session, onSave, onContentChange]);
-
-  // Handle diff reject
-  const handleDiffReject = useCallback(() => {
-    if (!diffOverlay.suggestion || !session) return;
-
-    // Mark suggestion as rejected
-    const updatedSuggestions = session.suggestions.map(s =>
-      s.id === diffOverlay.suggestion?.id ? { ...s, status: 'rejected' as const } : s
-    );
-    setSession({ ...session, suggestions: updatedSuggestions });
-
-    // Close overlay
-    setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' });
-  }, [diffOverlay.suggestion, session]);
-
-  // Handle suggestion status update (approve/reject/edit/dismiss/resolve)
-  const handleSuggestionAction = useCallback(async (
+  const updateSuggestionStatus = useCallback(async (
     suggestionId: string,
     action: 'approved' | 'rejected' | 'edited' | 'dismissed' | 'resolved',
     userVersion?: string
-  ) => {
-    if (!session?.sessionId) return;
-
-    // If approving, apply the suggestion to the spec first
-    if (action === 'approved') {
-      const suggestion = session.suggestions.find(s => s.id === suggestionId);
-      if (suggestion) {
-        const updatedContent = applySuggestion(content, suggestion);
-        await onSave(updatedContent);
-        onContentChange(updatedContent);
-      }
-    }
+  ): Promise<boolean> => {
+    if (!session?.sessionId) return false;
 
     try {
       const res = await apiFetch(apiUrl('/api/spec-review/suggestion'), {
@@ -271,29 +223,105 @@ export function useSpecReview({
 
       if (!res.ok) {
         console.error('Failed to update suggestion status');
-        return;
+        return false;
       }
 
       const data = await res.json();
-
-      // Update local session state with the updated suggestion
-      if (data.success && data.suggestion) {
-        setSession(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            suggestions: prev.suggestions.map(s =>
-              s.id === suggestionId ? { ...s, status: action, reviewedAt: data.suggestion.reviewedAt } : s
-            ),
-          };
-        });
-
-        await notifyReviewStatusChanged();
+      if (!data.success || !data.suggestion) {
+        return false;
       }
+
+      setSession(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          suggestions: prev.suggestions.map(s =>
+            s.id === suggestionId ? { ...s, status: action, reviewedAt: data.suggestion.reviewedAt } : s
+          ),
+        };
+      });
+
+      await notifyReviewStatusChanged();
+      return true;
     } catch (error) {
       console.error('Failed to update suggestion:', error);
+      return false;
     }
-  }, [session?.sessionId, session?.suggestions, content, apiUrl, onSave, onContentChange, notifyReviewStatusChanged]);
+  }, [session?.sessionId, apiUrl, notifyReviewStatusChanged]);
+
+  // Handle review diff for a suggestion
+  const handleReviewDiff = useCallback((suggestion: Suggestion) => {
+    const proposedContent = applySuggestion(content, suggestion);
+    const fallbackChange = suggestion.suggestedFix?.trim() || suggestion.issue?.trim() || 'Suggested update';
+    const safeProposedContent = proposedContent === content
+      ? `${content}\n\n<!-- Suggested Update -->\n${fallbackChange}\n`
+      : proposedContent;
+
+    setDiffOverlay({
+      isOpen: true,
+      suggestion,
+      originalText: content,
+      proposedText: safeProposedContent,
+    });
+  }, [content]);
+
+  // Handle diff approval
+  const handleDiffApprove = useCallback(async (finalContent: string) => {
+    if (!diffOverlay.suggestion) return;
+
+    try {
+      await onSave(finalContent);
+      onContentChange(finalContent);
+      await onContentRefetch?.();
+
+      const resolved = await updateSuggestionStatus(diffOverlay.suggestion.id, 'resolved');
+      if (!resolved) {
+        toast.error('Applied update, but failed to resolve suggestion');
+        return;
+      }
+
+      toast.success('Update applied');
+      closeDiffOverlay();
+    } catch (error) {
+      console.error('Failed to apply diff:', error);
+      toast.error('Failed to apply update');
+    }
+  }, [diffOverlay.suggestion, onSave, onContentChange, onContentRefetch, updateSuggestionStatus, closeDiffOverlay]);
+
+  // Handle diff reject
+  const handleDiffReject = useCallback(async () => {
+    if (!diffOverlay.suggestion) return;
+
+    const resolved = await updateSuggestionStatus(diffOverlay.suggestion.id, 'resolved');
+    if (!resolved) {
+      toast.error('Failed to reject change');
+      return;
+    }
+
+    toast.success('Change rejected');
+    closeDiffOverlay();
+  }, [diffOverlay.suggestion, updateSuggestionStatus, closeDiffOverlay]);
+
+  // Handle suggestion status update (approve/reject/edit/dismiss/resolve)
+  const handleSuggestionAction = useCallback(async (
+    suggestionId: string,
+    action: 'approved' | 'rejected' | 'edited' | 'dismissed' | 'resolved',
+    userVersion?: string
+  ) => {
+    if (!session) return;
+
+    // If approving, apply the suggestion to the spec first
+    if (action === 'approved') {
+      const suggestion = session.suggestions.find(s => s.id === suggestionId);
+      if (suggestion) {
+        const updatedContent = applySuggestion(content, suggestion);
+        await onSave(updatedContent);
+        onContentChange(updatedContent);
+      }
+    }
+
+    await updateSuggestionStatus(suggestionId, action, userVersion);
+  }, [session, content, onSave, onContentChange, updateSuggestionStatus]);
 
   // Fetch session when selection changes
   useEffect(() => {
@@ -338,8 +366,8 @@ export function useSpecReview({
   useEffect(() => {
     setIsStartingReview(false);
     setSelectedTagFilters(new Set());
-    setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' });
-  }, [selectedPath]);
+    closeDiffOverlay();
+  }, [selectedPath, closeDiffOverlay]);
 
   // Poll for session updates when status is in_progress
   useEffect(() => {
@@ -366,7 +394,7 @@ export function useSpecReview({
     return () => {
       clearInterval(pollInterval);
     };
-  }, [session?.status, selectedPath, apiUrl, notifyReviewStatusChanged]);
+  }, [session, selectedPath, apiUrl, notifyReviewStatusChanged]);
 
   // Handle bulk suggestion action
   const handleBulkSuggestionAction = useCallback(async (

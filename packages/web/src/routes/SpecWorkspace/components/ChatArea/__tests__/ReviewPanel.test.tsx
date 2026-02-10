@@ -74,12 +74,12 @@ describe('ReviewPanel', () => {
       expect(screen.getByText('🔒')).toBeInTheDocument();
     });
 
-    it('should call onResolve when Resolve button is clicked', () => {
+    it('should call onResolve when Dismiss button is clicked', () => {
       const onResolve = vi.fn();
       const suggestions = [mockSuggestion({ id: 'sug-123' })];
       render(<ReviewPanel {...defaultProps} suggestions={suggestions} onResolve={onResolve} />);
       
-      const resolveButton = screen.getByText('Resolve');
+      const resolveButton = screen.getByText('Dismiss');
       fireEvent.click(resolveButton);
       
       expect(onResolve).toHaveBeenCalledWith('sug-123');
@@ -95,6 +95,42 @@ describe('ReviewPanel', () => {
       fireEvent.click(discussButton);
       
       expect(onDiscuss).toHaveBeenCalledWith(suggestion);
+    });
+
+    it('should show Review button for actionable suggestions and call onReviewDiff when clicked', () => {
+      const onReviewDiff = vi.fn();
+      const suggestion = mockSuggestion({ id: 'sug-review', type: 'change' });
+      render(
+        <ReviewPanel
+          {...defaultProps}
+          suggestions={[suggestion]}
+          onReviewDiff={onReviewDiff}
+        />
+      );
+
+      const reviewButton = screen.getByText('Review');
+      fireEvent.click(reviewButton);
+
+      expect(onReviewDiff).toHaveBeenCalledWith(suggestion);
+    });
+
+    it('should hide Review button for comment suggestions without a meaningful fix', () => {
+      const onReviewDiff = vi.fn();
+      const suggestion = mockSuggestion({
+        id: 'sug-comment-no-fix',
+        type: 'comment',
+        issue: 'Consider renaming this heading',
+        suggestedFix: 'Consider renaming this heading',
+      });
+      render(
+        <ReviewPanel
+          {...defaultProps}
+          suggestions={[suggestion]}
+          onReviewDiff={onReviewDiff}
+        />
+      );
+
+      expect(screen.queryByText('Review')).not.toBeInTheDocument();
     });
 
     it('should call onDismissAll when Dismiss all is clicked', () => {

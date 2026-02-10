@@ -109,19 +109,54 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
 ) {
   const editorRef = useRef<MDXEditorMethods>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isSyncingExternalContentRef = useRef(false);
+  const syncResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [selection, setSelection] = useState<SelectionState | null>(null);
 
   // Sanitize content to escape problematic angle brackets
   const sanitizedContent = useMemo(() => sanitizeForMdx(content), [content]);
 
+  // Keep MDXEditor's internal document in sync with external content updates.
+  // MDXEditor treats `markdown` as initial content, so explicit syncing is
+  // required after external refetches (e.g. applying changes from DiffOverlay).
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const currentMarkdown = editor.getMarkdown();
+    if (sanitizeForMdx(currentMarkdown) === sanitizedContent) return;
+
+    isSyncingExternalContentRef.current = true;
+    editor.setMarkdown(sanitizedContent);
+
+    if (syncResetTimerRef.current) {
+      clearTimeout(syncResetTimerRef.current);
+    }
+    syncResetTimerRef.current = setTimeout(() => {
+      isSyncingExternalContentRef.current = false;
+      syncResetTimerRef.current = null;
+    }, 0);
+  }, [sanitizedContent]);
+
   const handleChange: MDXEditorProps['onChange'] = useCallback(
     (markdown: string) => {
+      if (isSyncingExternalContentRef.current) {
+        return;
+      }
       console.log('[SpecEditor] handleChange called, markdown length:', markdown.length, 'hasOnChange:', !!onChange);
       onChange?.(markdown);
     },
     [onChange]
   );
+
+  useEffect(() => {
+    return () => {
+      if (syncResetTimerRef.current) {
+        clearTimeout(syncResetTimerRef.current);
+      }
+    };
+  }, []);
 
   // Handle MDXEditor parsing errors
   const handleError = useCallback((payload: { error: string; source: string }) => {

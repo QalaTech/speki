@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { AppSidebar } from '../../components/specs/AppSidebar';
 import { SidebarProvider, SidebarInset } from '../../components/ui/sidebar';
 import { CreateTechSpecModal } from '../../components/specs/CreateTechSpecModal';
+import { DiffOverlay } from '../../components/specs/DiffOverlay';
 import { NewSpecDrawer } from '../../components/specs/NewSpecDrawer';
 import type { SpecEditorRef } from '../../components/shared/SpecEditor';
 
@@ -93,6 +94,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     hasUnsavedChanges,
     handleContentChange,
     handleSave,
+    refetchContent,
   } = useSpecContent({
     projectPath,
     selectedPath,
@@ -134,7 +136,12 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     session,
     setSession,
     isStartingReview,
+    diffOverlay,
+    setDiffOverlay,
     handleStartReview,
+    handleReviewDiff,
+    handleDiffApprove,
+    handleDiffReject,
     handleSuggestionAction,
     handleBulkSuggestionAction,
   } = useSpecReview({
@@ -143,6 +150,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     content,
     onContentChange: setContent,
     onSave: handleSave,
+    onContentRefetch: refetchContent,
     onReviewStatusChanged: refreshFiles,
   });
 
@@ -167,9 +175,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     selectedPath,
     session,
     setSession,
-    onContentRefetch: async () => {
-      // Content will auto-refresh via file watcher
-    },
+    onContentRefetch: refetchContent,
     setInputValue,
   });
 
@@ -178,11 +184,16 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     stories,
     setStories,
     isDecomposing,
+    reviewFeedback,
+    reviewVerdict,
+    specStatus,
+    specStatusMessage,
     handleDecompose,
     loadDecomposeState,
   } = useDecompose({
     projectPath,
     selectedPath,
+    includeReviewMeta: true,
   });
 
   // Queue management
@@ -545,6 +556,10 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                       onCreateTechSpec={() => setIsCreateTechSpecModalOpen(true)}
                       onTasksVisibilityChange={setTasksVisible}
                       getQueuedTaskStatus={getQueuedTaskStatus}
+                      reviewFeedback={reviewFeedback}
+                      reviewVerdict={reviewVerdict}
+                      specStatus={specStatus}
+                      specStatusMessage={specStatusMessage}
                     />
                   </>
                 ) : (
@@ -613,6 +628,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                 suggestions={suggestions}
                 onResolve={handleResolveSuggestion}
                 onDismiss={handleRejectSuggestion}
+                onReviewDiff={handleReviewDiff}
                 onDiscuss={(suggestion) => {
                   setSelectedContext(null);
                   handleDiscussSuggestion(suggestion);
@@ -630,6 +646,18 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
           </div>
         </div>
       </SidebarInset>
+      
+      {/* Diff Overlay */}
+      {diffOverlay.isOpen && diffOverlay.suggestion && (
+        <DiffOverlay
+          title={`Reviewing: "${diffOverlay.suggestion.issue}"`}
+          originalText={diffOverlay.originalText}
+          proposedText={diffOverlay.proposedText}
+          onApprove={handleDiffApprove}
+          onReject={handleDiffReject}
+          onCancel={() => setDiffOverlay({ isOpen: false, suggestion: null, originalText: '', proposedText: '' })}
+        />
+      )}
 
       {/* New Spec Drawer */}
       <NewSpecDrawer
