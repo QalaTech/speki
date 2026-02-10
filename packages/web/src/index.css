@@ -1087,16 +1087,32 @@ body {
    ============================================ */
 
 .use-case-list {
-  @apply space-y-0;
+  @apply space-y-2;
 }
 
 .use-case-item {
-  @apply border-b border-border/20 last:border-b-0;
+  @apply border border-border/30 rounded-lg bg-muted/10;
   transition: background-color 0.15s ease;
 }
 
+.use-case-item.expanded {
+  @apply border-border/45 bg-muted/15 shadow-[0_6px_24px_rgba(0,0,0,0.2)];
+}
+
+.use-case-item .use-case-header {
+  @apply px-2 rounded-md;
+}
+
+.use-case-item.expanded .use-case-header {
+  @apply bg-background/15;
+}
+
 .use-case-item:hover {
-  @apply bg-muted/10 -mx-2 px-2 rounded-lg;
+  @apply bg-muted/15;
+}
+
+.use-case-item.expanded:hover {
+  @apply bg-muted/15;
 }
 
 .use-case-checkbox {

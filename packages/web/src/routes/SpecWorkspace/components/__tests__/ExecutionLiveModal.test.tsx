@@ -309,6 +309,43 @@ describe('ExecutionLiveModal', () => {
       
       expect(screen.getByText('US-123')).toBeInTheDocument();
     });
+
+    it('should call remove handler with spec and task IDs', () => {
+      const onRemoveTaskFromQueue = vi.fn();
+      const stories = [mockUserStory({ id: 'story-1', title: 'Queued Story' })];
+      const queueTasks = [mockQueueTask({ taskId: 'story-1', specId: 'auth-spec', status: 'queued' })];
+
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          ralphStatus={mockRalphStatus({ running: false, status: 'stopped' })}
+          stories={stories}
+          queueTasks={queueTasks}
+          onRemoveTaskFromQueue={onRemoveTaskFromQueue}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /remove story-1 from queue/i }));
+
+      expect(onRemoveTaskFromQueue).toHaveBeenCalledWith('auth-spec', 'story-1');
+    });
+
+    it('should not show remove button for running task', () => {
+      const onRemoveTaskFromQueue = vi.fn();
+      const stories = [mockUserStory({ id: 'story-1', title: 'Running Story' })];
+      const queueTasks = [mockQueueTask({ taskId: 'story-1', specId: 'auth-spec', status: 'running' })];
+
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          stories={stories}
+          queueTasks={queueTasks}
+          onRemoveTaskFromQueue={onRemoveTaskFromQueue}
+        />
+      );
+
+      expect(screen.queryByRole('button', { name: /remove story-1 from queue/i })).not.toBeInTheDocument();
+    });
   });
 
   describe('task selection', () => {

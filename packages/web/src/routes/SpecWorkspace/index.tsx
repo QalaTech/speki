@@ -235,6 +235,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   } = useExecutionPeer(projectPath);
   const startRalphMutation = useStartRalph();
   const stopRalphMutation = useStopRalph();
+  const [removingQueueTaskKeys, setRemovingQueueTaskKeys] = useState<Set<string>>(new Set());
 
   // Refresh queue tasks when execution stops
   const wasRunning = useRef(false);
@@ -294,9 +295,11 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ specId, task }),
       });
-      await loadDecomposeState();
+      setStories((prevStories) =>
+        prevStories.map((story) => (story.id === task.id ? task : story))
+      );
     },
-    [specId, projectPath, loadDecomposeState]
+    [specId, projectPath, setStories]
   );
 
   // Navigate to queue execution
@@ -308,6 +311,22 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   const handleStopExecution = useCallback(() => {
     stopRalphMutation.mutate({ project: projectPath });
   }, [projectPath, stopRalphMutation]);
+
+  const handleRemoveQueueTask = useCallback(async (targetSpecId: string, taskId: string) => {
+    const key = `${targetSpecId}:${taskId}`;
+    setRemovingQueueTaskKeys((prev) => new Set(prev).add(key));
+    try {
+      const params = new URLSearchParams({ project: projectPath });
+      await apiFetch(`/api/queue/${targetSpecId}/${taskId}?${params}`, { method: 'DELETE' });
+      await loadQueueTasks();
+    } finally {
+      setRemovingQueueTaskKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  }, [projectPath, loadQueueTasks]);
 
   // Navigate to a specific spec from the execution modal
   const handleNavigateToSpec = useCallback((specId: string) => {
@@ -608,6 +627,8 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
             onStopExecution={handleStopExecution}
             onResumeExecution={handleRunQueue}
             onNavigateToSpec={handleNavigateToSpec}
+            onRemoveTaskFromQueue={handleRemoveQueueTask}
+            removingQueueTaskKeys={removingQueueTaskKeys}
             stories={prdData?.userStories || stories}
             queueTasks={allQueueTasks}
             completedIds={completedIds}
