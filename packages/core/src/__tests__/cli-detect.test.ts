@@ -223,10 +223,12 @@ describe('cli-detect', () => {
       // Arrange
       const mockCodexChild = createMockChildProcess();
       const mockClaudeChild = createMockChildProcess();
+      const mockGeminiChild = createMockChildProcess();
 
       vi.mocked(spawn)
         .mockReturnValueOnce(mockCodexChild)
-        .mockReturnValueOnce(mockClaudeChild);
+        .mockReturnValueOnce(mockClaudeChild)
+        .mockReturnValueOnce(mockGeminiChild);
 
       const detectPromise = detectAllClis();
 
@@ -236,6 +238,7 @@ describe('cli-detect', () => {
         mockCodexChild.emit('close', 0);
         mockClaudeChild.stdout!.emit('data', Buffer.from('2.1.2'));
         mockClaudeChild.emit('close', 0);
+        mockGeminiChild.emit('error', new Error('spawn ENOENT'));
       }, 100);
 
       vi.advanceTimersByTime(100);
@@ -255,6 +258,11 @@ describe('cli-detect', () => {
           version: '2.1.2',
           command: 'claude',
         },
+        gemini: {
+          available: false,
+          version: '',
+          command: 'gemini',
+        },
       });
     });
 
@@ -262,10 +270,12 @@ describe('cli-detect', () => {
       // Arrange
       const mockCodexChild = createMockChildProcess();
       const mockClaudeChild = createMockChildProcess();
+      const mockGeminiChild = createMockChildProcess();
 
       vi.mocked(spawn)
         .mockReturnValueOnce(mockCodexChild)
-        .mockReturnValueOnce(mockClaudeChild);
+        .mockReturnValueOnce(mockClaudeChild)
+        .mockReturnValueOnce(mockGeminiChild);
 
       const detectPromise = detectAllClis();
 
@@ -274,6 +284,7 @@ describe('cli-detect', () => {
         mockCodexChild.stdout!.emit('data', Buffer.from('OpenAI Codex v0.39.0'));
         mockCodexChild.emit('close', 0);
         mockClaudeChild.emit('error', new Error('spawn ENOENT'));
+        mockGeminiChild.emit('error', new Error('spawn ENOENT'));
       }, 100);
 
       vi.advanceTimersByTime(100);

@@ -54,22 +54,26 @@ if (typeof globalThis.EventSource === 'undefined') {
 }
 
 // Mock scrollIntoView for jsdom
-Element.prototype.scrollIntoView = vi.fn();
+if (typeof window !== 'undefined' && window.Element) {
+  window.Element.prototype.scrollIntoView = vi.fn();
+}
 
 // Mock window.matchMedia for sonner and other components that use it
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(), // deprecated
-    removeListener: vi.fn(), // deprecated
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation(query => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(), // deprecated
+      removeListener: vi.fn(), // deprecated
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+}
 
 // Mock @mdxeditor/editor to avoid @stitches/core CSS parsing issues in jsdom
 // The MDX editor imports sandpack-react which bundles stitches, causing CSS parse errors
