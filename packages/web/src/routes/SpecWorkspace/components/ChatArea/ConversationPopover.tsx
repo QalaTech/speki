@@ -192,7 +192,7 @@ export function ConversationPopover({
     <div
       ref={conversationRef}
       data-testid="conversation-popover"
-      className="absolute bottom-full left-0 right-0 mb-2 max-h-[28rem] overflow-y-auto rounded-lg bg-[#1e1e1e] border border-white/5 shadow-2xl"
+      className="max-h-[28rem] overflow-y-auto rounded-lg bg-[#1e1e1e] border border-white/5 shadow-[0_12px_32px_rgba(0,0,0,0.42),0_4px_14px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.06)]"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="sticky top-0 flex items-center justify-between px-4 py-2 border-b border-white/5 bg-[#1e1e1e] z-10">

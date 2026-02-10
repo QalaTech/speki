@@ -284,6 +284,9 @@ export function useSpecReview({
       return;
     }
 
+    // Clear stale session while loading the newly selected spec's session.
+    setSession(null);
+
     const abortController = new AbortController();
 
     async function fetchSession() {

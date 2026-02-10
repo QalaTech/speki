@@ -113,6 +113,7 @@ function ReviewItem({
                   variant="ghost"
                   size="sm"
                   onClick={() => onDiscuss(suggestion)}
+                  data-conversation-keep-open
                   className="h-auto px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-white/5"
                 >
                   Discuss
@@ -138,7 +139,6 @@ function ReviewItem({
 export function ReviewPanel({
   suggestions,
   onResolve,
-  onDismiss: _onDismiss,
   onDiscuss,
   onDismissAll,
   onClose,
@@ -241,4 +241,3 @@ export function ReviewPanel({
     </div>
   );
 }
-
