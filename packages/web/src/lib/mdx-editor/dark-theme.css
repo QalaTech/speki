@@ -544,13 +544,27 @@
 
 .mdxeditor .cm-gutters {
   min-height: unset !important;
-  background: #161b22 !important;
-  border-right: 1px solid var(--color-border) !important;
-  color: var(--color-text-muted) !important;
+  background: transparent !important;
+  border-right: none !important;
+  color: var(--color-accent) !important;
+}
+
+.mdxeditor .cm-gutter {
+  background: transparent !important;
+}
+
+.mdxeditor .cm-lineNumbers .cm-gutterElement {
+  background: transparent !important;
+  color: var(--color-accent) !important;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  padding-right: 10px;
 }
 
 .mdxeditor .cm-activeLineGutter {
-  background: #21262d !important;
+  background: transparent !important;
+  color: var(--color-accent) !important;
 }
 
 .mdxeditor .cm-activeLine {
