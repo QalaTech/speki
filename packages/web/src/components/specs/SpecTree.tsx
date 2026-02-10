@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import {
   DocumentTextIcon,
   FolderIcon,
@@ -60,14 +60,15 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     return injectGenerating(files);
   }, [files, generatingSpec]);
 
-  const handleToggle = useCallback((path: string) => {
+  const handleToggle = useCallback((path: string, isOpen?: boolean) => {
     setExpandedPaths((prev) => {
+      const currentlyOpen = prev.has(path);
+      const shouldBeOpen = isOpen ?? !currentlyOpen;
+      if (shouldBeOpen === currentlyOpen) return prev;
+
       const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
+      if (shouldBeOpen) next.add(path);
+      else next.delete(path);
       return next;
     });
   }, []);
@@ -114,22 +115,21 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
     return filesWithGenerating.map(filterNode).filter((n): n is SpecFileNode => n !== null);
   }, [filesWithGenerating, filter]);
 
-  // Auto-expand all directories when filtering
-  useEffect(() => {
-    if (filter.trim()) {
-      const allDirPaths = new Set<string>();
-      function collectDirs(nodes: SpecFileNode[]) {
-        for (const node of nodes) {
-          if (node.type === 'directory') {
-            allDirPaths.add(node.path);
-            if (node.children) collectDirs(node.children);
-          }
+  const filteredDirectoryPaths = useMemo(() => {
+    const allDirPaths = new Set<string>();
+    function collectDirs(nodes: SpecFileNode[]) {
+      for (const node of nodes) {
+        if (node.type === 'directory') {
+          allDirPaths.add(node.path);
+          if (node.children) collectDirs(node.children);
         }
       }
-      collectDirs(filteredFiles);
-      setExpandedPaths(allDirPaths);
     }
-  }, [filter, filteredFiles]);
+    collectDirs(filteredFiles);
+    return allDirPaths;
+  }, [filteredFiles]);
+
+  const effectiveExpandedPaths = filter.trim() ? filteredDirectoryPaths : expandedPaths;
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -216,7 +216,7 @@ export function SpecTree({ files, selectedPath, onSelect, onCreateNew, generatin
                 key={node.path}
                 node={node}
                 selectedPath={selectedPath}
-                expandedPaths={expandedPaths}
+                expandedPaths={effectiveExpandedPaths}
                 onSelect={onSelect}
                 onToggle={handleToggle}
               />

@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:perf": "vitest --config vite.perf.config.ts run --reporter=verbose",
     "test:watch": "vitest",
     "clean": "rm -rf dist"
   },
