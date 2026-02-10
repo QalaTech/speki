@@ -34,6 +34,7 @@ export function useDecompose({
 }: UseDecomposeOptions): UseDecomposeReturn {
   const [stories, setStories] = useState<UserStory[]>([]);
   const [isDecomposing, setIsDecomposing] = useState(false);
+  const [decomposingSpecPath, setDecomposingSpecPath] = useState<string | null>(null);
   const [reviewFeedback, setReviewFeedback] = useState<DecomposeFeedback | null>(null);
   const [reviewVerdict, setReviewVerdict] = useState<'PASS' | 'FAIL' | 'UNKNOWN' | 'SKIPPED' | null>(null);
   const [specStatus, setSpecStatus] = useState<'pending' | 'partial' | 'completed' | null>(null);
@@ -119,6 +120,7 @@ export function useDecompose({
   const handleDecompose = useCallback(async (force: boolean = false) => {
     if (!selectedPath) return;
     setIsDecomposing(true);
+    setDecomposingSpecPath(selectedPath);
     try {
       const params = new URLSearchParams({ project: projectPath });
       await apiFetch(`/api/decompose/start?${params}`, {
@@ -129,28 +131,45 @@ export function useDecompose({
     } catch (err) {
       console.error('Decompose failed:', err);
       setIsDecomposing(false);
+      setDecomposingSpecPath(null);
     }
   }, [selectedPath, projectPath]);
 
   // Listen to SSE updates
   useEffect(() => {
-    if (!decomposeState || !selectedPath) return;
+    if (!decomposeState) return;
 
-    const isForThisSpec = isDecomposeForSpec(decomposeState.prdFile, selectedPath);
-    if (!isForThisSpec) return;
+    const status = decomposeState.status as typeof ACTIVE_DECOMPOSE_STATUSES[number] | typeof DECOMPOSE_COMPLETE_STATUSES[number];
+    const isActive = ACTIVE_DECOMPOSE_STATUSES.includes(status as typeof ACTIVE_DECOMPOSE_STATUSES[number]);
+    const isComplete = DECOMPOSE_COMPLETE_STATUSES.includes(status as typeof DECOMPOSE_COMPLETE_STATUSES[number]);
 
-    if (ACTIVE_DECOMPOSE_STATUSES.includes(decomposeState.status as typeof ACTIVE_DECOMPOSE_STATUSES[number])) {
+    const isForSelectedSpec = !!selectedPath && isDecomposeForSpec(decomposeState.prdFile, selectedPath);
+    const isForTrackedSpec = !!decomposingSpecPath && isDecomposeForSpec(decomposeState.prdFile, decomposingSpecPath);
+
+    if (isActive && selectedPath && isForSelectedSpec) {
       setIsDecomposing(true);
-    } else if (DECOMPOSE_COMPLETE_STATUSES.includes(decomposeState.status as typeof DECOMPOSE_COMPLETE_STATUSES[number])) {
-      setIsDecomposing(false);
-      loadDecomposeState();
+      setDecomposingSpecPath(selectedPath);
+      return;
     }
-  }, [decomposeState, selectedPath, loadDecomposeState]);
+
+    if (isComplete && (isForSelectedSpec || isForTrackedSpec)) {
+      setIsDecomposing(false);
+      setDecomposingSpecPath(null);
+      if (isForSelectedSpec) {
+        loadDecomposeState();
+      }
+    }
+  }, [decomposeState, selectedPath, decomposingSpecPath, loadDecomposeState]);
+
+  const isCurrentSpecDecomposing =
+    isDecomposing &&
+    !!selectedPath &&
+    (!decomposingSpecPath || isDecomposeForSpec(decomposingSpecPath, selectedPath));
 
   return {
     stories,
     setStories,
-    isDecomposing,
+    isDecomposing: isCurrentSpecDecomposing,
     setIsDecomposing,
     reviewFeedback,
     reviewVerdict,

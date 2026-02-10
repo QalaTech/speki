@@ -11,7 +11,7 @@ import type {
 } from '../../../types';
 import { Badge } from '../../../components/ui';
 import { Button } from '../../../components/ui/Button';
-import { StopCircleIcon, PlayIcon, ChevronRightIcon } from 'lucide-react';
+import { StopCircleIcon, PlayIcon, ChevronRightIcon, XIcon, Loader2Icon } from 'lucide-react';
 
 interface ExecutionLiveModalProps {
   isOpen: boolean;
@@ -21,6 +21,8 @@ interface ExecutionLiveModalProps {
   onStopExecution: () => void;
   onResumeExecution?: () => void;
   onNavigateToSpec?: (specId: string) => void;
+  onRemoveTaskFromQueue?: (specId: string, taskId: string) => Promise<void> | void;
+  removingQueueTaskKeys?: Set<string>;
   stories?: UserStory[];
   queueTasks?: QueuedTaskReference[];
   completedIds?: Set<string>;
@@ -63,6 +65,8 @@ export function ExecutionLiveModal({
   onStopExecution,
   onResumeExecution,
   onNavigateToSpec,
+  onRemoveTaskFromQueue,
+  removingQueueTaskKeys = new Set(),
   stories = [],
   queueTasks = [],
   completedIds = new Set(),
@@ -84,6 +88,10 @@ export function ExecutionLiveModal({
     () => new Map(queueTasks.map((task) => [task.taskId, task.status])),
     [queueTasks]
   );
+  const queueSpecByTaskId = useMemo(
+    () => new Map(activeQueueTasks.map((task) => [task.taskId, task.specId])),
+    [activeQueueTasks]
+  );
 
   // Auto-select running task
   useEffect(() => {
@@ -91,6 +99,14 @@ export function ExecutionLiveModal({
       setSelectedStoryId(currentStoryId);
     }
   }, [currentStoryId, isRunning]);
+
+  useEffect(() => {
+    if (!selectedStoryId) return;
+    const stillQueued = activeQueueTasks.some((task) => task.taskId === selectedStoryId);
+    if (!stillQueued && selectedStoryId !== currentStoryId) {
+      setSelectedStoryId(activeQueueTasks[0]?.taskId ?? null);
+    }
+  }, [activeQueueTasks, currentStoryId, selectedStoryId]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -306,6 +322,9 @@ export function ExecutionLiveModal({
                             const status = getTaskStatus(story.id);
                             const isSelected = selectedStoryId === story.id;
                             const compositeKey = `${group.specId}-${story.id}`;
+                            const removeTaskKey = `${group.specId}:${story.id}`;
+                            const isRemovingTask = removingQueueTaskKeys.has(removeTaskKey);
+                            const canRemoveTask = status !== 'running' && Boolean(onRemoveTaskFromQueue);
                             
                             return (
                               <div
@@ -313,7 +332,7 @@ export function ExecutionLiveModal({
                                 data-story-id={story.id}
                                 onClick={() => setSelectedStoryId(story.id)}
                                 className={`
-                                  px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors border
+                                  group/task px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors border
                                   ${isSelected 
                                     ? 'bg-primary/15 border-primary/30 text-primary-foreground' 
                                     : 'hover:bg-white/5 border-transparent text-muted-foreground hover:text-foreground'}
@@ -325,15 +344,43 @@ export function ExecutionLiveModal({
                                   }`}>
                                     {story.id}
                                   </span>
-                                  {status === 'running' && (
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-[9px] text-primary font-bold animate-pulse">RUNNING</span>
-                                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                                    </div>
-                                  )}
-                                  {status === 'completed' && (
-                                    <span className="text-success text-[10px]">✓</span>
-                                  )}
+                                  <div className="flex items-center gap-1.5">
+                                    {status === 'running' && (
+                                      <>
+                                        <span className="text-[9px] text-primary font-bold animate-pulse">RUNNING</span>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                                      </>
+                                    )}
+                                    {status === 'completed' && (
+                                      <span className="text-success text-[10px]">✓</span>
+                                    )}
+                                    {canRemoveTask && (
+                                      <button
+                                        type="button"
+                                        aria-label={`Remove ${story.id} from queue`}
+                                        className={`
+                                          h-5 w-5 inline-flex items-center justify-center rounded transition
+                                          ${isRemovingTask
+                                            ? 'text-muted-foreground cursor-wait'
+                                            : 'text-muted-foreground/60 hover:text-error hover:bg-error/10'}
+                                          ${isSelected ? 'opacity-100' : 'opacity-0 group-hover/task:opacity-100'}
+                                        `}
+                                        disabled={isRemovingTask}
+                                        onClick={async (event) => {
+                                          event.stopPropagation();
+                                          const targetSpecId = queueSpecByTaskId.get(story.id) || group.specId;
+                                          if (!targetSpecId || !onRemoveTaskFromQueue || isRemovingTask) return;
+                                          await onRemoveTaskFromQueue(targetSpecId, story.id);
+                                        }}
+                                      >
+                                        {isRemovingTask ? (
+                                          <Loader2Icon className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                          <XIcon className="w-3 h-3" />
+                                        )}
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="truncate text-[11px] opacity-80">{story.title}</div>
                               </div>

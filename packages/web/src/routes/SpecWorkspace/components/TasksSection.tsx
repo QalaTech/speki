@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { SparklesIcon, ArrowPathIcon, QueueListIcon, DocumentPlusIcon, PlayIcon } from '@heroicons/react/24/outline';
 import { Button } from '../../../components/ui/Button';
-import { Spinner } from '../../../components/ui/Loading';
+import { Spinner, Skeleton } from '../../../components/ui/Loading';
 import { Badge } from '../../../components/ui/Badge';
 import { UseCaseList } from '../../../components/specs/UseCaseList';
 import type { SpecType } from '../../../components/specs/types';
@@ -99,6 +99,41 @@ function ReviewFeedbackPanel({ feedback }: { feedback: DecomposeFeedback }) {
       {feedback.issues && feedback.issues.length > 0 && (
         <FeedbackSection label="Other Issues" items={feedback.issues} icon="ℹ" />
       )}
+    </div>
+  );
+}
+
+function TaskListLoadingSkeleton() {
+  return (
+    <div aria-live="polite" aria-busy="true">
+      <div className="use-case-list mt-1">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="use-case-item">
+            <div className="use-case-header grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-3 py-2.5">
+              <div className="use-case-checkbox">
+                <Skeleton variant="circle" className="h-3 w-3" />
+              </div>
+              <Skeleton className="h-6 w-[70px] rounded" />
+
+              <div className="min-w-0">
+                <Skeleton className="h-4" width={`${54 + (i % 3) * 12}%`} />
+                <div className="mt-1 flex items-center gap-1.5">
+                  <Skeleton className="h-4 w-14 rounded-full" />
+                </div>
+              </div>
+
+              <div className="shrink-0 w-[70px] flex justify-center">
+                <Skeleton className="h-5 w-14 rounded" />
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                <Skeleton variant="circle" className="h-7 w-7" />
+                <Skeleton className="h-4 w-4 rounded-sm" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -306,11 +341,13 @@ export function TasksSection({
           queueLoading={queueLoading}
           onSaveTask={onSaveTask}
         />
-      ) : !isDecomposing ? (
+      ) : isDecomposing ? (
+        <TaskListLoadingSkeleton />
+      ) : (
         <p className="text-muted-foreground text-sm italic py-4">
           No {isPrd ? 'user stories' : 'tasks'} yet. Click Generate to create them.
         </p>
-      ) : null}
+      )}
 
       {specStatus === 'completed' && stories.length === 0 && (
         <p className="text-success text-sm">

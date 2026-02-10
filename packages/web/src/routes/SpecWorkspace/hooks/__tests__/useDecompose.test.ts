@@ -3,6 +3,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useDecompose } from '../useDecompose';
 import { apiFetch } from '../../../../components/ui/ErrorContext';
 import * as useDecomposeSSEModule from '../../../../hooks/useDecomposeSSE';
+import type { UserStory } from '../../../../types';
 
 vi.mock('../../../../components/ui/ErrorContext', () => ({
   apiFetch: vi.fn(),
@@ -282,7 +283,7 @@ describe('useDecompose', () => {
         json: () => Promise.resolve({ draft: mockDraft }),
       } as unknown as Response);
 
-      const { result, rerender } = renderHook(() => useDecompose(defaultProps));
+      const { rerender } = renderHook(() => useDecompose(defaultProps));
 
       // Simulate completion
       vi.mocked(useDecomposeSSEModule.useDecomposeSSE).mockReturnValue({
@@ -308,6 +309,23 @@ describe('useDecompose', () => {
       });
 
       const { result } = renderHook(() => useDecompose(defaultProps));
+
+      expect(result.current.isDecomposing).toBe(false);
+    });
+
+    it('should reset isDecomposing when switching to a different spec', () => {
+      vi.mocked(useDecomposeSSEModule.useDecomposeSSE).mockReturnValue({
+        status: 'DECOMPOSING',
+        message: 'Decomposing...',
+        prdFile: '/test/project/spec.prd.md',
+      });
+
+      const hookProps = { ...defaultProps };
+      const { result, rerender } = renderHook(() => useDecompose(hookProps));
+      expect(result.current.isDecomposing).toBe(true);
+
+      hookProps.selectedPath = '/test/project/other-spec.prd.md';
+      rerender();
 
       expect(result.current.isDecomposing).toBe(false);
     });
@@ -377,10 +395,19 @@ describe('useDecompose', () => {
     it('should allow manual story updates', () => {
       const { result } = renderHook(() => useDecompose(defaultProps));
 
+      const manualStory: UserStory = {
+        id: 'US-1',
+        title: 'Manual Story',
+        description: 'Test',
+        acceptanceCriteria: [],
+        priority: 1,
+        passes: false,
+        notes: '',
+        dependencies: [],
+      };
+
       act(() => {
-        result.current.setStories([
-          { id: 'US-1', title: 'Manual Story', description: 'Test' } as any,
-        ]);
+        result.current.setStories([manualStory]);
       });
 
       expect(result.current.stories).toHaveLength(1);

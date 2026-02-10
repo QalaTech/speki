@@ -15,6 +15,7 @@ import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { Modal } from "../ui/Modal";
 import { SpecEditor, type SpecEditorRef } from "../shared/SpecEditor";
+import { toast } from "sonner";
 
 interface UseCaseListProps {
   stories: UserStory[];
@@ -194,6 +195,7 @@ function UseCaseItem({
   const isBlocked = status === "blocked";
   const isRunning = status === "running" || queuedStatus === "running";
   const showContent = alwaysExpanded || isExpanded;
+  const isVisuallyExpanded = !alwaysExpanded && showContent && !isEditing;
 
   const editorRef = useRef<SpecEditorRef>(null);
   const [editContent, setEditContent] = useState("");
@@ -212,6 +214,9 @@ function UseCaseItem({
       const updates = markdownToTask(content);
       const updatedStory = { ...story, ...updates };
       await onSave(updatedStory);
+      toast.success("Task changes saved");
+    } catch {
+      toast.error("Failed to save task changes");
     } finally {
       setSaveLoading(false);
     }
@@ -223,10 +228,10 @@ function UseCaseItem({
   };
 
   return (
-    <div className={`use-case-item group ${isEditing ? "editing" : ""}`}>
+    <div className={`use-case-item group ${isEditing ? "editing" : ""} ${isVisuallyExpanded ? "expanded" : ""}`}>
       {/* Header row with grid layout: checkbox | ID | title | status | actions */}
       <div
-        className={`grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-3 py-2.5 ${!alwaysExpanded ? "cursor-pointer" : ""}`}
+        className={`use-case-header grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-3 py-2.5 ${!alwaysExpanded ? "cursor-pointer" : ""}`}
         onClick={!alwaysExpanded ? onToggle : undefined}
       >
         {/* Checkbox */}
@@ -331,7 +336,7 @@ function UseCaseItem({
       <Modal
         isOpen={isEditing}
         onClose={handleCancel}
-        title={`Edit ${story.title}`}
+        title={`Edit - ${story.title}`}
         size="xl"
         actions={
           <>
@@ -369,7 +374,13 @@ function UseCaseItem({
 
       {/* Content - always visible when alwaysExpanded, otherwise when expanded */}
       {showContent && !isEditing && (
-        <div className={`pt-3 pb-3 mt-2 space-y-3 text-sm border-t border-border/30 ${!alwaysExpanded ? "animate-in slide-in-from-top-1 duration-150" : ""}`}>
+        <div
+          className={`use-case-content space-y-3 text-sm ${
+            isVisuallyExpanded
+              ? "mt-2 rounded-md border border-border/45 bg-background/35 px-3 py-3"
+              : "pt-3 pb-3 mt-2 border-t border-border/30"
+          } ${!alwaysExpanded ? "animate-in slide-in-from-top-1 duration-150" : ""}`}
+        >
           {/* Description */}
           <div className="text-muted-foreground w-full">
             <ChatMarkdown content={story.description} />
