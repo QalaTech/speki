@@ -15,6 +15,8 @@ interface ChatAreaProps {
 
   discussingContext: DiscussingContext | null;
   onClearDiscussingContext: () => void;
+  selectedContext: string | null;
+  onClearSelectedContext: () => void;
   
   // Suggestions (for count display)
   suggestions: Suggestion[];
@@ -53,6 +55,8 @@ export function ChatArea({
 
   discussingContext,
   onClearDiscussingContext,
+  selectedContext,
+  onClearSelectedContext,
   suggestions,
   isReviewPanelOpen,
   onOpenReviewPanel,
@@ -76,10 +80,10 @@ export function ChatArea({
   const quirkyMessage = useQuirkyMessage({ isActive: isSending });
 
   const handleInputFocus = useCallback(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 || discussingContext || selectedContext) {
       onSetConversationOpen(true);
     }
-  }, [messages.length, onSetConversationOpen]);
+  }, [messages.length, discussingContext, selectedContext, onSetConversationOpen]);
 
   return (
     <div className="shrink-0 relative">
@@ -96,14 +100,16 @@ export function ChatArea({
 
       <div className="max-w-5xl mx-auto px-6 py-4 relative z-40">
         {/* Conversation Popover */}
-        {isConversationOpen && (messages.length > 0 || discussingContext) && (
+        {isConversationOpen && (messages.length > 0 || discussingContext || selectedContext) && (
           <ConversationPopover
             messages={messages}
             isSending={isSending}
             quirkyMessage={quirkyMessage}
             discussingContext={discussingContext}
+            selectedContext={selectedContext}
             onClose={() => onSetConversationOpen(false)}
             onClearDiscussingContext={onClearDiscussingContext}
+            onClearSelectedContext={onClearSelectedContext}
           />
         )}
 
@@ -129,7 +135,7 @@ export function ChatArea({
           onStartReview={onStartReview}
           isSending={isSending}
           isStartingReview={isStartingReview}
-          isDiscussing={!!discussingContext}
+          isDiscussing={!!discussingContext || !!selectedContext}
           onFocus={handleInputFocus}
           focusTrigger={focusTrigger}
         />
@@ -137,4 +143,3 @@ export function ChatArea({
     </div>
   );
 }
-

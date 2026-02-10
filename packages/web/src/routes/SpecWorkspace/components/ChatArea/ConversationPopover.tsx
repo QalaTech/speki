@@ -7,13 +7,162 @@ import type { DiscussingContext } from '../../../../components/review/ReviewChat
 
 import type { QuirkyMessage } from '../../constants';
 
+interface ParsedSelectionMessage {
+  hasSelectionContext: boolean;
+  selectedSnippet: string | null;
+  question: string;
+}
+
+interface ParsedSuggestionMessage {
+  hasSuggestionContext: boolean;
+  issue: string | null;
+  suggestedFix: string | null;
+  question: string;
+}
+
+type ParsedUserMessage =
+  | { contextType: 'none'; question: string }
+  | { contextType: 'selection'; selectedSnippet: string | null; question: string }
+  | { contextType: 'suggestion'; issue: string | null; suggestedFix: string | null; question: string };
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function parseSelectionMessage(content: string): ParsedSelectionMessage {
+  const trimmed = content.trim();
+  const selectionPrefixMatch = trimmed.match(/^\[Selection:\s*"/i);
+  const markerMatch = trimmed.match(/Regarding this text from the spec:\s*/i);
+  let selectionToken: string | null = null;
+  let selectionLabel: string | null = null;
+  let remainder = trimmed;
+
+  if (selectionPrefixMatch) {
+    const selectionStartIndex = selectionPrefixMatch[0].length;
+    const selectionEndIndex = trimmed.indexOf('"]', selectionStartIndex);
+    if (selectionEndIndex >= 0) {
+      selectionLabel = trimmed.slice(selectionStartIndex, selectionEndIndex).trim();
+      selectionToken = trimmed.slice(0, selectionEndIndex + 2);
+      remainder = trimmed.slice(selectionEndIndex + 2).trim();
+    }
+  }
+
+  if (!selectionToken && !markerMatch) {
+    return {
+      hasSelectionContext: false,
+      selectedSnippet: null,
+      question: trimmed,
+    };
+  }
+
+  if (markerMatch) {
+    const markerIndex = remainder.search(/Regarding this text from the spec:\s*/i);
+    if (markerIndex >= 0) {
+      remainder = remainder.slice(markerIndex + markerMatch[0].length).trim();
+    }
+  }
+
+  let selectedSnippet = selectionLabel;
+  let question = remainder;
+
+  // Parse block-quote style context (legacy format):
+  // Regarding this text from the spec:
+  // > selected text
+  //
+  // user question
+  if (!selectedSnippet && question.startsWith('>')) {
+    const lines = question.split('\n');
+    const quoteLines: string[] = [];
+    let idx = 0;
+
+    while (idx < lines.length && lines[idx]?.trim().startsWith('>')) {
+      quoteLines.push(lines[idx].replace(/^>\s?/, '').trim());
+      idx += 1;
+    }
+
+    selectedSnippet = quoteLines.join('\n').trim() || null;
+    question = lines.slice(idx).join('\n').trim();
+  } else if (question.startsWith('>')) {
+    question = question.replace(/^>\s*/, '').trim();
+  }
+
+  if (selectedSnippet) {
+    const snippetPattern = new RegExp(`^${escapeRegExp(selectedSnippet)}\\s*`, 'i');
+    question = question.replace(snippetPattern, '').trim();
+  }
+
+  return {
+    hasSelectionContext: true,
+    selectedSnippet,
+    question: question || trimmed,
+  };
+}
+
+function parseSuggestionMessage(content: string): ParsedSuggestionMessage {
+  const trimmed = content.trim();
+
+  if (!/\[Discussing Suggestion\]/i.test(trimmed)) {
+    return {
+      hasSuggestionContext: false,
+      issue: null,
+      suggestedFix: null,
+      question: trimmed,
+    };
+  }
+
+  const withoutHeader = trimmed.replace(/\[Discussing Suggestion\]\s*/i, '').trim();
+  const questionMatch = withoutHeader.match(/User's question:\s*([\s\S]*)$/i);
+  const question = questionMatch?.[1]?.trim() ?? withoutHeader;
+  const beforeQuestion = questionMatch
+    ? withoutHeader.slice(0, questionMatch.index).trim()
+    : withoutHeader;
+
+  const issueMatch = beforeQuestion.match(/Issue:\s*([\s\S]*?)(?=Your previous suggestion:|$)/i);
+  const suggestedFixMatch = beforeQuestion.match(/Your previous suggestion:\s*([\s\S]*)$/i);
+
+  return {
+    hasSuggestionContext: true,
+    issue: issueMatch?.[1]?.trim() || null,
+    suggestedFix: suggestedFixMatch?.[1]?.trim() || null,
+    question: question || trimmed,
+  };
+}
+
+function parseUserMessage(content: string): ParsedUserMessage {
+  const parsedSuggestion = parseSuggestionMessage(content);
+  if (parsedSuggestion.hasSuggestionContext) {
+    return {
+      contextType: 'suggestion',
+      issue: parsedSuggestion.issue,
+      suggestedFix: parsedSuggestion.suggestedFix,
+      question: parsedSuggestion.question,
+    };
+  }
+
+  const parsedSelection = parseSelectionMessage(content);
+  if (parsedSelection.hasSelectionContext) {
+    return {
+      contextType: 'selection',
+      selectedSnippet: parsedSelection.selectedSnippet,
+      question: parsedSelection.question,
+    };
+  }
+
+  return {
+    contextType: 'none',
+    question: content.trim(),
+  };
+}
+
 interface ConversationPopoverProps {
   messages: ChatMessage[];
   isSending: boolean;
   quirkyMessage: QuirkyMessage | null;
   discussingContext: DiscussingContext | null;
+  selectedContext: string | null;
   onClose: () => void;
   onClearDiscussingContext: () => void;
+  onClearSelectedContext: () => void;
 }
 
 export function ConversationPopover({
@@ -21,21 +170,28 @@ export function ConversationPopover({
   isSending,
   quirkyMessage,
   discussingContext,
+  selectedContext,
   onClose,
   onClearDiscussingContext,
+  onClearSelectedContext,
 }: ConversationPopoverProps) {
   const conversationRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom
+  const formatTimestamp = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Keep latest content in view (messages + compose context banners).
   useEffect(() => {
-    if (conversationRef.current) {
-      conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
-    }
-  }, [messages]);
+    if (!conversationRef.current) return;
+    conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+  }, [messages, selectedContext, discussingContext]);
 
   return (
     <div
       ref={conversationRef}
+      data-testid="conversation-popover"
       className="absolute bottom-full left-0 right-0 mb-2 max-h-[28rem] overflow-y-auto rounded-lg bg-[#1e1e1e] border border-white/5 shadow-2xl"
       onClick={(e) => e.stopPropagation()}
     >
@@ -50,29 +206,115 @@ export function ConversationPopover({
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Thread-style quote preview for discussing context */}
-        {discussingContext && (
-          <div className="border-l-2 border-primary/60 pl-3 py-2 bg-primary/5 rounded-r-lg group">
+        {messages.map((msg) => {
+          if (msg.role === 'user') {
+            const parsed = parseUserMessage(msg.content);
+
+            if (parsed.contextType !== 'none') {
+              return (
+                <div key={msg.id} className="text-right">
+                  <div className="inline-block max-w-[88%] rounded-2xl rounded-br-md px-4 py-3 text-left bg-linear-to-br from-primary/80 to-primary/60 text-primary-foreground shadow-lg">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-[10px] uppercase tracking-wider font-bold text-primary-foreground/80">You</span>
+                      <span className="text-[10px] text-primary-foreground/70">{formatTimestamp(msg.timestamp)}</span>
+                    </div>
+                    {parsed.contextType === 'selection' && parsed.selectedSnippet && (
+                      <div className="bg-black/20 border border-white/15 rounded-lg px-3 py-2 mb-2">
+                        <p className="text-sm italic text-primary-foreground/95 break-words">
+                          {parsed.selectedSnippet}
+                        </p>
+                      </div>
+                    )}
+                    {parsed.contextType === 'suggestion' && (parsed.issue || parsed.suggestedFix) && (
+                      <div className="bg-black/20 border border-white/15 rounded-lg px-3 py-2 mb-2">
+                        {parsed.issue && (
+                          <p className="text-sm italic text-primary-foreground/95 break-words">
+                            {parsed.issue}
+                          </p>
+                        )}
+                        {parsed.suggestedFix && (
+                          <p className="mt-2 text-xs text-primary-foreground/85 break-words">
+                            <span className="font-semibold text-primary-foreground/95">Previous suggestion:</span>{' '}
+                            {parsed.suggestedFix}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {parsed.question && (
+                      <p className="text-sm leading-relaxed text-primary-foreground">{parsed.question}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div key={msg.id} className="text-right">
+                <div className="inline-block max-w-[85%] bg-tertiary text-tertiary-foreground rounded-2xl rounded-br-md px-4 py-2.5 text-left">
+                  <p className="text-sm">{msg.content}</p>
+                  {msg.suggestionId && (
+                    <div className="mt-1.5 text-[10px] text-tertiary-foreground/70 italic flex items-center gap-1">
+                      <span>Related to suggestion</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div key={msg.id}>
+              <div className="text-sm text-foreground/90 leading-relaxed prose prose-invert prose-sm max-w-none">
+                <ChatMarkdown content={msg.content} />
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Keep active context adjacent to the newest messages/input area. */}
+        {selectedContext && (
+          <div className="border border-primary/20 bg-linear-to-br from-primary/10 to-primary/5 rounded-xl p-3 group">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <span className="text-[11px] font-semibold text-primary/80 block mb-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-primary/80 block mb-1">
+                  Replying to selected text:
+                </span>
+                <div className="bg-black/20 border border-white/10 rounded-lg px-3 py-2">
+                  <p className="text-sm text-foreground/85 leading-snug line-clamp-3 italic break-words">
+                    "{selectedContext}"
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={onClearSelectedContext}
+                className="p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-primary/20 transition-all shrink-0"
+                title="Clear selection context"
+              >
+                <XMarkIcon className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Active discuss context card (matches selected-text context presentation). */}
+        {discussingContext && (
+          <div className="border border-primary/20 bg-linear-to-br from-primary/10 to-primary/5 rounded-xl p-3 group">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-primary/80 block mb-1">
                   Replying to review item:
                 </span>
-                <p className="text-sm text-foreground/80 leading-snug line-clamp-2">
-                  {discussingContext.issue.length > 80 
-                    ? `${discussingContext.issue.slice(0, 80)}...` 
-                    : discussingContext.issue}
+                <div className="bg-black/20 border border-white/10 rounded-lg px-3 py-2">
+                  <p className="text-sm text-foreground/85 leading-snug line-clamp-3 italic break-words">
+                    "{discussingContext.issue}"
+                  </p>
                   {discussingContext.suggestedFix && (
-                    <span className="text-muted-foreground">
-                      {' → '}
-                      <span className="text-success/80">
-                        {discussingContext.suggestedFix.length > 60
-                          ? `${discussingContext.suggestedFix.slice(0, 60)}...`
-                          : discussingContext.suggestedFix}
-                      </span>
-                    </span>
+                    <p className="mt-2 text-xs text-foreground/70 leading-snug break-words">
+                      <span className="font-semibold text-foreground/80">Suggested fix:</span>{' '}
+                      <span className="text-success/80">{discussingContext.suggestedFix}</span>
+                    </p>
                   )}
-                </p>
+                </div>
               </div>
               <button
                 onClick={onClearDiscussingContext}
@@ -84,26 +326,6 @@ export function ConversationPopover({
             </div>
           </div>
         )}
-
-        {messages.map((msg) => (
-          <div key={msg.id} className={msg.role === 'user' ? 'text-right' : ''}>
-            {msg.role === 'user' ? (
-              <div className="inline-block max-w-[85%] bg-tertiary text-tertiary-foreground rounded-2xl rounded-br-md px-4 py-2.5 text-left">
-                <p className="text-sm">{msg.content}</p>
-                {msg.suggestionId && (
-                  <div className="mt-1.5 text-[10px] text-tertiary-foreground/70 italic flex items-center gap-1">
-                    <span>💡</span>
-                    <span>Related to suggestion</span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-sm text-foreground/90 leading-relaxed prose prose-invert prose-sm max-w-none">
-                <ChatMarkdown content={msg.content} />
-              </div>
-            )}
-          </div>
-        ))}
 
         {isSending && (
           <div className="text-sm">

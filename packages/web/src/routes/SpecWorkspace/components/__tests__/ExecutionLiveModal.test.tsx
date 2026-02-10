@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@test/render';
 import { ExecutionLiveModal } from '../ExecutionLiveModal';
-import type { RalphStatus, UserStory, QueuedTaskReference } from '../../../types';
+import type { RalphStatus, UserStory, QueuedTaskReference, PeerFeedback } from '../../../types';
 import type { ParsedEntry } from '../../../utils/parseJsonl';
 
 function mockRalphStatus(overrides: Partial<RalphStatus> = {}): RalphStatus {
@@ -35,6 +35,28 @@ function mockQueueTask(overrides: Partial<QueuedTaskReference> = {}): QueuedTask
     taskId: 'story-1',
     queuedAt: new Date().toISOString(),
     status: 'queued',
+    ...overrides,
+  };
+}
+
+function mockPeerFeedback(overrides: Partial<PeerFeedback> = {}): PeerFeedback {
+  return {
+    blocking: [],
+    suggestions: [],
+    lessonsLearned: [
+      {
+        lesson: 'Always keep API payloads typed.',
+        category: 'api',
+        addedBy: 'ralph',
+        addedAt: '2024-01-01T10:00:00.000Z',
+      },
+      {
+        lesson: 'Add integration coverage for retry behavior.',
+        category: 'testing',
+        addedBy: 'ralph',
+        addedAt: '2024-01-02T12:00:00.000Z',
+      },
+    ],
     ...overrides,
   };
 }
@@ -90,6 +112,58 @@ describe('ExecutionLiveModal', () => {
       );
       
       expect(screen.getByText('Execution stopped')).toBeInTheDocument();
+    });
+
+    it('should render live activity and lessons tab labels', () => {
+      render(<ExecutionLiveModal {...defaultProps} />);
+
+      expect(screen.getByRole('button', { name: /live activity/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /lessons learned/i })).toBeInTheDocument();
+    });
+  });
+
+  describe('lessons learned tab', () => {
+    it('should trigger lessons refresh when tab is clicked', () => {
+      const onRefreshLessons = vi.fn();
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          peerFeedback={mockPeerFeedback()}
+          onRefreshLessons={onRefreshLessons}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /lessons learned/i }));
+
+      expect(onRefreshLessons).toHaveBeenCalledTimes(1);
+    });
+
+    it('should switch to lessons tab and render lessons', () => {
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          peerFeedback={mockPeerFeedback()}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /lessons learned/i }));
+
+      expect(screen.getByText(/Lessons Learned \(2\)/i)).toBeInTheDocument();
+      expect(screen.getByText('Always keep API payloads typed.')).toBeInTheDocument();
+      expect(screen.getByText('Add integration coverage for retry behavior.')).toBeInTheDocument();
+    });
+
+    it('should show empty lessons state when no lessons are available', () => {
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          peerFeedback={mockPeerFeedback({ lessonsLearned: [] })}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /lessons learned/i }));
+
+      expect(screen.getByText(/No lessons learned yet/i)).toBeInTheDocument();
     });
   });
 
@@ -171,6 +245,23 @@ describe('ExecutionLiveModal', () => {
       render(<ExecutionLiveModal {...defaultProps} />);
       
       expect(screen.getByText('No tasks in queue')).toBeInTheDocument();
+    });
+
+    it('should not show completed tasks when execution is stopped', () => {
+      const stories = [mockUserStory({ id: 'story-1', title: 'Completed Story' })];
+      const queueTasks = [mockQueueTask({ taskId: 'story-1', status: 'completed' })];
+
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          ralphStatus={mockRalphStatus({ running: false, status: 'stopped', currentStory: 'story-1: Completed Story' })}
+          stories={stories}
+          queueTasks={queueTasks}
+        />
+      );
+
+      expect(screen.getByText('No tasks in queue')).toBeInTheDocument();
+      expect(screen.queryByText('Completed Story')).not.toBeInTheDocument();
     });
 
     it('should display spec ID as group header', () => {

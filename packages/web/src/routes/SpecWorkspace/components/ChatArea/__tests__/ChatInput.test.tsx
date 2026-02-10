@@ -84,6 +84,14 @@ describe('ChatInput', () => {
     expect(sendButton).toBeDisabled();
   });
 
+  it('should show spinner in send button while sending', () => {
+    render(<ChatInput {...defaultProps} value="Hello" isSending={true} />);
+
+    const sendButton = screen.getByTitle(/sending/i);
+    expect(sendButton).toBeDisabled();
+    expect(sendButton.querySelector('svg.animate-spin')).toBeInTheDocument();
+  });
+
   it('should call onNewChat when new chat button is clicked', () => {
     const onNewChat = vi.fn();
     render(<ChatInput {...defaultProps} onNewChat={onNewChat} />);

@@ -1,9 +1,27 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ConversationPopover } from '../ConversationPopover';
 import type { ChatMessage } from '../../../../../components/specs/types';
 
 describe('ConversationPopover', () => {
+  const scrollHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollHeight');
+
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get: () => 400,
+    });
+  });
+
+  afterEach(() => {
+    if (scrollHeightDescriptor) {
+      Object.defineProperty(HTMLElement.prototype, 'scrollHeight', scrollHeightDescriptor);
+      return;
+    }
+
+    delete (HTMLElement.prototype as { scrollHeight?: number }).scrollHeight;
+  });
+
   const mockMessages: ChatMessage[] = [
     {
       id: '1',
@@ -24,13 +42,53 @@ describe('ConversationPopover', () => {
     isSending: false,
     quirkyMessage: null,
     discussingContext: null,
+    selectedContext: null,
     onClose: vi.fn(),
     onClearDiscussingContext: vi.fn(),
+    onClearSelectedContext: vi.fn(),
   };
 
   it('should render conversation header', () => {
     render(<ConversationPopover {...defaultProps} />);
     expect(screen.getByText('Conversation')).toBeInTheDocument();
+  });
+
+  it('should auto-scroll to bottom without active context', async () => {
+    render(<ConversationPopover {...defaultProps} />);
+
+    const popover = screen.getByTestId('conversation-popover');
+    await waitFor(() => {
+      expect(popover.scrollTop).toBe(400);
+    });
+  });
+
+  it('should keep selection context visible by scrolling to bottom', async () => {
+    render(
+      <ConversationPopover
+        {...defaultProps}
+        selectedContext="Selected paragraph from the editor"
+      />
+    );
+
+    const popover = screen.getByTestId('conversation-popover');
+    await waitFor(() => {
+      expect(popover.scrollTop).toBe(400);
+    });
+  });
+
+  it('should render selected context below existing messages', () => {
+    render(
+      <ConversationPopover
+        {...defaultProps}
+        selectedContext="Selected paragraph from the editor"
+      />
+    );
+
+    const latestMessage = screen.getByText('Hello! How can I help?');
+    const contextLabel = screen.getByText('Replying to selected text:');
+    expect(
+      latestMessage.compareDocumentPosition(contextLabel) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   it('should render all messages', () => {
@@ -61,6 +119,85 @@ describe('ConversationPopover', () => {
     expect(screen.getByText('Replying to review item:')).toBeInTheDocument();
     expect(screen.getByText('This is the suggestion being discussed')).toBeInTheDocument();
     expect(screen.getByText('Suggested fix text')).toBeInTheDocument();
+  });
+
+  it('should show selected text context banner when provided', () => {
+    render(
+      <ConversationPopover
+        {...defaultProps}
+        selectedContext="Selected paragraph from the editor"
+      />
+    );
+
+    expect(screen.getByText('Replying to selected text:')).toBeInTheDocument();
+    expect(screen.getByText('"Selected paragraph from the editor"')).toBeInTheDocument();
+  });
+
+  it('should render structured user message when content includes selection context', () => {
+    const selectionMessage: ChatMessage = {
+      id: 'u-2',
+      role: 'user',
+      content: '[Selection: "This is another"] Regarding this text from the spec: > This is another Is this another?',
+      timestamp: '2024-01-01T19:20:00Z',
+    };
+
+    render(
+      <ConversationPopover
+        {...defaultProps}
+        messages={[selectionMessage]}
+      />
+    );
+
+    expect(screen.queryByText('[Selection: "This is another"]')).not.toBeInTheDocument();
+    expect(screen.getByText('This is another')).toBeInTheDocument();
+    expect(screen.getByText('Is this another?')).toBeInTheDocument();
+  });
+
+  it('should render structured selection message when selected text includes quotes', () => {
+    const selectionMessage: ChatMessage = {
+      id: 'u-quoted',
+      role: 'user',
+      content: `[Selection: "The function "sayHello" output"]\n\nCan we clarify this behavior?`,
+      timestamp: '2024-01-01T19:25:00Z',
+    };
+
+    render(
+      <ConversationPopover
+        {...defaultProps}
+        messages={[selectionMessage]}
+      />
+    );
+
+    expect(screen.queryByText(/\[Selection:/i)).not.toBeInTheDocument();
+    expect(screen.getByText('The function "sayHello" output')).toBeInTheDocument();
+    expect(screen.getByText('Can we clarify this behavior?')).toBeInTheDocument();
+  });
+
+  it('should render structured user message when content includes suggestion context', () => {
+    const suggestionMessage: ChatMessage = {
+      id: 'u-3',
+      role: 'user',
+      content: `[Discussing Suggestion]
+Issue: This is a placeholder requirement
+Your previous suggestion: Replace with a concrete requirement
+
+User's question: Can you make this specific?`,
+      timestamp: '2024-01-01T19:21:00Z',
+      suggestionId: 'test-id',
+    };
+
+    render(
+      <ConversationPopover
+        {...defaultProps}
+        messages={[suggestionMessage]}
+      />
+    );
+
+    expect(screen.queryByText(/\[Discussing Suggestion\]/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/User's question:/i)).not.toBeInTheDocument();
+    expect(screen.getByText('This is a placeholder requirement')).toBeInTheDocument();
+    expect(screen.getByText('Replace with a concrete requirement')).toBeInTheDocument();
+    expect(screen.getByText('Can you make this specific?')).toBeInTheDocument();
   });
 
   it('should call onClearDiscussingContext when X clicked on banner', () => {

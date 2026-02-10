@@ -86,8 +86,15 @@ export function useExecutionTasks(project: string | null) {
 export function useExecutionPeer(project: string | null) {
   return useQuery<PeerFeedback | null>({
     queryKey: executionKeys.peer(project ?? ''),
-    queryFn: () => Promise.resolve(null),
-    enabled: false, // Data comes from SSE, not fetched directly
+    queryFn: async () => {
+      if (!project) return null;
+      const response = await fetch(`/api/ralph/peer-feedback?project=${encodeURIComponent(project)}`);
+      if (!response.ok) {
+        throw new Error(`Failed to load peer feedback (${response.status})`);
+      }
+      return (await response.json()) as PeerFeedback;
+    },
+    enabled: false, // Primarily driven by SSE; manually refetch where needed.
     initialData: null,
   });
 }

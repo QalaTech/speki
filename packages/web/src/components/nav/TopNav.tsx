@@ -7,6 +7,9 @@ import {
   Cog6ToothIcon as Cog6ToothIconSolid,
 } from "@heroicons/react/24/solid";
 
+import { useSpec } from "../../contexts/SpecContext";
+import type { SpecType } from "../specs/types";
+
 interface Project {
   name: string;
   path: string;
@@ -31,8 +34,22 @@ export function TopNav({
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
+  const { activeSpec } = useSpec();
 
   const isSettingsPage = currentPath === "/settings";
+
+  const getSpecTypeStyles = (type: SpecType) => {
+    switch (type) {
+      case 'prd':
+        return 'text-info';
+      case 'tech-spec':
+        return 'text-primary';
+      case 'bug':
+        return 'text-error';
+      default:
+        return 'text-info';
+    }
+  };
 
   return (
     <nav className="sticky top-0 z-50 bg-linear-to-b from-background to-card/50 backdrop-blur-2xl border-b border-border/40 shadow-sm">
@@ -61,6 +78,22 @@ export function TopNav({
                 onProjectChange={onProjectChange}
               />
             </>
+          )}
+        </div>
+
+        {/* Center: Active Spec */}
+        <div className="flex-1 flex items-center justify-center min-w-0">
+          {activeSpec && (
+            <div className="flex items-center gap-2 max-w-full">
+              <span className="text-sm font-semibold truncate text-white">
+                {activeSpec.title}
+              </span>
+              <span
+                className={`text-[10px] uppercase tracking-widest font-bold shrink-0 opacity-80 ${getSpecTypeStyles(activeSpec.type)}`}
+              >
+                {activeSpec.type}
+              </span>
+            </div>
           )}
         </div>
 

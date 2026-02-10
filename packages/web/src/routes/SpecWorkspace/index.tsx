@@ -21,6 +21,7 @@ import {
   useExecutionLogs,
   defaultRalphStatus,
   useExecutionTasks,
+  useExecutionPeer,
 } from '../../features/execution';
 import { useStartRalph, useStopRalph } from '../../features/projects';
 import {
@@ -35,6 +36,9 @@ import {
 // Sub-components
 import { DocumentHeader, EditorSection, TasksSection, EmptyState, ChatArea, ExecutionLiveModal } from './components';
 import { ReviewPanel } from './components/ChatArea/ReviewPanel';
+
+// Contexts
+import { useSpec } from '../../contexts/SpecContext';
 
 // Types
 import type { UserStory } from '../../types';
@@ -104,7 +108,26 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   // Document title extraction
   const selectedFileName = selectedPath?.split('/').pop() || '';
   const selectedSpecType = getSpecTypeFromFilename(selectedFileName);
-  const documentTitle = useDocumentTitle({ content, filename: selectedFileName });
+  const documentTitle = useDocumentTitle({ filename: selectedFileName });
+
+  const { setActiveSpec } = useSpec();
+
+  // Sync active spec to context
+  useEffect(() => {
+    if (selectedPath) {
+      setActiveSpec({
+        title: documentTitle,
+        type: selectedSpecType,
+      });
+    } else {
+      setActiveSpec(null);
+    }
+  }, [selectedPath, documentTitle, selectedSpecType, setActiveSpec]);
+
+  // Clear active spec on unmount
+  useEffect(() => {
+    return () => setActiveSpec(null);
+  }, [setActiveSpec]);
 
   // AI Review workflow
   const {
@@ -125,6 +148,8 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   // Chat input state - must be before useSpecChat
   const [inputValue, setInputValue] = useState('');
   const [focusTrigger, setFocusTrigger] = useState(0);
+  const [selectedContext, setSelectedContext] = useState<string | null>(null);
+  const previousSelectedPath = useRef<string | null>(selectedPath);
 
   // Chat functionality
   const {
@@ -191,6 +216,10 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   const { data: ralphStatus } = useExecutionStatus(projectPath);
   const { data: executionLogs } = useExecutionLogs(projectPath);
   const { data: prdData } = useExecutionTasks(projectPath);
+  const {
+    data: peerFeedback,
+    refetch: refetchPeerFeedback
+  } = useExecutionPeer(projectPath);
   const startRalphMutation = useStartRalph();
   const stopRalphMutation = useStopRalph();
 
@@ -358,7 +387,14 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
 
   // Reset state on spec change
   useEffect(() => {
+    const didPathChange = previousSelectedPath.current !== selectedPath;
+    previousSelectedPath.current = selectedPath;
+    if (!didPathChange) {
+      return;
+    }
+
     setIsConversationOpen(false);
+    setSelectedContext(null);
     setIsReviewPanelOpen(false);
   }, [selectedPath]);
 
@@ -366,22 +402,33 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   const handleSendMessage = useCallback(() => {
     if (!inputValue.trim()) return;
     setIsConversationOpen(true);
-    handleSendChatMessage(inputValue, undefined, discussingContext?.suggestionId);
+    const suggestionIdForMessage = selectedContext ? undefined : discussingContext?.suggestionId;
+    handleSendChatMessage(inputValue, selectedContext ?? undefined, suggestionIdForMessage);
     setInputValue('');
     // Clear discussing context after sending
     if (discussingContext) {
       setDiscussingContext(null);
     }
-  }, [inputValue, handleSendChatMessage, discussingContext, setDiscussingContext]);
+    if (selectedContext) {
+      setSelectedContext(null);
+    }
+  }, [inputValue, handleSendChatMessage, selectedContext, discussingContext, setDiscussingContext]);
 
   // Add selected text to conversation
   const handleAddToConversation = useCallback(
     (text: string) => {
-      setInputValue((prev) => prev + (prev ? '\n\n' : '') + `Regarding: "${text}"`);
+      setDiscussingContext(null);
+      setSelectedContext(text);
+      setIsConversationOpen(true);
       setFocusTrigger((prev) => prev + 1);
     },
-    []
+    [setDiscussingContext]
   );
+
+  const handleNewChatWithSelectionReset = useCallback(() => {
+    setSelectedContext(null);
+    handleNewChat();
+  }, [handleNewChat]);
 
   // Suggestion handlers
   const handleResolveSuggestion = useCallback(
@@ -409,6 +456,13 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
 
   // Derived values
   const isPrd = selectedSpecType === 'prd';
+  const projectQueueCount = useMemo(
+    () =>
+      allQueueTasks.filter(
+        (task) => task.status === 'queued' || task.status === 'running'
+      ).length,
+    [allQueueTasks]
+  );
 
   const suggestions = session?.suggestions || [];
 
@@ -428,18 +482,13 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
           {/* Left: Scrollable content + Chat */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <div className="flex-1 overflow-auto">
-              <div className="max-w-5xl mx-auto px-6 py-8 pb-4">
+              <div className="mx-auto px-6 py-4 pb-4">
                 {selectedPath ? (
                   <>
                     <DocumentHeader
-                      title={documentTitle}
-                      specType={selectedSpecType}
-                      storiesCount={stories.length}
-                      isPrd={isPrd}
                       isSaving={isSaving}
                       lastSavedAt={lastSavedAt}
                       hasUnsavedChanges={hasUnsavedChanges}
-                      onScrollToStories={handleScrollToStories}
                     />
 
                     <EditorSection
@@ -486,6 +535,8 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                 isSending={isSendingChat}
                 discussingContext={discussingContext}
                 onClearDiscussingContext={() => setDiscussingContext(null)}
+                selectedContext={selectedContext}
+                onClearSelectedContext={() => setSelectedContext(null)}
                 suggestions={suggestions}
                 isReviewPanelOpen={isReviewPanelOpen}
                 onOpenReviewPanel={() => setIsReviewPanelOpen(true)}
@@ -498,11 +549,11 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                 inputValue={inputValue}
                 onInputChange={setInputValue}
                 onSendMessage={handleSendMessage}
-                onNewChat={handleNewChat}
+                onNewChat={handleNewChatWithSelectionReset}
                 onStartReview={handleStartReview}
                 isStartingReview={isStartingReview}
                 focusTrigger={focusTrigger}
-                queueCount={allQueueTasks.filter(t => !completedIds.has(t.taskId)).length}
+                queueCount={projectQueueCount}
                 onOpenQueue={() => setIsExecutionModalOpen(true)}
               />
             )}
@@ -520,6 +571,10 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
             stories={prdData?.userStories || stories}
             queueTasks={allQueueTasks}
             completedIds={completedIds}
+            peerFeedback={peerFeedback}
+            onRefreshLessons={() => {
+              void refetchPeerFeedback();
+            }}
           />
 
           {/* Right: Review Panel (Codex-style) */}
@@ -534,6 +589,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                 onResolve={handleResolveSuggestion}
                 onDismiss={handleRejectSuggestion}
                 onDiscuss={(suggestion) => {
+                  setSelectedContext(null);
                   handleDiscussSuggestion(suggestion);
                   setIsConversationOpen(true);
                 }}

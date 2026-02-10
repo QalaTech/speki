@@ -10,7 +10,7 @@ describe('SelectionPopup', () => {
 
   it('should render add to conversation button', () => {
     render(<SelectionPopup selection={mockSelection} onAddToConversation={vi.fn()} />);
-    expect(screen.getByText(/add to conversation/i)).toBeInTheDocument();
+    expect(screen.getByText(/ask about this/i)).toBeInTheDocument();
   });
 
   it('should position correctly based on selection', () => {
@@ -27,7 +27,7 @@ describe('SelectionPopup', () => {
     const onAddToConversation = vi.fn();
     render(<SelectionPopup selection={mockSelection} onAddToConversation={onAddToConversation} />);
 
-    const button = screen.getByText(/add to conversation/i);
+    const button = screen.getByText(/ask about this/i);
     fireEvent.click(button);
 
     expect(onAddToConversation).toHaveBeenCalledWith('selected text');

@@ -98,7 +98,7 @@ export function ChatInput({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={onFocus}
-          placeholder={isDiscussing ? "Ask about this suggestion..." : "Ask for follow-up changes"}
+          placeholder={isDiscussing ? "Ask about this context..." : "Ask for follow-up changes"}
           rows={1}
           className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
           style={{ minHeight: '24px', maxHeight: '120px' }}
@@ -168,11 +168,15 @@ export function ChatInput({
             onClick={onSend}
             disabled={!value.trim() || isSending}
             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors ml-1 group relative"
-            title="Send (⌘↵)"
+            title={isSending ? 'Sending...' : 'Send (⌘↵)'}
           >
-            <PaperAirplaneIcon className="w-4 h-4" />
+            {isSending ? (
+              <Spinner size="sm" className="text-white" />
+            ) : (
+              <PaperAirplaneIcon className="w-4 h-4" />
+            )}
             <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[10px] bg-black/80 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              ⌘↵
+              {isSending ? 'Sending...' : '⌘↵'}
             </span>
           </button>
         </div>

@@ -10,6 +10,7 @@ describe('useTextSelection', () => {
       width: 500,
       height: 300,
     }),
+    contains: vi.fn().mockReturnValue(true),
   } as unknown as HTMLElement;
 
   const mockRange = {
@@ -23,6 +24,7 @@ describe('useTextSelection', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (mockContainer.contains as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
     
     // Mock window.getSelection
     Object.defineProperty(window, 'getSelection', {
@@ -130,5 +132,34 @@ describe('useTextSelection', () => {
     });
 
     expect(result.current.selection).toBeNull();
+  });
+
+  it('should clear selection when clicking outside container', () => {
+    const mockSelection = {
+      toString: vi.fn().mockReturnValue('selected text'),
+      getRangeAt: vi.fn().mockReturnValue(mockRange),
+      removeAllRanges: vi.fn(),
+      isCollapsed: false,
+      rangeCount: 1,
+    };
+
+    (window.getSelection as ReturnType<typeof vi.fn>).mockReturnValue(mockSelection);
+    (mockContainer.contains as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+    const { result } = renderHook(() =>
+      useTextSelection({ containerRef: { current: mockContainer } })
+    );
+
+    act(() => {
+      result.current.handleMouseUp();
+    });
+    expect(result.current.selection).not.toBeNull();
+
+    act(() => {
+      document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+
+    expect(result.current.selection).toBeNull();
+    expect(mockSelection.removeAllRanges).toHaveBeenCalled();
   });
 });

@@ -21,6 +21,8 @@ import {
   defaultRalphStatus,
 } from '@features/execution';
 
+import { SpecProvider } from './contexts/SpecContext';
+
 function App() {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
@@ -135,43 +137,45 @@ function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen max-h-screen overflow-hidden">
-      <Toaster 
-        position="top-center" 
-        toastOptions={{
-          className: "z-2000",
-          classNames: {
-            toast: "!bg-card/98 !backdrop-blur-2xl !border-white/5 !ring-1 !ring-white/[0.03] !shadow-[0_12px_48px_rgba(0,0,0,0.7)] !rounded-2xl !px-6 !py-4",
-            title: "!text-foreground !font-semibold !text-sm",
-            description: "!text-muted-foreground !text-xs",
-            icon: "!w-5 !h-5 !mt-0.5",
-          }
-        }}
-      />
-      {/* Top Navigation */}
-      <TopNav
-        projects={projects}
-        selectedProject={selectedProject}
-        onProjectChange={setSelectedProject}
-        onNavigate={navigateToTab}
-        isRalphRunning={(ralphStatus ?? defaultRalphStatus).running}
-      />
-
-      {/* Main Content */}
-      <main className="flex-1 w-full max-h-[calc(100vh-56px)] overflow-hidden flex flex-col relative">
-        {loading && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-100">
-            <div className="text-xl text-muted-foreground">Loading...</div>
-          </div>
-        )}
-
-        <AppRoutes
-          selectedProject={selectedProject}
-          executionViewProps={executionViewProps}
-          onTasksActivated={handleTasksActivated}
+    <SpecProvider>
+      <div className="flex flex-col h-screen max-h-screen overflow-hidden">
+        <Toaster 
+          position="top-center" 
+          toastOptions={{
+            className: "z-2000",
+            classNames: {
+              toast: "!bg-card/98 !backdrop-blur-2xl !border-white/5 !ring-1 !ring-white/[0.03] !shadow-[0_12px_48px_rgba(0,0,0,0.7)] !rounded-2xl !px-6 !py-4",
+              title: "!text-foreground !font-semibold !text-sm",
+              description: "!text-muted-foreground !text-xs",
+              icon: "!w-5 !h-5 !mt-0.5",
+            }
+          }}
         />
-      </main>
-    </div>
+        {/* Top Navigation */}
+        <TopNav
+          projects={projects}
+          selectedProject={selectedProject}
+          onProjectChange={setSelectedProject}
+          onNavigate={navigateToTab}
+          isRalphRunning={(ralphStatus ?? defaultRalphStatus).running}
+        />
+
+        {/* Main Content */}
+        <main className="flex-1 w-full max-h-[calc(100vh-56px)] overflow-hidden flex flex-col relative">
+          {loading && (
+            <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-100">
+              <div className="text-xl text-muted-foreground">Loading...</div>
+            </div>
+          )}
+
+          <AppRoutes
+            selectedProject={selectedProject}
+            executionViewProps={executionViewProps}
+            onTasksActivated={handleTasksActivated}
+          />
+        </main>
+      </div>
+    </SpecProvider>
   );
 }
 
