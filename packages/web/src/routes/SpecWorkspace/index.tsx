@@ -143,6 +143,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     content,
     onContentChange: setContent,
     onSave: handleSave,
+    onReviewStatusChanged: refreshFiles,
   });
 
   // Chat input state - must be before useSpecChat
