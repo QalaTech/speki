@@ -26,10 +26,6 @@ export function StatusBar({
 }: StatusBarProps) {
   const hasStories = storiesCount > 0;
   const showSuggestions = pendingSuggestionsCount > 0 && !isReviewPanelOpen;
-  const showQueue = queueCount > 0;
-
-  // Show bar if we have ANY information to show
-  if (!hasStories && !showSuggestions && !showQueue) return null;
 
   return (
     <div className="relative animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -54,20 +50,18 @@ export function StatusBar({
           )}
 
           {/* Separator if both spec tasks and global queue are shown */}
-          {hasStories && showQueue && (
+          {hasStories && (
             <div className="w-px h-3 bg-white/5" />
           )}
 
           {/* Global Queue Indicator */}
-          {showQueue && (
             <button
               onClick={onOpenQueue}
               className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               <ListBulletIcon className="w-3.5 h-3.5" />
-              <span>View execution log ({queueCount} total tasks)</span>
+              <span>View execution queue ({queueCount} total tasks)</span>
             </button>
-          )}
         </div>
 
         {/* Right: Review changes link (Codex-style) */}

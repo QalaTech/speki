@@ -1,4 +1,4 @@
-import { useState, useCallback, type RefObject } from 'react';
+import { useState, useCallback, useEffect, type RefObject } from 'react';
 
 export interface TextSelection {
   text: string;
@@ -52,6 +52,54 @@ export function useTextSelection({ containerRef }: UseTextSelectionOptions): Use
       },
     });
   }, [containerRef]);
+
+  useEffect(() => {
+    const handleOutsideMouseDown = (event: MouseEvent) => {
+      if (!selection) return;
+
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      const isInsideContainer = containerRef.current?.contains(target) ?? false;
+      const isInsidePopup =
+        target instanceof HTMLElement &&
+        Boolean(target.closest('[data-selection-popup]'));
+
+      if (!isInsideContainer && !isInsidePopup) {
+        clearSelection();
+      }
+    };
+
+    const handleSelectionChange = () => {
+      if (!selection) return;
+
+      const currentSelection = window.getSelection();
+      const selectedText = currentSelection?.toString().trim();
+
+      if (!currentSelection || currentSelection.isCollapsed || !selectedText) {
+        setSelection(null);
+        return;
+      }
+
+      if (!containerRef.current || currentSelection.rangeCount === 0) {
+        setSelection(null);
+        return;
+      }
+
+      const range = currentSelection.getRangeAt(0);
+      if (!containerRef.current.contains(range.commonAncestorContainer)) {
+        setSelection(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideMouseDown);
+    document.addEventListener('selectionchange', handleSelectionChange);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideMouseDown);
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, [containerRef, clearSelection, selection]);
 
   return {
     selection,

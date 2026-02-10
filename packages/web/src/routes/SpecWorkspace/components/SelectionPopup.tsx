@@ -8,6 +8,7 @@ interface SelectionPopupProps {
 export function SelectionPopup({ selection, onAddToConversation }: SelectionPopupProps) {
   return (
     <div
+      data-selection-popup
       className="absolute z-50 -translate-x-1/2 -translate-y-full"
       style={{ left: selection.position.x, top: selection.position.y }}
     >
@@ -23,7 +24,7 @@ export function SelectionPopup({ selection, onAddToConversation }: SelectionPopu
             d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
           />
         </svg>
-        Add to conversation
+        Ask about this
       </button>
     </div>
   );

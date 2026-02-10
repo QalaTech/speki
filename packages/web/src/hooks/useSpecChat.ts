@@ -31,6 +31,34 @@ interface UseSpecChatReturn {
   filteredChatMessages: SpecSession['chatMessages'];
 }
 
+function buildUserMessageContent(
+  message: string,
+  selectionContext?: string,
+  suggestionContext?: Pick<Suggestion, 'issue' | 'suggestedFix'>
+): string {
+  const trimmedMessage = message.trim();
+  const trimmedSelection = selectionContext?.trim();
+  const trimmedIssue = suggestionContext?.issue?.trim();
+  const trimmedSuggestedFix = suggestionContext?.suggestedFix?.trim();
+
+  // Explicit text selection should take precedence over any stale discuss context.
+  if (trimmedSelection) {
+    // Mirror the backend message shape so optimistic and persisted UI render identically.
+    return `[Selection: "${trimmedSelection}"]\n\n${trimmedMessage}`;
+  }
+
+  if (trimmedIssue) {
+    const suggestionLine = trimmedSuggestedFix
+      ? `Your previous suggestion: ${trimmedSuggestedFix}\n\n`
+      : '';
+    return `[Discussing Suggestion]
+Issue: ${trimmedIssue}
+${suggestionLine}User's question: ${trimmedMessage}`;
+  }
+
+  return trimmedMessage;
+}
+
 /**
  * Hook for managing spec chat/discussion functionality.
  */
@@ -62,11 +90,20 @@ export function useSpecChat({
   ): Promise<void> => {
     if (!selectedPath) return;
 
+    const suggestionContext = suggestionId
+      ? session?.suggestions.find((s) => s.id === suggestionId)
+      : undefined;
+    const userMessageContent = buildUserMessageContent(
+      message,
+      selectionContext,
+      suggestionContext
+    );
+
     // Optimistically add user message immediately
     const optimisticUserMessage = {
       id: `temp-${Date.now()}`,
       role: 'user' as const,
-      content: message,
+      content: userMessageContent,
       timestamp: new Date().toISOString(),
       suggestionId,
     };
@@ -177,15 +214,11 @@ export function useSpecChat({
     } finally {
       setIsSendingChat(false);
     }
-  }, [selectedPath, session?.sessionId, apiUrl, onContentRefetch, setSession]);
+  }, [selectedPath, session, apiUrl, onContentRefetch, setSession]);
 
   // Handle discuss suggestion (from review tab)
   // Opens chat with context banner - user can see the context and type their question
   const handleDiscussSuggestion = useCallback((suggestion: Suggestion) => {
-    // Mark the start of this discuss session (hides older messages from view)
-    const now = new Date().toISOString();
-    setDiscussStartTimestamp(now);
-
     setDiscussingContext({
       suggestionId: suggestion.id,
       issue: suggestion.issue,
@@ -197,10 +230,9 @@ export function useSpecChat({
     setInputValue?.('');
   }, [setInputValue]);
 
-  // Filter chat messages based on discuss start timestamp
-  const filteredChatMessages = discussStartTimestamp && session?.chatMessages
-    ? session.chatMessages.filter(m => m.timestamp >= discussStartTimestamp)
-    : (session?.chatMessages ?? []);
+  // Always keep full history visible so discuss/selection context appears
+  // beneath the latest message in an existing conversation.
+  const filteredChatMessages = session?.chatMessages ?? [];
 
   // Handle starting a new chat (clears session on server and locally)
   const handleNewChat = useCallback(async () => {

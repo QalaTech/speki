@@ -18,15 +18,7 @@ export function formatRelativeTime(date: Date): string {
 /**
  * Extract title from document content (first H1) or format filename
  */
-export function extractDocumentTitle(content: string, filename: string): string {
-  // Try to extract H1 from content
-  if (content) {
-    const h1Match = content.match(/^#\s+(.+)$/m);
-    if (h1Match) {
-      return h1Match[1].trim();
-    }
-  }
-  
+export function extractDocumentTitle(filename: string): string {
   // Fall back to formatted filename
   if (filename) {
     // Remove extension and timestamp pattern (YYYYMMDD-HHMMSS-)
