@@ -33,6 +33,7 @@ export default defineWorkspace([
       name: 'web',
       root: './packages/web',
       include: ['**/*.test.{ts,tsx}'],
+      exclude: ['**/*.perf.test.ts', '**/*.perf.test.tsx'],
       environment: 'jsdom',
       globals: false,
       setupFiles: ['./src/test/setup.ts'],
