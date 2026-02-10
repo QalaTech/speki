@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { TasksSection } from '../TasksSection';
 
 // Mock IntersectionObserver
@@ -140,5 +140,36 @@ describe('TasksSection', () => {
   it('should not show empty message when decomposing', () => {
     render(<TasksSection {...defaultProps} stories={[]} isDecomposing={true} />);
     expect(screen.queryByText(/no user stories yet/i)).not.toBeInTheDocument();
+  });
+
+  it('should show reviewed badge when review verdict is PASS', () => {
+    render(<TasksSection {...defaultProps} reviewVerdict="PASS" />);
+    expect(screen.getByText('Reviewed')).toBeInTheDocument();
+  });
+
+  it('should show review feedback panel when review verdict is FAIL', () => {
+    render(
+      <TasksSection
+        {...defaultProps}
+        reviewVerdict="FAIL"
+        reviewFeedback={{
+          verdict: 'FAIL',
+          missingRequirements: ['Missing requirement for integration test'],
+        }}
+      />
+    );
+    expect(screen.getByText('Review Feedback')).toBeInTheDocument();
+    expect(screen.getByText('Missing requirement for integration test')).toBeInTheDocument();
+  });
+
+  it('should show spec status message when decomposition is partial', () => {
+    render(
+      <TasksSection
+        {...defaultProps}
+        specStatus="partial"
+        specStatusMessage="Some stories still need refinement"
+      />
+    );
+    expect(screen.getByText(/some stories still need refinement/i)).toBeInTheDocument();
   });
 });

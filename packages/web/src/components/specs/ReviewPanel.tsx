@@ -27,6 +27,7 @@ interface ReviewPanelProps {
   onDiscussSuggestion: (suggestion: Suggestion) => void;
   onResolveSuggestion: (suggestionId: string) => void;
   onDismissSuggestion: (suggestionId: string) => void;
+  onReviewDiff?: (suggestion: Suggestion) => void;
   editorRef?: React.RefObject<SpecEditorRef | null>;
   onCollapse?: () => void;
 }
@@ -55,6 +56,7 @@ export function ReviewPanel({
   onDiscussSuggestion,
   onResolveSuggestion,
   onDismissSuggestion,
+  onReviewDiff,
   editorRef,
   onCollapse,
 }: ReviewPanelProps) {
@@ -120,7 +122,7 @@ export function ReviewPanel({
         {isStartingReview || session?.status === "in_progress" ? (
           // In progress state
           <div className="flex flex-col items-center justify-center h-full text-center gap-4 animate-fade-in">
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 ring-1 ring-primary/20 shadow-glow-white">
+            <div className="p-4 rounded-2xl bg-linear-to-br from-primary/10 to-primary/5 ring-1 ring-primary/20 shadow-glow-white">
               <Loading size="lg" className="text-primary" />
             </div>
             <div className="space-y-1">
@@ -373,6 +375,17 @@ export function ReviewPanel({
                             <ChatBubbleLeftRightIcon className="h-3.5 w-3.5" />
                             Discuss
                           </Button>
+                          {onReviewDiff && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-3 rounded-full text-xs hover:bg-primary/10 hover:text-primary"
+                              onClick={() => onReviewDiff(suggestion)}
+                            >
+                              <SparklesIcon className="h-3.5 w-3.5" />
+                              Review
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"

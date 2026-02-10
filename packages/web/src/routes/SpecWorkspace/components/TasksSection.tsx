@@ -2,9 +2,16 @@ import { useRef, useEffect } from 'react';
 import { SparklesIcon, ArrowPathIcon, QueueListIcon, DocumentPlusIcon, PlayIcon } from '@heroicons/react/24/outline';
 import { Button } from '../../../components/ui/Button';
 import { Spinner } from '../../../components/ui/Loading';
+import { Badge } from '../../../components/ui/Badge';
 import { UseCaseList } from '../../../components/specs/UseCaseList';
 import type { SpecType } from '../../../components/specs/types';
-import type { UserStory, QueuedTaskReference, RalphStatus } from '../../../types';
+import type {
+  UserStory,
+  QueuedTaskReference,
+  RalphStatus,
+  DecomposeFeedback,
+  FeedbackItem,
+} from '../../../types';
 
 interface TasksSectionProps {
   stories: UserStory[];
@@ -27,6 +34,73 @@ interface TasksSectionProps {
   onCreateTechSpec: () => void;
   onTasksVisibilityChange: (visible: boolean) => void;
   getQueuedTaskStatus?: (taskId: string) => QueuedTaskReference['status'];
+  reviewFeedback?: DecomposeFeedback | null;
+  reviewVerdict?: 'PASS' | 'FAIL' | 'UNKNOWN' | 'SKIPPED' | null;
+  specStatus?: 'pending' | 'partial' | 'completed' | null;
+  specStatusMessage?: string | null;
+}
+
+function formatFeedbackItem(item: string | FeedbackItem): string {
+  if (typeof item === 'string') return item;
+  const parts: string[] = [];
+  if (item.severity) parts.push(`[${item.severity.toUpperCase()}]`);
+  if (item.taskId) parts.push(`[${item.taskId}]`);
+  if (item.taskIds) parts.push(`[${item.taskIds.join(', ')}]`);
+  if (item.requirement) parts.push(item.requirement);
+  if (item.description) parts.push(item.description);
+  if (item.issue) parts.push(item.issue);
+  if (item.reason) parts.push(item.reason);
+  if (item.action) parts.push(`Action: ${item.action}`);
+  if (item.suggestedFix) parts.push(`Fix: ${item.suggestedFix}`);
+  if (item.prdSection) parts.push(`(PRD: ${item.prdSection})`);
+  if (item.dependsOn) parts.push(`depends on: ${item.dependsOn}`);
+  return parts.join(' ');
+}
+
+function FeedbackSection({ label, items, icon }: { label: string; items?: (string | FeedbackItem)[]; icon: string }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
+        <span>{icon}</span> {label}
+        <Badge variant="ghost" size="xs">{items.length}</Badge>
+      </div>
+      <ul className="space-y-1.5 text-sm">
+        {items.map((item, i) => (
+          <li key={i} className="flex gap-2 items-start">
+            <span className="text-muted-foreground/40 mt-0.5">•</span>
+            <span className="text-foreground/80">{formatFeedbackItem(item)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ReviewFeedbackPanel({ feedback }: { feedback: DecomposeFeedback }) {
+  const hasFeedback =
+    (feedback.missingRequirements?.length ?? 0) > 0 ||
+    (feedback.contradictions?.length ?? 0) > 0 ||
+    (feedback.dependencyErrors?.length ?? 0) > 0 ||
+    (feedback.duplicates?.length ?? 0) > 0 ||
+    (feedback.suggestions?.length ?? 0) > 0 ||
+    (feedback.issues?.length ?? 0) > 0;
+
+  if (!hasFeedback) return null;
+
+  return (
+    <div className="bg-muted border border-error/20 rounded-lg p-4 my-3 space-y-4">
+      <div className="text-sm font-bold text-error/80">Review Feedback</div>
+      <FeedbackSection label="Missing Requirements" items={feedback.missingRequirements} icon="⚠" />
+      <FeedbackSection label="Contradictions" items={feedback.contradictions} icon="⊘" />
+      <FeedbackSection label="Dependency Errors" items={feedback.dependencyErrors} icon="⛓" />
+      <FeedbackSection label="Duplicates" items={feedback.duplicates} icon="⧉" />
+      <FeedbackSection label="Suggestions" items={feedback.suggestions} icon="💡" />
+      {feedback.issues && feedback.issues.length > 0 && (
+        <FeedbackSection label="Other Issues" items={feedback.issues} icon="ℹ" />
+      )}
+    </div>
+  );
 }
 
 export function TasksSection({
@@ -50,6 +124,10 @@ export function TasksSection({
   onCreateTechSpec,
   onTasksVisibilityChange,
   getQueuedTaskStatus: getQueuedTaskStatusProp,
+  reviewFeedback,
+  reviewVerdict,
+  specStatus,
+  specStatusMessage,
 }: TasksSectionProps) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const hasStories = stories.length > 0;
@@ -85,6 +163,11 @@ export function TasksSection({
     getQueuedTaskStatusProp ? getQueuedTaskStatusProp(taskId) : (queueTasks.find(t => t.taskId === taskId)?.status || 'pending');
 
   const title = isPrd ? 'User Stories' : 'Tasks';
+  const reviewStatusText = reviewVerdict === 'PASS'
+    ? 'Reviewed'
+    : reviewVerdict === 'FAIL'
+      ? 'Needs revision'
+      : null;
 
   return (
     <div ref={sectionRef} id="tasks-section" className="mb-8 scroll-mt-8">
@@ -99,6 +182,17 @@ export function TasksSection({
         {hasStories && (
           <span className="text-muted-foreground text-sm">
             {completedIds.size}/{stories.length}
+          </span>
+        )}
+        {hasStories && reviewStatusText && (
+          <span
+            className={`text-xs px-1.5 py-0.5 rounded ${
+              reviewVerdict === 'PASS'
+                ? 'bg-success/10 text-success'
+                : 'bg-warning/10 text-warning'
+            }`}
+          >
+            {reviewStatusText}
           </span>
         )}
         {isLoadingContent && !hasStories && (
@@ -194,6 +288,10 @@ export function TasksSection({
         )}
       </div>
 
+      {reviewFeedback && reviewVerdict === 'FAIL' && (
+        <ReviewFeedbackPanel feedback={reviewFeedback} />
+      )}
+
       {/* Task list */}
       {hasStories ? (
         <UseCaseList
@@ -213,6 +311,17 @@ export function TasksSection({
           No {isPrd ? 'user stories' : 'tasks'} yet. Click Generate to create them.
         </p>
       ) : null}
+
+      {specStatus === 'completed' && stories.length === 0 && (
+        <p className="text-success text-sm">
+          ✓ {specStatusMessage || 'Spec completed'}
+        </p>
+      )}
+      {specStatus === 'partial' && (
+        <p className="text-warning text-sm">
+          ○ {specStatusMessage || 'Partially completed'}
+        </p>
+      )}
     </div>
   );
 }

@@ -121,6 +121,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     setDiffOverlay,
     getReviewStatus,
     handleStartReview,
+    handleReviewDiff,
     handleDiffApprove,
     handleDiffReject,
     handleSuggestionAction,
@@ -130,6 +131,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     content,
     onContentChange: setContent,
     onSave: handleSave,
+    onContentRefetch: refetchContent,
     onReviewStatusChanged: refreshFiles,
   });
 
@@ -523,6 +525,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
                 await handleSuggestionAction(id, 'dismissed');
                 refreshFiles();
               }}
+              onReviewDiff={handleReviewDiff}
               editorRef={editorRef}
               onCollapse={() => setIsReviewPanelOpen(false)}
             />

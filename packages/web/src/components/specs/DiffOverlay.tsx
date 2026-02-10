@@ -1,32 +1,16 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import * as monaco from 'monaco-editor';
-import { HunkControlPill } from './HunkControlPill';
+import { XMarkIcon } from '@heroicons/react/24/outline';
+import { Button } from '../ui/Button';
 
 interface DiffOverlayProps {
   title: string;
   originalText: string;
   proposedText: string;
-  onApprove: (finalContent: string) => void;
-  onReject: () => void;
+  onApprove: (finalContent: string) => Promise<void> | void;
+  onReject: () => Promise<void> | void;
   onCancel: () => void;
   language?: string;
-}
-
-interface Hunk {
-  originalStartLineNumber: number;
-  originalEndLineNumber: number;
-  modifiedStartLineNumber: number;
-  modifiedEndLineNumber: number;
-}
-
-function createHunkId(h: Hunk): string {
-  return `hunk-${h.originalStartLineNumber}-${h.originalEndLineNumber}-${h.modifiedStartLineNumber}-${h.modifiedEndLineNumber}`;
-}
-
-function getLinesText(model: monaco.editor.ITextModel, startLine: number, endLine: number): string {
-  if (startLine > endLine || startLine < 1) return '';
-  const range = new monaco.Range(startLine, 1, endLine, model.getLineMaxColumn(endLine));
-  return model.getValueInRange(range);
 }
 
 export function DiffOverlay({
@@ -42,9 +26,17 @@ export function DiffOverlay({
   const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
   const originalModelRef = useRef<monaco.editor.ITextModel | null>(null);
   const modifiedModelRef = useRef<monaco.editor.ITextModel | null>(null);
+  const isMountedRef = useRef(true);
 
-  const [hunks, setHunks] = useState<Hunk[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
+  const [changeCount, setChangeCount] = useState(0);
+  const [pendingAction, setPendingAction] = useState<'apply' | 'reject' | null>(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -95,7 +87,7 @@ export function DiffOverlay({
     // Update hunks when diff changes
     const updateHunks = () => {
       const changes = diffEditor.getLineChanges() ?? [];
-      setHunks(changes as Hunk[]);
+      setChangeCount(changes.length);
     };
 
     const disposable = diffEditor.onDidUpdateDiff(updateHunks);
@@ -118,136 +110,95 @@ export function DiffOverlay({
     };
   }, [originalText, proposedText, language]);
 
-  // Accept a specific hunk
-  const handleAcceptHunk = useCallback((hunk: Hunk) => {
-    const originalModel = originalModelRef.current;
-    const modifiedModel = modifiedModelRef.current;
-    if (!originalModel || !modifiedModel) return;
-
-    const modifiedHunkText = getLinesText(modifiedModel, hunk.modifiedStartLineNumber, hunk.modifiedEndLineNumber);
-
-    // Apply modified content to original
-    const startLine = hunk.originalStartLineNumber;
-    const endLine = hunk.originalEndLineNumber;
-
-    if (startLine > endLine) {
-      // Pure insertion
-      const position = { lineNumber: startLine, column: 1 };
-      originalModel.pushEditOperations(
-        [],
-        [{ range: new monaco.Range(position.lineNumber, 1, position.lineNumber, 1), text: modifiedHunkText + '\n' }],
-        () => null
-      );
-    } else {
-      // Replacement
-      const range = new monaco.Range(startLine, 1, endLine, originalModel.getLineMaxColumn(endLine));
-      originalModel.pushEditOperations([], [{ range, text: modifiedHunkText }], () => null);
-    }
-  }, []);
-
-  // Reject a specific hunk
-  const handleRejectHunk = useCallback((hunk: Hunk) => {
-    const originalModel = originalModelRef.current;
-    const modifiedModel = modifiedModelRef.current;
-    if (!originalModel || !modifiedModel) return;
-
-    const originalHunkText = getLinesText(originalModel, hunk.originalStartLineNumber, hunk.originalEndLineNumber);
-
-    // Revert modified to original
-    const startLine = hunk.modifiedStartLineNumber;
-    const endLine = hunk.modifiedEndLineNumber;
-
-    if (startLine > endLine) {
-      // Pure deletion in modified - nothing to do
-      return;
-    }
-
-    const range = new monaco.Range(startLine, 1, endLine, modifiedModel.getLineMaxColumn(endLine));
-    modifiedModel.pushEditOperations([], [{ range, text: originalHunkText }], () => null);
-  }, []);
-
-  // Comment on a hunk
-  const handleCommentHunk = useCallback((hunk: Hunk) => {
-    // TODO: Open chat with context
-    console.log('Comment on hunk:', hunk);
-  }, []);
-
   // Handle approve all
-  const handleApprove = () => {
+  const handleApprove = async () => {
     const modifiedModel = modifiedModelRef.current;
     if (modifiedModel) {
-      onApprove(modifiedModel.getValue());
+      setPendingAction('apply');
+      try {
+        await onApprove(modifiedModel.getValue());
+      } finally {
+        if (isMountedRef.current) {
+          setPendingAction(null);
+        }
+      }
     }
   };
 
-  // Toggle edit mode
-  const handleToggleEdit = () => {
-    setIsEditing(!isEditing);
-    if (diffEditorRef.current) {
-      diffEditorRef.current.updateOptions({ readOnly: isEditing });
+  const handleReject = async () => {
+    setPendingAction('reject');
+    try {
+      await onReject();
+    } finally {
+      if (isMountedRef.current) {
+        setPendingAction(null);
+      }
     }
   };
-
-  const btnBase = "flex items-center gap-1.5 py-2 px-3.5 bg-muted border border-border rounded-lg text-foreground text-[13px] font-medium cursor-pointer transition-all duration-150 hover:bg-background hover:border-muted-foreground/30";
 
   return (
     <div className="fixed inset-0 z-1000 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/75 backdrop-blur-xs" onClick={onCancel} />
 
-      <div className="relative flex flex-col w-[calc(100vw-80px)] h-[calc(100vh-80px)] max-w-[1600px] bg-background border border-border rounded-xl shadow-[0_24px_48px_rgba(0,0,0,0.5)] overflow-hidden">
-        <header className="flex items-center justify-between py-4 px-5 bg-secondary border-b border-border">
-          <h2 className="m-0 text-[15px] font-semibold text-foreground">{title}</h2>
-            <div className="flex gap-2">
-              <button
-                className={`${btnBase} ${isEditing ? 'bg-[rgba(163,113,247,0.15)] border-[#a371f7] text-[#a371f7]' : ''}`}
-                onClick={handleToggleEdit}
-              >
-                {isEditing ? '📝 Editing' : '✏️ Edit'}
-              </button>
-              <button className={`${btnBase} text-muted-foreground/60 hover:text-foreground`} onClick={onCancel}>
-                Cancel
-              </button>
-              <button className={`${btnBase} bg-[rgba(218,54,51,0.1)] border-[rgba(218,54,51,0.3)] text-[#f85149] hover:bg-[rgba(218,54,51,0.2)] hover:border-[#f85149]`} onClick={onReject}>
-                ✗ Reject All
-              </button>
-              <button className={`${btnBase} bg-[rgba(35,134,54,0.15)] border-[rgba(35,134,54,0.3)] text-[#3fb950] hover:bg-[rgba(35,134,54,0.25)] hover:border-[#3fb950]`} onClick={handleApprove}>
-                ✓ Apply Changes
-              </button>
-            </div>
-          </header>
+      <div className="relative flex flex-col w-[calc(100vw-96px)] h-[calc(100vh-96px)] max-w-[1600px] bg-card/95 backdrop-blur-xl border border-border/60 rounded-2xl shadow-[0_24px_72px_rgba(0,0,0,0.55)] overflow-hidden">
+        <header className="flex items-start justify-between gap-4 py-4 px-5 bg-muted/25 border-b border-border/60">
+          <div className="min-w-0">
+            <p className="m-0 text-[11px] uppercase tracking-[0.08em] font-semibold text-muted-foreground">Review Suggestion</p>
+            <h2 className="m-0 mt-1 text-[15px] font-semibold text-foreground break-words">{title}</h2>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
+            onClick={onCancel}
+            aria-label="Close diff overlay"
+          >
+            <XMarkIcon className="w-4 h-4" />
+          </Button>
+        </header>
 
-          <div className="relative flex-1 overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 flex z-10 pointer-events-none">
-              <span className="flex-1 py-2 px-4 text-[11px] font-semibold uppercase tracking-[0.05em] bg-[rgba(22,27,34,0.9)] backdrop-blur-[4px] text-[#f85149] border-b-2 border-[rgba(218,54,51,0.3)]">Original</span>
-              <span className="flex-1 py-2 px-4 text-[11px] font-semibold uppercase tracking-[0.05em] bg-[rgba(22,27,34,0.9)] backdrop-blur-[4px] text-[#3fb950] border-b-2 border-[rgba(35,134,54,0.3)]">
-                {isEditing ? 'Editing...' : 'Proposed'}
-              </span>
-            </div>
-
-            <div className="diff-editor-container h-full pt-9" ref={containerRef} />
-
-            {/* Render hunk controls */}
-            {hunks.map((hunk) => (
-              <HunkControlPill
-                key={createHunkId(hunk)}
-                hunk={hunk}
-                onAccept={() => handleAcceptHunk(hunk)}
-                onReject={() => handleRejectHunk(hunk)}
-                onComment={() => handleCommentHunk(hunk)}
-                editorRef={diffEditorRef}
-              />
-            ))}
+        <div className="relative flex-1 overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 flex z-10 pointer-events-none">
+            <span className="flex-1 py-2 px-4 text-[11px] font-semibold uppercase tracking-[0.05em] bg-[rgba(22,27,34,0.9)] backdrop-blur-[4px] text-[#f85149] border-b border-[rgba(218,54,51,0.35)]">Original</span>
+            <span className="flex-1 py-2 px-4 text-[11px] font-semibold uppercase tracking-[0.05em] bg-[rgba(22,27,34,0.9)] backdrop-blur-[4px] text-[#3fb950] border-b border-[rgba(35,134,54,0.35)]">
+              Proposed (Editable)
+            </span>
           </div>
 
-        <footer className="flex items-center justify-between py-3 px-5 bg-secondary border-t border-border">
-          <div className="flex gap-4">
-            <span className="text-xs text-secondary-foreground/60">{hunks.length} changes</span>
+          <div className="diff-editor-container h-full pt-9" ref={containerRef} />
+        </div>
+
+        <footer className="flex items-center justify-between py-3 px-5 bg-muted/25 border-t border-border/60">
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-muted-foreground">{changeCount} change{changeCount === 1 ? '' : 's'}</span>
+            <span className="text-xs text-muted-foreground/75">
+              Press <kbd className="inline-block py-0.5 px-1.5 bg-muted border border-border rounded text-[11px] text-foreground">Esc</kbd> to dismiss
+            </span>
           </div>
-          <div className="text-xs text-muted-foreground/60">
-            Press <kbd className="inline-block py-0.5 px-1.5 bg-muted border border-border rounded text-[11px] text-foreground">Esc</kbd> to cancel • <kbd className="inline-block py-0.5 px-1.5 bg-muted border border-border rounded text-[11px] text-foreground">A</kbd> accept hunk • <kbd className="inline-block py-0.5 px-1.5 bg-muted border border-border rounded text-[11px] text-foreground">R</kbd> reject hunk
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { void handleReject(); }}
+              disabled={pendingAction !== null}
+              className="h-9 rounded-lg border-error/35 text-error hover:bg-error/10"
+            >
+              Reject Change
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => { void handleApprove(); }}
+              isLoading={pendingAction === 'apply'}
+              loadingText="Applying..."
+              disabled={pendingAction === 'reject'}
+              className="h-9 rounded-lg"
+            >
+              Apply Changes
+            </Button>
           </div>
         </footer>
-        </div>
       </div>
+    </div>
   );
 }
