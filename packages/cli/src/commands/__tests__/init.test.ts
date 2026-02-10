@@ -18,6 +18,7 @@ vi.mock('@inquirer/prompts', () => ({
 
 vi.mock('child_process', () => ({
   execSync: vi.fn(),
+  execFile: vi.fn(),
 }));
 
 vi.mock('@speki/core', async (importOriginal) => {
