@@ -13,7 +13,7 @@ import {
   Cog6ToothIcon,
   DocumentIcon,
 } from '@heroicons/react/24/outline';
-import { CheckCircleIcon, ExclamationTriangleIcon, ClockIcon } from '@heroicons/react/20/solid';
+import { CheckCircleIcon, ExclamationTriangleIcon, ClockIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import type { SpecFileNode, SpecType } from './types';
 
 /**
@@ -133,7 +133,9 @@ export interface TreeNodeProps {
   selectedPath: string | null;
   expandedPaths: Set<string>;
   onSelect: (path: string) => void;
-  onToggle: (path: string) => void;
+  onToggle: (path: string, isOpen?: boolean) => void;
+  showLinkedSpecs?: boolean;
+  showParentLinkDecorations?: boolean;
 }
 
 export function TreeNode({
@@ -142,6 +144,8 @@ export function TreeNode({
   expandedPaths,
   onSelect,
   onToggle,
+  showLinkedSpecs = true,
+  showParentLinkDecorations = true,
 }: TreeNodeProps) {
   const isExpanded = expandedPaths.has(node.path);
   const isSelected = selectedPath === node.path;
@@ -153,15 +157,22 @@ export function TreeNode({
       <li>
         <details open={isExpanded} onToggle={(e) => {
           e.stopPropagation();
-          onToggle(node.path);
+          onToggle(node.path, e.currentTarget.open);
         }}>
           <summary className="flex items-center gap-1.5 px-2 py-1 hover:bg-sidebar-accent/50 rounded-md transition-colors cursor-pointer text-xs">
+            <ChevronRightIcon
+              className={`h-3 w-3 text-sidebar-foreground/40 transition-transform duration-150 ${
+                isExpanded ? 'rotate-90' : 'rotate-0'
+              }`}
+            />
             {isExpanded ? (
               <FolderOpenIcon className="h-3.5 w-3.5 text-warning/80" />
             ) : (
               <FolderIcon className="h-3.5 w-3.5 text-warning/80" />
             )}
-            <span className="flex-1 truncate font-medium text-sidebar-foreground/70">{node.name}</span>
+            <span className={`flex-1 truncate ${isExpanded ? 'font-semibold text-sidebar-foreground/85' : 'font-medium text-sidebar-foreground/70'}`}>
+              {node.name}
+            </span>
           </summary>
           <ul className="pl-3 border-l border-sidebar-border/30 ml-2">
             {node.children?.map((child) => (
@@ -172,6 +183,8 @@ export function TreeNode({
                 expandedPaths={expandedPaths}
                 onSelect={onSelect}
                 onToggle={onToggle}
+                showLinkedSpecs={showLinkedSpecs}
+                showParentLinkDecorations={showParentLinkDecorations}
               />
             ))}
           </ul>
@@ -186,15 +199,15 @@ export function TreeNode({
 
   return (
     <>
-      <li className={node.parentSpecId ? 'relative' : ''}>
-        {node.parentSpecId && (
+      <li className={showParentLinkDecorations && node.parentSpecId ? 'relative' : ''}>
+        {showParentLinkDecorations && node.parentSpecId && (
           <div className="absolute -left-px top-0 bottom-2 w-3 border-l border-b border-sidebar-border/40 rounded-bl" />
         )}
         <a
           role="treeitem"
           aria-selected={isSelected}
           className={`group flex items-center gap-2 px-2 py-1.5 rounded-md transition-all duration-150 cursor-pointer ${
-            node.parentSpecId ? 'ml-3' : ''
+            showParentLinkDecorations && node.parentSpecId ? 'ml-3' : ''
           } ${
             isSelected
               ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
@@ -248,7 +261,7 @@ export function TreeNode({
         </a>
       </li>
       {/* Render linked specs (tech specs under PRDs) */}
-      {node.linkedSpecs && node.linkedSpecs.length > 0 && (
+      {showLinkedSpecs && node.linkedSpecs && node.linkedSpecs.length > 0 && (
         <li className="ml-4">
           <ul className="space-y-0.5 pl-2 border-l border-sidebar-border/30">
             {node.linkedSpecs.map((child) => (
@@ -259,6 +272,8 @@ export function TreeNode({
                 expandedPaths={expandedPaths}
                 onSelect={onSelect}
                 onToggle={onToggle}
+                showLinkedSpecs={showLinkedSpecs}
+                showParentLinkDecorations={showParentLinkDecorations}
               />
             ))}
           </ul>

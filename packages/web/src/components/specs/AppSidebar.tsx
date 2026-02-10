@@ -32,6 +32,133 @@ interface AppSidebarProps extends Omit<React.ComponentProps<typeof Sidebar>, 'on
   };
 }
 
+function normalizeToFilesystemTree(nodes: SpecFileNode[]): SpecFileNode[] {
+  const fileMap = new Map<string, SpecFileNode>();
+  const directoryPaths = new Set<string>();
+
+  function collect(nodeList: SpecFileNode[]) {
+    for (const node of nodeList) {
+      if (node.type === 'directory') {
+        directoryPaths.add(node.path);
+        if (node.children) collect(node.children);
+      } else {
+        let normalizedPath = node.path;
+        // Generating placeholders are attached under file paths; show them in that file's directory.
+        if (node.isGenerating && normalizedPath.endsWith('/__generating__')) {
+          const parentFilePath = normalizedPath.slice(0, -'/__generating__'.length);
+          const lastSlash = parentFilePath.lastIndexOf('/');
+          normalizedPath = lastSlash >= 0
+            ? `${parentFilePath.slice(0, lastSlash)}/__generating__`
+            : '__generating__';
+        }
+
+        if (!fileMap.has(normalizedPath)) {
+          fileMap.set(normalizedPath, {
+            ...node,
+            path: normalizedPath,
+            parentSpecId: undefined,
+            linkedSpecs: undefined,
+          });
+        }
+      }
+
+      if (node.linkedSpecs) {
+        collect(node.linkedSpecs);
+      }
+    }
+  }
+
+  collect(nodes);
+
+  const dirMap = new Map<string, SpecFileNode & { children: SpecFileNode[] }>();
+  const roots: SpecFileNode[] = [];
+
+  function ensureDirectory(path: string): SpecFileNode & { children: SpecFileNode[] } {
+    const existing = dirMap.get(path);
+    if (existing) return existing;
+
+    const name = path.split('/').pop() || path;
+    const dirNode: SpecFileNode & { children: SpecFileNode[] } = {
+      name,
+      path,
+      type: 'directory',
+      children: [],
+    };
+    dirMap.set(path, dirNode);
+
+    const lastSlash = path.lastIndexOf('/');
+    if (lastSlash >= 0) {
+      const parentPath = path.slice(0, lastSlash);
+      const parent = ensureDirectory(parentPath);
+      parent.children.push(dirNode);
+    } else {
+      roots.push(dirNode);
+    }
+
+    return dirNode;
+  }
+
+  for (const path of directoryPaths) {
+    ensureDirectory(path);
+  }
+
+  for (const file of fileMap.values()) {
+    const lastSlash = file.path.lastIndexOf('/');
+    if (lastSlash >= 0) {
+      const parent = ensureDirectory(file.path.slice(0, lastSlash));
+      parent.children.push(file);
+    } else {
+      roots.push(file);
+    }
+  }
+
+  function sortTree(nodeList: SpecFileNode[]) {
+    nodeList.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    for (const node of nodeList) {
+      if (node.type === 'directory' && node.children) {
+        sortTree(node.children);
+      }
+    }
+  }
+
+  sortTree(roots);
+  // "specs" is the implied workspace root in this view; show its children directly.
+  if (
+    roots.length === 1 &&
+    roots[0].type === 'directory' &&
+    roots[0].path === 'specs'
+  ) {
+    return roots[0].children || [];
+  }
+
+  return roots;
+}
+
+function findAncestorDirectories(
+  nodes: SpecFileNode[],
+  targetPath: string,
+  ancestors: string[] = []
+): string[] | null {
+  for (const node of nodes) {
+    if (node.type === 'directory') {
+      const nextAncestors = [...ancestors, node.path];
+      if (node.path === targetPath) return nextAncestors;
+      if (node.children) {
+        const result = findAncestorDirectories(node.children, targetPath, nextAncestors);
+        if (result) return result;
+      }
+    } else if (node.path === targetPath) {
+      return ancestors;
+    }
+
+  }
+
+  return null;
+}
+
 export function AppSidebar({
   files,
   selectedPath,
@@ -46,8 +173,8 @@ export function AppSidebar({
   const isCollapsed = state === 'collapsed';
 
   // Inject generating spec placeholder into tree
-  const filesWithGenerating = React.useMemo(() => {
-    if (!generatingSpec) return files;
+  const filesystemFiles = React.useMemo(() => {
+    if (!generatingSpec) return normalizeToFilesystemTree(files);
 
     const genSpec = generatingSpec;
 
@@ -73,23 +200,24 @@ export function AppSidebar({
       });
     }
 
-    return injectGenerating(files);
+    return normalizeToFilesystemTree(injectGenerating(files));
   }, [files, generatingSpec]);
 
-  const handleToggle = React.useCallback((path: string) => {
+  const handleToggle = React.useCallback((path: string, isOpen?: boolean) => {
     setExpandedPaths((prev) => {
+      const currentlyOpen = prev.has(path);
+      const shouldBeOpen = isOpen ?? !currentlyOpen;
+      if (shouldBeOpen === currentlyOpen) return prev;
+
       const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
+      if (shouldBeOpen) next.add(path);
+      else next.delete(path);
       return next;
     });
   }, []);
 
   const filteredFiles = React.useMemo(() => {
-    if (!filter.trim()) return filesWithGenerating;
+    if (!filter.trim()) return filesystemFiles;
 
     const filterLower = filter.toLowerCase();
 
@@ -105,44 +233,59 @@ export function AppSidebar({
       const filteredChildren = node.children
         ?.map(filterNode)
         .filter((n): n is SpecFileNode => n !== null);
-
-      const filteredLinkedSpecs = node.linkedSpecs
-        ?.map(filterNode)
-        .filter((n): n is SpecFileNode => n !== null);
-
-      const hasMatchingChildren = (filteredChildren && filteredChildren.length > 0) ||
-                                 (filteredLinkedSpecs && filteredLinkedSpecs.length > 0);
+      const hasMatchingChildren = !!(filteredChildren && filteredChildren.length > 0);
 
       if (selfMatches || hasMatchingChildren) {
         return {
           ...node,
           children: filteredChildren,
-          linkedSpecs: filteredLinkedSpecs
+          linkedSpecs: undefined,
         };
       }
 
       return null;
     }
 
-    return filesWithGenerating.map(filterNode).filter((n): n is SpecFileNode => n !== null);
-  }, [filesWithGenerating, filter]);
+    return filesystemFiles.map(filterNode).filter((n): n is SpecFileNode => n !== null);
+  }, [filesystemFiles, filter]);
 
-  // Auto-expand all directories when filtering
-  React.useEffect(() => {
-    if (filter.trim()) {
-      const allDirPaths = new Set<string>();
-      function collectDirs(nodes: SpecFileNode[]) {
-        for (const node of nodes) {
-          if (node.type === 'directory') {
-            allDirPaths.add(node.path);
-            if (node.children) collectDirs(node.children);
-          }
+  const selectedAncestorDirectories = React.useMemo(() => {
+    if (!selectedPath) return [];
+    return findAncestorDirectories(filesystemFiles, selectedPath) || [];
+  }, [filesystemFiles, selectedPath]);
+
+  const filteredDirectoryPaths = React.useMemo(() => {
+    const allDirPaths = new Set<string>();
+    function collectDirs(nodes: SpecFileNode[]) {
+      for (const node of nodes) {
+        if (node.type === 'directory') {
+          allDirPaths.add(node.path);
+          if (node.children) collectDirs(node.children);
         }
       }
-      collectDirs(filteredFiles);
-      setExpandedPaths(allDirPaths);
     }
-  }, [filter, filteredFiles]);
+    collectDirs(filteredFiles);
+    return allDirPaths;
+  }, [filteredFiles]);
+
+  // Ensure selected spec is visible by expanding every ancestor directory.
+  React.useEffect(() => {
+    if (!selectedAncestorDirectories.length) return;
+
+    setExpandedPaths((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const path of selectedAncestorDirectories) {
+        if (!next.has(path)) {
+          next.add(path);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [selectedAncestorDirectories]);
+
+  const effectiveExpandedPaths = filter.trim() ? filteredDirectoryPaths : expandedPaths;
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -222,9 +365,11 @@ export function AppSidebar({
                     key={node.path}
                     node={node}
                     selectedPath={selectedPath}
-                    expandedPaths={expandedPaths}
+                    expandedPaths={effectiveExpandedPaths}
                     onSelect={onSelect}
                     onToggle={handleToggle}
+                    showLinkedSpecs={false}
+                    showParentLinkDecorations={false}
                   />
                 ))}
               </ul>
