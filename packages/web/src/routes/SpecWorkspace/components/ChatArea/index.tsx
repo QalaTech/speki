@@ -1,8 +1,10 @@
 import { useCallback } from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useQuirkyMessage } from '../../hooks';
 import { StatusBar } from './StatusBar';
 import { ChatInput } from './ChatInput';
 import { ConversationPopover } from './ConversationPopover';
+import { Dialog } from '../../../../components/ui/Modal';
 import type { ChatMessage } from '../../../../components/specs/types';
 import type { DiscussingContext } from '../../../../components/review/ReviewChat';
 import type { Suggestion } from '../../../../components/specs/types';
@@ -78,6 +80,9 @@ export function ChatArea({
 }: ChatAreaProps) {
   const pendingSuggestions = suggestions.filter((s) => s.status === 'pending');
   const quirkyMessage = useQuirkyMessage({ isActive: isSending });
+  const isConversationVisible = Boolean(
+    isConversationOpen && (messages.length > 0 || discussingContext || selectedContext)
+  );
 
   const handleInputFocus = useCallback(() => {
     if (messages.length > 0 || discussingContext || selectedContext) {
@@ -86,60 +91,86 @@ export function ChatArea({
   }, [messages.length, discussingContext, selectedContext, onSetConversationOpen]);
 
   return (
-    <div className="shrink-0 relative">
-      {/* Gradient fade from content to chat area */}
-      <div className="absolute inset-x-0 bottom-full h-12 bg-linear-to-t from-[#0F0F0F] to-transparent pointer-events-none" />
+    <Dialog
+      open={isConversationVisible}
+      onOpenChange={onSetConversationOpen}
+      modal={false}
+    >
+      <div className="shrink-0 relative">
+        {/* Gradient fade from content to chat area */}
+        <div className="absolute inset-x-0 bottom-full h-12 bg-linear-to-t from-[#0F0F0F] to-transparent pointer-events-none" />
 
-      {/* Visual backdrop overlay for conversation - click to dismiss */}
-      {isConversationOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 z-30 cursor-pointer"
-          onClick={() => onSetConversationOpen(false)}
-        />
-      )}
-
-      <div className="max-w-5xl mx-auto px-6 py-4 relative z-40">
-        {/* Conversation Popover */}
-        {isConversationOpen && (messages.length > 0 || discussingContext || selectedContext) && (
-          <ConversationPopover
-            messages={messages}
-            isSending={isSending}
-            quirkyMessage={quirkyMessage}
-            discussingContext={discussingContext}
-            selectedContext={selectedContext}
-            onClose={() => onSetConversationOpen(false)}
-            onClearDiscussingContext={onClearDiscussingContext}
-            onClearSelectedContext={onClearSelectedContext}
+        {/* Visual backdrop overlay for conversation - click to dismiss */}
+        {isConversationVisible && (
+          <DialogPrimitive.Overlay
+            className="fixed inset-0 bg-black/20 z-30 pointer-events-none"
           />
         )}
 
-        {/* Status Bar */}
-        <StatusBar
-          storiesCount={storiesCount}
-          isPrd={isPrd}
-          tasksVisible={tasksVisible}
-          pendingSuggestionsCount={pendingSuggestions.length}
-          isReviewPanelOpen={isReviewPanelOpen}
-          onScrollToTasks={onScrollToTasks}
-          onOpenReviewPanel={onOpenReviewPanel}
-          queueCount={queueCount}
-          onOpenQueue={onOpenQueue}
-        />
+        <div className="max-w-5xl mx-auto px-6 py-4 relative z-40">
+          {/* Conversation Popover */}
+          {isConversationVisible && (
+            <DialogPrimitive.Content
+              className="absolute bottom-full left-0 right-0 mb-2 z-40 outline-hidden"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              onCloseAutoFocus={(e) => e.preventDefault()}
+              onInteractOutside={(e) => {
+                const outsideTarget = e.detail.originalEvent.target;
+                const outsideElement =
+                  outsideTarget instanceof Element
+                    ? outsideTarget
+                    : outsideTarget instanceof Node
+                      ? outsideTarget.parentElement
+                      : null;
+                if (!outsideElement) return;
 
-        {/* Chat Input */}
-        <ChatInput
-          value={inputValue}
-          onChange={onInputChange}
-          onSend={onSendMessage}
-          onNewChat={onNewChat}
-          onStartReview={onStartReview}
-          isSending={isSending}
-          isStartingReview={isStartingReview}
-          isDiscussing={!!discussingContext || !!selectedContext}
-          onFocus={handleInputFocus}
-          focusTrigger={focusTrigger}
-        />
+                if (outsideElement.closest('[data-conversation-keep-open]')) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              <DialogPrimitive.Title className="sr-only">Conversation</DialogPrimitive.Title>
+              <ConversationPopover
+                messages={messages}
+                isSending={isSending}
+                quirkyMessage={quirkyMessage}
+                discussingContext={discussingContext}
+                selectedContext={selectedContext}
+                onClose={() => onSetConversationOpen(false)}
+                onClearDiscussingContext={onClearDiscussingContext}
+                onClearSelectedContext={onClearSelectedContext}
+              />
+            </DialogPrimitive.Content>
+          )}
+
+          {/* Status Bar */}
+          <StatusBar
+            storiesCount={storiesCount}
+            isPrd={isPrd}
+            tasksVisible={tasksVisible}
+            pendingSuggestionsCount={pendingSuggestions.length}
+            isReviewPanelOpen={isReviewPanelOpen}
+            onScrollToTasks={onScrollToTasks}
+            onOpenReviewPanel={onOpenReviewPanel}
+            queueCount={queueCount}
+            onOpenQueue={onOpenQueue}
+          />
+
+          {/* Chat Input */}
+          <ChatInput
+            value={inputValue}
+            onChange={onInputChange}
+            onSend={onSendMessage}
+            onNewChat={onNewChat}
+            onStartReview={onStartReview}
+            isSending={isSending}
+            isStartingReview={isStartingReview}
+            isDiscussing={!!discussingContext || !!selectedContext}
+            onFocus={handleInputFocus}
+            focusTrigger={focusTrigger}
+          />
+        </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

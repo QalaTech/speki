@@ -3,7 +3,6 @@ import {
   PaperAirplaneIcon,
   SparklesIcon,
   ChevronDownIcon,
-  PlusIcon,
 } from '@heroicons/react/24/outline';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { BotIcon, RotateCcw } from 'lucide-react';
@@ -89,7 +88,10 @@ export function ChatInput({
   };
 
   return (
-    <div className="rounded-2xl bg-[#1a1a1a] border border-white/10 shadow-2xl">
+    <div
+      className="rounded-2xl bg-[#1a1a1a] border border-white/10 shadow-2xl"
+      data-conversation-keep-open
+    >
       {/* Textarea - top */}
       <div className="px-4 pt-3 pb-2">
         <textarea
@@ -98,6 +100,7 @@ export function ChatInput({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={onFocus}
+          onClick={onFocus}
           placeholder={isDiscussing ? "Ask about this context..." : "Ask for follow-up changes"}
           rows={1}
           className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
@@ -115,16 +118,23 @@ export function ChatInput({
           </button> */}
           
           <SelectPrimitive.Root value={currentAgent} onValueChange={handleAgentChange}>
-            <SelectPrimitive.Trigger className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 text-xs text-muted-foreground hover:text-foreground transition-colors border-none focus:outline-none">
+            <SelectPrimitive.Trigger
+              data-conversation-keep-open
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 text-xs text-muted-foreground hover:text-foreground transition-colors border-none focus:outline-none"
+            >
               <SparklesIcon className="w-4 h-4" />
               <span>{currentAgent.charAt(0).toUpperCase() + currentAgent.slice(1)}</span>
               <ChevronDownIcon className="w-3 h-3" />
             </SelectPrimitive.Trigger>
-            <SelectContent className="bg-[#1a1a1a] border-white/10">
+            <SelectContent
+              data-conversation-keep-open
+              className="bg-[#1a1a1a] border-white/10"
+            >
               {availableClis.map((cli) => (
                 <SelectItem 
                   key={cli} 
                   value={cli}
+                  data-conversation-keep-open
                   className="text-xs text-muted-foreground focus:text-foreground focus:bg-white/5"
                 >
                   {cli.charAt(0).toUpperCase() + cli.slice(1)}

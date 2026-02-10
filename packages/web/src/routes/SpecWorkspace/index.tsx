@@ -150,6 +150,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   const [focusTrigger, setFocusTrigger] = useState(0);
   const [selectedContext, setSelectedContext] = useState<string | null>(null);
   const previousSelectedPath = useRef<string | null>(selectedPath);
+  const hasAutoOpenedReviewPanelForPath = useRef<string | null>(null);
 
   // Chat functionality
   const {
@@ -383,7 +384,29 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
       setIsReviewPanelOpen(true);
     }
     prevIsStartingReview.current = isStartingReview;
-  }, [isStartingReview]);
+  }, [isStartingReview, setIsReviewPanelOpen]);
+
+  // Auto-open review panel once per spec when there are pending comments.
+  useEffect(() => {
+    if (!selectedPath) return;
+
+    const hasPendingSuggestions = (session?.suggestions ?? []).some(
+      (suggestion) => suggestion.status === 'pending'
+    );
+    if (!hasPendingSuggestions) return;
+
+    if (isReviewPanelOpen) {
+      hasAutoOpenedReviewPanelForPath.current = selectedPath;
+      return;
+    }
+
+    if (hasAutoOpenedReviewPanelForPath.current === selectedPath) {
+      return;
+    }
+
+    setIsReviewPanelOpen(true);
+    hasAutoOpenedReviewPanelForPath.current = selectedPath;
+  }, [selectedPath, session?.suggestions, isReviewPanelOpen, setIsReviewPanelOpen]);
 
   // Reset state on spec change
   useEffect(() => {
@@ -396,7 +419,8 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     setIsConversationOpen(false);
     setSelectedContext(null);
     setIsReviewPanelOpen(false);
-  }, [selectedPath]);
+    hasAutoOpenedReviewPanelForPath.current = null;
+  }, [selectedPath, setIsReviewPanelOpen]);
 
   // Send message handler
   const handleSendMessage = useCallback(() => {

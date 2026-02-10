@@ -127,6 +127,16 @@ describe('ChatInput', () => {
     expect(onFocus).toHaveBeenCalledTimes(1);
   });
 
+  it('should call onFocus when textarea is clicked', () => {
+    const onFocus = vi.fn();
+    render(<ChatInput {...defaultProps} onFocus={onFocus} />);
+
+    const textarea = screen.getByPlaceholderText(/ask for follow-up changes/i);
+    fireEvent.click(textarea);
+
+    expect(onFocus).toHaveBeenCalledTimes(1);
+  });
+
   it('should focus textarea when focusTrigger increases', () => {
     const { rerender } = render(<ChatInput {...defaultProps} focusTrigger={0} />);
     const textarea = screen.getByPlaceholderText(/ask for follow-up changes/i);
