@@ -28,6 +28,7 @@ export default defineConfig({
         test: {
           name: 'jsdom',
           include: ['packages/web/**/*.test.{ts,tsx}'],
+          exclude: ['**/*.perf.test.ts', '**/*.perf.test.tsx'],
           environment: 'jsdom',
           setupFiles: ['./packages/web/src/test/setup.ts'],
           deps: {
