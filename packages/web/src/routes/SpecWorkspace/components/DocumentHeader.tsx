@@ -58,7 +58,7 @@ export function DocumentHeader({
               >
                 <SparklesIcon className="w-3 h-3" />
                 <span>
-                  {storiesCount} {isPrd ? 'stories' : 'tasks'}
+                  {storiesCount} {isPrd ? storiesCount === 1 ? 'story' : 'stories' : storiesCount === 1 ? 'task' : 'tasks'}
                 </span>
               </button>
             )}
