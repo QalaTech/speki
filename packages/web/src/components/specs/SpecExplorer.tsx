@@ -130,6 +130,7 @@ export function SpecExplorer({ projectPath }: SpecExplorerProps) {
     content,
     onContentChange: setContent,
     onSave: handleSave,
+    onReviewStatusChanged: refreshFiles,
   });
 
   // Chat

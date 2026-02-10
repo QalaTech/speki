@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { SparklesIcon, ArrowPathIcon, QueueListIcon, DocumentPlusIcon, PlayIcon } from '@heroicons/react/24/outline';
 import { Button } from '../../../components/ui/Button';
+import { Spinner } from '../../../components/ui/Loading';
 import { UseCaseList } from '../../../components/specs/UseCaseList';
 import type { SpecType } from '../../../components/specs/types';
 import type { UserStory, QueuedTaskReference, RalphStatus } from '../../../types';
@@ -171,7 +172,11 @@ export function TasksSection({
                 disabled={isGeneratingTechSpec}
                 className="h-7 text-xs text-primary"
               >
-                <DocumentPlusIcon className="h-3.5 w-3.5 mr-1" />
+                {isGeneratingTechSpec ? (
+                  <Spinner size="xs" className="mr-1 text-primary" />
+                ) : (
+                  <DocumentPlusIcon className="h-3.5 w-3.5 mr-1" />
+                )}
                 Generate Tech Spec
               </Button>
             )}

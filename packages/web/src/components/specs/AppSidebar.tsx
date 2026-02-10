@@ -32,109 +32,15 @@ interface AppSidebarProps extends Omit<React.ComponentProps<typeof Sidebar>, 'on
   };
 }
 
-function normalizeToFilesystemTree(nodes: SpecFileNode[]): SpecFileNode[] {
-  const fileMap = new Map<string, SpecFileNode>();
-  const directoryPaths = new Set<string>();
-
-  function collect(nodeList: SpecFileNode[]) {
-    for (const node of nodeList) {
-      if (node.type === 'directory') {
-        directoryPaths.add(node.path);
-        if (node.children) collect(node.children);
-      } else {
-        let normalizedPath = node.path;
-        // Generating placeholders are attached under file paths; show them in that file's directory.
-        if (node.isGenerating && normalizedPath.endsWith('/__generating__')) {
-          const parentFilePath = normalizedPath.slice(0, -'/__generating__'.length);
-          const lastSlash = parentFilePath.lastIndexOf('/');
-          normalizedPath = lastSlash >= 0
-            ? `${parentFilePath.slice(0, lastSlash)}/__generating__`
-            : '__generating__';
-        }
-
-        if (!fileMap.has(normalizedPath)) {
-          fileMap.set(normalizedPath, {
-            ...node,
-            path: normalizedPath,
-            parentSpecId: undefined,
-            linkedSpecs: undefined,
-          });
-        }
-      }
-
-      if (node.linkedSpecs) {
-        collect(node.linkedSpecs);
-      }
-    }
-  }
-
-  collect(nodes);
-
-  const dirMap = new Map<string, SpecFileNode & { children: SpecFileNode[] }>();
-  const roots: SpecFileNode[] = [];
-
-  function ensureDirectory(path: string): SpecFileNode & { children: SpecFileNode[] } {
-    const existing = dirMap.get(path);
-    if (existing) return existing;
-
-    const name = path.split('/').pop() || path;
-    const dirNode: SpecFileNode & { children: SpecFileNode[] } = {
-      name,
-      path,
-      type: 'directory',
-      children: [],
-    };
-    dirMap.set(path, dirNode);
-
-    const lastSlash = path.lastIndexOf('/');
-    if (lastSlash >= 0) {
-      const parentPath = path.slice(0, lastSlash);
-      const parent = ensureDirectory(parentPath);
-      parent.children.push(dirNode);
-    } else {
-      roots.push(dirNode);
-    }
-
-    return dirNode;
-  }
-
-  for (const path of directoryPaths) {
-    ensureDirectory(path);
-  }
-
-  for (const file of fileMap.values()) {
-    const lastSlash = file.path.lastIndexOf('/');
-    if (lastSlash >= 0) {
-      const parent = ensureDirectory(file.path.slice(0, lastSlash));
-      parent.children.push(file);
-    } else {
-      roots.push(file);
-    }
-  }
-
-  function sortTree(nodeList: SpecFileNode[]) {
-    nodeList.sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-    for (const node of nodeList) {
-      if (node.type === 'directory' && node.children) {
-        sortTree(node.children);
-      }
-    }
-  }
-
-  sortTree(roots);
-  // "specs" is the implied workspace root in this view; show its children directly.
+function stripSpecsRoot(nodes: SpecFileNode[]): SpecFileNode[] {
   if (
-    roots.length === 1 &&
-    roots[0].type === 'directory' &&
-    roots[0].path === 'specs'
+    nodes.length === 1 &&
+    nodes[0].type === 'directory' &&
+    nodes[0].path === 'specs'
   ) {
-    return roots[0].children || [];
+    return nodes[0].children || [];
   }
-
-  return roots;
+  return nodes;
 }
 
 function findAncestorDirectories(
@@ -150,10 +56,13 @@ function findAncestorDirectories(
         const result = findAncestorDirectories(node.children, targetPath, nextAncestors);
         if (result) return result;
       }
-    } else if (node.path === targetPath) {
-      return ancestors;
+    } else {
+      if (node.path === targetPath) return ancestors;
+      if (node.linkedSpecs) {
+        const result = findAncestorDirectories(node.linkedSpecs, targetPath, ancestors);
+        if (result) return result;
+      }
     }
-
   }
 
   return null;
@@ -173,8 +82,8 @@ export function AppSidebar({
   const isCollapsed = state === 'collapsed';
 
   // Inject generating spec placeholder into tree
-  const filesystemFiles = React.useMemo(() => {
-    if (!generatingSpec) return normalizeToFilesystemTree(files);
+  const sidebarFiles = React.useMemo(() => {
+    if (!generatingSpec) return stripSpecsRoot(files);
 
     const genSpec = generatingSpec;
 
@@ -200,7 +109,7 @@ export function AppSidebar({
       });
     }
 
-    return normalizeToFilesystemTree(injectGenerating(files));
+    return stripSpecsRoot(injectGenerating(files));
   }, [files, generatingSpec]);
 
   const handleToggle = React.useCallback((path: string, isOpen?: boolean) => {
@@ -217,7 +126,7 @@ export function AppSidebar({
   }, []);
 
   const filteredFiles = React.useMemo(() => {
-    if (!filter.trim()) return filesystemFiles;
+    if (!filter.trim()) return sidebarFiles;
 
     const filterLower = filter.toLowerCase();
 
@@ -233,26 +142,31 @@ export function AppSidebar({
       const filteredChildren = node.children
         ?.map(filterNode)
         .filter((n): n is SpecFileNode => n !== null);
-      const hasMatchingChildren = !!(filteredChildren && filteredChildren.length > 0);
+      const filteredLinkedSpecs = node.linkedSpecs
+        ?.map(filterNode)
+        .filter((n): n is SpecFileNode => n !== null);
+      const hasMatchingChildren =
+        !!(filteredChildren && filteredChildren.length > 0) ||
+        !!(filteredLinkedSpecs && filteredLinkedSpecs.length > 0);
 
       if (selfMatches || hasMatchingChildren) {
         return {
           ...node,
           children: filteredChildren,
-          linkedSpecs: undefined,
+          linkedSpecs: filteredLinkedSpecs,
         };
       }
 
       return null;
     }
 
-    return filesystemFiles.map(filterNode).filter((n): n is SpecFileNode => n !== null);
-  }, [filesystemFiles, filter]);
+    return sidebarFiles.map(filterNode).filter((n): n is SpecFileNode => n !== null);
+  }, [sidebarFiles, filter]);
 
   const selectedAncestorDirectories = React.useMemo(() => {
     if (!selectedPath) return [];
-    return findAncestorDirectories(filesystemFiles, selectedPath) || [];
-  }, [filesystemFiles, selectedPath]);
+    return findAncestorDirectories(sidebarFiles, selectedPath) || [];
+  }, [sidebarFiles, selectedPath]);
 
   const filteredDirectoryPaths = React.useMemo(() => {
     const allDirPaths = new Set<string>();
@@ -368,8 +282,6 @@ export function AppSidebar({
                     expandedPaths={effectiveExpandedPaths}
                     onSelect={onSelect}
                     onToggle={handleToggle}
-                    showLinkedSpecs={false}
-                    showParentLinkDecorations={false}
                   />
                 ))}
               </ul>

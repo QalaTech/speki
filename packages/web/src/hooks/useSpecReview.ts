@@ -14,6 +14,7 @@ interface UseSpecReviewOptions {
   content: string;
   onContentChange: (content: string) => void;
   onSave: (content: string) => Promise<void>;
+  onReviewStatusChanged?: () => Promise<unknown> | unknown;
 }
 
 interface UseSpecReviewReturn {
@@ -107,6 +108,7 @@ export function useSpecReview({
   content,
   onContentChange,
   onSave,
+  onReviewStatusChanged,
 }: UseSpecReviewOptions): UseSpecReviewReturn {
   const [session, setSession] = useState<SpecSession | null>(null);
   const [isStartingReview, setIsStartingReview] = useState(false);
@@ -123,6 +125,14 @@ export function useSpecReview({
     const separator = endpoint.includes('?') ? '&' : '?';
     return `${endpoint}${separator}project=${encodeURIComponent(projectPath)}`;
   }, [projectPath]);
+
+  const notifyReviewStatusChanged = useCallback(async () => {
+    try {
+      await onReviewStatusChanged?.();
+    } catch (error) {
+      console.error('Failed to refresh review status indicators:', error);
+    }
+  }, [onReviewStatusChanged]);
 
   // Get review status for current file
   const getReviewStatus = useCallback((): ReviewStatus => {
@@ -155,6 +165,9 @@ export function useSpecReview({
       });
       const data = await res.json();
 
+      // Reflect the new in-progress status in sidebar/tree indicators.
+      await notifyReviewStatusChanged();
+
       // Poll for completion
       const sessionId = data.sessionId;
       let completed = false;
@@ -172,12 +185,15 @@ export function useSpecReview({
           }
         }
       }
+
+      // Reflect completed review status once review run finishes.
+      await notifyReviewStatusChanged();
     } catch (err) {
       console.error('Failed to start review:', err);
     } finally {
       setIsStartingReview(false);
     }
-  }, [selectedPath, session?.sessionId, apiUrl]);
+  }, [selectedPath, session?.sessionId, apiUrl, notifyReviewStatusChanged]);
 
   // Handle review diff for a suggestion
   const handleReviewDiff = useCallback((suggestion: Suggestion) => {
@@ -271,11 +287,13 @@ export function useSpecReview({
             ),
           };
         });
+
+        await notifyReviewStatusChanged();
       }
     } catch (error) {
       console.error('Failed to update suggestion:', error);
     }
-  }, [session?.sessionId, session?.suggestions, content, apiUrl, onSave, onContentChange]);
+  }, [session?.sessionId, session?.suggestions, content, apiUrl, onSave, onContentChange, notifyReviewStatusChanged]);
 
   // Fetch session when selection changes
   useEffect(() => {
@@ -333,21 +351,22 @@ export function useSpecReview({
       try {
         const res = await apiFetch(apiUrl(`/api/sessions/spec/${encodeURIComponent(selectedPath)}`));
         if (res.ok) {
-          const data = await res.json();
-          if (data.session && data.session.status !== 'in_progress') {
-            // Review completed or errored - update session
-            setSession(data.session);
+            const data = await res.json();
+            if (data.session && data.session.status !== 'in_progress') {
+              // Review completed or errored - update session
+              setSession(data.session);
+              await notifyReviewStatusChanged();
+            }
           }
+        } catch (error) {
+          console.error('Failed to poll session status:', error);
         }
-      } catch (error) {
-        console.error('Failed to poll session status:', error);
-      }
     }, 3000);
 
     return () => {
       clearInterval(pollInterval);
     };
-  }, [session?.status, selectedPath, apiUrl]);
+  }, [session?.status, selectedPath, apiUrl, notifyReviewStatusChanged]);
 
   // Handle bulk suggestion action
   const handleBulkSuggestionAction = useCallback(async (
@@ -381,7 +400,9 @@ export function useSpecReview({
         }).catch(err => console.error(`Failed to update suggestion ${id}:`, err))
       )
     );
-  }, [session?.sessionId, apiUrl]);
+
+    await notifyReviewStatusChanged();
+  }, [session?.sessionId, apiUrl, notifyReviewStatusChanged]);
 
   return {
     session,

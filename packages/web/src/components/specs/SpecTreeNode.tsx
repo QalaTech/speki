@@ -13,8 +13,9 @@ import {
   Cog6ToothIcon,
   DocumentIcon,
 } from '@heroicons/react/24/outline';
-import { CheckCircleIcon, ExclamationTriangleIcon, ClockIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
+import { ExclamationTriangleIcon, ClockIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import type { SpecFileNode, SpecType } from './types';
+import { Spinner } from '../ui/Loading';
 
 /**
  * Detect spec type from filename
@@ -79,8 +80,6 @@ export function formatSpecDisplayName(filename: string, parentPath?: string) {
 
 function getStatusIcon(status?: string) {
   switch (status) {
-    case 'reviewed':
-      return <CheckCircleIcon className="h-3.5 w-3.5 text-success" />;
     case 'pending':
       return <ExclamationTriangleIcon className="h-3.5 w-3.5 text-warning" />;
     case 'god-spec':
@@ -201,7 +200,7 @@ export function TreeNode({
     <>
       <li className={showParentLinkDecorations && node.parentSpecId ? 'relative' : ''}>
         {showParentLinkDecorations && node.parentSpecId && (
-          <div className="absolute -left-px top-0 bottom-2 w-3 border-l border-b border-sidebar-border/40 rounded-bl" />
+          <div className="absolute -left-px top-0 bottom-2 w-3 border-l border-b border-gray-500 rounded-bl" />
         )}
         <a
           role="treeitem"
@@ -233,7 +232,7 @@ export function TreeNode({
               </span>
               <div className="shrink-0 flex items-center gap-1">
                 {isGenerating ? (
-                  <ClockIcon className="h-3 w-3 animate-spin text-sidebar-primary/60" />
+                  <Spinner size="xs" className="text-sidebar-primary" />
                 ) : (
                   node.reviewStatus && node.reviewStatus !== 'none' && (
                     <div className="scale-75">
@@ -263,7 +262,7 @@ export function TreeNode({
       {/* Render linked specs (tech specs under PRDs) */}
       {showLinkedSpecs && node.linkedSpecs && node.linkedSpecs.length > 0 && (
         <li className="ml-4">
-          <ul className="space-y-0.5 pl-2 border-l border-sidebar-border/30">
+          <ul className="space-y-1 pl-2">
             {node.linkedSpecs.map((child) => (
               <TreeNode
                 key={child.path}
