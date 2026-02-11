@@ -26,7 +26,7 @@ export const EditorSection = forwardRef<SpecEditorRef, EditorSectionProps>(
       <div className="mb-8">
         <div
           ref={containerRef}
-          className="bg-card/50 border border-white/3 rounded-xl overflow-hidden relative shadow-lg"
+          className="bg-card/50 border border-white/3 rounded-xl relative shadow-lg"
           onMouseUp={handleMouseUp}
         >
           {selection && (
