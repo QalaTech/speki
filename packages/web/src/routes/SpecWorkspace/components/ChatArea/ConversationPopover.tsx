@@ -176,11 +176,8 @@ export function ConversationPopover({
   onClearSelectedContext,
 }: ConversationPopoverProps) {
   const conversationRef = useRef<HTMLDivElement>(null);
-
-  const formatTimestamp = (timestamp: string): string => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const userBubbleClass =
+    'inline-block max-w-[85%] bg-tertiary text-tertiary-foreground rounded-2xl rounded-br-md px-4 py-2.5 text-left';
 
   // Keep latest content in view (messages + compose context banners).
   useEffect(() => {
@@ -213,35 +210,31 @@ export function ConversationPopover({
             if (parsed.contextType !== 'none') {
               return (
                 <div key={msg.id} className="text-right">
-                  <div className="inline-block max-w-[88%] rounded-2xl rounded-br-md px-4 py-3 text-left bg-linear-to-br from-primary/80 to-primary/60 text-primary-foreground shadow-lg">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="text-[10px] uppercase tracking-wider font-bold text-primary-foreground/80">You</span>
-                      <span className="text-[10px] text-primary-foreground/70">{formatTimestamp(msg.timestamp)}</span>
-                    </div>
+                  <div className={userBubbleClass}>
                     {parsed.contextType === 'selection' && parsed.selectedSnippet && (
-                      <div className="bg-black/20 border border-white/15 rounded-lg px-3 py-2 mb-2">
-                        <p className="text-sm italic text-primary-foreground/95 break-words">
+                      <div className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 mb-2">
+                        <p className="text-sm italic text-tertiary-foreground/95 break-words">
                           {parsed.selectedSnippet}
                         </p>
                       </div>
                     )}
                     {parsed.contextType === 'suggestion' && (parsed.issue || parsed.suggestedFix) && (
-                      <div className="bg-black/20 border border-white/15 rounded-lg px-3 py-2 mb-2">
+                      <div className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 mb-2">
                         {parsed.issue && (
-                          <p className="text-sm italic text-primary-foreground/95 break-words">
+                          <p className="text-sm italic text-tertiary-foreground/95 break-words">
                             {parsed.issue}
                           </p>
                         )}
                         {parsed.suggestedFix && (
-                          <p className="mt-2 text-xs text-primary-foreground/85 break-words">
-                            <span className="font-semibold text-primary-foreground/95">Previous suggestion:</span>{' '}
+                          <p className="mt-2 text-xs text-tertiary-foreground/85 break-words">
+                            <span className="font-semibold text-tertiary-foreground/95">Previous suggestion:</span>{' '}
                             {parsed.suggestedFix}
                           </p>
                         )}
                       </div>
                     )}
                     {parsed.question && (
-                      <p className="text-sm leading-relaxed text-primary-foreground">{parsed.question}</p>
+                      <p className="text-sm leading-relaxed text-tertiary-foreground">{parsed.question}</p>
                     )}
                   </div>
                 </div>
@@ -250,7 +243,7 @@ export function ConversationPopover({
 
             return (
               <div key={msg.id} className="text-right">
-                <div className="inline-block max-w-[85%] bg-tertiary text-tertiary-foreground rounded-2xl rounded-br-md px-4 py-2.5 text-left">
+                <div className={userBubbleClass}>
                   <p className="text-sm">{msg.content}</p>
                   {msg.suggestionId && (
                     <div className="mt-1.5 text-[10px] text-tertiary-foreground/70 italic flex items-center gap-1">

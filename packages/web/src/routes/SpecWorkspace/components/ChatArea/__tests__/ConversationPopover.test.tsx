@@ -153,6 +153,30 @@ describe('ConversationPopover', () => {
     expect(screen.getByText('Is this another?')).toBeInTheDocument();
   });
 
+  it('should style contextual user messages like normal user bubbles without header meta', () => {
+    const selectionMessage: ChatMessage = {
+      id: 'u-meta',
+      role: 'user',
+      content: '[Selection: "Quoted line"]\n\nWhat do you think?',
+      timestamp: '2024-01-01T19:20:00Z',
+    };
+
+    render(
+      <ConversationPopover
+        {...defaultProps}
+        messages={[selectionMessage]}
+      />
+    );
+
+    const question = screen.getByText('What do you think?');
+    const bubble = question.closest('div.bg-tertiary');
+    expect(bubble).toBeInTheDocument();
+    expect(screen.queryByText(/^you$/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText((content) => /^\d{1,2}:\d{2}(\s?[AP]M)?$/.test(content))
+    ).not.toBeInTheDocument();
+  });
+
   it('should render structured selection message when selected text includes quotes', () => {
     const selectionMessage: ChatMessage = {
       id: 'u-quoted',
