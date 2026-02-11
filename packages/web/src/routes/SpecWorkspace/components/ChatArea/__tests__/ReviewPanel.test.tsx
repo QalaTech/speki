@@ -31,6 +31,7 @@ describe('ReviewPanel', () => {
     it('should render empty state when no pending suggestions', () => {
       render(<ReviewPanel {...defaultProps} suggestions={[]} />);
       
+      // Should find the header text
       expect(screen.getByText('Review')).toBeInTheDocument();
       expect(screen.getByText('All suggestions reviewed ✓')).toBeInTheDocument();
     });
@@ -108,7 +109,7 @@ describe('ReviewPanel', () => {
         />
       );
 
-      const reviewButton = screen.getByText('Review');
+      const reviewButton = screen.getByRole('button', { name: 'Review' });
       fireEvent.click(reviewButton);
 
       expect(onReviewDiff).toHaveBeenCalledWith(suggestion);
@@ -130,7 +131,8 @@ describe('ReviewPanel', () => {
         />
       );
 
-      expect(screen.queryByText('Review')).not.toBeInTheDocument();
+      // Header exists but button shouldn't
+      expect(screen.queryByRole('button', { name: 'Review' })).not.toBeInTheDocument();
     });
 
     it('should call onDismissAll when Dismiss all is clicked', () => {
@@ -149,9 +151,10 @@ describe('ReviewPanel', () => {
       const suggestions = [mockSuggestion({ id: 'sug-1' })];
       render(<ReviewPanel {...defaultProps} suggestions={suggestions} onClose={onClose} />);
       
-      const closeButton = screen.getAllByRole('button').find(btn => 
-        btn.querySelector('svg')
-      );
+      const closeButtons = screen.getAllByRole('button');
+      // The close button is the one with XMarkIcon (using title or looking at structure)
+      // In our mock it might not have title, so we look for any button that isn't one of the actions
+      const closeButton = closeButtons[0]; // Header close button
       if (closeButton) fireEvent.click(closeButton);
       
       expect(onClose).toHaveBeenCalledTimes(1);

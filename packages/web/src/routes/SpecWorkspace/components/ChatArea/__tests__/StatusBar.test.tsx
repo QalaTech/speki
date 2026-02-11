@@ -15,9 +15,9 @@ describe('StatusBar', () => {
     onOpenQueue: vi.fn(),
   };
 
-  it('should return null when no tasks indicator or suggestions', () => {
-    const { container } = render(<StatusBar {...defaultProps} storiesCount={0} />);
-    expect(container.firstChild).toBeNull();
+  it('should show queue indicator even when no stories or suggestions', () => {
+    render(<StatusBar {...defaultProps} storiesCount={0} />);
+    expect(screen.getByText(/View execution queue/i)).toBeInTheDocument();
   });
 
   it('should show tasks below indicator when tasks not visible', () => {
@@ -61,14 +61,14 @@ describe('StatusBar', () => {
 
   it('should show queue count', () => {
     render(<StatusBar {...defaultProps} queueCount={3} onOpenQueue={vi.fn()} />);
-    expect(screen.getByText(/View execution log \(3 total tasks\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/View execution queue \(3 total tasks\)/i)).toBeInTheDocument();
   });
 
   it('should call onOpenQueue when queue indicator clicked', () => {
     const onOpenQueue = vi.fn();
     render(<StatusBar {...defaultProps} queueCount={3} onOpenQueue={onOpenQueue} />);
 
-    const queueIndicator = screen.getByText(/View execution log/i);
+    const queueIndicator = screen.getByText(/View execution queue/i);
     fireEvent.click(queueIndicator);
 
     expect(onOpenQueue).toHaveBeenCalledTimes(1);
