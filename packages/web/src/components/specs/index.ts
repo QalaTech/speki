@@ -4,16 +4,9 @@ export type { SpecFileNode } from './SpecTree';
 
 export { SpecNavBar } from './SpecNavBar';
 
-export { SpecHeader } from './SpecHeader';
-export type { SpecTab } from './SpecHeader';
-
 export { SpecPreviewTab } from './SpecPreviewTab';
 
-export { SpecDecomposeTab } from './SpecDecomposeTab';
-
 export { SpecEditorModal } from './SpecEditorModal';
-
-export { SpecExplorer } from './SpecExplorer';
 
 export { SpecDashboard } from './SpecDashboard';
 
