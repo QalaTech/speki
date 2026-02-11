@@ -96,7 +96,6 @@ export function useSpecEditor(initialContent: string = ''): UseSpecEditorReturn 
       content,
       isDirty: true,
     }));
-    editorRef.current?.setMarkdown(content);
   }, []);
 
   const markClean = useCallback((): void => {

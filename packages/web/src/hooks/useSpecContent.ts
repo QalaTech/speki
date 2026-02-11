@@ -46,7 +46,6 @@ export function useSpecContent({
 
   // Handle content change in editor
   const handleContentChange = useCallback((newContent: string) => {
-    console.log('[useSpecContent] handleContentChange called, content length:', newContent.length);
     setContent(newContent);
     setHasUnsavedChanges(true);
   }, []);
