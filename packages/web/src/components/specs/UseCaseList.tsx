@@ -195,7 +195,6 @@ function UseCaseItem({
   const isBlocked = status === "blocked";
   const isRunning = status === "running" || queuedStatus === "running";
   const showContent = alwaysExpanded || isExpanded || isEditing;
-  const isVisuallyExpanded = !alwaysExpanded && showContent;
 
   const editorRef = useRef<SpecEditorRef>(null);
   const [editContent, setEditContent] = useState("");
