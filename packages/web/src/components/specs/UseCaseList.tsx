@@ -194,8 +194,8 @@ function UseCaseItem({
   const isCompleted = status === "completed";
   const isBlocked = status === "blocked";
   const isRunning = status === "running" || queuedStatus === "running";
-  const showContent = alwaysExpanded || isExpanded;
-  const isVisuallyExpanded = !alwaysExpanded && showContent && !isEditing;
+  const showContent = alwaysExpanded || isExpanded || isEditing;
+  const isVisuallyExpanded = !alwaysExpanded && showContent;
 
   const editorRef = useRef<SpecEditorRef>(null);
   const [editContent, setEditContent] = useState("");
@@ -228,7 +228,7 @@ function UseCaseItem({
   };
 
   return (
-    <div className={`use-case-item group ${isEditing ? "editing" : ""} ${isVisuallyExpanded ? "expanded" : ""}`}>
+    <div className={`use-case-item group ${isEditing ? "editing" : ""} ${isExpanded ? "expanded" : ""}`}>
       {/* Header row with grid layout: checkbox | ID | title | status | actions */}
       <div
         className={`use-case-header grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-3 py-2.5 ${!alwaysExpanded ? "cursor-pointer" : ""}`}
@@ -373,13 +373,13 @@ function UseCaseItem({
       </Modal>
 
       {/* Content - always visible when alwaysExpanded, otherwise when expanded */}
-      {showContent && !isEditing && (
+      {showContent && (
         <div
           className={`use-case-content space-y-3 text-sm ${
-            isVisuallyExpanded
+            isExpanded
               ? "mt-2 rounded-md border border-border/45 bg-background/35 px-3 py-3"
               : "pt-3 pb-3 mt-2 border-t border-border/30"
-          } ${!alwaysExpanded ? "animate-in slide-in-from-top-1 duration-150" : ""}`}
+          } ${!alwaysExpanded ? "animate-in slide-in-from-top-1 duration-150" : ""} ${isEditing ? "opacity-40 pointer-events-none" : ""}`}
         >
           {/* Description */}
           <div className="text-muted-foreground w-full">
@@ -509,12 +509,6 @@ export function UseCaseList({
 
   const startEditing = (id: string) => {
     setEditingId(id);
-    // Ensure the item is expanded when editing
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
   };
 
   const cancelEditing = () => {
