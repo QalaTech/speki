@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { ExecutionViewProps } from "../components/execution/ExecutionView";
 import { ExecutionView } from "../components/execution/ExecutionView";
-import { SpecDashboard, SpecExplorer } from "../components/specs";
+import { SpecDashboard } from "../components/specs";
 import { DecomposeView } from "./DecomposeView";
 import { SettingsView } from "./SettingsView";
 import { HomePage } from "./HomePage";
@@ -49,14 +49,6 @@ export function AppRoutes({
       />
       <Route
         path="/spec-review"
-        element={
-          selectedProject ? (
-            <SpecExplorer projectPath={selectedProject} />
-          ) : null
-        }
-      />
-      <Route
-        path="/workspace"
         element={
           selectedProject ? (
             <SpecWorkspace projectPath={selectedProject} />
