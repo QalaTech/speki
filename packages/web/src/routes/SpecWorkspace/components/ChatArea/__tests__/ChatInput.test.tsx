@@ -57,12 +57,32 @@ describe('ChatInput', () => {
     expect(onSend).toHaveBeenCalledTimes(1);
   });
 
+  it('should call onSend only once when Cmd+Enter is pressed', () => {
+    const onSend = vi.fn();
+    render(<ChatInput {...defaultProps} value="Hello" onSend={onSend} />);
+
+    const textarea = screen.getByPlaceholderText(/ask for follow-up changes/i);
+    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true });
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
   it('should not call onSend when Enter+Shift is pressed', () => {
     const onSend = vi.fn();
     render(<ChatInput {...defaultProps} value="Hello" onSend={onSend} />);
 
     const textarea = screen.getByPlaceholderText(/ask for follow-up changes/i);
     fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true });
+
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('should not call onSend when Enter is pressed while sending', () => {
+    const onSend = vi.fn();
+    render(<ChatInput {...defaultProps} value="Hello" onSend={onSend} isSending={true} />);
+
+    const textarea = screen.getByPlaceholderText(/ask for follow-up changes/i);
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
 
     expect(onSend).not.toHaveBeenCalled();
   });
