@@ -138,23 +138,27 @@ const KNOWN_MODELS: Record<CliType, string[]> = {
     'gemini-3-pro-preview',
   ],
   claude: [
-    // Latest Claude 4.5 models (recommended)
+    // Latest Claude 4.6 model (recommended)
+    'claude-opus-4-6',             // Claude Opus 4.6 - most intelligent, 200K/1M context
+    // Claude 4.5 models
     'claude-sonnet-4-5-20250929',  // Claude Sonnet 4.5 - best balance of intelligence/speed/cost
-    'claude-opus-4-5-20251101',    // Claude Opus 4.5 - maximum intelligence
     'claude-haiku-4-5-20251001',   // Claude Haiku 4.5 - fastest with near-frontier intelligence
     // Aliases (auto-point to latest snapshot)
     'claude-sonnet-4-5',
-    'claude-opus-4-5',
     'claude-haiku-4-5',
     // Legacy models
+    'claude-opus-4-5-20251101',    // Claude Opus 4.5
+    'claude-opus-4-5',
     'claude-sonnet-4-20250514',    // Claude Sonnet 4
     'claude-opus-4-20250514',      // Claude Opus 4
   ],
   codex: [
     // Latest Codex-optimized models (recommended)
-    'gpt-5.2-codex',               // Most advanced agentic coding model
+    'gpt-5.3-codex',               // Most capable agentic coding model
+    'gpt-5.2-codex',               // Advanced agentic coding model
     'gpt-5.1-codex-mini',          // Economical alternative
     'gpt-5.1-codex-max',           // Extended agentic coding tasks
+    'gpt-5-codex-mini',            // Smaller cost-effective option
     // General GPT-5 models
     'gpt-5.2',                     // General-purpose agentic model
     'gpt-5.1',                     // Strong for coding and agentic work

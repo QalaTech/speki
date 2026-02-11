@@ -372,13 +372,13 @@ router.get('/models', async (req: Request, res: Response) => {
     object: 'list',
     data: [
       {
-        id: 'claude-sonnet-4',
+        id: 'claude-opus-4-6',
         object: 'model',
         created: Date.now(),
         owned_by: 'qala-ralph',
       },
       {
-        id: 'claude-opus-4',
+        id: 'claude-sonnet-4-5',
         object: 'model',
         created: Date.now(),
         owned_by: 'qala-ralph',
