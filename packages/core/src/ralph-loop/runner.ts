@@ -249,27 +249,7 @@ export async function runRalphLoop(
       console.log(`  ${chalk.cyan('JSONL saved:')} ${result.jsonlPath}`);
       console.log(`  ${chalk.cyan('Duration:')} ${Math.round(result.durationMs / 1000)}s`);
 
-      if (result.isComplete) {
-        console.log('');
-        console.log(chalk.green('╔═══════════════════════════════════════════════════════════════╗'));
-        console.log(chalk.green('║  ✅ All stories complete!                                      ║'));
-        console.log(chalk.green(`║  Finished at iteration ${iteration}                                       ║`));
-        console.log(chalk.green('╚═══════════════════════════════════════════════════════════════╝'));
-
-        // Reload PRD to get final state
-        prd = (await loadPRD()) || prd;
-        storiesCompleted = prd.userStories.filter((s) => s.passes).length - initialCompleted;
-
-        onIterationEnd?.(iteration, true, true);
-
-        return {
-          allComplete: true,
-          iterationsRun: iteration,
-          storiesCompleted,
-          finalPrd: prd,
-        };
-      }
-
+      // Don't trust Claude's isComplete signal - check actual task state instead
       const newPrd = await loadPRD();
       if (newPrd) {
         const oldCompleted = prd.userStories.filter((s) => s.passes).length;
@@ -286,6 +266,26 @@ export async function runRalphLoop(
         if (newCompleted > oldCompleted) {
           console.log(chalk.green(`  ✓ Story completed! (${oldCompleted} → ${newCompleted})`));
           storiesCompleted++;
+
+          // Check if ALL tasks are now complete
+          const allComplete = newPrd.userStories.every((s) => s.passes);
+          if (allComplete) {
+            console.log('');
+            console.log(chalk.green('╔═══════════════════════════════════════════════════════════════╗'));
+            console.log(chalk.green('║  ✅ All stories complete!                                      ║'));
+            console.log(chalk.green(`║  Finished at iteration ${iteration}                                       ║`));
+            console.log(chalk.green('╚═══════════════════════════════════════════════════════════════╝'));
+
+            onIterationEnd?.(iteration, true, true);
+
+            return {
+              allComplete: true,
+              iterationsRun: iteration,
+              storiesCompleted,
+              finalPrd: prd,
+            };
+          }
+
           onIterationEnd?.(iteration, true, false);
         } else {
           console.log(chalk.yellow('  ⚠ No story marked complete this iteration'));

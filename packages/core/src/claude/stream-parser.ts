@@ -197,7 +197,9 @@ export async function parseStream(
   return {
     fullText: state.fullText,
     toolCalls: state.toolCalls,
-    isComplete: state.fullText.includes('<promise>COMPLETE</promise>'),
+    // Only mark complete if the response ENDS with the completion tag (with optional whitespace)
+    // This prevents false positives when Claude mentions the tag in explanations
+    isComplete: /\<promise\>COMPLETE\<\/promise\>\s*$/.test(state.fullText),
   };
 }
 

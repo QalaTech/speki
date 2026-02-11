@@ -185,7 +185,7 @@ tasksCommand
         const context = {
           project: {
             name: queue.projectName,
-            branch: queue.branchName || config.branchName,
+            branch: queue.branchName || config?.branchName || 'unknown',
           },
           currentTask: task,
           specId,
@@ -235,7 +235,7 @@ tasksCommand
       const context = {
         project: {
           name: prd.projectName,
-          branch: prd.branchName || config.branchName,
+          branch: prd.branchName || config?.branchName || 'unknown',
         },
         currentTask: nextTask,
         completedDependencies,

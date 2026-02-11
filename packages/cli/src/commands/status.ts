@@ -99,10 +99,10 @@ export const statusCommand = new Command('status')
         return;
       }
 
-      console.log(chalk.bold(`Project: ${config.name}`));
-      console.log(`  ${chalk.gray('Path:')} ${config.path}`);
-      console.log(`  ${chalk.gray('Branch:')} ${config.branchName}`);
-      console.log(`  ${chalk.gray('Language:')} ${config.language}`);
+      console.log(chalk.bold(`Project: ${config?.name ?? 'Unknown'}`));
+      console.log(`  ${chalk.gray('Path:')} ${config?.path ?? projectPath}`);
+      console.log(`  ${chalk.gray('Branch:')} ${config?.branchName ?? 'N/A'}`);
+      console.log(`  ${chalk.gray('Language:')} ${config?.language ?? 'N/A'}`);
       console.log('');
 
       // Ralph status

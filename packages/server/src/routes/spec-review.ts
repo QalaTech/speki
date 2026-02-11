@@ -39,7 +39,7 @@ router.post('/chat/stream', async (req, res) => {
   });
 
   try {
-    const { sessionId, message, suggestionId, selectedText, specPath } = req.body;
+    const { sessionId, message, suggestionId, selectedText, specPath, discussingContext } = req.body;
 
     if (!message) {
       console.log('[chat/stream] ERROR: No message provided');
@@ -93,6 +93,12 @@ router.post('/chat/stream', async (req, res) => {
 Issue: ${suggestion.issue}
 Your previous suggestion: ${suggestion.suggestedFix}
 
+User's question: ${message}`;
+      } else if (discussingContext?.issue) {
+        // Use passed context for decompose review issues (not stored server-side)
+        messageContent = `[Discussing Review Finding]
+Issue: ${discussingContext.issue}
+${discussingContext.suggestedFix ? `Suggested fix: ${discussingContext.suggestedFix}\n` : ''}
 User's question: ${message}`;
       }
     }
@@ -1144,7 +1150,7 @@ router.put('/suggestion', async (req, res) => {
  */
 router.post('/chat', async (req, res) => {
   try {
-    const { sessionId, message, suggestionId, selectedText, specPath } = req.body;
+    const { sessionId, message, suggestionId, selectedText, specPath, discussingContext } = req.body;
 
     if (!message) {
       return res.status(400).json({ error: 'message is required' });
@@ -1196,6 +1202,12 @@ router.post('/chat', async (req, res) => {
 Issue: ${suggestion.issue}
 Your previous suggestion: ${suggestion.suggestedFix}
 
+User's question: ${message}`;
+      } else if (discussingContext?.issue) {
+        // Use passed context for decompose review issues (not stored server-side)
+        messageContent = `[Discussing Review Finding]
+Issue: ${discussingContext.issue}
+${discussingContext.suggestedFix ? `Suggested fix: ${discussingContext.suggestedFix}\n` : ''}
 User's question: ${message}`;
       }
     }
