@@ -15,6 +15,11 @@ const GEMINI_TIMEOUT_MS = 300000;
 /** Default model to use when none is specified */
 const DEFAULT_GEMINI_MODEL = 'gemini-3-flash-preview';
 
+/** Gemini models to try if preview capacity is exhausted */
+const GEMINI_CAPACITY_FALLBACK_MODELS = [
+  'gemini-2.5-flash'
+];
+
 /** Maximum output size to prevent memory exhaustion (10MB) */
 const MAX_OUTPUT_SIZE = 10 * 1024 * 1024;
 
@@ -33,6 +38,41 @@ const MAX_NORM_LINES = 10000;
 /** Maximum session history entries */
 const MAX_SESSION_HISTORY = 100;
 
+/** Markers returned by Gemini when the selected model has no serving capacity */
+const GEMINI_CAPACITY_ERROR_PATTERNS = [
+  'RESOURCE_EXHAUSTED',
+  'MODEL_CAPACITY_EXHAUSTED',
+  'No capacity available for model',
+];
+const GEMINI_CAPACITY_RETRY_DELAYS_MS = [1000, 2000, 4000];
+
+function resolveGeminiModel(model?: string): string {
+  return model && VALID_MODEL_PATTERN.test(model) ? model : DEFAULT_GEMINI_MODEL;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isGeminiCapacityError(stderr: string): boolean {
+  return GEMINI_CAPACITY_ERROR_PATTERNS.some((pattern) => stderr.includes(pattern));
+}
+
+function getGeminiFallbackModel(currentModel: string, attemptedModels: Set<string>): string | undefined {
+  const candidates: string[] = [];
+
+  candidates.push(...GEMINI_CAPACITY_FALLBACK_MODELS);
+
+  for (const candidate of candidates) {
+    if (!VALID_MODEL_PATTERN.test(candidate)) continue;
+    if (candidate === currentModel) continue;
+    if (attemptedModels.has(candidate)) continue;
+    return candidate;
+  }
+
+  return undefined;
+}
+
 /**
  * Build Gemini CLI spawn arguments
  */
@@ -43,7 +83,7 @@ function buildGeminiArgs(model?: string, outputFormat: 'stream-json' | 'json' = 
     '--output-format', outputFormat,
   ];
 
-  const validatedModel = model && VALID_MODEL_PATTERN.test(model) ? model : DEFAULT_GEMINI_MODEL;
+  const validatedModel = resolveGeminiModel(model);
   args.push('-m', validatedModel);
 
   return args;
@@ -124,9 +164,19 @@ export class GeminiCliEngine implements Engine {
   }
 
   async runStream(options: RunStreamOptions): Promise<RunStreamResult> {
+    return this.runStreamWithRetry(options, new Set<string>(), 0);
+  }
+
+  private async runStreamWithRetry(
+    options: RunStreamOptions,
+    attemptedModels: Set<string>,
+    capacityRetryAttempt: number
+  ): Promise<RunStreamResult> {
     const { promptPath, cwd, logDir, iteration, callbacks, model } = options;
 
     await fs.mkdir(logDir, { recursive: true });
+    const selectedModel = resolveGeminiModel(model);
+    attemptedModels.add(selectedModel);
 
     const jsonlPath = join(logDir, `iteration_${iteration}.jsonl`);
     const normPath = join(logDir, `iteration_${iteration}.norm.jsonl`);
@@ -194,6 +244,8 @@ export class GeminiCliEngine implements Engine {
     let pendingText = ''; // Buffer for onText callbacks to avoid too many small chunks
     let outputSize = 0;
     let terminatedDueToSize = false;
+    let sawCapacityError = false;
+    let stderrTail = '';
     const seenTools = new Set<string>();
     const normalizer = new GeminiStreamNormalizer();
 
@@ -342,6 +394,17 @@ export class GeminiCliEngine implements Engine {
       normStream.end();
     });
 
+    gemini.stderr.on('data', (chunk: Buffer) => {
+      if (!sawCapacityError) {
+        const chunkText = chunk.toString();
+        const combined = stderrTail + chunkText;
+        if (isGeminiCapacityError(combined)) {
+          sawCapacityError = true;
+        }
+        // Keep a small tail so split error markers across chunks are still detected.
+        stderrTail = combined.slice(-200);
+      }
+    });
     gemini.stderr.pipe(stderrStream);
 
     // Send prompt to stdin
@@ -358,6 +421,28 @@ export class GeminiCliEngine implements Engine {
           isComplete = false;
         }
 
+        const success = code === 0 && !terminatedDueToSize;
+        const hasCapacityError = !success && sawCapacityError;
+        if (hasCapacityError && capacityRetryAttempt < GEMINI_CAPACITY_RETRY_DELAYS_MS.length) {
+          const delayMs = GEMINI_CAPACITY_RETRY_DELAYS_MS[capacityRetryAttempt];
+          logger.warn(
+            `Gemini model ${selectedModel} capacity exhausted; retrying in ${delayMs}ms (attempt ${capacityRetryAttempt + 1}/${GEMINI_CAPACITY_RETRY_DELAYS_MS.length})`,
+            'gemini-cli'
+          );
+          await sleep(delayMs);
+          resolve(await this.runStreamWithRetry(options, attemptedModels, capacityRetryAttempt + 1));
+          return;
+        }
+
+        const fallbackModel = hasCapacityError
+          ? getGeminiFallbackModel(selectedModel, attemptedModels)
+          : undefined;
+        if (fallbackModel) {
+          logger.warn(`Gemini model ${selectedModel} capacity exhausted; retrying with ${fallbackModel}`, 'gemini-cli');
+          resolve(await this.runStreamWithRetry({ ...options, model: fallbackModel }, attemptedModels, 0));
+          return;
+        }
+
         // Save conversation history for session emulation
         if (options.sessionId) {
           const historyPath = join(logDir, `session_${options.sessionId}_history.json`);
@@ -371,7 +456,7 @@ export class GeminiCliEngine implements Engine {
         }
 
         resolve({
-          success: code === 0 && !terminatedDueToSize,
+          success,
           isComplete,
           durationMs,
           output,

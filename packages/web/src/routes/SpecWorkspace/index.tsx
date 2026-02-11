@@ -240,11 +240,12 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   // Refresh queue tasks when execution stops
   const wasRunning = useRef(false);
   useEffect(() => {
-    if (wasRunning.current && ralphStatus?.status === 'stopped') {
-      loadQueueTasks();
+    const isRunningNow = ralphStatus?.running ?? false;
+    if (wasRunning.current && !isRunningNow) {
+      void loadQueueTasks();
     }
-    wasRunning.current = ralphStatus?.running || false;
-  }, [ralphStatus?.status, ralphStatus?.running, loadQueueTasks]);
+    wasRunning.current = isRunningNow;
+  }, [ralphStatus?.running, loadQueueTasks]);
 
   // Update task status to be more live
   const getQueuedTaskStatus = useCallback((taskId: string) => {

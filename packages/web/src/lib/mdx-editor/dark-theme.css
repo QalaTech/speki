@@ -99,6 +99,13 @@
   padding: 8px 12px;
 }
 
+/* Keep the main markdown toolbar pinned while editor content scrolls */
+.spec-editor .mdxeditor [class*="_toolbarRoot_"] {
+  position: sticky !important;
+  top: 0;
+  z-index: 30;
+}
+
 /* Toolbar buttons */
 .mdxeditor [class*="_toolbarButton_"],
 .mdxeditor [class*="_iconButton_"],

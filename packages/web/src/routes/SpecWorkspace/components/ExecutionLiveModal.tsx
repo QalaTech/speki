@@ -133,7 +133,7 @@ export function ExecutionLiveModal({
     activeQueueTasks.forEach((task) => taskToSpec.set(task.taskId, task.specId));
 
     activeTasks.forEach(story => {
-      let specId = taskToSpec.get(story.id) || story.id.split('-')[0] || 'Unknown';
+      const specId = taskToSpec.get(story.id) || story.id.split('-')[0] || 'Unknown';
       if (!groups[specId]) groups[specId] = [];
       groups[specId].push(story);
     });
@@ -181,7 +181,7 @@ export function ExecutionLiveModal({
 
   const selectedStoryTitle = stories.find(s => s.id === selectedStoryId)?.title || selectedStoryId;
 
-  const lessonsLearned = peerFeedback?.lessonsLearned ?? [];
+  const lessonsLearned = useMemo(() => peerFeedback?.lessonsLearned ?? [], [peerFeedback]);
   const categoriesWithLessons = useMemo(
     () => [...new Set(lessonsLearned.map((lesson) => lesson.category))],
     [lessonsLearned]
@@ -407,16 +407,21 @@ export function ExecutionLiveModal({
                         {selectedStoryTitle}
                       </h3>
                     </div>
-                    {getTaskStatus(selectedStoryId) === 'running' && (
-                      <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">
-                        Live
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {getTaskStatus(selectedStoryId) === 'running' && (
+                        <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">
+                          Live
+                        </span>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="flex-1 overflow-hidden relative">
                     {(selectedStoryId === currentStoryId || !currentStoryId) ? (
-                      <ChatLogView entries={logEntries} isRunning={isRunning && selectedStoryId === currentStoryId} />
+                      <ChatLogView
+                        entries={logEntries}
+                        isRunning={isRunning && selectedStoryId === currentStoryId}
+                      />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8 text-center">
                         <p>Logs are currently only available for the active task.</p>
