@@ -318,7 +318,7 @@ describe('ExecutionLiveModal', () => {
       render(
         <ExecutionLiveModal
           {...defaultProps}
-          ralphStatus={mockRalphStatus({ running: false, status: 'stopped' })}
+          ralphStatus={mockRalphStatus({ running: false, status: 'stopped', currentStory: null })}
           stories={stories}
           queueTasks={queueTasks}
           onRemoveTaskFromQueue={onRemoveTaskFromQueue}

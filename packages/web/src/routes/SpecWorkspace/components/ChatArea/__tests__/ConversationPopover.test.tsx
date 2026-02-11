@@ -117,7 +117,7 @@ describe('ConversationPopover', () => {
     render(<ConversationPopover {...defaultProps} discussingContext={discussingContext} />);
     
     expect(screen.getByText('Replying to review item:')).toBeInTheDocument();
-    expect(screen.getByText('This is the suggestion being discussed')).toBeInTheDocument();
+    expect(screen.getByText(/This is the suggestion being discussed/)).toBeInTheDocument();
     expect(screen.getByText('Suggested fix text')).toBeInTheDocument();
   });
 
