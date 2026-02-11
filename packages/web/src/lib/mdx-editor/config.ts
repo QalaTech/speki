@@ -156,6 +156,7 @@ export function createEditorPlugins(): RealmPlugin[] {
       // Use primary language names only - MDXEditor shows duplicates for aliased entries
       codeBlockLanguages: {
         '': 'Plain Text',
+        text: 'Plain Text',
         typescript: 'TypeScript',
         tsx: 'React (TSX)',
         javascript: 'JavaScript',
