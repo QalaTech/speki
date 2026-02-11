@@ -161,28 +161,28 @@ export function SettingsView() {
       decompose: {
         reviewer: {
           agent: decomposeAgent,
-          model: decomposeModel || undefined,
+          model: decomposeModel,
           reasoningEffort: decomposeAgent === 'codex' ? decomposeReasoningEffort : undefined,
         },
       },
       condenser: {
         agent: condenserAgent,
-        model: condenserModel || undefined,
+        model: condenserModel,
         reasoningEffort: condenserAgent === 'codex' ? condenserReasoningEffort : undefined,
       },
       specGenerator: {
         agent: specGenAgent,
-        model: specGenModel || undefined,
+        model: specGenModel,
         reasoningEffort: specGenAgent === 'codex' ? specGenReasoningEffort : undefined,
       },
       taskRunner: {
         agent: taskRunnerAgent,
-        model: taskRunnerModel || undefined,
+        model: taskRunnerModel,
         reasoningEffort: taskRunnerAgent === 'codex' ? taskRunnerReasoningEffort : undefined,
       },
       specChat: {
         agent: specChatAgent,
-        model: specChatModel || undefined,
+        model: specChatModel,
         reasoningEffort: specChatAgent === 'codex' ? specChatReasoningEffort : undefined,
       },
       execution: { keepAwake },
@@ -222,7 +222,11 @@ export function SettingsView() {
           <ConfigField label="Agent">
             <SelectRoot
               value={agentValue}
-              onValueChange={(v) => setAgent(v as CliType)}
+              onValueChange={(v) => {
+                setAgent(v as CliType);
+                // Reset model when switching agents to avoid stale cross-agent model IDs.
+                setModel('');
+              }}
               disabled={availableClis.length === 0 || saving || cliLoading}
             >
               <SelectTrigger className="w-full h-8 text-sm">
@@ -383,7 +387,11 @@ export function SettingsView() {
                           <ConfigField label="Agent">
                             <SelectRoot
                               value={taskRunnerAgent}
-                              onValueChange={(v) => setTaskRunnerAgent(v as 'auto' | CliType)}
+                              onValueChange={(v) => {
+                                setTaskRunnerAgent(v as 'auto' | CliType);
+                                // Reset model when switching agents to avoid stale cross-agent model IDs.
+                                setTaskRunnerModel('');
+                              }}
                               disabled={saving}
                             >
                               <SelectTrigger className="w-full h-8 text-sm">

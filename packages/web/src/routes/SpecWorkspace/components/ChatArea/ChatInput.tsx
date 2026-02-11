@@ -5,7 +5,7 @@ import {
   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { BotIcon, RotateCcw } from 'lucide-react';
+import { BotIcon, MessageSquarePlus } from 'lucide-react';
 import { Spinner } from '../../../../components/ui/Loading';
 import { useSettings, useUpdateSettings, useCliDetection } from '@/features/settings';
 import { 
@@ -166,7 +166,7 @@ export function ChatInput({
             className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors group relative"
             title="New Chat"
           >
-            <RotateCcw className="w-5 h-5 text-muted-foreground" />
+            <MessageSquarePlus className="w-5 h-5 text-muted-foreground" />
             <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[10px] bg-black/80 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
               New Chat
             </span>
