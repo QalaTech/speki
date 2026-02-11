@@ -136,7 +136,7 @@ describe('useSpecEditor', () => {
       expect(result.current.isDirty).toBe(false);
     });
 
-    it('should call setMarkdown on editor when content is set', () => {
+    it('should not call setMarkdown on editor when content is set', () => {
       const { result } = renderHook(() => useSpecEditor());
       const mockEditor = createMockEditorRef();
 
@@ -147,7 +147,7 @@ describe('useSpecEditor', () => {
         result.current.setContent('# Updated');
       });
 
-      expect(mockEditor.setMarkdown).toHaveBeenCalledWith('# Updated');
+      expect(mockEditor.setMarkdown).not.toHaveBeenCalled();
     });
   });
 

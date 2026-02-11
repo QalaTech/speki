@@ -110,12 +110,19 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
   const editorRef = useRef<MDXEditorMethods>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isSyncingExternalContentRef = useRef(false);
+  const lastLocalChangeRef = useRef<string | null>(null);
   const syncResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [selection, setSelection] = useState<SelectionState | null>(null);
 
-  // Sanitize content to escape problematic angle brackets
-  const sanitizedContent = useMemo(() => sanitizeForMdx(content), [content]);
+  // Sanitize only for external updates. Local typing already lives in MDXEditor
+  // and shouldn't pay for full-document sanitization on every keypress.
+  const sanitizedContent = useMemo(() => {
+    if (lastLocalChangeRef.current === content) {
+      return content;
+    }
+    return sanitizeForMdx(content);
+  }, [content]);
 
   // Keep MDXEditor's internal document in sync with external content updates.
   // MDXEditor treats `markdown` as initial content, so explicit syncing is
@@ -124,7 +131,13 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
     const editor = editorRef.current;
     if (!editor) return;
 
+    const lastLocalChange = lastLocalChangeRef.current;
+    if (lastLocalChange !== null && (content === lastLocalChange || sanitizedContent === lastLocalChange)) {
+      return;
+    }
+
     const currentMarkdown = editor.getMarkdown();
+    if (currentMarkdown === content || currentMarkdown === sanitizedContent) return;
     if (sanitizeForMdx(currentMarkdown) === sanitizedContent) return;
 
     isSyncingExternalContentRef.current = true;
@@ -137,7 +150,7 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
       isSyncingExternalContentRef.current = false;
       syncResetTimerRef.current = null;
     }, 0);
-  }, [sanitizedContent]);
+  }, [content, sanitizedContent]);
 
   const handleChange: MDXEditorProps['onChange'] = useCallback(
     (markdown: string) => {
@@ -146,21 +159,17 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
         return;
       }
 
-      // Avoid redundant updates if content is effectively the same as what we have.
-      // We check against both the raw content prop and the sanitized version we're using.
+      // Avoid redundant updates when markdown is unchanged or only differs from
+      // the external value by sanitization already applied to the editor input.
       if (markdown === content || markdown === sanitizedContent) {
         return;
       }
 
-      // If they are different, it might still be just a normalization difference (e.g. line endings)
-      // so we do one more check against sanitized versions if they are large enough to matter.
-      if (markdown.length === sanitizedContent.length || Math.abs(markdown.length - sanitizedContent.length) < 5) {
-        if (sanitizeForMdx(markdown) === sanitizedContent) {
-          return;
-        }
+      if (markdown === lastLocalChangeRef.current) {
+        return;
       }
 
-      console.log('[SpecEditor] handleChange called, markdown length:', markdown.length, 'hasOnChange:', !!onChange);
+      lastLocalChangeRef.current = markdown;
       onChange?.(markdown);
     },
     [onChange, content, sanitizedContent]
