@@ -40,6 +40,7 @@ export function ChatInput({
   focusTrigger,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isSendDisabled = !value.trim() || isSending;
   
   const { data: settings } = useSettings();
   const { data: cliDetection } = useCliDetection();
@@ -77,14 +78,11 @@ export function ChatInput({
   }, [focusTrigger]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      onSend();
-    }
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      onSend();
-    }
+    if (e.key !== 'Enter' || e.shiftKey) return;
+
+    e.preventDefault();
+    if (isSendDisabled) return;
+    onSend();
   };
 
   return (
@@ -176,7 +174,7 @@ export function ChatInput({
 
           <button
             onClick={onSend}
-            disabled={!value.trim() || isSending}
+            disabled={isSendDisabled}
             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors ml-1 group relative"
             title={isSending ? 'Sending...' : 'Send (⌘↵)'}
           >
