@@ -141,13 +141,29 @@ export const SpecEditor = forwardRef<SpecEditorRef, SpecEditorProps>(function Sp
 
   const handleChange: MDXEditorProps['onChange'] = useCallback(
     (markdown: string) => {
+      // Don't trigger onChange if we're currently syncing from external content
       if (isSyncingExternalContentRef.current) {
         return;
       }
+
+      // Avoid redundant updates if content is effectively the same as what we have.
+      // We check against both the raw content prop and the sanitized version we're using.
+      if (markdown === content || markdown === sanitizedContent) {
+        return;
+      }
+
+      // If they are different, it might still be just a normalization difference (e.g. line endings)
+      // so we do one more check against sanitized versions if they are large enough to matter.
+      if (markdown.length === sanitizedContent.length || Math.abs(markdown.length - sanitizedContent.length) < 5) {
+        if (sanitizeForMdx(markdown) === sanitizedContent) {
+          return;
+        }
+      }
+
       console.log('[SpecEditor] handleChange called, markdown length:', markdown.length, 'hasOnChange:', !!onChange);
       onChange?.(markdown);
     },
-    [onChange]
+    [onChange, content, sanitizedContent]
   );
 
   useEffect(() => {
