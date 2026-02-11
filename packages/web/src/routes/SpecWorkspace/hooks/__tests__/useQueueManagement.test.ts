@@ -91,7 +91,7 @@ describe('useQueueManagement', () => {
 
     it('should handle API error gracefully', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.mocked(apiFetch).mockResolvedValue({
+      vi.mocked(apiFetch).mockResolvedValueOnce({
         ok: false,
         status: 500,
       } as unknown as Response);
@@ -108,7 +108,7 @@ describe('useQueueManagement', () => {
 
     it('should handle network error gracefully', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.mocked(apiFetch).mockRejectedValue(new Error('Network error'));
+      vi.mocked(apiFetch).mockRejectedValueOnce(new Error('Network error'));
 
       const { result } = renderHook(() => useQueueManagement(defaultProps));
 
@@ -128,7 +128,8 @@ describe('useQueueManagement', () => {
 
   describe('addToQueue', () => {
     it('should add task to queue successfully', async () => {
-      const mockQueue: any[] = [];
+      const mockQueue: { specId: string; taskId: string; status: string }[] = [];
+      const updatedQueue = [{ specId: 'spec-1', taskId: 'task-1', status: 'queued' }];
       
       vi.mocked(apiFetch)
         .mockResolvedValueOnce({
@@ -137,6 +138,10 @@ describe('useQueueManagement', () => {
         } as unknown as Response)
         .mockResolvedValueOnce({
           ok: true,
+        } as unknown as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ queue: updatedQueue }),
         } as unknown as Response);
 
       const { result } = renderHook(() => useQueueManagement(defaultProps));
@@ -171,7 +176,11 @@ describe('useQueueManagement', () => {
           ok: true,
           json: () => Promise.resolve({ queue: [] }),
         } as unknown as Response)
-        .mockReturnValueOnce(requestPromise as Promise<Response>);
+        .mockReturnValueOnce(requestPromise as Promise<Response>)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ queue: [] }),
+        } as unknown as Response);
 
       const { result } = renderHook(() => useQueueManagement(defaultProps));
 
@@ -214,6 +223,10 @@ describe('useQueueManagement', () => {
         } as unknown as Response)
         .mockResolvedValueOnce({
           ok: true,
+        } as unknown as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ queue: [] }),
         } as unknown as Response);
 
       const { result } = renderHook(() => useQueueManagement(defaultProps));
@@ -243,7 +256,11 @@ describe('useQueueManagement', () => {
           ok: true,
           json: () => Promise.resolve({ queue: [] }),
         } as unknown as Response)
-        .mockReturnValueOnce(requestPromise as Promise<Response>);
+        .mockReturnValueOnce(requestPromise as Promise<Response>)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ queue: [] }),
+        } as unknown as Response);
 
       const { result } = renderHook(() => useQueueManagement(defaultProps));
 

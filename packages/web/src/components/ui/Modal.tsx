@@ -101,6 +101,7 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
+  description?: string;
   children: React.ReactNode;
   actions?: React.ReactNode;
   size?: ModalSize;
@@ -121,6 +122,7 @@ function Modal({
   isOpen,
   onClose,
   title,
+  description,
   children,
   actions,
   size = "md",
@@ -132,10 +134,12 @@ function Modal({
       <DialogContent
         className={cn(sizeClasses[size], className)}
         onEscapeKeyDown={(e) => !closeOnEscape && e.preventDefault()}
+        aria-describedby={description ? undefined : undefined}
       >
-        {title && (
+        {(title || description) && (
           <DialogHeader className="shrink-0">
-            <DialogTitle>{title}</DialogTitle>
+            {title && <DialogTitle>{title}</DialogTitle>}
+            {description && <DialogDescription>{description}</DialogDescription>}
           </DialogHeader>
         )}
         <div className="flex-1 overflow-y-auto py-4 min-h-0">

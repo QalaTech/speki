@@ -212,6 +212,7 @@ export function ExecutionLiveModal({
       isOpen={isOpen}
       onClose={onClose}
       title={isRunning ? 'Live Execution' : 'Execution Log'}
+      description="View real-time execution logs and progress for the current specification."
       size="xl"
       className="h-[85vh] flex flex-col max-w-6xl w-full"
       actions={
