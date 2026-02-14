@@ -10,6 +10,14 @@ export function playCompletionGong(): boolean {
 
   try {
     const ctx = new AudioContextCtor();
+
+    // Resume context if suspended (required by browser autoplay policy)
+    // This returns a promise but we don't need to wait - browsers handle this gracefully
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+
+    console.debug('[audio] Playing gong, context state:', ctx.state);
     const now = ctx.currentTime;
 
     const createTone = (frequency: number, start: number, duration: number, peakGain: number) => {
