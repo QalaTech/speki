@@ -221,6 +221,22 @@ describe('ExecutionLiveModal', () => {
       expect(screen.queryByText('Resume')).not.toBeInTheDocument();
     });
 
+    it('should show resume button when stopped and only stale running tasks exist', () => {
+      const onResumeExecution = vi.fn();
+      const queueTasks = [mockQueueTask({ status: 'running' })];
+
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          ralphStatus={mockRalphStatus({ running: false, status: 'stopped' })}
+          onResumeExecution={onResumeExecution}
+          queueTasks={queueTasks}
+        />
+      );
+
+      expect(screen.getByText('Resume')).toBeInTheDocument();
+    });
+
     it('should call onResumeExecution when resume button is clicked', () => {
       const onResumeExecution = vi.fn();
       const queueTasks = [mockQueueTask({ status: 'queued' })];
@@ -245,6 +261,27 @@ describe('ExecutionLiveModal', () => {
       render(<ExecutionLiveModal {...defaultProps} />);
       
       expect(screen.getByText('No tasks in queue')).toBeInTheDocument();
+    });
+
+    it('should display queued tasks from queue payload when stories are missing', () => {
+      const queueTasks = [
+        {
+          ...mockQueueTask({ taskId: 'story-queue-only', specId: 'queue-spec' }),
+          task: mockUserStory({ id: 'story-queue-only', title: 'Queue Payload Story' }),
+        },
+      ];
+
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          stories={[]}
+          queueTasks={queueTasks}
+        />
+      );
+
+      // Story appears in both queue list and detail view header
+      expect(screen.getAllByText('Queue Payload Story').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('queue-spec').length).toBeGreaterThanOrEqual(1);
     });
 
     it('should not show completed tasks when execution is stopped', () => {
@@ -295,19 +332,86 @@ describe('ExecutionLiveModal', () => {
       expect(screen.getByText('RUNNING')).toBeInTheDocument();
     });
 
-    it('should display story ID', () => {
-      const stories = [mockUserStory({ id: 'US-123' })];
-      const queueTasks = [mockQueueTask({ taskId: 'US-123' })];
-      
+    it('should not show RUNNING badge when execution is stopped', () => {
+      const stories = [mockUserStory({ id: 'story-1', title: 'Stopped Story' })];
+      const queueTasks = [mockQueueTask({ taskId: 'story-1', status: 'running' })];
+
       render(
-        <ExecutionLiveModal 
-          {...defaultProps} 
+        <ExecutionLiveModal
+          {...defaultProps}
+          ralphStatus={mockRalphStatus({ running: false, status: 'stopped', currentStory: 'story-1: Stopped Story' })}
           stories={stories}
           queueTasks={queueTasks}
         />
       );
-      
-      expect(screen.getByText('US-123')).toBeInTheDocument();
+
+      expect(screen.queryByText('RUNNING')).not.toBeInTheDocument();
+    });
+
+    it('should prefer queue running status over stale currentStory', () => {
+      // Test that both tasks render when there are multiple in the queue
+      const stories = [
+        mockUserStory({ id: 'story-1' }),
+        mockUserStory({ id: 'story-2' }),
+      ];
+      const queueTasks = [
+        mockQueueTask({ taskId: 'story-1', specId: 'user-spec' }),
+        mockQueueTask({ taskId: 'story-2', specId: 'auth-spec' }),
+      ];
+
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          ralphStatus={mockRalphStatus({ currentStory: 'story-2: Story 2' })}
+          stories={stories}
+          queueTasks={queueTasks}
+        />
+      );
+
+      // Both spec groups should render
+      expect(screen.getByText('user-spec')).toBeInTheDocument();
+      expect(screen.getByText('auth-spec')).toBeInTheDocument();
+    });
+
+    it('should treat the sole active task as running when currentStory is stale', () => {
+      const stories = [
+        mockUserStory({ id: 'story-1', title: 'Completed Story' }),
+        mockUserStory({ id: 'story-2', title: 'Queued Story' }),
+      ];
+      const queueTasks = [
+        mockQueueTask({ taskId: 'story-1', status: 'completed' }),
+        mockQueueTask({ taskId: 'story-2', status: 'queued' }),
+      ];
+
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          ralphStatus={mockRalphStatus({ currentStory: 'story-1: Completed Story' })}
+          stories={stories}
+          queueTasks={queueTasks}
+        />
+      );
+
+      expect(screen.queryByText('Unknown')).not.toBeInTheDocument();
+      // Story appears in both queue list and detail view header
+      expect(screen.getAllByText('story-2').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('RUNNING').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should display story ID', () => {
+      const stories = [mockUserStory({ id: 'US-123' })];
+      const queueTasks = [mockQueueTask({ taskId: 'US-123' })];
+
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          stories={stories}
+          queueTasks={queueTasks}
+        />
+      );
+
+      // Story ID appears in both queue list and detail view header
+      expect(screen.getAllByText('US-123').length).toBeGreaterThanOrEqual(1);
     });
 
     it('should call remove handler with spec and task IDs', () => {
@@ -438,6 +542,39 @@ describe('ExecutionLiveModal', () => {
       fireEvent.click(screen.getByText('Pending Story'));
       
       expect(screen.getByText('Logs are currently only available for the active task.')).toBeInTheDocument();
+    });
+
+    it('should show logs when running even if queue is empty and no task is selected', () => {
+      const logEntries: ParsedEntry[] = [{ type: 'text', content: 'Finalizing execution...' }];
+
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          ralphStatus={mockRalphStatus({ running: true, currentStory: null })}
+          stories={[]}
+          queueTasks={[]}
+          logEntries={logEntries}
+        />
+      );
+
+      expect(screen.getByText('Finalizing execution...')).toBeInTheDocument();
+    });
+
+    it('should not show global logs when execution is stopped and no task is selected', () => {
+      const logEntries: ParsedEntry[] = [{ type: 'text', content: 'Completed output' }];
+
+      render(
+        <ExecutionLiveModal
+          {...defaultProps}
+          ralphStatus={mockRalphStatus({ running: false, status: 'stopped', currentStory: null })}
+          stories={[]}
+          queueTasks={[]}
+          logEntries={logEntries}
+        />
+      );
+
+      expect(screen.getByText('Select a task to view details')).toBeInTheDocument();
+      expect(screen.queryByText('Completed output')).not.toBeInTheDocument();
     });
   });
 

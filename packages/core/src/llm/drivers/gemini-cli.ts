@@ -246,6 +246,7 @@ export class GeminiCliEngine implements Engine {
     let terminatedDueToSize = false;
     let sawCapacityError = false;
     let stderrTail = '';
+    let fullStderr = ''; // Capture full stderr for error reporting
     const seenTools = new Set<string>();
     const normalizer = new GeminiStreamNormalizer();
 
@@ -395,8 +396,9 @@ export class GeminiCliEngine implements Engine {
     });
 
     gemini.stderr.on('data', (chunk: Buffer) => {
+      const chunkText = chunk.toString();
+      fullStderr += chunkText;
       if (!sawCapacityError) {
-        const chunkText = chunk.toString();
         const combined = stderrTail + chunkText;
         if (isGeminiCapacityError(combined)) {
           sawCapacityError = true;
@@ -455,11 +457,14 @@ export class GeminiCliEngine implements Engine {
           await fs.writeFile(historyPath, JSON.stringify(history, null, 2));
         }
 
+        // Include stderr in output when there's an error so the runner can display it
+        const outputToReturn = !success && fullStderr ? `${output}\n\n--- stderr ---\n${fullStderr}` : output;
+
         resolve({
           success,
           isComplete,
           durationMs,
-          output,
+          output: outputToReturn,
           jsonlPath,
           stderrPath,
           exitCode: code ?? -1,
@@ -479,11 +484,13 @@ export class GeminiCliEngine implements Engine {
         jsonlStream.end();
         normStream.end();
         stderrStream.end();
+        // Include error message and stderr in output
+        const errorOutput = fullStderr ? `Spawn error: ${err.message}\n\n--- stderr ---\n${fullStderr}` : `Spawn error: ${err.message}`;
         resolve({
           success: false,
           isComplete: false,
           durationMs,
-          output: '',
+          output: errorOutput,
           jsonlPath,
           stderrPath,
           exitCode: -1,

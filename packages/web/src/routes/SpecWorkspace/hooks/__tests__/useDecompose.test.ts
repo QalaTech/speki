@@ -3,6 +3,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useDecompose } from '../useDecompose';
 import { apiFetch } from '../../../../components/ui/ErrorContext';
 import * as useDecomposeSSEModule from '../../../../hooks/useDecomposeSSE';
+import * as audioModule from '../../audio';
 import type { UserStory } from '../../../../types';
 
 vi.mock('../../../../components/ui/ErrorContext', () => ({
@@ -11,6 +12,10 @@ vi.mock('../../../../components/ui/ErrorContext', () => ({
 
 vi.mock('../../../../hooks/useDecomposeSSE', () => ({
   useDecomposeSSE: vi.fn(),
+}));
+
+vi.mock('../../audio', () => ({
+  playCompletionGong: vi.fn(),
 }));
 
 describe('useDecompose', () => {
@@ -22,6 +27,7 @@ describe('useDecompose', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useDecomposeSSEModule.useDecomposeSSE).mockReturnValue(null);
+    vi.mocked(audioModule.playCompletionGong).mockReturnValue(true);
   });
 
   it('should initialize with empty stories and not decomposing', () => {
@@ -388,6 +394,40 @@ describe('useDecompose', () => {
       const { result } = renderHook(() => useDecompose(defaultProps));
 
       expect(result.current.isDecomposing).toBe(false);
+    });
+
+    it('should play completion gong after active-to-complete transition', () => {
+      const hookProps = { ...defaultProps };
+
+      vi.mocked(useDecomposeSSEModule.useDecomposeSSE).mockReturnValue({
+        status: 'DECOMPOSING',
+        message: 'Working...',
+        prdFile: '/test/project/spec.prd.md',
+      });
+
+      const { rerender } = renderHook(() => useDecompose(hookProps));
+
+      vi.mocked(useDecomposeSSEModule.useDecomposeSSE).mockReturnValue({
+        status: 'COMPLETED',
+        message: 'Done',
+        prdFile: '/test/project/spec.prd.md',
+      });
+
+      rerender();
+
+      expect(audioModule.playCompletionGong).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not play completion gong when loading an already-complete state', () => {
+      vi.mocked(useDecomposeSSEModule.useDecomposeSSE).mockReturnValue({
+        status: 'COMPLETED',
+        message: 'Done',
+        prdFile: '/test/project/spec.prd.md',
+      });
+
+      renderHook(() => useDecompose(defaultProps));
+
+      expect(audioModule.playCompletionGong).not.toHaveBeenCalled();
     });
   });
 

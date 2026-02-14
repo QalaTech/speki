@@ -5,6 +5,7 @@ interface UseAutoSaveOptions {
   hasUnsavedChanges: boolean;
   onSave: () => Promise<void>;
   debounceMs?: number;
+  resetKey?: string | number;
 }
 
 interface UseAutoSaveReturn {
@@ -22,10 +23,19 @@ export function useAutoSave({
   hasUnsavedChanges,
   onSave,
   debounceMs = 1000,
+  resetKey,
 }: UseAutoSaveOptions): UseAutoSaveReturn {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [, setForceUpdate] = useState(0);
+
+  // Reset save state when resetKey changes (e.g., switching to a new file)
+  useEffect(() => {
+    if (resetKey !== undefined) {
+      setLastSavedAt(null);
+      setIsSaving(false);
+    }
+  }, [resetKey]);
 
   // Update relative time display every 10 seconds
   useEffect(() => {
