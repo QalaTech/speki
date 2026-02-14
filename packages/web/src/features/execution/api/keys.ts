@@ -13,4 +13,6 @@ export const executionKeys = {
   peer: (project: string) => ['execution', project, 'peer'] as const,
   /** Connection status query key for a project */
   connection: (project: string) => ['execution', project, 'connection'] as const,
+  /** Queue tasks query key for a project */
+  queue: (project: string) => ['execution', project, 'queue'] as const,
 } as const;

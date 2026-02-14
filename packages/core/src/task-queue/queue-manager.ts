@@ -267,9 +267,87 @@ export async function markTaskRunning(
   specId: string,
   taskId: string
 ): Promise<void> {
-  await updateTaskStatus(projectRoot, specId, taskId, 'running', {
-    startedAt: new Date().toISOString(),
-  });
+  const queue = await loadTaskQueue(projectRoot);
+  if (!queue) {
+    throw new Error('Task queue not initialized.');
+  }
+
+  const ref = queue.queue.find(
+    (r) => r.specId === specId && r.taskId === taskId
+  );
+  if (!ref) {
+    throw new Error(`Task ${specId}:${taskId} not found in queue.`);
+  }
+
+  // Ralph executes one task at a time, so clear any stale running markers.
+  for (const entry of queue.queue) {
+    if (
+      entry.status === 'running' &&
+      !(entry.specId === specId && entry.taskId === taskId)
+    ) {
+      entry.status = 'queued';
+      delete entry.startedAt;
+    }
+  }
+
+  ref.status = 'running';
+  ref.startedAt = new Date().toISOString();
+  delete ref.completedAt;
+
+  await saveTaskQueue(projectRoot, queue);
+}
+
+/**
+ * Mark a task back to queued (used when execution is interrupted).
+ */
+export async function markTaskQueued(
+  projectRoot: string,
+  specId: string,
+  taskId: string
+): Promise<void> {
+  const queue = await loadTaskQueue(projectRoot);
+  if (!queue) {
+    throw new Error('Task queue not initialized.');
+  }
+
+  const ref = queue.queue.find(
+    (r) => r.specId === specId && r.taskId === taskId
+  );
+  if (!ref) {
+    throw new Error(`Task ${specId}:${taskId} not found in queue.`);
+  }
+
+  ref.status = 'queued';
+  delete ref.startedAt;
+  delete ref.completedAt;
+
+  await saveTaskQueue(projectRoot, queue);
+}
+
+/**
+ * Clear all running statuses back to queued.
+ * Returns the number of tasks reset.
+ */
+export async function clearRunningTasks(projectRoot: string): Promise<number> {
+  const queue = await loadTaskQueue(projectRoot);
+  if (!queue) {
+    return 0;
+  }
+
+  let resetCount = 0;
+  for (const ref of queue.queue) {
+    if (ref.status === 'running') {
+      ref.status = 'queued';
+      delete ref.startedAt;
+      resetCount += 1;
+    }
+  }
+
+  if (resetCount > 0) {
+    await saveTaskQueue(projectRoot, queue);
+  }
+
+  return resetCount;
 }
 
 /**
