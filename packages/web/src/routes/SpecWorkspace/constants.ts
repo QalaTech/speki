@@ -33,3 +33,5 @@ export const ACTIVE_DECOMPOSE_STATUSES = [
 ] as const;
 
 export const DECOMPOSE_COMPLETE_STATUSES = ['COMPLETED', 'DECOMPOSED'] as const;
+
+export const DECOMPOSE_ERROR_STATUSES = ['ERROR'] as const;

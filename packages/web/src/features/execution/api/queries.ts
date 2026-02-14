@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { executionKeys } from './keys';
-import type { RalphStatus, PRDData, PeerFeedback } from '../../../types';
+import type { RalphStatus, PRDData, PeerFeedback, QueuedTaskWithData } from '../../../types';
 import type { ParsedEntry } from '../../../utils/parseJsonl';
 
 /**
@@ -109,5 +109,35 @@ export function useExecutionConnection(project: string | null) {
     queryFn: () => Promise.resolve('disconnected' as ConnectionStatus),
     enabled: false, // Data comes from SSE, not fetched directly
     initialData: 'disconnected' as ConnectionStatus,
+  });
+}
+
+/**
+ * Default empty queue
+ */
+export const defaultQueueTasks: QueuedTaskWithData[] = [];
+
+/**
+ * Hook to read queue tasks from cache or API.
+ * Supports automatic polling when running via refetchInterval.
+ * Can also be updated via SSE for real-time updates.
+ */
+export function useQueueTasks(project: string | null, isRunning?: boolean) {
+  return useQuery<QueuedTaskWithData[]>({
+    queryKey: executionKeys.queue(project ?? ''),
+    queryFn: async () => {
+      if (!project) return defaultQueueTasks;
+      const params = new URLSearchParams({ project });
+      const response = await fetch(`/api/queue/with-tasks?${params}`);
+      if (!response.ok) {
+        throw new Error(`Failed to load queue tasks (${response.status})`);
+      }
+      const data = await response.json();
+      return (data.queue || []) as QueuedTaskWithData[];
+    },
+    enabled: !!project,
+    initialData: defaultQueueTasks,
+    refetchInterval: isRunning ? 3000 : false,
+    staleTime: 1000,
   });
 }

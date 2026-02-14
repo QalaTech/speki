@@ -303,7 +303,40 @@ function UseCaseItem({
         </div>
 
         {/* Actions column */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {specType === "tech-spec" && !story.passes && (
+            isQueued ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-error/80 hover:text-error hover:bg-error/10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveFromQueue();
+                }}
+                aria-label={`Remove ${story.title} from queue`}
+                isLoading={isQueueLoading || queuedStatus === "running"}
+                disabled={queuedStatus === "running"}
+              >
+                Unqueue
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddToQueue();
+                }}
+                aria-label={`Add ${story.title} to queue`}
+                isLoading={isQueueLoading}
+              >
+                Queue
+              </Button>
+            )
+          )}
+
           {/* Edit button */}
           <Button
             variant="ghost"
@@ -457,14 +490,15 @@ function UseCaseItem({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs text-primary hover:bg-primary/10"
+                  className="h-7 text-xs"
                   onClick={(e) => {
                     e.stopPropagation();
                     onAddToQueue();
                   }}
                   isLoading={isQueueLoading}
                 >
-                  <PlusIcon className="h-3.5 w-3.5 mr-1" /> Add to Queue
+                  {!isQueueLoading && <PlusIcon className="h-3.5 w-3.5 mr-1" />}
+                  Add to Queue
                 </Button>
               )}
             </div>

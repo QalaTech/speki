@@ -374,12 +374,12 @@ async function scanDirectory(dirPath: string, relativePath: string): Promise<Spe
     // Directory doesn't exist or can't be read
   }
 
-  // Sort: directories first, then files, alphabetically
+  // Sort: directories first, then files, by date descending (newest first)
   nodes.sort((a, b) => {
     if (a.type !== b.type) {
       return a.type === 'directory' ? -1 : 1;
     }
-    return a.name.localeCompare(b.name);
+    return b.name.localeCompare(a.name);
   });
 
   return nodes;

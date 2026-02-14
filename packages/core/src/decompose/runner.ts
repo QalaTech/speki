@@ -692,12 +692,30 @@ export async function runDecompose(
       await updateState(project.projectPath, specId, {
         status: 'ERROR',
         message: 'Engine failed to generate tasks',
-        error: 'Engine error',
+        error: result.output || 'Engine error',
       }, onProgress);
+
+      // Enhanced error logging
+      console.log(`  ${chalk.red('Engine error: Failed to generate tasks')}`);
+      if (result.exitCode !== null) {
+        console.log(`  ${chalk.red('Exit code:')} ${result.exitCode}`);
+      }
+      if (result.output) {
+        console.log(`  ${chalk.red('Output:')} ${result.output.substring(0, 500)}`);
+        if (result.output.length > 500) {
+          console.log(`  ${chalk.red('(truncated - see full output in log files)')}`);
+        }
+      }
+      if (result.stderrPath) {
+        console.log(`  ${chalk.red('Stderr log:')} ${result.stderrPath}`);
+      }
+      if (result.jsonlPath) {
+        console.log(`  ${chalk.red('JSONL log:')} ${result.jsonlPath}`);
+      }
       return {
         success: false,
         storyCount: 0,
-        error: 'Engine error',
+        error: result.output || 'Engine error',
       };
     }
 

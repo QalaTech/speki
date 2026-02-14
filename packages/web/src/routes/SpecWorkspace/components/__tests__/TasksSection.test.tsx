@@ -121,6 +121,33 @@ describe('TasksSection', () => {
     expect(screen.getByRole('button', { name: /queue all/i })).toBeInTheDocument();
   });
 
+  it('should show Run Queue when stopped with stale running queue entries', () => {
+    render(
+      <TasksSection
+        {...defaultProps}
+        specType="tech-spec"
+        isPrd={false}
+        queueTasks={[
+          {
+            specId: 'test-spec',
+            taskId: '1',
+            queuedAt: new Date().toISOString(),
+            status: 'running',
+          },
+        ]}
+        ralphStatus={{
+          running: false,
+          status: 'stopped',
+          currentIteration: 0,
+          maxIterations: 0,
+          currentStory: null,
+        }}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /run queue/i })).toBeInTheDocument();
+  });
+
   it('should show loading state when decomposing', () => {
     render(<TasksSection {...defaultProps} isDecomposing={true} />);
     expect(screen.getByText(/generating/i)).toBeInTheDocument();

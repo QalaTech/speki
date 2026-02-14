@@ -6,8 +6,10 @@ export {
   useExecutionTasks,
   useExecutionPeer,
   useExecutionConnection,
+  useQueueTasks,
   defaultRalphStatus,
   defaultExecutionLogs,
+  defaultQueueTasks,
   type ConnectionStatus,
   type ExecutionLogs,
 } from './api/queries';

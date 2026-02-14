@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Components
 import { AppSidebar } from '../../components/specs/AppSidebar';
@@ -23,6 +24,8 @@ import {
   defaultRalphStatus,
   useExecutionTasks,
   useExecutionPeer,
+  useQueueTasks,
+  executionKeys,
 } from '../../features/execution';
 import { useStartRalph, useStopRalph } from '../../features/projects';
 import {
@@ -42,13 +45,14 @@ import { ReviewPanel } from './components/ChatArea/ReviewPanel';
 import { useSpec } from '../../contexts/SpecContext';
 
 // Types
-import type { UserStory } from '../../types';
+import type { UserStory, QueuedTaskWithData } from '../../types';
 
 interface SpecWorkspaceProps {
   projectPath: string;
 }
 
 export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedPath = searchParams.get('spec');
   const editorRef = useRef<SpecEditorRef>(null);
@@ -105,6 +109,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     content,
     hasUnsavedChanges,
     onSave: handleSave,
+    resetKey: selectedPath ?? undefined,
   });
 
   // Document title extraction
@@ -184,6 +189,8 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     stories,
     setStories,
     isDecomposing,
+    decomposeError,
+    setDecomposeError,
     reviewFeedback,
     reviewVerdict,
     specStatus,
@@ -196,7 +203,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     includeReviewMeta: true,
   });
 
-  // Queue management
+  // Queue management - uses React Query with automatic polling when running
   const specId = selectedPath?.split('/').pop()?.replace(/\.md$/i, '') || '';
   const {
     queueTasks,
@@ -204,7 +211,6 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     setQueueTasks,
     queueLoading,
     completedIds: baseCompletedIds,
-  
     loadQueueTasks,
     addToQueue,
     removeFromQueue,
@@ -229,6 +235,27 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   const { data: ralphStatus } = useExecutionStatus(projectPath);
   const { data: executionLogs } = useExecutionLogs(projectPath);
   const { data: prdData } = useExecutionTasks(projectPath);
+
+  // Use queue query for live updates - polls automatically when running
+  const {
+    data: liveQueueTasks,
+    isFetched: isLiveQueueFetched,
+    refetch: refetchLiveQueueTasks,
+  } = useQueueTasks(projectPath, ralphStatus?.running);
+  const executionQueueTasks = useMemo(() => {
+    if (!isLiveQueueFetched) {
+      return allQueueTasks;
+    }
+    return liveQueueTasks || allQueueTasks;
+  }, [allQueueTasks, isLiveQueueFetched, liveQueueTasks]);
+  const liveCompletedIds = useMemo(() => {
+    return new Set(
+      (executionQueueTasks || [])
+        .filter((t) => t.status === 'completed')
+        .map((t) => t.taskId)
+    );
+  }, [executionQueueTasks]);
+
   const {
     data: peerFeedback,
     refetch: refetchPeerFeedback
@@ -249,10 +276,18 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
 
   // Update task status to be more live
   const getQueuedTaskStatus = useCallback((taskId: string) => {
+    const baseStatus = baseGetQueuedTaskStatus(taskId);
+
     if (ralphStatus?.running && ralphStatus.currentStory?.startsWith(taskId)) {
       return 'running' as const;
     }
-    return baseGetQueuedTaskStatus(taskId);
+
+    // If execution is stopped, never expose stale "running" statuses in the UI.
+    if (!ralphStatus?.running && baseStatus === 'running') {
+      return 'queued' as const;
+    }
+
+    return baseStatus;
   }, [baseGetQueuedTaskStatus, ralphStatus]);
 
   // Use completed IDs from live data if available
@@ -279,13 +314,26 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     }
   }, [selectedPath, loadDecomposeState, loadQueueTasks, setStories, setQueueTasks]);
 
+  const handleAddToQueue = useCallback(async (taskId: string) => {
+    await addToQueue(taskId);
+    await refetchLiveQueueTasks();
+  }, [addToQueue, refetchLiveQueueTasks]);
+
+  const handleRemoveFromQueue = useCallback(async (taskId: string) => {
+    await removeFromQueue(taskId);
+    await refetchLiveQueueTasks();
+  }, [removeFromQueue, refetchLiveQueueTasks]);
+
   // Add all tasks to queue
   const handleAddAllToQueue = useCallback(async () => {
     const tasksToAdd = stories.filter((s) => !s.passes && !queueTasks.some(t => t.taskId === s.id));
     for (const task of tasksToAdd) {
       await addToQueue(task.id);
     }
-  }, [stories, queueTasks, addToQueue]);
+    if (tasksToAdd.length > 0) {
+      await refetchLiveQueueTasks();
+    }
+  }, [stories, queueTasks, addToQueue, refetchLiveQueueTasks]);
 
   // Save task content
   const handleSaveTask = useCallback(
@@ -319,7 +367,12 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     try {
       const params = new URLSearchParams({ project: projectPath });
       await apiFetch(`/api/queue/${targetSpecId}/${taskId}?${params}`, { method: 'DELETE' });
-      await loadQueueTasks();
+      queryClient.setQueryData(
+        executionKeys.queue(projectPath),
+        (prev: QueuedTaskWithData[] | undefined) =>
+          (prev ?? []).filter((task) => !(task.specId === targetSpecId && task.taskId === taskId))
+      );
+      await Promise.all([loadQueueTasks(), refetchLiveQueueTasks()]);
     } finally {
       setRemovingQueueTaskKeys((prev) => {
         const next = new Set(prev);
@@ -327,7 +380,28 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
         return next;
       });
     }
-  }, [projectPath, loadQueueTasks]);
+  }, [projectPath, loadQueueTasks, queryClient, refetchLiveQueueTasks]);
+
+  // Ensure live queue data is hydrated whenever the live modal opens, including page-refresh cases.
+  useEffect(() => {
+    if (!isExecutionModalOpen) return;
+    void Promise.all([loadQueueTasks(), refetchLiveQueueTasks()]);
+  }, [isExecutionModalOpen, loadQueueTasks, refetchLiveQueueTasks]);
+
+  // If execution is active but queue data is temporarily empty, keep retrying fetches
+  // so the live modal doesn't stay blank until a manual reopen.
+  useEffect(() => {
+    if (!isExecutionModalOpen) return;
+    if (!ralphStatus?.running) return;
+    if ((executionQueueTasks?.length ?? 0) > 0) return;
+
+    void refetchLiveQueueTasks();
+    const retryId = window.setInterval(() => {
+      void refetchLiveQueueTasks();
+    }, 1500);
+
+    return () => window.clearInterval(retryId);
+  }, [isExecutionModalOpen, ralphStatus?.running, executionQueueTasks?.length, refetchLiveQueueTasks]);
 
   // Navigate to a specific spec from the execution modal
   const handleNavigateToSpec = useCallback((specId: string) => {
@@ -563,12 +637,14 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                       specType={selectedSpecType}
                       isPrd={isPrd}
                       isDecomposing={isDecomposing}
+                      decomposeError={decomposeError}
+                      onClearError={() => setDecomposeError(null)}
                       isLoadingContent={isLoadingContent}
                       isGeneratingTechSpec={isGeneratingTechSpec}
                       ralphStatus={ralphStatus || defaultRalphStatus}
                       onDecompose={handleDecompose}
-                      onAddToQueue={addToQueue}
-                      onRemoveFromQueue={removeFromQueue}
+                      onAddToQueue={handleAddToQueue}
+                      onRemoveFromQueue={handleRemoveFromQueue}
                       onAddAllToQueue={handleAddAllToQueue}
                       onSaveTask={handleSaveTask}
                       onRunQueue={handleRunQueue}
@@ -631,8 +707,8 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
             onRemoveTaskFromQueue={handleRemoveQueueTask}
             removingQueueTaskKeys={removingQueueTaskKeys}
             stories={prdData?.userStories || stories}
-            queueTasks={allQueueTasks}
-            completedIds={completedIds}
+            queueTasks={executionQueueTasks}
+            completedIds={liveCompletedIds || completedIds}
             peerFeedback={peerFeedback}
             onRefreshLessons={() => {
               void refetchPeerFeedback();

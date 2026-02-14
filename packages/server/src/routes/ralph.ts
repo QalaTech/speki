@@ -16,7 +16,7 @@ import { preventSleep, allowSleep } from '@speki/core';
 import type { RalphStatus } from '@speki/core';
 import type { StreamCallbacks } from '@speki/core';
 import { publishRalph, publishTasks, publishPeerFeedback } from '../sse.js';
-import { loadQueueAsPRDData } from '@speki/core';
+import { loadQueueAsPRDData, markTaskRunning, markTaskCompleted, clearRunningTasks, loadTaskQueue } from '@speki/core';
 
 const router = Router();
 
@@ -64,8 +64,9 @@ function isProcessRunning(pid: number): boolean {
  */
 router.get('/status', async (req, res) => {
   try {
+    const projectPath = req.projectPath!;
     const status = await req.project!.loadStatus();
-    const isRunning = runningLoops.has(req.projectPath!);
+    const isRunning = runningLoops.has(projectPath);
 
     // If status says running, validate it's actually running
     if (status.status === 'running') {
@@ -79,19 +80,28 @@ router.get('/status', async (req, res) => {
       else if (status.startedAt && status.startedAt < SERVER_STARTUP_TIME) {
         console.log(`[Ralph] Status says running but startedAt (${status.startedAt}) is before server startup (${SERVER_STARTUP_TIME}) - resetting to idle`);
         status.status = 'idle';
-        runningLoops.delete(req.projectPath!);
+        runningLoops.delete(projectPath);
         await req.project!.saveStatus(status);
       }
       // Check 3: If we have a PID, is that process still alive?
       else if (status.pid && !isProcessRunning(status.pid)) {
         console.log(`[Ralph] Status says running but PID ${status.pid} is dead - resetting to idle`);
         status.status = 'idle';
-        runningLoops.delete(req.projectPath!);
+        runningLoops.delete(projectPath);
         await req.project!.saveStatus(status);
       }
     }
 
-    res.json({ ...status, isRunning: runningLoops.has(req.projectPath!) });
+    // If no loop is active, clear any stale queue running markers.
+    if (!runningLoops.has(projectPath)) {
+      const resetCount = await clearRunningTasks(projectPath);
+      if (resetCount > 0) {
+        const prdNow = await loadQueueAsPRDData(projectPath);
+        if (prdNow) publishTasks(projectPath, 'tasks/updated', prdNow);
+      }
+    }
+
+    res.json({ ...status, isRunning: runningLoops.has(projectPath) });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to get status',
@@ -181,6 +191,9 @@ router.post('/start', async (req, res) => {
     // Run the loop asynchronously (don't await - return immediately)
     const loopPromise = (async () => {
       try {
+        // Track story ID per iteration to avoid cross-iteration races.
+        const storyIdByIteration = new Map<number, string>();
+
         const streamCallbacks: StreamCallbacks = {
           onText: (text: string) => {
             console.log('[Ralph] onText callback:', text.substring(0, 50));
@@ -210,15 +223,67 @@ router.post('/start', async (req, res) => {
           onIterationStart: async (iteration, story) => {
             if (aborted) throw new Error('Aborted');
             console.log(`[Ralph] Iteration ${iteration} starting: ${story?.id || 'none'}`);
+
+            if (story?.id) {
+              storyIdByIteration.set(iteration, story.id);
+            } else {
+              storyIdByIteration.delete(iteration);
+            }
+
+            // Update queue status to running
+            if (story) {
+              const taskId = story.id;
+              try {
+                // Find the task in queue to get its correct specId
+                const queue = await loadTaskQueue(projectPath);
+                const queueRef = queue?.queue.find(ref => ref.taskId === taskId);
+                if (queueRef) {
+                  await markTaskRunning(projectPath, queueRef.specId, taskId);
+                } else {
+                  console.error(`[Ralph] Task ${taskId} not found in queue`);
+                }
+              } catch (err) {
+                console.error('[Ralph] Failed to mark task running:', err);
+              }
+            }
+
             publishRalph(projectPath, 'ralph/iteration-start', {
               iteration,
               maxIterations: getMaxIterations(),
               currentStory: story ? `${story.id}: ${story.title}` : null,
             });
+            publishRalph(projectPath, 'ralph/status', {
+              status: {
+                status: 'running',
+                currentIteration: iteration,
+                maxIterations: getMaxIterations(),
+                currentStory: story?.id,
+              } as RalphStatus,
+            });
           },
           onIterationEnd: async (iteration, completed, allComplete) => {
             // Don't check abort here - only check at start of new work
             console.log(`[Ralph] Iteration ${iteration} ended: completed=${completed}, allComplete=${allComplete}`);
+
+            const taskId = storyIdByIteration.get(iteration) ?? null;
+
+            // Update queue status to completed
+            if (completed && taskId) {
+              try {
+                // Find the task in queue to get its correct specId
+                const queue = await loadTaskQueue(projectPath);
+                const queueRef = queue?.queue.find(ref => ref.taskId === taskId);
+                if (queueRef) {
+                  await markTaskCompleted(projectPath, queueRef.specId, taskId);
+                } else {
+                  console.error(`[Ralph] Task ${taskId} not found in queue`);
+                }
+              } catch (err) {
+                console.error('[Ralph] Failed to mark task completed:', err);
+              }
+            }
+            storyIdByIteration.delete(iteration);
+
             publishRalph(projectPath, 'ralph/iteration-end', {
               iteration,
               storyCompleted: completed,
@@ -301,10 +366,16 @@ router.post('/stop', async (req, res) => {
       runningLoops.delete(projectPath);
     }
 
-  // Update status
-  await req.project!.saveStatus({ status: 'idle' });
-  await Registry.updateStatus(projectPath, 'idle');
-  publishRalph(projectPath, 'ralph/status', { status: { status: 'idle' } as RalphStatus });
+    const resetCount = await clearRunningTasks(projectPath);
+
+    // Update status
+    await req.project!.saveStatus({ status: 'idle' });
+    await Registry.updateStatus(projectPath, 'idle');
+    publishRalph(projectPath, 'ralph/status', { status: { status: 'idle' } as RalphStatus });
+    if (resetCount > 0) {
+      const prdNow = await loadQueueAsPRDData(projectPath);
+      if (prdNow) publishTasks(projectPath, 'tasks/updated', prdNow);
+    }
 
     res.json({ success: true });
   } catch (error) {

@@ -24,9 +24,9 @@ export interface LoopOptions {
   /** Directory for storing iteration logs */
   logDir: string;
   /** Callback when an iteration starts */
-  onIterationStart?: (iteration: number, story: UserStory | null) => void;
+  onIterationStart?: (iteration: number, story: UserStory | null) => void | Promise<void>;
   /** Callback when an iteration ends */
-  onIterationEnd?: (iteration: number, storyCompleted: boolean, isAllComplete: boolean) => void;
+  onIterationEnd?: (iteration: number, storyCompleted: boolean, isAllComplete: boolean) => void | Promise<void>;
   /** Callback when task count changes (for recalculating loop limit) */
   onTasksChanged?: (newTaskCount: number) => void;
   /** PRD loader for spec-partitioned state (required) */
@@ -188,7 +188,7 @@ export async function runRalphLoop(
 
       printIterationHeader(iteration, currentMax, prd, nextInfo);
 
-      onIterationStart?.(iteration, nextInfo.story);
+      await onIterationStart?.(iteration, nextInfo.story);
 
       await project.saveStatus({
         status: 'running',
@@ -260,7 +260,7 @@ export async function runRalphLoop(
         prd = (await loadPRD()) || prd;
         storiesCompleted = prd.userStories.filter((s) => s.passes).length - initialCompleted;
 
-        onIterationEnd?.(iteration, true, true);
+        await onIterationEnd?.(iteration, true, true);
 
         return {
           allComplete: true,
@@ -286,10 +286,10 @@ export async function runRalphLoop(
         if (newCompleted > oldCompleted) {
           console.log(chalk.green(`  ✓ Story completed! (${oldCompleted} → ${newCompleted})`));
           storiesCompleted++;
-          onIterationEnd?.(iteration, true, false);
+          await onIterationEnd?.(iteration, true, false);
         } else {
           console.log(chalk.yellow('  ⚠ No story marked complete this iteration'));
-          onIterationEnd?.(iteration, false, false);
+          await onIterationEnd?.(iteration, false, false);
         }
       }
 
