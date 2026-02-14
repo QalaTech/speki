@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { apiFetch } from '../../../components/ui/ErrorContext';
 import { useDecomposeSSE } from '../../../hooks/useDecomposeSSE';
 import type { DecomposeFeedback, UserStory } from '../../../types';
-import { ACTIVE_DECOMPOSE_STATUSES, DECOMPOSE_COMPLETE_STATUSES } from '../constants';
+import { ACTIVE_DECOMPOSE_STATUSES, DECOMPOSE_COMPLETE_STATUSES, DECOMPOSE_ERROR_STATUSES } from '../constants';
 import { isDecomposeForSpec } from '../utils';
+import { playCompletionGong } from '../audio';
 
 interface UseDecomposeOptions {
   projectPath: string;
@@ -16,6 +17,8 @@ interface UseDecomposeReturn {
   setStories: React.Dispatch<React.SetStateAction<UserStory[]>>;
   isDecomposing: boolean;
   setIsDecomposing: React.Dispatch<React.SetStateAction<boolean>>;
+  decomposeError: string | null;
+  setDecomposeError: React.Dispatch<React.SetStateAction<string | null>>;
   reviewFeedback: DecomposeFeedback | null;
   reviewVerdict: 'PASS' | 'FAIL' | 'UNKNOWN' | 'SKIPPED' | null;
   specStatus: 'pending' | 'partial' | 'completed' | null;
@@ -34,11 +37,13 @@ export function useDecompose({
 }: UseDecomposeOptions): UseDecomposeReturn {
   const [stories, setStories] = useState<UserStory[]>([]);
   const [isDecomposing, setIsDecomposing] = useState(false);
+  const [decomposeError, setDecomposeError] = useState<string | null>(null);
   const [decomposingSpecPath, setDecomposingSpecPath] = useState<string | null>(null);
   const [reviewFeedback, setReviewFeedback] = useState<DecomposeFeedback | null>(null);
   const [reviewVerdict, setReviewVerdict] = useState<'PASS' | 'FAIL' | 'UNKNOWN' | 'SKIPPED' | null>(null);
   const [specStatus, setSpecStatus] = useState<'pending' | 'partial' | 'completed' | null>(null);
   const [specStatusMessage, setSpecStatusMessage] = useState<string | null>(null);
+  const hadActiveDecomposeRef = useRef(false);
   const decomposeState = useDecomposeSSE(projectPath);
 
   const loadDecomposeState = useCallback(async () => {
@@ -139,9 +144,10 @@ export function useDecompose({
   useEffect(() => {
     if (!decomposeState) return;
 
-    const status = decomposeState.status as typeof ACTIVE_DECOMPOSE_STATUSES[number] | typeof DECOMPOSE_COMPLETE_STATUSES[number];
+    const status = decomposeState.status as typeof ACTIVE_DECOMPOSE_STATUSES[number] | typeof DECOMPOSE_COMPLETE_STATUSES[number] | typeof DECOMPOSE_ERROR_STATUSES[number];
     const isActive = ACTIVE_DECOMPOSE_STATUSES.includes(status as typeof ACTIVE_DECOMPOSE_STATUSES[number]);
     const isComplete = DECOMPOSE_COMPLETE_STATUSES.includes(status as typeof DECOMPOSE_COMPLETE_STATUSES[number]);
+    const isError = DECOMPOSE_ERROR_STATUSES.includes(status as typeof DECOMPOSE_ERROR_STATUSES[number]);
 
     const isForSelectedSpec = !!selectedPath && isDecomposeForSpec(decomposeState.prdFile, selectedPath);
     const isForTrackedSpec = !!decomposingSpecPath && isDecomposeForSpec(decomposeState.prdFile, decomposingSpecPath);
@@ -149,12 +155,27 @@ export function useDecompose({
     if (isActive && selectedPath && isForSelectedSpec) {
       setIsDecomposing(true);
       setDecomposingSpecPath(selectedPath);
+      setDecomposeError(null);
+      hadActiveDecomposeRef.current = true;
+      return;
+    }
+
+    if (isError && (isForSelectedSpec || isForTrackedSpec)) {
+      setIsDecomposing(false);
+      setDecomposingSpecPath(null);
+      setDecomposeError(decomposeState.error || 'Decompose failed');
+      hadActiveDecomposeRef.current = false;
       return;
     }
 
     if (isComplete && (isForSelectedSpec || isForTrackedSpec)) {
       setIsDecomposing(false);
       setDecomposingSpecPath(null);
+      setDecomposeError(null);
+      if (hadActiveDecomposeRef.current) {
+        playCompletionGong();
+      }
+      hadActiveDecomposeRef.current = false;
       if (isForSelectedSpec) {
         loadDecomposeState();
       }
@@ -171,6 +192,8 @@ export function useDecompose({
     setStories,
     isDecomposing: isCurrentSpecDecomposing,
     setIsDecomposing,
+    decomposeError,
+    setDecomposeError,
     reviewFeedback,
     reviewVerdict,
     specStatus,

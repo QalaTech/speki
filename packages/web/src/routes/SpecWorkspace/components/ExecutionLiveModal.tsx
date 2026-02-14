@@ -5,7 +5,7 @@ import type { ParsedEntry } from '../../../utils/parseJsonl';
 import type {
   RalphStatus,
   UserStory,
-  QueuedTaskReference,
+  QueuedTaskWithData,
   PeerFeedback,
   PeerFeedbackCategory,
 } from '../../../types';
@@ -24,7 +24,7 @@ interface ExecutionLiveModalProps {
   onRemoveTaskFromQueue?: (specId: string, taskId: string) => Promise<void> | void;
   removingQueueTaskKeys?: Set<string>;
   stories?: UserStory[];
-  queueTasks?: QueuedTaskReference[];
+  queueTasks?: QueuedTaskWithData[];
   completedIds?: Set<string>;
   peerFeedback?: PeerFeedback | null;
   onRefreshLessons?: () => void;
@@ -74,7 +74,6 @@ export function ExecutionLiveModal({
   onRefreshLessons,
 }: ExecutionLiveModalProps) {
   const isRunning = ralphStatus.running;
-  const currentStoryId = ralphStatus.currentStory?.split(':')[0]?.trim();
   
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'activity' | 'lessons'>('activity');
@@ -89,24 +88,85 @@ export function ExecutionLiveModal({
     [queueTasks]
   );
   const queueSpecByTaskId = useMemo(
-    () => new Map(activeQueueTasks.map((task) => [task.taskId, task.specId])),
-    [activeQueueTasks]
+    () => new Map(queueTasks.map((task) => [task.taskId, task.specId])),
+    [queueTasks]
   );
+  const currentStoryId = useMemo(() => {
+    return ralphStatus.currentStory?.split(':')[0]?.trim() || null;
+  }, [ralphStatus.currentStory]);
+  const storiesForQueue = useMemo(() => {
+    const storyMap = new Map(stories.map((story) => [story.id, story]));
+
+    // Queue API may include tasks outside the currently opened spec.
+    // Merge those in so the modal always reflects the global queue.
+    queueTasks.forEach((ref) => {
+      if (storyMap.has(ref.taskId)) return;
+
+      if (ref.task) {
+        storyMap.set(ref.taskId, ref.task);
+        return;
+      }
+
+      storyMap.set(ref.taskId, {
+        id: ref.taskId,
+        title: ref.taskId,
+        description: '',
+        acceptanceCriteria: [],
+        priority: 0,
+        passes: false,
+        notes: '',
+        dependencies: [],
+      });
+    });
+
+    return Array.from(storyMap.values());
+  }, [stories, queueTasks]);
+
+  // Derive running task ID.
+  // Prefer queue-running status as source of truth, with currentStory as fallback
+  // when queue polling has not observed the running marker yet.
+  const runningTaskIdFromQueue = useMemo(() => {
+    if (!isRunning) return null;
+
+    const queueRunningTask = activeQueueTasks.find((t) => t.status === 'running');
+    const soleActiveTaskId = activeQueueTasks.length === 1 ? activeQueueTasks[0]?.taskId ?? null : null;
+
+    if (queueRunningTask) return queueRunningTask.taskId;
+
+    if (isRunning && currentStoryId) {
+      const status = queueStatusByTaskId.get(currentStoryId);
+      // Ignore stale status pointers that already left the active queue.
+      if (!status || status === 'completed' || status === 'failed' || status === 'skipped') {
+        // During wrap-up, queue may be empty while logs are still streaming for the last task.
+        if (activeQueueTasks.length === 0) return currentStoryId;
+        return soleActiveTaskId;
+      }
+      return currentStoryId;
+    }
+
+    // If execution is running and only one task is active, treat it as the live task
+    // when currentStory is temporarily stale or unavailable.
+    if (isRunning && soleActiveTaskId) {
+      return soleActiveTaskId;
+    }
+
+    return null;
+  }, [activeQueueTasks, isRunning, currentStoryId, queueStatusByTaskId]);
 
   // Auto-select running task
   useEffect(() => {
-    if (isRunning && currentStoryId) {
-      setSelectedStoryId(currentStoryId);
+    if (isRunning && runningTaskIdFromQueue) {
+      setSelectedStoryId(runningTaskIdFromQueue);
     }
-  }, [currentStoryId, isRunning]);
+  }, [runningTaskIdFromQueue, isRunning]);
 
   useEffect(() => {
     if (!selectedStoryId) return;
     const stillQueued = activeQueueTasks.some((task) => task.taskId === selectedStoryId);
-    if (!stillQueued && selectedStoryId !== currentStoryId) {
-      setSelectedStoryId(activeQueueTasks[0]?.taskId ?? null);
+    if (!stillQueued) {
+      setSelectedStoryId(runningTaskIdFromQueue ?? activeQueueTasks[0]?.taskId ?? null);
     }
-  }, [activeQueueTasks, currentStoryId, selectedStoryId]);
+  }, [activeQueueTasks, runningTaskIdFromQueue, selectedStoryId]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -119,21 +179,27 @@ export function ExecutionLiveModal({
   const groupedStories = useMemo(() => {
     const queuedTaskIds = new Set(activeQueueTasks.map((task) => task.taskId));
     const queueOrder = new Map(activeQueueTasks.map((task, index) => [task.taskId, index]));
+    const includeOutOfBandRunningTask = Boolean(
+      isRunning &&
+      runningTaskIdFromQueue &&
+      !queuedTaskIds.has(runningTaskIdFromQueue) &&
+      queueSpecByTaskId.has(runningTaskIdFromQueue)
+    );
     
     // Ensure activeTasks are unique by ID and include current running task if missing from queue cache.
     const uniqueActiveTasksMap = new Map<string, UserStory>();
-    stories
-      .filter((story) => queuedTaskIds.has(story.id) || (isRunning && story.id === currentStoryId))
+    storiesForQueue
+      .filter((story) => queuedTaskIds.has(story.id) || (includeOutOfBandRunningTask && story.id === runningTaskIdFromQueue))
       .forEach((story) => uniqueActiveTasksMap.set(story.id, story));
     
     const activeTasks = Array.from(uniqueActiveTasksMap.values());
     
     const groups: Record<string, UserStory[]> = {};
     const taskToSpec = new Map<string, string>();
-    activeQueueTasks.forEach((task) => taskToSpec.set(task.taskId, task.specId));
+    queueTasks.forEach((task) => taskToSpec.set(task.taskId, task.specId));
 
     activeTasks.forEach(story => {
-      const specId = taskToSpec.get(story.id) || story.id.split('-')[0] || 'Unknown';
+      const specId = taskToSpec.get(story.id) || 'Unknown';
       if (!groups[specId]) groups[specId] = [];
       groups[specId].push(story);
     });
@@ -142,14 +208,14 @@ export function ExecutionLiveModal({
       specId,
       stories: stories.sort((a, b) => {
         const getOrder = (id: string) => {
-          if (id === currentStoryId) return 0;
+          if (id === runningTaskIdFromQueue) return 0;
           return (queueOrder.get(id) ?? Number.MAX_SAFE_INTEGER) + 1;
         };
         return getOrder(a.id) - getOrder(b.id);
       })
     })).sort((a, b) => {
-      const aHasRunning = a.stories.some(s => s.id === currentStoryId);
-      const bHasRunning = b.stories.some(s => s.id === currentStoryId);
+      const aHasRunning = a.stories.some(s => s.id === runningTaskIdFromQueue);
+      const bHasRunning = b.stories.some(s => s.id === runningTaskIdFromQueue);
       if (aHasRunning) return -1;
       if (bHasRunning) return 1;
       return a.specId.localeCompare(b.specId);
@@ -159,7 +225,7 @@ export function ExecutionLiveModal({
       groups: sortedGroups,
       totalCount: activeTasks.length
     };
-  }, [stories, activeQueueTasks, currentStoryId, isRunning]);
+  }, [storiesForQueue, activeQueueTasks, queueTasks, queueSpecByTaskId, runningTaskIdFromQueue, isRunning]);
 
   // Scroll to selected task
   useEffect(() => {
@@ -172,14 +238,18 @@ export function ExecutionLiveModal({
   }, [selectedStoryId, isOpen]);
 
   const getTaskStatus = (id: string) => {
-    if (id === currentStoryId) return 'running';
+    if (isRunning && id === runningTaskIdFromQueue) return 'running';
     const queueStatus = queueStatusByTaskId.get(id);
+    if (!isRunning && queueStatus === 'running') return 'queued';
+    // If queue polling is behind, suppress stale "running" badges for non-active tasks.
+    if (isRunning && runningTaskIdFromQueue && queueStatus === 'running') return 'queued';
     if (queueStatus) return queueStatus;
     if (completedIds.has(id)) return 'completed';
     return 'pending';
   };
 
-  const selectedStoryTitle = stories.find(s => s.id === selectedStoryId)?.title || selectedStoryId;
+  const selectedStoryTitle = storiesForQueue.find(s => s.id === selectedStoryId)?.title || selectedStoryId;
+  const shouldShowGlobalLogs = !selectedStoryId && isRunning;
 
   const lessonsLearned = useMemo(() => peerFeedback?.lessonsLearned ?? [], [peerFeedback]);
   const categoriesWithLessons = useMemo(
@@ -231,7 +301,7 @@ export function ExecutionLiveModal({
             )}
           </div>
           <div className="flex gap-2">
-            {!isRunning && onResumeExecution && queueTasks.some(t => t.status === 'queued') && (
+            {!isRunning && onResumeExecution && queueTasks.some(t => t.status === 'queued' || t.status === 'running') && (
               <Button variant="primary" size="sm" onClick={onResumeExecution} className="gap-1.5">
                 <PlayIcon className="w-4 h-4" />
                 Resume
@@ -297,7 +367,7 @@ export function ExecutionLiveModal({
                   <div className="text-center p-4 text-xs text-muted-foreground">No tasks in queue</div>
                 ) : (
                   groupedStories.groups.map(group => {
-                    const isGroupActive = group.stories.some(s => s.id === currentStoryId);
+                    const isGroupActive = group.stories.some(s => s.id === runningTaskIdFromQueue);
                     
                     return (
                       <div key={group.specId} className="space-y-1">
@@ -418,10 +488,10 @@ export function ExecutionLiveModal({
                   </div>
                   
                   <div className="flex-1 overflow-hidden relative">
-                    {(selectedStoryId === currentStoryId || !currentStoryId) ? (
+                    {(selectedStoryId === runningTaskIdFromQueue || !runningTaskIdFromQueue) ? (
                       <ChatLogView
                         entries={logEntries}
-                        isRunning={isRunning && selectedStoryId === currentStoryId}
+                        isRunning={isRunning && selectedStoryId === runningTaskIdFromQueue}
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8 text-center">
@@ -433,6 +503,10 @@ export function ExecutionLiveModal({
                     )}
                   </div>
                 </>
+              ) : shouldShowGlobalLogs ? (
+                <div className="flex-1 overflow-hidden relative">
+                  <ChatLogView entries={logEntries} isRunning={isRunning} />
+                </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                   <p>Select a task to view details</p>

@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { SparklesIcon, ArrowPathIcon, QueueListIcon, DocumentPlusIcon, PlayIcon } from '@heroicons/react/24/outline';
 import { Button } from '../../../components/ui/Button';
+import { Alert } from '../../../components/ui/Alert';
 import { Spinner, Skeleton } from '../../../components/ui/Loading';
 import { Badge } from '../../../components/ui/Badge';
 import { UseCaseList } from '../../../components/specs/UseCaseList';
@@ -21,6 +22,8 @@ interface TasksSectionProps {
   specType: SpecType;
   isPrd: boolean;
   isDecomposing: boolean;
+  decomposeError?: string | null;
+  onClearError?: () => void;
   isLoadingContent: boolean;
   isGeneratingTechSpec: boolean;
   ralphStatus?: RalphStatus;
@@ -146,6 +149,8 @@ export function TasksSection({
   specType,
   isPrd,
   isDecomposing,
+  decomposeError,
+  onClearError,
   isLoadingContent,
   isGeneratingTechSpec,
   ralphStatus,
@@ -195,7 +200,14 @@ export function TasksSection({
   };
 
   const getQueuedTaskStatus = (taskId: string) =>
-    getQueuedTaskStatusProp ? getQueuedTaskStatusProp(taskId) : (queueTasks.find(t => t.taskId === taskId)?.status || 'pending');
+    {
+      const rawStatus = getQueuedTaskStatusProp
+        ? getQueuedTaskStatusProp(taskId)
+        : (queueTasks.find(t => t.taskId === taskId)?.status || 'pending');
+
+      if (!isRunning && rawStatus === 'running') return 'queued';
+      return rawStatus;
+    };
 
   const title = isPrd ? 'User Stories' : 'Tasks';
   const reviewStatusText = reviewVerdict === 'PASS'
@@ -205,7 +217,7 @@ export function TasksSection({
       : null;
 
   return (
-    <div ref={sectionRef} id="tasks-section" className="mb-8 scroll-mt-8">
+    <div ref={sectionRef} id="tasks-section" className="mb-8 scroll-mt-8 flex flex-col gap-y-2">
       {/* Header */}
       <div className="flex items-baseline gap-3 mb-3 pb-[0.5em] border-b border-border/70">
         <h2
@@ -284,7 +296,7 @@ export function TasksSection({
                     Queue All
                   </Button>
                 )}
-                {queueTasks.some(t => t.status === 'queued') && !isRunning && (
+                {queueTasks.some(t => t.status === 'queued' || t.status === 'running') && !isRunning && (
                   <Button variant="primary" size="sm" onClick={onRunQueue} className="h-7 text-xs">
                     <PlayIcon className="h-3.5 w-3.5 mr-1" />
                     Run Queue
@@ -343,6 +355,24 @@ export function TasksSection({
         />
       ) : isDecomposing ? (
         <TaskListLoadingSkeleton />
+      ) : decomposeError ? (
+        <div className="bg-error/10 border border-error/20 rounded-lg p-4 my-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-error">Generation Failed</div>
+              <p className="text-sm text-error/80 mt-1 whitespace-pre-wrap">{decomposeError}</p>
+            </div>
+            {onClearError && (
+              <button
+                onClick={onClearError}
+                className="shrink-0 text-error/60 hover:text-error p-1"
+                aria-label="Dismiss error"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </div>
       ) : (
         <p className="text-muted-foreground text-sm italic py-4">
           No {isPrd ? 'user stories' : 'tasks'} yet. Click Generate to create them.
@@ -350,14 +380,14 @@ export function TasksSection({
       )}
 
       {specStatus === 'completed' && stories.length === 0 && (
-        <p className="text-success text-sm">
-          ✓ {specStatusMessage || 'Spec completed'}
-        </p>
+        <Alert variant="success">
+          {specStatusMessage || 'Spec completed'}
+        </Alert>
       )}
       {specStatus === 'partial' && (
-        <p className="text-warning text-sm">
-          ○ {specStatusMessage || 'Partially completed'}
-        </p>
+        <Alert variant="warning">
+          {specStatusMessage || 'Partially completed'}
+        </Alert>
       )}
     </div>
   );
