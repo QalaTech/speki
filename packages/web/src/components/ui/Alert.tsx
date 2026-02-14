@@ -10,8 +10,8 @@ const alertVariants = cva(
       variant: {
         default: "bg-card/80 border-border/50 text-foreground",
         info: "border-info/30 bg-linear-to-r from-info/10 to-transparent text-info ring-1 ring-info/15",
-        success: "border-success/30 bg-linear-to-r from-success/10 to-transparent text-success ring-1 ring-success/15",
-        warning: "border-warning/30 bg-linear-to-r from-warning/10 to-transparent text-warning-foreground ring-1 ring-warning/15",
+        success: "border-success/30 bg-linear-to-r from-success/10 to-transparent text-green-400 ring-1 ring-success/15",
+        warning: "border-warning/30 bg-linear-to-r from-warning/10 to-transparent text-yellow-300 ring-1 ring-warning/15",
         error: "border-error/30 bg-linear-to-r from-error/10 to-transparent text-error ring-1 ring-error/15",
         destructive: "border-destructive/30 bg-linear-to-r from-destructive/10 to-transparent text-destructive ring-1 ring-destructive/15",
       },

@@ -12,17 +12,23 @@ import {
   loadQueueWithTaskData,
   markTaskCompleted,
   markTaskRunning,
-  getNextQueuedTask,
-  loadTaskFromSpec,
 } from '@speki/core';
 
 /**
- * Get next pending task from queue (by queue order, respecting dependencies)
+ * Get current/next task from queue (by queue order, respecting dependencies)
  * Uses task-queue.json as source of truth for status
  */
 async function getNextTaskFromQueue(projectPath: string): Promise<{ task: UserStory; specId: string } | null> {
   const queueWithTasks = await loadQueueWithTaskData(projectPath);
   if (!queueWithTasks.length) return null;
+
+  // If a task is already running, that is the current task.
+  // This keeps `qala tasks next` aligned with the Ralph runner and live execution UI.
+  for (const ref of queueWithTasks) {
+    if (ref.status === 'running' && ref.task) {
+      return { task: ref.task, specId: ref.specId };
+    }
+  }
 
   // Get completed task IDs from queue status
   const completedIds = new Set(
@@ -117,7 +123,7 @@ tasksCommand
 // qala tasks next
 tasksCommand
   .command('next')
-  .description('Get the next pending task with full context (respects dependencies)')
+  .description('Get the current running task (or next pending task) with full context')
   .option('-p, --project <path>', 'Project path (defaults to current directory)')
   .option('-s, --spec <spec-id>', 'Spec ID to read tasks from (legacy, ignored when queue exists)')
   .option('--task-only', 'Output only the task without context')
@@ -304,6 +310,34 @@ tasksCommand
 
       // Try queue-based workflow first (preferred)
       const queueWithTasks = await loadQueueWithTaskData(projectPath);
+      const runningRef = queueWithTasks.find(ref => ref.status === 'running');
+
+      // Guardrail: when a task is running, only that task can be completed.
+      // This prevents the agent from completing "next" tasks out of order and
+      // desynchronizing the live execution queue.
+      if (runningRef && runningRef.taskId !== id) {
+        console.error(
+          chalk.red(
+            `Cannot complete ${id}: ${runningRef.taskId} is currently running. Complete the running task first.`
+          )
+        );
+        process.exit(1);
+      }
+
+      // Additional guardrail: if no task is marked running, only allow
+      // completing the current expected queue task.
+      if (!runningRef) {
+        const expected = await getNextTaskFromQueue(projectPath);
+        if (expected && expected.task.id !== id) {
+          console.error(
+            chalk.red(
+              `Cannot complete ${id}: expected current task is ${expected.task.id}.`
+            )
+          );
+          process.exit(1);
+        }
+      }
+
       const queueRef = queueWithTasks.find(ref => ref.taskId === id);
 
       if (queueRef) {

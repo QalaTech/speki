@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { executionKeys } from '../api/keys';
-import type { RalphStatus, PRDData, PeerFeedback } from '../../../types';
+import type { RalphStatus, PRDData, PeerFeedback, QueuedTaskWithData } from '../../../types';
 import type { ParsedEntry } from '../../../utils/parseJsonl';
 import type { ConnectionStatus, ExecutionLogs } from '../api/queries';
 import { defaultRalphStatus, defaultExecutionLogs } from '../api/queries';
@@ -39,6 +39,109 @@ export function useExecutionSSE(project: string | null): void {
     const url = `/api/events/all?project=${encodeURIComponent(project)}`;
     const eventSource = new EventSource(url);
 
+    const parseStoryId = (story: string | null | undefined): string | null => {
+      if (!story) return null;
+      return story.split(':')[0]?.trim() || null;
+    };
+
+    const hydrateStatusSnapshot = async () => {
+      try {
+        const params = new URLSearchParams({ project });
+        const response = await fetch(`/api/ralph/status?${params}`);
+        if (!response.ok) return;
+        const backendStatus = await response.json();
+        const status: RalphStatus = {
+          ...backendStatus,
+          running: backendStatus.status === 'running',
+          currentIteration: backendStatus.currentIteration ?? 0,
+          maxIterations: backendStatus.maxIterations ?? 0,
+          currentStory: backendStatus.currentStory ?? null,
+        };
+        queryClient.setQueryData(executionKeys.status(project), status);
+        if (status.running) {
+          setQueueRunningTask(parseStoryId(status.currentStory));
+          void queryClient.invalidateQueries({ queryKey: executionKeys.queue(project) });
+        }
+      } catch {
+        // Snapshot hydration is best-effort.
+      }
+    };
+
+    const setQueueRunningTask = (taskId: string | null) => {
+      if (!taskId) return;
+      queryClient.setQueryData(
+        executionKeys.queue(project),
+        (prev: QueuedTaskWithData[] | undefined) => {
+          if (!prev || prev.length === 0) return prev;
+          let changed = false;
+          const next = prev.map((task) => {
+            if (task.taskId === taskId) {
+              if (task.status === 'running') return task;
+              changed = true;
+              return {
+                ...task,
+                status: 'running',
+                startedAt: task.startedAt ?? new Date().toISOString(),
+              };
+            }
+            if (task.status === 'running') {
+              changed = true;
+              const { startedAt, ...rest } = task;
+              return {
+                ...rest,
+                status: 'queued',
+              };
+            }
+            return task;
+          });
+          return changed ? next : prev;
+        }
+      );
+    };
+
+    const setQueueTaskCompleted = (taskId: string | null) => {
+      if (!taskId) return;
+      queryClient.setQueryData(
+        executionKeys.queue(project),
+        (prev: QueuedTaskWithData[] | undefined) => {
+          if (!prev || prev.length === 0) return prev;
+          let changed = false;
+          const now = new Date().toISOString();
+          const next = prev.map((task) => {
+            if (task.taskId !== taskId) return task;
+            if (task.status === 'completed') return task;
+            changed = true;
+            return {
+              ...task,
+              status: 'completed',
+              completedAt: now,
+            };
+          });
+          return changed ? next : prev;
+        }
+      );
+    };
+
+    const clearQueueRunningTasks = () => {
+      queryClient.setQueryData(
+        executionKeys.queue(project),
+        (prev: QueuedTaskWithData[] | undefined) => {
+          if (!prev || prev.length === 0) return prev;
+          let changed = false;
+          const next = prev.map((task) => {
+            if (task.status !== 'running') return task;
+            changed = true;
+            const { startedAt, ...rest } = task;
+            return {
+              ...rest,
+              status: 'queued',
+            };
+          });
+          return changed ? next : prev;
+        }
+      );
+    };
+
     // Connection opened
     eventSource.onopen = () => {
       queryClient.setQueryData(executionKeys.connection(project), 'connected' as ConnectionStatus);
@@ -57,6 +160,14 @@ export function useExecutionSSE(project: string | null): void {
           currentStory: backendStatus.currentStory ?? null,
         };
         queryClient.setQueryData(executionKeys.status(project), status);
+        if (status.running) {
+          setQueueRunningTask(parseStoryId(status.currentStory));
+        } else {
+          clearQueueRunningTasks();
+          // Force a one-time queue refresh when execution stops so stale
+          // optimistic running markers are cleared immediately.
+          void queryClient.invalidateQueries({ queryKey: executionKeys.queue(project) });
+        }
       } catch (err) {
         console.error('[useExecutionSSE] Error processing ralph/status:', err);
       }
@@ -86,6 +197,10 @@ export function useExecutionSSE(project: string | null): void {
             currentStory: currentStory ?? null,
           };
         });
+        setQueueRunningTask(parseStoryId(currentStory ?? null));
+
+        // Trigger an immediate queue refresh so running task markers do not lag behind status SSE.
+        void queryClient.invalidateQueries({ queryKey: executionKeys.queue(project) });
       } catch (err) {
         console.error('[useExecutionSSE] Error processing ralph/iteration-start:', err);
       }
@@ -115,7 +230,13 @@ export function useExecutionSSE(project: string | null): void {
     eventSource.addEventListener('ralph/iteration-end', (event: MessageEvent) => {
       try {
         const payload = JSON.parse(event.data);
-        const { allComplete } = payload.data;
+        const { allComplete, storyCompleted } = payload.data;
+        const currentStatus = queryClient.getQueryData<RalphStatus>(executionKeys.status(project));
+        const currentStoryId = parseStoryId(currentStatus?.currentStory ?? null);
+
+        if (storyCompleted) {
+          setQueueTaskCompleted(currentStoryId);
+        }
 
         if (allComplete) {
           queryClient.setQueryData(executionKeys.status(project), (prev: RalphStatus | undefined) => {
@@ -126,7 +247,10 @@ export function useExecutionSSE(project: string | null): void {
               status: 'stopped' as const,
             };
           });
+          clearQueueRunningTasks();
         }
+
+        void queryClient.invalidateQueries({ queryKey: executionKeys.queue(project) });
       } catch (err) {
         console.error('[useExecutionSSE] Error processing ralph/iteration-end:', err);
       }
@@ -134,7 +258,8 @@ export function useExecutionSSE(project: string | null): void {
 
     // Ralph connected event (initial connection)
     eventSource.addEventListener('ralph/connected', () => {
-      // Initial connection event - no action needed
+      void hydrateStatusSnapshot();
+      void queryClient.invalidateQueries({ queryKey: executionKeys.queue(project) });
     });
 
     // Tasks snapshot event
@@ -218,7 +343,7 @@ export function useExecutionSSE(project: string | null): void {
     // Connection error
     eventSource.onerror = () => {
       queryClient.setQueryData(executionKeys.connection(project), 'error' as ConnectionStatus);
-      eventSource.close();
+      // Keep EventSource open; browser will retry automatically.
     };
 
     return () => {
