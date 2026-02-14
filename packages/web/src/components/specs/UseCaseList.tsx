@@ -7,12 +7,10 @@ import {
   PencilIcon,
   PlayIcon,
   PlusIcon,
-  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useRef, useState } from "react";
 import type { UserStory } from "../../types";
 import { ChatMarkdown } from "../chat/ChatMarkdown";
-import { Alert, AlertTitle } from "../ui/Alert";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { Modal } from "../ui/Modal";
