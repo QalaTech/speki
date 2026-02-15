@@ -55,7 +55,7 @@ function App() {
         return prev;
       });
     }
-  }, [selectedProject, projects, setSearchParams]);
+  }, [selectedProject, projects, setSearchParams, location.pathname]);
 
   // SSE subscription to keep execution caches updated
   useExecutionSSE(selectedProject);
@@ -126,7 +126,7 @@ function App() {
   // Home page has its own layout without TopNav
   if (isHomePage) {
     return (
-      <div className="flex flex-col h-screen max-h-screen overflow-auto">
+      <div className="flex flex-col h-dvh max-h-dvh overflow-auto">
         <AppRoutes
           selectedProject={selectedProject}
           executionViewProps={executionViewProps}
@@ -138,7 +138,7 @@ function App() {
 
   return (
     <SpecProvider>
-      <div className="flex flex-col h-screen max-h-screen overflow-hidden">
+      <div className="flex flex-col h-dvh max-h-dvh overflow-hidden">
         <Toaster 
           position="top-center" 
           toastOptions={{
@@ -161,7 +161,7 @@ function App() {
         />
 
         {/* Main Content */}
-        <main className="flex-1 w-full max-h-[calc(100vh-56px)] overflow-hidden flex flex-col relative">
+        <main className="flex-1 w-full max-h-[calc(100dvh-56px)] overflow-hidden flex flex-col relative">
           {loading && (
             <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-100">
               <div className="text-xl text-muted-foreground">Loading...</div>

@@ -205,7 +205,7 @@ export function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background">
       <header className="relative overflow-hidden">
         {/* Subtle gradient background */}
         <div className="absolute inset-0 bg-linear-to-b from-primary/5 to-transparent" />

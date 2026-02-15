@@ -34,3 +34,24 @@ export function useIsTabletOrSmaller() {
 
   return !!isSmall
 }
+
+export function isIOSSafari() {
+  if (typeof navigator === 'undefined') return false;
+
+  const ua = navigator.userAgent;
+  const isIOSDevice =
+    /iP(hone|ad|od)/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isWebKit = /WebKit/i.test(ua) && !/CriOS/i.test(ua) && !/FxiOS/i.test(ua);
+  return isIOSDevice && isWebKit;
+}
+
+export function useIsIOSSafari() {
+  const [isIOS, setIsIOS] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsIOS(isIOSSafari());
+  }, []);
+
+  return isIOS;
+}

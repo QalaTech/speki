@@ -54,7 +54,7 @@ export function TopNav({
 
   return (
     <nav className="sticky top-0 z-50 bg-linear-to-b from-background to-card/50 backdrop-blur-2xl border-b border-border/40 shadow-sm">
-      <div className="flex items-center h-14 px-3 md:px-5">
+      <div className="flex items-center gap-x-2 h-14 px-3 md:px-5">
         {/* Left: Logo and Project Selector */}
         <div className="flex items-center gap-1 md:gap-3 shrink-0">
           <button
@@ -95,7 +95,7 @@ export function TopNav({
                 {activeSpec.type}
               </span>
               <div className="w-px h-4 bg-border/40 mx-1" />
-              <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground shrink-0">
+              <span className="hidden lg:flex items-center gap-1.5 text-[11px] text-muted-foreground shrink-0">
                 {saveStatus.isSaving ? (
                   <>
                     <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />

@@ -140,7 +140,7 @@ export function DiffOverlay({
     <div className="fixed inset-0 z-1000 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/75 backdrop-blur-xs" onClick={onCancel} />
 
-      <div className="relative flex flex-col w-[calc(100vw-96px)] h-[calc(100vh-96px)] max-w-[1600px] bg-card/95 backdrop-blur-xl border border-border/60 rounded-2xl shadow-[0_24px_72px_rgba(0,0,0,0.55)] overflow-hidden">
+      <div className="relative flex flex-col w-[calc(100vw-96px)] h-[calc(100dvh-96px)] max-w-[1600px] bg-card/95 backdrop-blur-xl border border-border/60 rounded-2xl shadow-[0_24px_72px_rgba(0,0,0,0.55)] overflow-hidden">
         <header className="flex items-start justify-between gap-4 py-4 px-5 bg-muted/25 border-b border-border/60">
           <div className="min-w-0">
             <p className="m-0 text-[11px] uppercase tracking-[0.08em] font-semibold text-muted-foreground">Review Suggestion</p>

@@ -163,6 +163,8 @@ interface ConversationPopoverProps {
   onClose: () => void;
   onClearDiscussingContext: () => void;
   onClearSelectedContext: () => void;
+  compact?: boolean;
+  maxHeightPx?: number;
 }
 
 export function ConversationPopover({
@@ -174,6 +176,8 @@ export function ConversationPopover({
   onClose,
   onClearDiscussingContext,
   onClearSelectedContext,
+  compact = false,
+  maxHeightPx,
 }: ConversationPopoverProps) {
   const conversationRef = useRef<HTMLDivElement>(null);
   const userBubbleClass =
@@ -189,10 +193,13 @@ export function ConversationPopover({
     <div
       ref={conversationRef}
       data-testid="conversation-popover"
-      className="max-h-[28rem] overflow-y-auto rounded-lg bg-[#1e1e1e] border border-white/5 shadow-[0_12px_32px_rgba(0,0,0,0.42),0_4px_14px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.06)]"
+      className={`overflow-y-auto bg-[#1e1e1e] border border-white/5 shadow-[0_12px_32px_rgba(0,0,0,0.42),0_4px_14px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.06)] ${
+        compact ? 'rounded-2xl' : 'max-h-[28rem] rounded-lg'
+      }`}
+      style={maxHeightPx ? { maxHeight: `${maxHeightPx}px` } : undefined}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="sticky top-0 flex items-center justify-between px-4 py-2 border-b border-white/5 bg-[#1e1e1e] z-10">
+      <div className={`sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-[#1e1e1e] ${compact ? 'px-3 py-1.5' : 'px-4 py-2'}`}>
         <span className="text-sm font-medium text-muted-foreground">Conversation</span>
         <button
           onClick={onClose}
@@ -202,7 +209,7 @@ export function ConversationPopover({
         </button>
       </div>
 
-      <div className="p-4 space-y-4">
+      <div className={compact ? 'p-3 space-y-3' : 'p-4 space-y-4'}>
         {messages.map((msg) => {
           if (msg.role === 'user') {
             const parsed = parseUserMessage(msg.content);

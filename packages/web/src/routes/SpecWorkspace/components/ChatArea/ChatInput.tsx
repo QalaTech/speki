@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import {
   PaperAirplaneIcon,
   SparklesIcon,
@@ -13,6 +13,7 @@ import {
   SelectItem 
 } from '@/components/ui/Select';
 import type { CliType } from '@/types';
+import { isIOSSafari } from '../../../../hooks/use-mobile';
 
 interface ChatInputProps {
   value: string;
@@ -23,6 +24,7 @@ interface ChatInputProps {
   isSending: boolean;
   isStartingReview: boolean;
   onFocus?: () => void;
+  onBlur?: () => void;
   isDiscussing?: boolean;
   focusTrigger?: number;
 }
@@ -36,10 +38,17 @@ export function ChatInput({
   isSending,
   isStartingReview,
   onFocus,
+  onBlur,
   isDiscussing,
   focusTrigger,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const focusScrollLockRef = useRef<{
+    rafId: number | null;
+    timeoutIds: number[];
+    restore: () => void;
+    viewport: VisualViewport | null;
+  } | null>(null);
   const isSendDisabled = !value.trim() || isSending;
   
   const { data: settings } = useSettings();
@@ -51,6 +60,69 @@ export function ChatInput({
   const availableClis = cliDetection
     ? (Object.keys(cliDetection) as CliType[]).filter((key) => cliDetection[key]?.available)
     : [];
+
+  const releaseFocusScrollLock = useCallback(() => {
+    const lockState = focusScrollLockRef.current;
+    if (!lockState) return;
+
+    if (lockState.rafId !== null) {
+      window.cancelAnimationFrame(lockState.rafId);
+    }
+    lockState.timeoutIds.forEach((id) => window.clearTimeout(id));
+    lockState.viewport?.removeEventListener('resize', lockState.restore);
+    lockState.viewport?.removeEventListener('scroll', lockState.restore);
+    window.removeEventListener('scroll', lockState.restore);
+
+    focusScrollLockRef.current = null;
+  }, []);
+
+  const lockIOSFocusScroll = useCallback(() => {
+    if (!isIOSSafari()) return;
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    releaseFocusScrollLock();
+
+    const initialScrollX = window.scrollX;
+    const initialScrollY = window.scrollY;
+    const restore = () => {
+      if (document.activeElement !== textarea) return;
+      window.scrollTo(initialScrollX, initialScrollY);
+    };
+
+    const timeoutIds = [0, 75, 150, 300, 500, 700].map((delay) =>
+      window.setTimeout(restore, delay)
+    );
+
+    const stopAt = Date.now() + 900;
+    const tick = () => {
+      restore();
+      if (document.activeElement !== textarea || Date.now() >= stopAt) return;
+      const rafId = window.requestAnimationFrame(tick);
+      if (focusScrollLockRef.current) {
+        focusScrollLockRef.current.rafId = rafId;
+      }
+    };
+    const rafId = window.requestAnimationFrame(tick);
+
+    const viewport = window.visualViewport ?? null;
+    viewport?.addEventListener('resize', restore);
+    viewport?.addEventListener('scroll', restore);
+    window.addEventListener('scroll', restore, { passive: true });
+
+    focusScrollLockRef.current = {
+      rafId,
+      timeoutIds,
+      restore,
+      viewport,
+    };
+  }, [releaseFocusScrollLock]);
+
+  const setChatInputFocusClass = useCallback((focused: boolean) => {
+    if (typeof document === 'undefined') return;
+    document.body.classList.toggle('chat-input-focused', focused);
+  }, []);
 
   const handleAgentChange = (newAgent: string) => {
     updateSettingsMutation.mutate({
@@ -73,9 +145,58 @@ export function ChatInput({
   // Handle outside focus trigger
   useEffect(() => {
     if (focusTrigger && focusTrigger > 0) {
-      textareaRef.current?.focus();
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      try {
+        textarea.focus({ preventScroll: true });
+      } catch {
+        textarea.focus();
+      }
     }
   }, [focusTrigger]);
+
+  useEffect(
+    () => () => {
+      setChatInputFocusClass(false);
+      releaseFocusScrollLock();
+    },
+    [releaseFocusScrollLock, setChatInputFocusClass]
+  );
+
+  const handleFocus = () => {
+    setChatInputFocusClass(true);
+    lockIOSFocusScroll();
+    onFocus?.();
+  };
+
+  const handleBlur = () => {
+    setChatInputFocusClass(false);
+    releaseFocusScrollLock();
+    onBlur?.();
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLTextAreaElement>) => {
+    if (!isIOSSafari()) return;
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    if (document.activeElement === textarea) return;
+
+    // Prevent Safari's native focus-scroll and focus manually without scrolling.
+    e.preventDefault();
+    lockIOSFocusScroll();
+    try {
+      textarea.focus({ preventScroll: true });
+    } catch {
+      textarea.focus();
+    }
+  };
+
+  const handleClick = () => {
+    if (document.activeElement === textareaRef.current) return;
+    handleFocus();
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || e.shiftKey) return;
@@ -97,12 +218,14 @@ export function ChatInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={onFocus}
-          onClick={onFocus}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onTouchStart={handleTouchStart}
+          onClick={handleClick}
+          data-chat-input
           placeholder={isDiscussing ? "Ask about this context..." : "Ask for follow-up changes"}
           rows={1}
-          className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
-          style={{ minHeight: '24px', maxHeight: '120px' }}
+          className="w-full resize-none bg-transparent text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none min-h-6 max-h-[120px]"
         />
       </div>
 
