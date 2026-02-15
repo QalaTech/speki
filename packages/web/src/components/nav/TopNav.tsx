@@ -8,6 +8,7 @@ import {
 } from "@heroicons/react/24/solid";
 
 import { useSpec } from "../../contexts/SpecContext";
+import { formatRelativeTime } from "../../routes/SpecWorkspace/utils";
 import type { SpecType } from "../specs/types";
 
 interface Project {
@@ -34,7 +35,7 @@ export function TopNav({
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
-  const { activeSpec } = useSpec();
+  const { activeSpec, saveStatus } = useSpec();
 
   const isSettingsPage = currentPath === "/settings";
 
@@ -81,8 +82,8 @@ export function TopNav({
           )}
         </div>
 
-        {/* Center: Active Spec */}
-        <div className="flex-1 flex items-center justify-center min-w-0 px-1 md:px-2">
+        {/* Center: Active Spec + Save Status */}
+        <div className="flex-1 flex items-center justify-center min-w-0">
           {activeSpec && (
             <div className="flex items-center gap-1.5 md:gap-2 max-w-full">
               <span className="text-xs md:text-sm font-semibold truncate text-white">
@@ -92,6 +93,27 @@ export function TopNav({
                 className={`text-[8px] md:text-[10px] uppercase tracking-widest font-bold shrink-0 opacity-80 ${getSpecTypeStyles(activeSpec.type)}`}
               >
                 {activeSpec.type}
+              </span>
+              <div className="w-px h-4 bg-border/40 mx-1" />
+              <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground shrink-0">
+                {saveStatus.isSaving ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                    <span className="text-primary">Saving...</span>
+                  </>
+                ) : saveStatus.hasUnsavedChanges ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
+                    <span className="text-warning">Unsaved</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-success/60" />
+                    {saveStatus.lastSavedAt
+                      ? `Saved ${formatRelativeTime(saveStatus.lastSavedAt)}`
+                      : 'Saved'}
+                  </>
+                )}
               </span>
             </div>
           )}

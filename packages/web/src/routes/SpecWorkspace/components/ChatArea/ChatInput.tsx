@@ -87,7 +87,7 @@ export function ChatInput({
 
   return (
     <div
-      className="rounded-2xl bg-[#1a1a1a] border border-white/10 shadow-2xl"
+      className="rounded-2xl bg-card border border-border shadow-[0_-8px_40px_rgba(0,0,0,0.45),0_-2px_12px_rgba(0,0,0,0.3)] ring-1 ring-white/[0.04]"
       data-conversation-keep-open
     >
       {/* Textarea - top */}

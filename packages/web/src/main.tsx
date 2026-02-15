@@ -6,6 +6,7 @@ import { ErrorProvider } from './components/ui/ErrorContext'
 import './index.css'
 import App from './App.tsx'
 
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryProvider>

@@ -29,8 +29,8 @@ export function StatusBar({
 
   return (
     <div className="relative animate-in fade-in slide-in-from-bottom-2 duration-200">
-      <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a1a] border border-white/10 border-b-0 rounded-t-2xl rounded-b-none mx-4 transition-all duration-200">
-        {/* Left side items */}
+      <div className="flex items-center justify-between px-4 py-2 bg-card border border-border border-b-0 rounded-t-2xl rounded-b-none mx-4 transition-all duration-200">
+        {/* Left: Spec Tasks & Global Queue */}
         <div className="flex items-center gap-4">
           {/* Current Spec Tasks */}
           {hasStories && (
