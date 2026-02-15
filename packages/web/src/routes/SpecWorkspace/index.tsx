@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 // Components
 import { AppSidebar } from '../../components/specs/AppSidebar';
 import { SidebarProvider, SidebarInset } from '../../components/ui/sidebar';
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '../../components/ui/sheet';
 import { CreateTechSpecModal } from '../../components/specs/CreateTechSpecModal';
 import { DiffOverlay } from '../../components/specs/DiffOverlay';
 import { NewSpecDrawer } from '../../components/specs/NewSpecDrawer';
@@ -13,6 +14,7 @@ import type { SpecEditorRef } from '../../components/shared/SpecEditor';
 import { getSpecTypeFromFilename } from '../../components/specs/types';
 
 // Hooks
+import { useIsTabletOrSmaller } from '../../hooks/use-mobile';
 import { useSpecFileTree } from '../../hooks/useSpecFileTree';
 import { useSpecContent } from '../../hooks/useSpecContent';
 import { useSpecReview } from '../../hooks/useSpecReview';
@@ -56,6 +58,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedPath = searchParams.get('spec');
   const editorRef = useRef<SpecEditorRef>(null);
+  const isSmallScreen = useIsTabletOrSmaller();
 
   // URL management
   const setSelectedPath = useCallback(
@@ -597,7 +600,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   const suggestions = session?.suggestions || [];
 
   return (
-    <SidebarProvider>
+    <SidebarProvider useTabletBreakpoint>
       <AppSidebar
         files={files}
         selectedPath={selectedPath}
@@ -716,12 +719,44 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
           />
 
           {/* Right: Review Panel (Codex-style) */}
-          <div 
-            className={`shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out ${
+          {/* Mobile + Tablet: Sheet overlay (below lg/1024px) */}
+          {isSmallScreen && (
+            <Sheet open={isReviewPanelOpen} onOpenChange={setIsReviewPanelOpen}>
+              <SheetContent side="right" className="w-[320px] p-0 bg-background border-l">
+                <SheetTitle className="sr-only">Review Panel</SheetTitle>
+                <SheetDescription className="sr-only">
+                  View and manage AI-generated suggestions for your spec
+                </SheetDescription>
+                <ReviewPanel
+                  suggestions={suggestions}
+                  onResolve={handleResolveSuggestion}
+                  onDismiss={handleRejectSuggestion}
+                  onReviewDiff={handleReviewDiff}
+                  onDiscuss={(suggestion) => {
+                    setSelectedContext(null);
+                    handleDiscussSuggestion(suggestion);
+                    setIsConversationOpen(true);
+                    setIsReviewPanelOpen(false);
+                  }}
+                  onDismissAll={async () => {
+                    const pendingIds = suggestions
+                      .filter(s => s.status === 'pending')
+                      .map(s => s.id);
+                    await handleBulkSuggestionAction(pendingIds, 'dismissed');
+                  }}
+                  onClose={() => setIsReviewPanelOpen(false)}
+                />
+              </SheetContent>
+            </Sheet>
+          )}
+
+          {/* Desktop: Inline panel (lg and above) */}
+          <div
+            className={`hidden lg:flex shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out ${
               isReviewPanelOpen ? 'w-80' : 'w-0'
             }`}
           >
-            <div className="w-80 h-full"> 
+            <div className="w-80 h-full">
               <ReviewPanel
                 suggestions={suggestions}
                 onResolve={handleResolveSuggestion}

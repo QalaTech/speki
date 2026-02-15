@@ -3,6 +3,16 @@ import { cleanup } from '@testing-library/react';
 import { server } from './server';
 import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 
+// Mock useIsTabletOrSmaller to return false (desktop) for most tests
+vi.mock('@/hooks/use-mobile', async () => {
+  const actual = await vi.importActual('@/hooks/use-mobile');
+  return {
+    ...actual,
+    useIsTabletOrSmaller: vi.fn().mockReturnValue(false),
+    useIsMobile: vi.fn().mockReturnValue(false),
+  };
+});
+
 // Stub document.queryCommandSupported for monaco-editor in jsdom
 if (typeof document !== 'undefined' && !document.queryCommandSupported) {
   document.queryCommandSupported = () => false;

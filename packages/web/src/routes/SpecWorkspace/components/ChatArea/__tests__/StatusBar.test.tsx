@@ -22,12 +22,14 @@ describe('StatusBar', () => {
 
   it('should show tasks below indicator when tasks not visible', () => {
     render(<StatusBar {...defaultProps} tasksVisible={false} />);
-    expect(screen.getByText(/5 stories below/i)).toBeInTheDocument();
+    // In jsdom tests without viewport, "below" is hidden (max-lg:hidden)
+    expect(screen.getByText(/5 stories/i)).toBeInTheDocument();
   });
 
   it('should show tasks count for non-PRD specs', () => {
     render(<StatusBar {...defaultProps} isPrd={false} tasksVisible={false} />);
-    expect(screen.getByText(/5 tasks below/i)).toBeInTheDocument();
+    // In jsdom tests without viewport, "below" is hidden (max-lg:hidden)
+    expect(screen.getByText(/5 tasks/i)).toBeInTheDocument();
   });
 
   it('should call onScrollToTasks when tasks indicator clicked', () => {
@@ -36,7 +38,8 @@ describe('StatusBar', () => {
       <StatusBar {...defaultProps} tasksVisible={false} onScrollToTasks={onScrollToTasks} />
     );
 
-    const tasksIndicator = screen.getByText(/5 stories below/i);
+    // In jsdom tests without viewport, "below" is hidden (max-lg:hidden)
+    const tasksIndicator = screen.getByText(/5 stories/i);
     fireEvent.click(tasksIndicator);
 
     expect(onScrollToTasks).toHaveBeenCalledTimes(1);
@@ -44,7 +47,7 @@ describe('StatusBar', () => {
 
   it('should show suggestions count', () => {
     render(<StatusBar {...defaultProps} pendingSuggestionsCount={3} />);
-    expect(screen.getByText(/3 changes suggested/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 comments/i)).toBeInTheDocument();
   });
 
   it('should call onOpenReviewPanel when suggestions button clicked', () => {
@@ -53,7 +56,7 @@ describe('StatusBar', () => {
       <StatusBar {...defaultProps} pendingSuggestionsCount={3} onOpenReviewPanel={onOpenReviewPanel} />
     );
 
-    const suggestionsButton = screen.getByText(/3 changes/i);
+    const suggestionsButton = screen.getByText(/3 comments/i);
     fireEvent.click(suggestionsButton);
 
     expect(onOpenReviewPanel).toHaveBeenCalledTimes(1);

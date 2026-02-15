@@ -1,4 +1,5 @@
 import { formatRelativeTime } from '../utils';
+import { SidebarTrigger } from '../../../components/ui/sidebar';
 
 interface DocumentHeaderProps {
   isSaving: boolean;
@@ -13,6 +14,10 @@ export function DocumentHeader({
 }: DocumentHeaderProps) {
   return (
     <div className="flex justify-start mb-6">
+      {/* Sidebar toggle - visible on tablet and below */}
+      <div className="lg:hidden mr-2 pt-1">
+        <SidebarTrigger />
+      </div>
       <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1">
         {isSaving ? (
           <span className="flex items-center gap-1.5 text-primary">

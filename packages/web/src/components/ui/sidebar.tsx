@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
 import { Slot } from "@radix-ui/react-slot"
 
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useIsMobile, useIsTabletOrSmaller } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
@@ -66,13 +66,17 @@ function SidebarProvider({
   className,
   style,
   children,
+  useTabletBreakpoint = false,
   ...props
 }: React.ComponentProps<"div"> & {
   defaultOpen?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  useTabletBreakpoint?: boolean
 }) {
   const isMobile = useIsMobile()
+  const isTabletOrSmaller = useIsTabletOrSmaller()
+  const isMobileMode = useTabletBreakpoint ? isTabletOrSmaller : isMobile
   const [openMobile, setOpenMobile] = React.useState(false)
   const [isResizing, setIsResizing] = React.useState(false)
 
@@ -119,8 +123,8 @@ function SidebarProvider({
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
-  }, [isMobile, setOpen, setOpenMobile])
+    return isMobileMode ? setOpenMobile((open) => !open) : setOpen((open) => !open)
+  }, [isMobileMode, setOpen, setOpenMobile])
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -147,7 +151,7 @@ function SidebarProvider({
       state,
       open,
       setOpen,
-      isMobile,
+      isMobile: isMobileMode,
       openMobile,
       setOpenMobile,
       toggleSidebar,
@@ -156,7 +160,7 @@ function SidebarProvider({
       isResizing,
       setIsResizing,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, width, setWidth, isResizing, setIsResizing]
+    [state, open, setOpen, isMobileMode, openMobile, setOpenMobile, toggleSidebar, width, setWidth, isResizing, setIsResizing]
   )
 
   return (

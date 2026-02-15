@@ -7,6 +7,8 @@ import {
   PencilIcon,
   PlayIcon,
   PlusIcon,
+  QueueListIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useRef, useState } from "react";
 import type { UserStory } from "../../types";
@@ -230,12 +232,12 @@ function UseCaseItem({
     <div className={`use-case-item group ${isEditing ? "editing" : ""} ${isExpanded ? "expanded" : ""}`}>
       {/* Header row with grid layout: checkbox | ID | title | status | actions */}
       <div
-        className={`use-case-header grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-3 py-2.5 ${!alwaysExpanded ? "cursor-pointer" : ""}`}
+        className={`use-case-header grid grid-cols-[auto_1fr_auto] md:grid-cols-[auto_auto_1fr_auto_auto] items-center gap-2 md:gap-3 py-2 md:py-2.5 ${!alwaysExpanded ? "cursor-pointer" : ""}`}
         onClick={!alwaysExpanded ? onToggle : undefined}
       >
         {/* Checkbox */}
         <div
-          className={`use-case-checkbox ${isCompleted ? "checked" : ""} ${isRunning ? "running" : ""} ${isBlocked ? "blocked" : ""}`}
+          className={`use-case-checkbox mt-0.5 md:mt-0 ${isCompleted ? "checked" : ""} ${isRunning ? "running" : ""} ${isBlocked ? "blocked" : ""}`}
         >
           {isCompleted ? (
             <CheckCircleIcon className="h-3.5 w-3.5" />
@@ -248,8 +250,8 @@ function UseCaseItem({
           )}
         </div>
 
-        {/* ID - fixed width box */}
-        <span className="text-muted-foreground font-mono text-xs px-2 py-1 bg-muted/30 rounded w-[70px] text-center shrink-0">
+        {/* ID - hidden on mobile, shown on md+ */}
+        <span className="hidden md:inline text-muted-foreground font-mono text-xs px-2 py-1 bg-muted/30 rounded w-[70px] text-center shrink-0">
           {story.id}
         </span>
 
@@ -258,8 +260,8 @@ function UseCaseItem({
           <span className={`font-medium text-sm block ${isCompleted ? "line-through text-muted-foreground" : "text-foreground"}`}>
             {story.title}
           </span>
-          {/* Badges row */}
-          <div className="flex items-center gap-1.5 mt-0.5">
+          {/* Badges row - hidden on mobile */}
+          <div className="hidden md:flex items-center gap-1.5 mt-0.5">
             {getComplexityBadge(story.complexity)}
             {story.reviewStatus && (
               <span
@@ -278,32 +280,68 @@ function UseCaseItem({
         </div>
 
         {/* Status column - queue badge or Done */}
-        <div className="shrink-0 w-[70px] flex justify-center">
-          {isQueued ? (
-            <span
-              className={`px-2 py-0.5 rounded text-xs font-medium ${
-                queuedStatus === "running"
-                  ? "bg-primary text-primary-foreground animate-pulse"
+        <div className="shrink-0 flex items-center gap-2">
+          <div>
+            {isQueued ? (
+              <span
+                className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  queuedStatus === "running"
+                    ? "bg-primary text-primary-foreground animate-pulse"
+                    : queuedStatus === "completed"
+                      ? "bg-success text-success-foreground"
+                      : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {queuedStatus === "running"
+                  ? "Running"
                   : queuedStatus === "completed"
-                    ? "bg-success text-success-foreground"
-                    : "bg-muted text-muted-foreground"
-              }`}
+                    ? "Done"
+                    : `#${queuePosition}`}
+              </span>
+            ) : isCompleted ? (
+              <span className="px-2 py-0.5 rounded text-xs font-medium bg-success/20 text-success">
+                Done
+              </span>
+            ) : null}
+          </div>
+          {/* Queue/Unqueue button - visible on mobile as icon */}
+          {specType === "tech-spec" && !story.passes && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="md:hidden h-7 w-7 p-0 rounded text-muted-foreground hover:text-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                isQueued ? onRemoveFromQueue() : onAddToQueue();
+              }}
+              aria-label={isQueued ? `Remove ${story.title} from queue` : `Add ${story.title} to queue`}
+              disabled={isQueueLoading || (isQueued && queuedStatus === "running")}
             >
-              {queuedStatus === "running"
-                ? "Running"
-                : queuedStatus === "completed"
-                  ? "Done"
-                  : `#${queuePosition}`}
-            </span>
-          ) : isCompleted ? (
-            <span className="px-2 py-0.5 rounded text-xs font-medium bg-success/20 text-success">
-              Done
-            </span>
-          ) : null}
+              {isQueued ? (
+                <XMarkIcon className="h-4 w-4 text-error/80" />
+              ) : (
+                <QueueListIcon className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+
+          {/* Edit button - always visible on mobile */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="md:hidden h-7 w-7 p-0 rounded text-muted-foreground hover:text-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStartEdit();
+            }}
+            aria-label={`Edit ${story.title}`}
+          >
+            <PencilIcon className="h-3.5 w-3.5" />
+          </Button>
         </div>
 
-        {/* Actions column */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Actions column - hidden on mobile */}
+        <div className="hidden md:flex items-center gap-2 shrink-0">
           {specType === "tech-spec" && !story.passes && (
             isQueued ? (
               <Button
@@ -341,7 +379,7 @@ function UseCaseItem({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 w-7 p-0 rounded text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+            className="h-7 w-7 p-0 rounded text-muted-foreground hover:text-foreground"
             onClick={(e) => {
               e.stopPropagation();
               handleStartEdit();

@@ -126,7 +126,7 @@ export function ProjectSelector({
     <div className="relative" ref={dropdownRef}>
       {/* Trigger Button */}
       <button
-        className={`flex items-center justify-between gap-2 min-w-40 max-w-[200px] px-3 py-2 bg-white/4 border rounded-lg text-foreground text-[13px] font-medium cursor-pointer transition-all duration-200 ${
+        className={`flex items-center justify-between gap-1.5 md:min-w-40 md:max-w-[200px] px-2 md:px-3 py-1.5 md:py-2 bg-white/4 border rounded-lg text-foreground text-[13px] font-medium cursor-pointer transition-all duration-200 ${
           isOpen
             ? "bg-linear-to-r from-secondary/80 to-secondary/50 shadow-[0_0_0_3px_rgba(var(--primary),0.15)]"
             : "border-white/8 hover:bg-white/8 hover:border-white/12"
@@ -135,14 +135,14 @@ export function ProjectSelector({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <div className="flex items-center gap-2 overflow-hidden">
+        <div className="flex items-center gap-1.5 md:gap-2 overflow-hidden">
           {currentProject ? (
             <>
               {getStatusIcon(currentProject.status)}
-              <span className="whitespace-nowrap overflow-hidden text-ellipsis">{currentProject.name}</span>
+              <span className="whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px] md:max-w-[140px]">{currentProject.name}</span>
             </>
           ) : (
-            <span className="text-muted-foreground">Select Project</span>
+            <span className="text-muted-foreground text-xs md:text-[13px]">Select</span>
           )}
         </div>
         <span className={`shrink-0 text-[10px] text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
