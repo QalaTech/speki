@@ -26,7 +26,7 @@ export const EditorSection = forwardRef<SpecEditorRef, EditorSectionProps>(
       <div className="mb-8">
         <div
           ref={containerRef}
-          className="bg-card/50 border border-white/3 rounded-xl relative shadow-lg"
+          className="bg-card/50 border border-border rounded-lg relative"
           onMouseUp={handleMouseUp}
         >
           {selection && (
@@ -43,7 +43,7 @@ export const EditorSection = forwardRef<SpecEditorRef, EditorSectionProps>(
               content={content}
               onChange={onChange}
               readOnly={false}
-              className="min-h-[300px]"
+              className="min-h-[calc(100vh-12rem)]"
             />
           )}
         </div>

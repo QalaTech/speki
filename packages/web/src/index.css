@@ -8,51 +8,50 @@
    ============================================ */
 
 @theme {
-  /* Background colors - Linear-inspired 3-tier depth system
-     Left panels (darkest) → Center content → Right panels (lightest)
-     Target Linear values: lch(2.467 0 272), lch(4.8 0.7 272), lch(8.3 1.867 272) */
-  --color-background: lch(5 0.5 272);
+  /* Background colors - 3-tier depth system
+     Left panels (darkest) → Center content → Right panels (lightest) */
+  --color-background: lch(8 0.5 272);
   --color-foreground: oklch(98% 0.005 260);
 
   /* Card - middle tier for center content areas */
-  --color-card: lch(10 1 272);
+  --color-card: lch(12 1 272);
   --color-card-foreground: oklch(98% 0.005 260);
 
   /* Surface - lightest tier for right panels (AI review, etc) */
-  --color-surface: lch(13 1.2 272);
+  --color-surface: lch(15 1.2 272);
   --color-surface-foreground: oklch(98% 0.005 260);
 
   /* Popover - uses surface tier */
-  --color-popover: lch(13 1.2 272);
+  --color-popover: lch(15 1.2 272);
   --color-popover-foreground: oklch(98% 0.005 260);
 
   /* Primary - existing purple-blue */
   --color-primary: oklch(58% 0.233 277);
   --color-primary-foreground: oklch(98% 0.02 277);
 
-  /* Secondary - adjusted for darker base */
-  --color-secondary: lch(18 1 272);
+  /* Secondary - adjusted for base */
+  --color-secondary: lch(20 1 272);
   --color-secondary-foreground: oklch(98% 0.005 260);
 
   /* Tertiary - User chat bubble background */
-  --color-tertiary: #27272a;
+  --color-tertiary: #2c2c30;
   --color-tertiary-foreground: oklch(98% 0.005 260);
 
-  /* Muted - adjusted for darker base */
-  --color-muted: lch(14 0.8 272);
+  /* Muted - adjusted for base */
+  --color-muted: lch(16 0.8 272);
   --color-muted-foreground: oklch(85% 0.01 260);
 
-  /* Accent - adjusted for darker base */
-  --color-accent: lch(18 1.5 272);
+  /* Accent - adjusted for base */
+  --color-accent: lch(20 1.5 272);
   --color-accent-foreground: oklch(98% 0.005 260);
 
   /* Destructive */
   --color-destructive: oklch(55% 0.22 25);
   --color-destructive-foreground: oklch(98% 0.02 25);
 
-  /* Border & Input - adjusted for darker base */
-  --color-border: lch(20 1 272);
-  --color-input: lch(20 1 272);
+  /* Border & Input - adjusted for base */
+  --color-border: lch(22 1 272);
+  --color-input: lch(22 1 272);
   --color-ring: oklch(58% 0.233 277);
 
   /* Semantic colors for badges/alerts */
@@ -72,14 +71,14 @@
   --color-chart-4: oklch(80% 0.18 85);
   --color-chart-5: oklch(65% 0.18 240);
 
-  /* Sidebar - matches background (darkest tier) */
-  --color-sidebar: lch(5 0.5 272);
+  /* Sidebar - darkest tier */
+  --color-sidebar: lch(7 0.5 272);
   --color-sidebar-foreground: oklch(98% 0.005 260);
   --color-sidebar-primary: oklch(58% 0.233 277);
   --color-sidebar-primary-foreground: oklch(98% 0.02 277);
-  --color-sidebar-accent: lch(12 1 272);
+  --color-sidebar-accent: lch(15 1 272);
   --color-sidebar-accent-foreground: oklch(98% 0.005 260);
-  --color-sidebar-border: lch(16 1 272);
+  --color-sidebar-border: lch(20 1 272);
   --color-sidebar-ring: oklch(58% 0.233 277);
 
   /* Radius */
@@ -89,8 +88,8 @@
   --radius-xl: 0.75rem;
 
   /* Raw sidebar vars for direct CSS usage (sidebar component uses these in shadow styles) */
-  --sidebar-border: lch(16 1 272);
-  --sidebar-accent: lch(12 1 272);
+  --sidebar-border: lch(20 1 272);
+  --sidebar-accent: lch(15 1 272);
 }
 
 /* ============================================
@@ -723,6 +722,7 @@ body {
 .gradient-border:focus-within::before {
   opacity: 1;
 }
+
 
 /* Inner glow for active items */
 .inner-glow {

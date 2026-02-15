@@ -7,11 +7,12 @@
  * - SidebarRail for quick collapse
  */
 import * as React from 'react';
-import { FolderIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { FolderIcon, PlusIcon, XMarkIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
 import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
+  SidebarFooter,
   SidebarRail,
   SidebarInput,
   SidebarGroup,
@@ -78,7 +79,7 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const [filter, setFilter] = React.useState('');
   const [expandedPaths, setExpandedPaths] = React.useState<Set<string>>(new Set());
-  const { state, isMobile, setOpenMobile } = useSidebar();
+  const { state, toggleSidebar, isMobile, setOpenMobile } = useSidebar();
   const isCollapsed = state === 'collapsed';
 
   // Close mobile sidebar when a spec is selected
@@ -297,6 +298,18 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="p-0">
+        <div className="border-t border-sidebar-border">
+          <button
+            onClick={() => toggleSidebar()}
+            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors group-data-[collapsible=icon]:justify-center"
+          >
+            <ChevronLeftIcon className={`h-3.5 w-3.5 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
+            <span className="group-data-[collapsible=icon]:hidden">Collapse</span>
+          </button>
+        </div>
+      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>

@@ -202,7 +202,7 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, state, openMobile, setOpenMobile, isResizing } = useSidebar()
 
   if (collapsible === "none") {
     return (
@@ -257,7 +257,8 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          "relative w-(--sidebar-width) bg-transparent",
+            !isResizing && "transition-[width] duration-200 ease-linear",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -268,7 +269,8 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "absolute inset-y-0 z-10 hidden h-full w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
+          "absolute inset-y-0 z-10 hidden h-full w-(--sidebar-width) md:flex",
+            !isResizing && "transition-[left,right,width] duration-200 ease-linear",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -331,7 +333,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
     }
     e.preventDefault()
     startX.current = e.clientX
-    const wrapper = document.querySelector('[data-slot="sidebar-wrapper"]')
+    const wrapper = document.querySelector('[data-slot="sidebar-wrapper"]') as HTMLElement | null
     const currentWidth = wrapper ? parseInt(getComputedStyle(wrapper).getPropertyValue('--sidebar-width'), 10) : 256
     startWidth.current = currentWidth
     hasDragged.current = false
@@ -342,12 +344,19 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       if (Math.abs(delta) > 5) {
         hasDragged.current = true
       }
-      const newWidth = startWidth.current + delta
-      setWidth(newWidth)
+      const newWidth = Math.min(Math.max(startWidth.current + delta, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH)
+      // Update CSS variable directly on the DOM — avoids React re-renders during drag
+      if (wrapper) {
+        wrapper.style.setProperty('--sidebar-width', `${newWidth}px`)
+      }
     }
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (e: MouseEvent) => {
       setIsResizing(false)
+      // Commit final width to React state + cookie only on mouseup
+      const delta = e.clientX - startX.current
+      const finalWidth = Math.min(Math.max(startWidth.current + delta, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH)
+      setWidth(finalWidth)
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }

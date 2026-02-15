@@ -100,9 +100,9 @@ export function ChatArea({
       onOpenChange={onSetConversationOpen}
       modal={isMobileOrTablet}
     >
-      <div className="shrink-0 relative">
-        {/* Gradient fade from content to chat area */}
-        <div className="absolute inset-x-0 bottom-full h-12 bg-linear-to-t from-[#0F0F0F] to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 z-20">
+        {/* Gradient backdrop so chat floats above editor content */}
+        <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-background from-15% via-background/80 to-transparent pointer-events-none" />
 
         {/* Visual backdrop overlay for conversation - click to dismiss */}
         {isConversationVisible && (
@@ -111,7 +111,7 @@ export function ChatArea({
           />
         )}
 
-        <div className="max-w-5xl mx-auto px-6 py-4 relative z-40">
+        <div className="max-w-5xl mx-auto px-6 pb-5 pt-4 relative z-40">
           {/* Conversation Popover */}
           {isConversationVisible && (
             <DialogPrimitive.Content

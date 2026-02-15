@@ -40,7 +40,7 @@ import {
 } from './hooks';
 
 // Sub-components
-import { DocumentHeader, EditorSection, TasksSection, EmptyState, ChatArea, ExecutionLiveModal } from './components';
+import { EditorSection, TasksSection, EmptyState, ChatArea, ExecutionLiveModal } from './components';
 import { ReviewPanel } from './components/ChatArea/ReviewPanel';
 
 // Contexts
@@ -120,7 +120,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
   const selectedSpecType = getSpecTypeFromFilename(selectedFileName);
   const documentTitle = useDocumentTitle({ filename: selectedFileName });
 
-  const { setActiveSpec } = useSpec();
+  const { setActiveSpec, setSaveStatus } = useSpec();
 
   // Sync active spec to context
   useEffect(() => {
@@ -133,6 +133,11 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
       setActiveSpec(null);
     }
   }, [selectedPath, documentTitle, selectedSpecType, setActiveSpec]);
+
+  // Sync save status to context for TopNav display
+  useEffect(() => {
+    setSaveStatus({ isSaving, lastSavedAt, hasUnsavedChanges });
+  }, [isSaving, lastSavedAt, hasUnsavedChanges, setSaveStatus]);
 
   // Clear active spec on unmount
   useEffect(() => {
@@ -612,18 +617,12 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
       <SidebarInset className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
         {/* Main content + Review Panel in flex row */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left: Scrollable content + Chat */}
-          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            <div className="flex-1 overflow-auto">
+          {/* Left: Scrollable content + Chat overlay */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+            <div className="flex-1 overflow-auto pb-32">
               <div className="mx-auto px-6 py-4 pb-4">
                 {selectedPath ? (
                   <>
-                    <DocumentHeader
-                      isSaving={isSaving}
-                      lastSavedAt={lastSavedAt}
-                      hasUnsavedChanges={hasUnsavedChanges}
-                    />
-
                     <EditorSection
                       ref={editorRef}
                       content={content}
@@ -667,7 +666,7 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
               </div>
             </div>
 
-            {/* Chat Area */}
+            {/* Chat Area - overlays bottom of editor */}
             {selectedPath && (
               <ChatArea
                 messages={filteredChatMessages}
