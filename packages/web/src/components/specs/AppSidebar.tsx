@@ -78,8 +78,16 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const [filter, setFilter] = React.useState('');
   const [expandedPaths, setExpandedPaths] = React.useState<Set<string>>(new Set());
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const isCollapsed = state === 'collapsed';
+
+  // Close mobile sidebar when a spec is selected
+  const handleSelect = React.useCallback((path: string | null) => {
+    onSelect(path);
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }, [onSelect, isMobile, setOpenMobile]);
 
   // Inject generating spec placeholder into tree
   const sidebarFiles = React.useMemo(() => {
@@ -280,7 +288,7 @@ export function AppSidebar({
                     node={node}
                     selectedPath={selectedPath}
                     expandedPaths={effectiveExpandedPaths}
-                    onSelect={onSelect}
+                    onSelect={handleSelect}
                     onToggle={handleToggle}
                   />
                 ))}

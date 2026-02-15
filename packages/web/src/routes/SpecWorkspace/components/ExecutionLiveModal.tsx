@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '../../../components/ui/Modal';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../../../components/ui/collapsible';
 import { ChatLogView } from '../../../components/chat/ChatLogView';
+import { useIsTabletOrSmaller } from '../../../hooks/use-mobile';
 import type { ParsedEntry } from '../../../utils/parseJsonl';
 import type {
   RalphStatus,
@@ -78,7 +80,14 @@ export function ExecutionLiveModal({
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'activity' | 'lessons'>('activity');
   const [selectedLessonCategory, setSelectedLessonCategory] = useState<PeerFeedbackCategory | 'all'>('all');
+  const [isQueueOpen, setIsQueueOpen] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Force queue open on desktop (lg and above)
+  const isTabletOrSmaller = useIsTabletOrSmaller();
+
+  // Override collapsible open state on desktop - always show
+  const queueOpen = isTabletOrSmaller ? isQueueOpen : true;
   const activeQueueTasks = useMemo(
     () => queueTasks.filter((task) => task.status === 'queued' || task.status === 'running'),
     [queueTasks]
@@ -353,16 +362,27 @@ export function ExecutionLiveModal({
         </div>
 
         {activeTab === 'activity' ? (
-          <div className="flex h-full min-h-0 border border-border/30 rounded-lg overflow-hidden bg-card/30">
+          <div className="flex flex-col lg:flex-row h-full min-h-0 border border-border/30 rounded-lg overflow-hidden bg-card/30">
             {/* Left: Task Queue List */}
-            <div className="w-72 border-r border-border/30 flex flex-col bg-secondary/10 shrink-0">
+            <Collapsible open={queueOpen} onOpenChange={setIsQueueOpen} className="lg:w-72 lg:border-r lg:border-border/30 flex flex-col bg-secondary/10 shrink-0 order-2 lg:order-1">
               <div className="px-4 py-3 border-b border-border/30 bg-secondary/20 flex justify-between items-center">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Execution Queue</h3>
-                <span className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-muted-foreground">
-                  {groupedStories.totalCount} tasks
-                </span>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Execution Queue</h3>
+                  <span className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-muted-foreground">
+                    {groupedStories.totalCount} tasks
+                  </span>
+                </div>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="lg:hidden text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {queueOpen ? 'Hide' : 'Show'}
+                  </button>
+                </CollapsibleTrigger>
               </div>
-              <div ref={listRef} className="flex-1 overflow-y-auto p-2 space-y-4">
+              <CollapsibleContent className="max-lg:data-[state=closed]:hidden">
+                <div ref={listRef} className="flex-1 overflow-y-auto p-2 space-y-4 max-lg:max-h-48">
                 {groupedStories.groups.length === 0 ? (
                   <div className="text-center p-4 text-xs text-muted-foreground">No tasks in queue</div>
                 ) : (
@@ -462,11 +482,12 @@ export function ExecutionLiveModal({
                     );
                   })
                 )}
-              </div>
-            </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Right: Logs / Details */}
-            <div className="flex-1 flex flex-col min-w-0 bg-background">
+            <div className="flex-1 flex flex-col min-w-0 bg-background order-1 lg:order-2">
               {selectedStoryId ? (
                 <>
                   <div className="px-4 py-3 border-b border-border/30 bg-secondary/5 flex items-center justify-between">

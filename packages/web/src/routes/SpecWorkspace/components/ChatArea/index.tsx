@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useQuirkyMessage } from '../../hooks';
+import { useIsTabletOrSmaller } from '../../../../hooks/use-mobile';
 import { StatusBar } from './StatusBar';
 import { ChatInput } from './ChatInput';
 import { ConversationPopover } from './ConversationPopover';
@@ -84,6 +85,9 @@ export function ChatArea({
     isConversationOpen && (messages.length > 0 || discussingContext || selectedContext)
   );
 
+  // Reactive mobile detection for modal behavior
+  const isMobileOrTablet = useIsTabletOrSmaller();
+
   const handleInputFocus = useCallback(() => {
     if (messages.length > 0 || discussingContext || selectedContext) {
       onSetConversationOpen(true);
@@ -94,7 +98,7 @@ export function ChatArea({
     <Dialog
       open={isConversationVisible}
       onOpenChange={onSetConversationOpen}
-      modal={false}
+      modal={isMobileOrTablet}
     >
       <div className="shrink-0 relative">
         {/* Gradient fade from content to chat area */}
@@ -103,7 +107,7 @@ export function ChatArea({
         {/* Visual backdrop overlay for conversation - click to dismiss */}
         {isConversationVisible && (
           <DialogPrimitive.Overlay
-            className="fixed inset-0 bg-black/20 z-30 pointer-events-none"
+            className="fixed inset-0 bg-black/20 z-30"
           />
         )}
 

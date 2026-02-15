@@ -254,7 +254,7 @@ export function TasksSection({
             <span>Generating...</span>
           </div>
         ) : hasStories ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1">
             {isRunning && (
               <Button
                 variant="primary"
