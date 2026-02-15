@@ -147,7 +147,7 @@ export function SpecEditorModal({
         onClick={handleClose}
       />
 
-      <div className="relative flex flex-col w-[calc(100vw-80px)] h-[calc(100vh-80px)] max-w-[1200px] bg-background border border-border rounded-xl shadow-[0_24px_48px_rgba(0,0,0,0.5)] overflow-hidden">
+      <div className="relative flex flex-col w-[calc(100vw-80px)] h-[calc(100dvh-80px)] max-w-[1200px] bg-background border border-border rounded-xl shadow-[0_24px_48px_rgba(0,0,0,0.5)] overflow-hidden">
         <header className="flex items-center justify-between py-3 px-5 bg-secondary border-b border-border">
           <div className="flex items-center gap-2">
             <span className="text-base">✏️</span>

@@ -40,7 +40,7 @@ import {
 } from './hooks';
 
 // Sub-components
-import { EditorSection, TasksSection, EmptyState, ChatArea, ExecutionLiveModal } from './components';
+import { EditorSection, TasksSection, EmptyState, ChatArea, ExecutionLiveModal, DocumentHeader } from './components';
 import { ReviewPanel } from './components/ChatArea/ReviewPanel';
 
 // Contexts
@@ -620,9 +620,14 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
           {/* Left: Scrollable content + Chat overlay */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
             <div className="flex-1 overflow-auto pb-32">
-              <div className="mx-auto px-6 py-4 pb-4">
+              <div className="mx-auto px-6 pt-2 lg:pt-4 pb-4">
                 {selectedPath ? (
                   <>
+                    <DocumentHeader
+                      isSaving={isSaving}
+                      lastSavedAt={lastSavedAt}
+                      hasUnsavedChanges={hasUnsavedChanges}
+                    />
                     <EditorSection
                       ref={editorRef}
                       content={content}

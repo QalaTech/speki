@@ -106,6 +106,15 @@
   z-index: 30;
 }
 
+/* While the chat input is active (mobile typing flow), let editor content
+   scroll naturally without a pinned markdown toolbar crowding the viewport. */
+@media (max-width: 1023px) {
+  body.chat-input-focused .spec-editor .mdxeditor [class*="_toolbarRoot_"] {
+    position: relative !important;
+    top: auto !important;
+  }
+}
+
 /* Toolbar buttons */
 .mdxeditor [class*="_toolbarButton_"],
 .mdxeditor [class*="_iconButton_"],

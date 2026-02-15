@@ -195,7 +195,7 @@ export function ReviewPanel({
           <span className="text-sm font-medium">Review</span>
           <span className="text-xs text-muted-foreground">{pending.length}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-x-2 mr-6 lg:mr-0">
           {/* Severity badges */}
           <div className="flex items-center gap-1">
             {critical.length > 0 && (
@@ -218,7 +218,7 @@ export function ReviewPanel({
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="hidden lg:inline-flex h-8 w-8 text-muted-foreground hover:text-foreground"
           >
             <XMarkIcon className="w-5 h-5" />
           </Button>
