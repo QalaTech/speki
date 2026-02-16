@@ -1,6 +1,8 @@
 import { useRef, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { MessageSquarePlus } from 'lucide-react';
 
+import { Button } from '@/components/ui/Button';
 import { ChatMarkdown } from '../../../../components/chat/ChatMarkdown';
 import type { ChatMessage } from '../../../../components/specs/types';
 import type { DiscussingContext } from '../../../../components/review/ReviewChat';
@@ -163,6 +165,7 @@ interface ConversationPopoverProps {
   onClose: () => void;
   onClearDiscussingContext: () => void;
   onClearSelectedContext: () => void;
+  onNewChat?: () => void;
   compact?: boolean;
   maxHeightPx?: number;
 }
@@ -176,6 +179,7 @@ export function ConversationPopover({
   onClose,
   onClearDiscussingContext,
   onClearSelectedContext,
+  onNewChat,
   compact = false,
   maxHeightPx,
 }: ConversationPopoverProps) {
@@ -201,12 +205,25 @@ export function ConversationPopover({
     >
       <div className={`sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-[#1e1e1e] ${compact ? 'px-3 py-1.5' : 'px-4 py-2'}`}>
         <span className="text-sm font-medium text-muted-foreground">Conversation</span>
-        <button
-          onClick={onClose}
-          className="p-1 rounded-md hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <XMarkIcon className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-4">
+          {onNewChat && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onNewChat}
+              className="gap-1.5 h-7 px-2 text-muted-foreground hover:text-foreground"
+            >
+              <MessageSquarePlus className="w-3.5 h-3.5" />
+              <span className="text-xs font-normal">new chat</span>
+            </Button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <XMarkIcon className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className={compact ? 'p-3 space-y-3' : 'p-4 space-y-4'}>

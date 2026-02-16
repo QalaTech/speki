@@ -197,7 +197,7 @@ export function ChatArea({
           {/* Conversation Popover */}
           {isConversationVisible && (
             <DialogPrimitive.Content
-              className={`absolute bottom-full left-0 right-0 z-40 outline-hidden ${
+              className={`absolute bottom-full left-0 right-0 z-40 outline-hidden px-4 ${
                 isMobileKeyboardOpen ? 'mb-1' : 'mb-2'
               }`}
               onOpenAutoFocus={(e) => e.preventDefault()}
@@ -230,6 +230,7 @@ export function ChatArea({
                 onClose={() => onSetConversationOpen(false)}
                 onClearDiscussingContext={onClearDiscussingContext}
                 onClearSelectedContext={onClearSelectedContext}
+                onNewChat={onNewChat}
                 compact={isMobileKeyboardOpen}
                 maxHeightPx={isMobileOrTablet ? mobilePopoverMaxHeight : undefined}
               />
@@ -256,7 +257,6 @@ export function ChatArea({
             value={inputValue}
             onChange={onInputChange}
             onSend={onSendMessage}
-            onNewChat={onNewChat}
             onStartReview={onStartReview}
             isSending={isSending}
             isStartingReview={isStartingReview}
