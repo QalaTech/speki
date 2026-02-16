@@ -5,7 +5,7 @@ import {
   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { BotIcon, MessageSquarePlus } from 'lucide-react';
+import { BotIcon } from 'lucide-react';
 import { Spinner } from '../../../../components/ui/Loading';
 import { useSettings, useUpdateSettings, useCliDetection } from '@/features/settings';
 import { 
@@ -19,7 +19,6 @@ interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
-  onNewChat: () => void;
   onStartReview: () => void;
   isSending: boolean;
   isStartingReview: boolean;
@@ -33,7 +32,6 @@ export function ChatInput({
   value,
   onChange,
   onSend,
-  onNewChat,
   onStartReview,
   isSending,
   isStartingReview,
@@ -231,13 +229,30 @@ export function ChatInput({
 
       {/* Bottom bar - plus, model selector, icons, send */}
       <div className="flex items-center justify-between px-2 py-2">
-        {/* Left side - plus button + model selector */}
+        {/* Left side - AI Review + New Chat buttons */}
         <div className="flex items-center gap-1">
           {/* Hide temporarily until we have utility for it. */}
           {/* <button className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors">
             <PlusIcon className="w-5 h-5" />
           </button> */}
-          
+
+          {/* AI Review Button */}
+          <button
+            onClick={onStartReview}
+            disabled={isStartingReview}
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isStartingReview ? (
+              <Spinner size="sm" className="text-white" />
+            ) : (
+              <BotIcon className="w-4 h-4" />
+            )}
+            <span className="text-xs font-normal">AI Review</span>
+          </button>
+        </div>
+
+        {/* Right side - model selector + send */}
+        <div className="flex items-center gap-1">
           <SelectPrimitive.Root value={currentAgent} onValueChange={handleAgentChange}>
             <SelectPrimitive.Trigger
               data-conversation-keep-open
@@ -252,8 +267,8 @@ export function ChatInput({
               className="bg-[#1a1a1a] border-white/10"
             >
               {availableClis.map((cli) => (
-                <SelectItem 
-                  key={cli} 
+                <SelectItem
+                  key={cli}
                   value={cli}
                   data-conversation-keep-open
                   className="text-xs text-muted-foreground focus:text-foreground focus:bg-white/5"
@@ -263,37 +278,6 @@ export function ChatInput({
               ))}
             </SelectContent>
           </SelectPrimitive.Root>
-        </div>
-
-        {/* Right side - icons + send */}
-        <div className="flex items-center gap-1">
-          {/* AI Review Button */}
-          <button
-            onClick={onStartReview}
-            disabled={isStartingReview}
-            className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed group relative"
-            title="Start AI Review"
-          >
-            {isStartingReview ? (
-              <Spinner size="sm" className="text-white" />
-            ) : (
-              <BotIcon className="w-5 h-5" />
-            )}
-            <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[10px] bg-black/80 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              {isStartingReview ? 'Reviewing...' : 'AI Review'}
-            </span>
-          </button>
-
-          <button
-            onClick={onNewChat}
-            className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors group relative"
-            title="New Chat"
-          >
-            <MessageSquarePlus className="w-5 h-5 text-muted-foreground" />
-            <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[10px] bg-black/80 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              New Chat
-            </span>
-          </button>
 
           <button
             onClick={onSend}
