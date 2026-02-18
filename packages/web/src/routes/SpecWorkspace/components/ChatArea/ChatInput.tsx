@@ -7,10 +7,11 @@ import {
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { BotIcon } from 'lucide-react';
 import { Spinner } from '../../../../components/ui/Loading';
+import { Button } from '../../../../components/ui/Button';
 import { useSettings, useUpdateSettings, useCliDetection } from '@/features/settings';
-import { 
-  SelectContent, 
-  SelectItem 
+import {
+  SelectContent,
+  SelectItem
 } from '@/components/ui/Select';
 import type { CliType } from '@/types';
 import { isIOSSafari } from '../../../../hooks/use-mobile';
@@ -234,40 +235,37 @@ export function ChatInput({
       {/* Bottom bar - plus, model selector, icons, send */}
       <div className="flex items-center justify-between px-2 py-2">
         {/* Left side - AI Review + New Chat buttons */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           {/* Hide temporarily until we have utility for it. */}
           {/* <button className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors">
             <PlusIcon className="w-5 h-5" />
           </button> */}
 
           {/* AI Review Button */}
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onStartReview}
-            disabled={isStartingReview}
-            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            isLoading={isStartingReview}
+            className="text-muted-foreground hover:text-foreground h-auto py-1.5 px-2"
           >
-            {isStartingReview ? (
-              <Spinner size="sm" className="text-white" />
-            ) : (
-              <BotIcon className="w-4 h-4" />
-            )}
-            <span className="text-xs font-normal">AI Review</span>
-          </button>
+            <BotIcon className="w-4 h-4" />
+            AI Review
+          </Button>
 
           {/* Generate Stories Button */}
           {onGenerateStories && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={onGenerateStories}
-              disabled={isGeneratingStories}
-              className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              isLoading={isGeneratingStories}
+              loadingText="Generating"
+              className="text-muted-foreground hover:text-foreground h-auto py-1.5 px-2"
             >
-              {isGeneratingStories ? (
-                <Spinner size="sm" className="text-white" />
-              ) : (
-                <SparklesIcon className="w-4 h-4" />
-              )}
-              <span className="text-xs font-normal">{isGeneratingStories ? 'Generating' : 'Generate'}</span>
-            </button>
+              <SparklesIcon className="w-4 h-4" />
+              Generate
+            </Button>
           )}
         </div>
 
