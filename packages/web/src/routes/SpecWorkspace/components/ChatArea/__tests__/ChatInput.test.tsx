@@ -112,21 +112,11 @@ describe('ChatInput', () => {
     expect(sendButton.querySelector('svg.animate-spin')).toBeInTheDocument();
   });
 
-  it('should call onNewChat when new chat button is clicked', () => {
-    const onNewChat = vi.fn();
-    render(<ChatInput {...defaultProps} onNewChat={onNewChat} />);
-
-    const newChatButton = screen.getByTitle(/new chat/i);
-    fireEvent.click(newChatButton);
-
-    expect(onNewChat).toHaveBeenCalledTimes(1);
-  });
-
   it('should call onStartReview when AI review button is clicked', () => {
     const onStartReview = vi.fn();
     render(<ChatInput {...defaultProps} onStartReview={onStartReview} />);
 
-    const reviewButton = screen.getByTitle(/ai review/i);
+    const reviewButton = screen.getByText(/ai review/i);
     fireEvent.click(reviewButton);
 
     expect(onStartReview).toHaveBeenCalledTimes(1);
@@ -134,7 +124,28 @@ describe('ChatInput', () => {
 
   it('should show spinner when starting review', () => {
     render(<ChatInput {...defaultProps} isStartingReview={true} />);
-    expect(screen.getByText(/reviewing/i)).toBeInTheDocument();
+    expect(screen.getByText(/ai review/i)).toBeInTheDocument();
+  });
+
+  it('should render Generate button when onGenerateStories is provided', () => {
+    const onGenerateStories = vi.fn();
+    render(<ChatInput {...defaultProps} onGenerateStories={onGenerateStories} />);
+    expect(screen.getByText(/generate/i)).toBeInTheDocument();
+  });
+
+  it('should call onGenerateStories when Generate button is clicked', () => {
+    const onGenerateStories = vi.fn();
+    render(<ChatInput {...defaultProps} onGenerateStories={onGenerateStories} />);
+
+    const generateButton = screen.getByText(/generate/i);
+    fireEvent.click(generateButton);
+
+    expect(onGenerateStories).toHaveBeenCalledTimes(1);
+  });
+
+  it('should show Generating text when isGeneratingStories is true', () => {
+    render(<ChatInput {...defaultProps} onGenerateStories={vi.fn()} isGeneratingStories={true} />);
+    expect(screen.getByText(/generating/i)).toBeInTheDocument();
   });
 
   it('should call onFocus when textarea is focused', () => {

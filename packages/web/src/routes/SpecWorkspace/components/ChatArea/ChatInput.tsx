@@ -7,10 +7,11 @@ import {
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { BotIcon } from 'lucide-react';
 import { Spinner } from '../../../../components/ui/Loading';
+import { Button } from '../../../../components/ui/Button';
 import { useSettings, useUpdateSettings, useCliDetection } from '@/features/settings';
-import { 
-  SelectContent, 
-  SelectItem 
+import {
+  SelectContent,
+  SelectItem
 } from '@/components/ui/Select';
 import type { CliType } from '@/types';
 import { isIOSSafari } from '../../../../hooks/use-mobile';
@@ -20,8 +21,10 @@ interface ChatInputProps {
   onChange: (value: string) => void;
   onSend: () => void;
   onStartReview: () => void;
+  onGenerateStories?: () => void;
   isSending: boolean;
   isStartingReview: boolean;
+  isGeneratingStories?: boolean;
   onFocus?: () => void;
   onBlur?: () => void;
   isDiscussing?: boolean;
@@ -33,8 +36,10 @@ export function ChatInput({
   onChange,
   onSend,
   onStartReview,
+  onGenerateStories,
   isSending,
   isStartingReview,
+  isGeneratingStories,
   onFocus,
   onBlur,
   isDiscussing,
@@ -230,25 +235,38 @@ export function ChatInput({
       {/* Bottom bar - plus, model selector, icons, send */}
       <div className="flex items-center justify-between px-2 py-2">
         {/* Left side - AI Review + New Chat buttons */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           {/* Hide temporarily until we have utility for it. */}
           {/* <button className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors">
             <PlusIcon className="w-5 h-5" />
           </button> */}
 
           {/* AI Review Button */}
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onStartReview}
-            disabled={isStartingReview}
-            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            isLoading={isStartingReview}
+            className="text-muted-foreground hover:text-foreground h-auto py-1.5 px-2"
           >
-            {isStartingReview ? (
-              <Spinner size="sm" className="text-white" />
-            ) : (
-              <BotIcon className="w-4 h-4" />
-            )}
-            <span className="text-xs font-normal">AI Review</span>
-          </button>
+            <BotIcon className="w-4 h-4" />
+            AI Review
+          </Button>
+
+          {/* Generate Stories Button */}
+          {onGenerateStories && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onGenerateStories}
+              isLoading={isGeneratingStories}
+              loadingText="Generating"
+              className="text-muted-foreground hover:text-foreground h-auto py-1.5 px-2"
+            >
+              <SparklesIcon className="w-4 h-4" />
+              Generate
+            </Button>
+          )}
         </div>
 
         {/* Right side - model selector + send */}
@@ -258,7 +276,6 @@ export function ChatInput({
               data-conversation-keep-open
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 text-xs text-muted-foreground hover:text-foreground transition-colors border-none focus:outline-none"
             >
-              <SparklesIcon className="w-4 h-4" />
               <span>{currentAgent.charAt(0).toUpperCase() + currentAgent.slice(1)}</span>
               <ChevronDownIcon className="w-3 h-3" />
             </SelectPrimitive.Trigger>
