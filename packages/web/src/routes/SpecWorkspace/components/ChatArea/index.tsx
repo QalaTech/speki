@@ -44,7 +44,9 @@ interface ChatAreaProps {
   onSendMessage: () => void;
   onNewChat: () => void;
   onStartReview: () => void;
+  onGenerateStories?: () => void;
   isStartingReview: boolean;
+  isGeneratingStories?: boolean;
   focusTrigger?: number;
 
   // Queue
@@ -74,7 +76,9 @@ export function ChatArea({
   onSendMessage,
   onNewChat,
   onStartReview,
+  onGenerateStories,
   isStartingReview,
+  isGeneratingStories,
   focusTrigger,
   queueCount,
   onOpenQueue,
@@ -258,8 +262,10 @@ export function ChatArea({
             onChange={onInputChange}
             onSend={onSendMessage}
             onStartReview={onStartReview}
+            onGenerateStories={onGenerateStories}
             isSending={isSending}
             isStartingReview={isStartingReview}
+            isGeneratingStories={isGeneratingStories}
             isDiscussing={!!discussingContext || !!selectedContext}
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}

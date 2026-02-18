@@ -694,7 +694,9 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
                 onSendMessage={handleSendMessage}
                 onNewChat={handleNewChatWithSelectionReset}
                 onStartReview={handleStartReview}
+                onGenerateStories={() => handleDecompose(false)}
                 isStartingReview={isStartingReview}
+                isGeneratingStories={isDecomposing}
                 focusTrigger={focusTrigger}
                 queueCount={projectQueueCount}
                 onOpenQueue={() => setIsExecutionModalOpen(true)}

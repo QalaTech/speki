@@ -20,8 +20,10 @@ interface ChatInputProps {
   onChange: (value: string) => void;
   onSend: () => void;
   onStartReview: () => void;
+  onGenerateStories?: () => void;
   isSending: boolean;
   isStartingReview: boolean;
+  isGeneratingStories?: boolean;
   onFocus?: () => void;
   onBlur?: () => void;
   isDiscussing?: boolean;
@@ -33,8 +35,10 @@ export function ChatInput({
   onChange,
   onSend,
   onStartReview,
+  onGenerateStories,
   isSending,
   isStartingReview,
+  isGeneratingStories,
   onFocus,
   onBlur,
   isDiscussing,
@@ -249,6 +253,22 @@ export function ChatInput({
             )}
             <span className="text-xs font-normal">AI Review</span>
           </button>
+
+          {/* Generate Stories Button */}
+          {onGenerateStories && (
+            <button
+              onClick={onGenerateStories}
+              disabled={isGeneratingStories}
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isGeneratingStories ? (
+                <Spinner size="sm" className="text-white" />
+              ) : (
+                <SparklesIcon className="w-4 h-4" />
+              )}
+              <span className="text-xs font-normal">{isGeneratingStories ? 'Generating' : 'Generate'}</span>
+            </button>
+          )}
         </div>
 
         {/* Right side - model selector + send */}
@@ -258,7 +278,6 @@ export function ChatInput({
               data-conversation-keep-open
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 text-xs text-muted-foreground hover:text-foreground transition-colors border-none focus:outline-none"
             >
-              <SparklesIcon className="w-4 h-4" />
               <span>{currentAgent.charAt(0).toUpperCase() + currentAgent.slice(1)}</span>
               <ChevronDownIcon className="w-3 h-3" />
             </SelectPrimitive.Trigger>
