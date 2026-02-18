@@ -164,7 +164,12 @@ router.post('/add', async (req, res) => {
     }
 
     // Ensure queue exists
-    const config = await req.project!.loadConfig();
+    let config;
+    try {
+      config = await req.project!.loadConfig();
+    } catch {
+      // Config may not exist for all projects
+    }
     await getOrCreateTaskQueue(req.projectPath!, {
       projectName: config?.name || 'Unknown',
       branchName: config?.branchName || 'ralph/feature',
@@ -204,7 +209,12 @@ router.post('/add-many', async (req, res) => {
     }
 
     // Ensure queue exists
-    const config = await req.project!.loadConfig();
+    let config;
+    try {
+      config = await req.project!.loadConfig();
+    } catch {
+      // Config may not exist for all projects
+    }
     await getOrCreateTaskQueue(req.projectPath!, {
       projectName: config?.name || 'Unknown',
       branchName: config?.branchName || 'ralph/feature',

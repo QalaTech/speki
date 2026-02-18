@@ -20,6 +20,7 @@ import {
   loadPRDForSpec,
 } from '@speki/core';
 import { publishSpecReview } from '../sse.js';
+import { registerActiveReview, unregisterActiveReview } from '../active-reviews.js';
 import type { SessionFile, SplitProposal, CodebaseContext, ChatMessage } from '@speki/core';
 
 const router = Router();
@@ -835,6 +836,7 @@ router.post('/start', async (req, res) => {
 
     console.log('[spec-review/start] Saving session:', { sessionId, specFilePath: session.specFilePath, status: session.status });
     await saveSession(session, projectPath);
+    registerActiveReview(sessionId);
     console.log('[spec-review/start] Session saved successfully');
     publishSpecReview(projectPath, 'spec-review/status', { sessionId, status: 'in_progress' });
 
@@ -874,6 +876,7 @@ router.post('/start', async (req, res) => {
           streamCallbacks,
         });
 
+        unregisterActiveReview(sessionId);
         session.status = 'completed';
         session.completedAt = new Date().toISOString();
         session.lastUpdatedAt = session.completedAt;
@@ -891,6 +894,7 @@ router.post('/start', async (req, res) => {
         });
         publishSpecReview(projectPath, 'spec-review/complete', { sessionId });
       } catch (reviewError) {
+        unregisterActiveReview(sessionId);
         session.status = 'needs_attention';
         session.lastUpdatedAt = new Date().toISOString();
 
