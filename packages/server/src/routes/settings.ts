@@ -107,6 +107,10 @@ router.put('/', async (req, res) => {
       },
       execution: {
         keepAwake: body.execution?.keepAwake ?? currentSettings.execution.keepAwake,
+        parallel: {
+          enabled: body.execution?.parallel?.enabled ?? currentSettings.execution.parallel?.enabled ?? false,
+          maxParallel: Math.min(8, Math.max(1, body.execution?.parallel?.maxParallel ?? currentSettings.execution.parallel?.maxParallel ?? 2)),
+        },
       },
     };
 

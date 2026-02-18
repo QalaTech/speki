@@ -260,12 +260,27 @@ export async function getNextQueuedTask(
 }
 
 /**
+ * Get all running tasks from the queue.
+ */
+export async function getRunningTasks(
+  projectRoot: string
+): Promise<QueuedTaskReference[]> {
+  const queue = await loadTaskQueue(projectRoot);
+  return queue?.queue.filter((t) => t.status === 'running') || [];
+}
+
+/**
  * Mark a task as running.
+ * @param projectRoot - Project root path
+ * @param specId - Spec ID containing the task
+ * @param taskId - Task ID to mark as running
+ * @param clearOtherRunning - Whether to clear other running tasks (default: true for sequential mode)
  */
 export async function markTaskRunning(
   projectRoot: string,
   specId: string,
-  taskId: string
+  taskId: string,
+  clearOtherRunning: boolean = true
 ): Promise<void> {
   const queue = await loadTaskQueue(projectRoot);
   if (!queue) {
@@ -279,14 +294,17 @@ export async function markTaskRunning(
     throw new Error(`Task ${specId}:${taskId} not found in queue.`);
   }
 
-  // Ralph executes one task at a time, so clear any stale running markers.
-  for (const entry of queue.queue) {
-    if (
-      entry.status === 'running' &&
-      !(entry.specId === specId && entry.taskId === taskId)
-    ) {
-      entry.status = 'queued';
-      delete entry.startedAt;
+  // Ralph executes one task at a time by default, so clear any stale running markers.
+  // When parallel execution is enabled, allow multiple running tasks.
+  if (clearOtherRunning) {
+    for (const entry of queue.queue) {
+      if (
+        entry.status === 'running' &&
+        !(entry.specId === specId && entry.taskId === taskId)
+      ) {
+        entry.status = 'queued';
+        delete entry.startedAt;
+      }
     }
   }
 

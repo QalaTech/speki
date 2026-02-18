@@ -404,5 +404,12 @@ export interface GlobalSettings {
   execution: {
     /** Prevent system sleep during execution (default: true) */
     keepAwake: boolean;
+    /** Parallel execution configuration */
+    parallel?: {
+      /** Enable parallel task execution */
+      enabled: boolean;
+      /** Maximum number of parallel tasks (1-8) */
+      maxParallel: number;
+    };
   };
 }

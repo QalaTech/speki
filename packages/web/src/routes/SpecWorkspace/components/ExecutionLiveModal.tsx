@@ -131,36 +131,39 @@ export function ExecutionLiveModal({
     return Array.from(storyMap.values());
   }, [stories, queueTasks]);
 
-  // Derive running task ID.
+  // Derive running task ID(s).
   // Prefer queue-running status as source of truth, with currentStory as fallback
   // when queue polling has not observed the running marker yet.
-  const runningTaskIdFromQueue = useMemo(() => {
-    if (!isRunning) return null;
+  // For parallel execution, returns array of all running task IDs.
+  const runningTaskIdsFromQueue = useMemo(() => {
+    if (!isRunning) return [];
 
-    const queueRunningTask = activeQueueTasks.find((t) => t.status === 'running');
-    const soleActiveTaskId = activeQueueTasks.length === 1 ? activeQueueTasks[0]?.taskId ?? null : null;
+    const queueRunningTasks = activeQueueTasks.filter((t) => t.status === 'running').map(t => t.taskId);
 
-    if (queueRunningTask) return queueRunningTask.taskId;
+    if (queueRunningTasks.length > 0) return queueRunningTasks;
 
     if (isRunning && currentStoryId) {
       const status = queueStatusByTaskId.get(currentStoryId);
       // Ignore stale status pointers that already left the active queue.
       if (!status || status === 'completed' || status === 'failed' || status === 'skipped') {
         // During wrap-up, queue may be empty while logs are still streaming for the last task.
-        if (activeQueueTasks.length === 0) return currentStoryId;
-        return soleActiveTaskId;
+        if (activeQueueTasks.length === 0) return [currentStoryId];
+        return activeQueueTasks.map(t => t.taskId);
       }
-      return currentStoryId;
+      return [currentStoryId];
     }
 
     // If execution is running and only one task is active, treat it as the live task
     // when currentStory is temporarily stale or unavailable.
-    if (isRunning && soleActiveTaskId) {
-      return soleActiveTaskId;
+    if (isRunning && activeQueueTasks.length > 0) {
+      return activeQueueTasks.map(t => t.taskId);
     }
 
-    return null;
+    return [];
   }, [activeQueueTasks, isRunning, currentStoryId, queueStatusByTaskId]);
+
+  // For backward compatibility - return first running task as single ID
+  const runningTaskIdFromQueue = runningTaskIdsFromQueue[0] ?? null;
 
   // Auto-select running task
   useEffect(() => {
@@ -247,11 +250,11 @@ export function ExecutionLiveModal({
   }, [selectedStoryId, isOpen]);
 
   const getTaskStatus = (id: string) => {
-    if (isRunning && id === runningTaskIdFromQueue) return 'running';
+    if (isRunning && runningTaskIdsFromQueue.includes(id)) return 'running';
     const queueStatus = queueStatusByTaskId.get(id);
     if (!isRunning && queueStatus === 'running') return 'queued';
     // If queue polling is behind, suppress stale "running" badges for non-active tasks.
-    if (isRunning && runningTaskIdFromQueue && queueStatus === 'running') return 'queued';
+    if (isRunning && runningTaskIdsFromQueue.length > 0 && queueStatus === 'running' && !runningTaskIdsFromQueue.includes(id)) return 'queued';
     if (queueStatus) return queueStatus;
     if (completedIds.has(id)) return 'completed';
     return 'pending';
@@ -509,14 +512,15 @@ export function ExecutionLiveModal({
                   </div>
                   
                   <div className="flex-1 overflow-hidden relative">
-                    {(selectedStoryId === runningTaskIdFromQueue || !runningTaskIdFromQueue) ? (
+                    {/* Show logs for running tasks, show placeholder only for non-running selected tasks */}
+                    {getTaskStatus(selectedStoryId) === 'running' || !runningTaskIdsFromQueue.length ? (
                       <ChatLogView
                         entries={logEntries}
-                        isRunning={isRunning && selectedStoryId === runningTaskIdFromQueue}
+                        isRunning={isRunning && runningTaskIdsFromQueue.includes(selectedStoryId)}
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8 text-center">
-                        <p>Logs are currently only available for the active task.</p>
+                        <p>Logs are currently only available for running tasks.</p>
                         <p className="text-xs mt-2 opacity-60">
                           (Task {selectedStoryId} is {getTaskStatus(selectedStoryId)})
                         </p>

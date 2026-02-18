@@ -133,6 +133,8 @@ export function SettingsView() {
 
   // Execution settings
   const [keepAwake, setKeepAwake] = useState<boolean>(true);
+  const [parallelEnabled, setParallelEnabled] = useState<boolean>(false);
+  const [maxParallel, setMaxParallel] = useState<number>(2);
 
   // Initialize form state when settings are loaded
   useEffect(() => {
@@ -153,6 +155,8 @@ export function SettingsView() {
       setSpecChatModel(settings.specChat?.model || '');
       setSpecChatReasoningEffort(settings.specChat?.reasoningEffort || 'medium');
       setKeepAwake(settings.execution?.keepAwake ?? true);
+      setParallelEnabled(settings.execution?.parallel?.enabled ?? false);
+      setMaxParallel(settings.execution?.parallel?.maxParallel ?? 2);
     }
   }, [settings]);
 
@@ -185,7 +189,10 @@ export function SettingsView() {
         model: specChatModel,
         reasoningEffort: specChatAgent === 'codex' ? specChatReasoningEffort : undefined,
       },
-      execution: { keepAwake },
+      execution: {
+        keepAwake,
+        parallel: { enabled: parallelEnabled, maxParallel },
+      },
     }, {
       onSuccess: () => {
         toast.success('Settings saved successfully');
@@ -495,6 +502,34 @@ export function SettingsView() {
                   <span className="text-sm font-medium">{keepAwake ? 'Enabled' : 'Disabled'}</span>
                 </div>
               </ConfigField>
+
+              <ConfigField label="Parallel Execution" description="Run multiple tasks simultaneously">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={parallelEnabled}
+                    onCheckedChange={(checked) => setParallelEnabled(checked)}
+                    disabled={saving}
+                  />
+                  <span className="text-sm font-medium">{parallelEnabled ? 'Enabled' : 'Disabled'}</span>
+                </div>
+              </ConfigField>
+
+              {parallelEnabled && (
+                <ConfigField label="Max Parallel Tasks" description="Number of tasks to run concurrently (1-8)">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="1"
+                      max="8"
+                      value={maxParallel}
+                      onChange={(e) => setMaxParallel(parseInt(e.target.value, 10))}
+                      disabled={saving}
+                      className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer"
+                    />
+                    <span className="text-sm font-medium w-8">{maxParallel}</span>
+                  </div>
+                </ConfigField>
+              )}
             </SettingsSection>
           </div>
         </div>

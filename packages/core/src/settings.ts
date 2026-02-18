@@ -59,6 +59,10 @@ const DEFAULT_SETTINGS: GlobalSettings = {
   },
   execution: {
     keepAwake: true,
+    parallel: {
+      enabled: false,
+      maxParallel: 2,
+    },
   },
 };
 
@@ -104,6 +108,10 @@ export async function loadGlobalSettings(): Promise<GlobalSettings> {
         },
         execution: {
           keepAwake: parsed.execution?.keepAwake ?? DEFAULT_SETTINGS.execution.keepAwake,
+          parallel: {
+            enabled: parsed.execution?.parallel?.enabled ?? DEFAULT_SETTINGS.execution.parallel!.enabled,
+            maxParallel: parsed.execution?.parallel?.maxParallel ?? DEFAULT_SETTINGS.execution.parallel!.maxParallel,
+          },
         },
       };
     }

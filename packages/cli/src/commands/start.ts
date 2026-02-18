@@ -35,6 +35,8 @@ export const startCommand = new Command('start')
   .option('--no-keep-awake', 'Allow system to sleep while running')
   .option('--engine <name>', 'LLM engine name (overrides settings)')
   .option('--model <name>', 'LLM model name (overrides settings)')
+  .option('--parallel', 'Enable parallel task execution (default: from settings)')
+  .option('--max-parallel <number>', 'Maximum parallel tasks (1-8, default: from settings or 2)')
   .option('--daemon', 'Run in background (not yet implemented)')
   .action(async (options) => {
     try {
@@ -148,6 +150,23 @@ export const startCommand = new Command('start')
 
       const logDir = getSpecLogsDir(projectPath, specId);
 
+      // Determine parallel config from CLI flags or settings
+      const settingsParallel = settings.execution?.parallel;
+      const parallelEnabled = options.parallel !== undefined
+        ? options.parallel
+        : settingsParallel?.enabled ?? false;
+      const maxParallel = options.maxParallel
+        ? Math.min(8, Math.max(1, parseInt(options.maxParallel, 10)))
+        : settingsParallel?.maxParallel ?? 2;
+
+      const parallelConfig = parallelEnabled
+        ? { enabled: true, maxParallel }
+        : { enabled: false, maxParallel: 1 };
+
+      if (parallelConfig.enabled) {
+        console.log(chalk.cyan(`  Parallel execution: enabled (max ${parallelConfig.maxParallel} tasks)`));
+      }
+
       const loopResult = await runRalphLoop(project, {
         maxIterations: getMaxIterations,
         specId,
@@ -162,6 +181,7 @@ export const startCommand = new Command('start')
         },
         engineName: options.engine,
         model: options.model,
+        parallel: parallelConfig,
       });
 
       if (isPreventingSleep()) {
