@@ -3,6 +3,7 @@ import { projectContext } from '../middleware/project-context.js';
 import { loadSession, saveSession, getSessionPath, getAllSessionStatuses } from '@speki/core';
 import { access } from 'fs/promises';
 import type { SessionFile } from '@speki/core';
+import { isReviewActive } from '../active-reviews.js';
 
 const router = Router();
 
@@ -20,8 +21,15 @@ router.get('/spec/:specPath', async (req, res) => {
     const specPath = decodeURIComponent(req.params.specPath);
     const projectPath = req.projectPath;
     console.log('[sessions/spec] Loading session:', { specPath, projectPath });
-    const session = await loadSession(specPath, projectPath);
+    let session = await loadSession(specPath, projectPath);
     console.log('[sessions/spec] Session result:', { found: !!session, sessionId: session?.sessionId, status: session?.status });
+
+    // Detect stale in_progress sessions from a previous server lifecycle
+    if (session && session.status === 'in_progress' && !isReviewActive(session.sessionId)) {
+      console.log('[sessions/spec] Stale in_progress session detected, marking needs_attention:', session.sessionId);
+      session = { ...session, status: 'needs_attention', lastUpdatedAt: new Date().toISOString() };
+      await saveSession(session, projectPath);
+    }
 
     res.json({ session });
   } catch (error) {

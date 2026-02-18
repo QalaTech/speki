@@ -18,7 +18,8 @@ export async function apiFetch(url: string, options?: RequestInit): Promise<Resp
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    const message = data.error || data.message || `Request failed: ${response.status}`;
+    const base = data.error || data.message || `Request failed: ${response.status}`;
+    const message = data.details ? `${base}: ${data.details}` : base;
     dispatchError(message);
     throw new Error(message);
   }

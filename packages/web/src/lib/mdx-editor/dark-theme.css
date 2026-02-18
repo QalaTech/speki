@@ -1213,6 +1213,27 @@
   overflow: visible !important;
 }
 
+/*
+ * Contrast fix for mermaid nodes with custom light fills.
+ * When a spec uses `style X fill:#cfc`, mermaid puts an inline style on the rect
+ * but keeps the dark theme's light text color, creating unreadable white-on-pastel.
+ * CSS :has() detects these inline-styled shapes and switches text to dark.
+ */
+.mermaid-renderer g:has(> rect[style*="fill"]) .nodeLabel,
+.mermaid-renderer g:has(> rect[style*="fill"]) .label div,
+.mermaid-renderer g:has(> rect[style*="fill"]) .label span,
+.mermaid-renderer g:has(> rect[style*="fill"]) .label p,
+.mermaid-renderer g:has(> rect[style*="fill"]) text,
+.mermaid-renderer g:has(> rect[style*="fill"]) tspan,
+.mermaid-renderer g:has(> polygon[style*="fill"]) .nodeLabel,
+.mermaid-renderer g:has(> polygon[style*="fill"]) .label div,
+.mermaid-renderer g:has(> polygon[style*="fill"]) .label span,
+.mermaid-renderer g:has(> polygon[style*="fill"]) text,
+.mermaid-renderer g:has(> polygon[style*="fill"]) tspan {
+  color: #1e293b !important;
+  fill: #1e293b !important;
+}
+
 .mermaid-loading {
   display: flex;
   align-items: center;

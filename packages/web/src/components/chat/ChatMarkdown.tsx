@@ -68,9 +68,21 @@ const chatComponents: Components = {
 
   // Tables (GFM)
   table: ({ children }) => (
-    <div className="my-2 overflow-x-auto rounded">
+    <div className="my-2 overflow-x-auto rounded-lg border border-white/10">
       <table className="w-full border-collapse text-[0.85em]">{children}</table>
     </div>
+  ),
+  thead: ({ children }) => (
+    <thead className="bg-white/[0.06] text-foreground font-semibold">{children}</thead>
+  ),
+  th: ({ children }) => (
+    <th className="px-3 py-2 text-left border-b border-white/10 text-xs uppercase tracking-wider">{children}</th>
+  ),
+  td: ({ children }) => (
+    <td className="px-3 py-2 border-b border-white/[0.05] align-top">{children}</td>
+  ),
+  tr: ({ children }) => (
+    <tr className="hover:bg-white/[0.03] transition-colors">{children}</tr>
   ),
 
   // Horizontal rule

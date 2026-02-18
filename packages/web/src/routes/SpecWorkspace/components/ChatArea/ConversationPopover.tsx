@@ -185,7 +185,7 @@ export function ConversationPopover({
 }: ConversationPopoverProps) {
   const conversationRef = useRef<HTMLDivElement>(null);
   const userBubbleClass =
-    'inline-block max-w-[85%] bg-tertiary text-tertiary-foreground rounded-2xl rounded-br-md px-4 py-2.5 text-left';
+    'inline-block max-w-[85%] bg-primary/20 text-foreground rounded-2xl rounded-br-md px-4 py-2.5 text-left';
 
   // Keep latest content in view (messages + compose context banners).
   useEffect(() => {
@@ -197,13 +197,13 @@ export function ConversationPopover({
     <div
       ref={conversationRef}
       data-testid="conversation-popover"
-      className={`overflow-y-auto bg-[#1e1e1e] border border-white/5 shadow-[0_12px_32px_rgba(0,0,0,0.42),0_4px_14px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.06)] ${
-        compact ? 'rounded-2xl' : 'max-h-[28rem] rounded-lg'
+      className={`overflow-y-auto bg-[#252528] border border-white/10 shadow-[0_16px_48px_rgba(0,0,0,0.5),0_6px_20px_rgba(0,0,0,0.35)] ${
+        compact ? 'rounded-2xl' : 'max-h-[28rem] rounded-xl'
       }`}
       style={maxHeightPx ? { maxHeight: `${maxHeightPx}px` } : undefined}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className={`sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-[#1e1e1e] ${compact ? 'px-3 py-1.5' : 'px-4 py-2'}`}>
+      <div className={`sticky top-0 z-10 flex items-center justify-between border-b border-white/8 bg-[#252528] ${compact ? 'px-3 py-1.5' : 'px-4 py-2'}`}>
         <span className="text-sm font-medium text-muted-foreground">Conversation</span>
         <div className="flex items-center gap-4">
           {onNewChat && (
@@ -280,8 +280,8 @@ export function ConversationPopover({
           }
 
           return (
-            <div key={msg.id}>
-              <div className="text-sm text-foreground/90 leading-relaxed prose prose-invert prose-sm max-w-none">
+            <div key={msg.id} className="w-full">
+              <div className="bg-white/[0.04] border border-white/[0.06] rounded-2xl rounded-tl-md px-4 py-3 text-sm text-foreground/90 leading-relaxed [&_*]:max-w-none">
                 <ChatMarkdown content={msg.content} />
               </div>
             </div>
