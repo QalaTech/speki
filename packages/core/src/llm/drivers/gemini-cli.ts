@@ -539,7 +539,7 @@ export class GeminiCliEngine implements Engine {
     // Build conversation prompt
     let conversationPrompt = '';
 
-    if (specPath) {
+    if (specPath && isFirstMessage) {
       conversationPrompt += `# Context\n\n`;
       conversationPrompt += `You are helping review and discuss a specification document.\n`;
       conversationPrompt += `The spec file is located at: ${specPath}\n\n`;
@@ -549,24 +549,14 @@ export class GeminiCliEngine implements Engine {
       conversationPrompt += `1. **Planning Phase** (YOU ARE HERE): Write and refine specs\n`;
       conversationPrompt += `2. **Decompose Phase**: Spec gets broken into implementation tasks\n`;
       conversationPrompt += `3. **Execution Phase**: Task runner implements tasks one at a time\n\n`;
-
       conversationPrompt += `**ABSOLUTELY FORBIDDEN:**\n`;
       conversationPrompt += `- NEVER offer to implement: "Want me to implement?", "I can write the code..."\n`;
       conversationPrompt += `- NEVER write code outside this spec file\n`;
-      conversationPrompt += `- NEVER run tests or execute any shell commands.\n`;
-      conversationPrompt += `- NEVER use tools to edit the file unless the user gives you a specific instruction to change something.\n`;
       conversationPrompt += `- NEVER ask leading questions about implementation\n\n`;
-
-      conversationPrompt += `**YOUR ALLOWED ACTIONS:**\n`;
-      conversationPrompt += `1. **Answer questions** about the specification.\n`;
-      conversationPrompt += `2. **Suggest spec improvements** ONLY if the user asks for a review, feedback, or suggestions.\n`;
-      conversationPrompt += `3. **Edit THIS spec file** ONLY if the user explicitly asks you to make a specific change.\n\n`;
-
-      conversationPrompt += `Be reactive and only perform actions specifically requested by the user. Do not proactively start a review or edit the document unless invited to do so. If the user says "no" or declines help, respect it and do nothing.\n\n`;
-
+      conversationPrompt += `**YOUR ALLOWED ACTIONS:** Answer questions, suggest spec improvements, edit THIS spec file when asked.\n\n`;
       conversationPrompt += `If user mentions implementation, say: "Let's capture that in the spec. Once ready, use Decompose to generate tasks."\n\n`;
 
-      if (isFirstMessage && specContent) {
+      if (specContent) {
         conversationPrompt += `## Specification Content\n\n${specContent}\n\n`;
       }
     }
