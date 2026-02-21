@@ -212,6 +212,10 @@ export class GeminiCliEngine implements Engine {
     const gemini = spawn(geminiPath, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        ...options.env,
+      },
     });
 
     const jsonlStream = createWriteStream(jsonlPath);

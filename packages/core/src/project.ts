@@ -67,9 +67,6 @@ export class Project {
   get standardsDir(): string {
     return join(this.spekiDir, 'standards');
   }
-  get currentTaskPath(): string {
-    return join(this.spekiDir, 'current-task.json');
-  }
 
   /**
    * Check if .speki folder exists
@@ -603,22 +600,18 @@ export class Project {
       peerFeedbackFile: '.speki/peer_feedback.json',
     };
 
-    // Save to file
-    await writeFile(this.currentTaskPath, JSON.stringify(context, null, 2));
+    // Note: Previously saved to current-task.json, but this is no longer needed
+    // as the LLM gets task context via `qala tasks next` which reads from the queue.
 
     return context;
   }
 
   /**
    * Clean up the current task context file
+   * @deprecated This method is no longer needed as current-task.json is not used.
    */
   async cleanupCurrentTaskContext(): Promise<void> {
-    try {
-      const { unlink } = await import('fs/promises');
-      await unlink(this.currentTaskPath);
-    } catch {
-      // File doesn't exist, ignore
-    }
+    // No-op: current-task.json is no longer used
   }
 }
 

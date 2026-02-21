@@ -48,77 +48,82 @@ export async function processTaskCompletion(
     completedPrds: [],
   };
 
-  // 1. Load the tech spec's decompose state
-  const techSpecPrd = await loadPRDForSpec(projectRoot, specId);
-  if (!techSpecPrd) {
-    return result;
-  }
+  try {
+    // 1. Load the tech spec's decompose state
+    const techSpecPrd = await loadPRDForSpec(projectRoot, specId);
+    if (!techSpecPrd) {
+      return result;
+    }
 
-  // 2. Find and mark the task as complete
-  const task = techSpecPrd.userStories.find((s) => s.id === taskId);
-  if (!task) {
-    return result;
-  }
+    // 2. Find and mark the task as complete
+    const task = techSpecPrd.userStories.find((s) => s.id === taskId);
+    if (!task) {
+      return result;
+    }
 
-  task.passes = true;
-  task.executedAt = new Date().toISOString();
-  await savePRDForSpec(projectRoot, specId, techSpecPrd);
+    task.passes = true;
+    task.executedAt = new Date().toISOString();
+    await savePRDForSpec(projectRoot, specId, techSpecPrd);
 
-  // 3. Check if this task achieves any user stories in a parent PRD
-  const metadata = await readSpecMetadata(projectRoot, specId);
-  if (!metadata?.parent) {
-    // No parent PRD - standalone tech spec
-    return result;
-  }
+    // 3. Check if this task achieves any user stories in a parent PRD
+    const metadata = await readSpecMetadata(projectRoot, specId);
+    if (!metadata?.parent) {
+      // No parent PRD - standalone tech spec
+      return result;
+    }
 
-  // Extract parent spec ID from path
-  const parentSpecId = extractSpecIdFromPath(metadata.parent);
-  if (!parentSpecId) {
-    return result;
-  }
+    // Extract parent spec ID from path
+    const parentSpecId = extractSpecIdFromPath(metadata.parent);
+    if (!parentSpecId) {
+      return result;
+    }
 
-  // 4. Load parent PRD
-  const parentPrd = await loadPRDForSpec(projectRoot, parentSpecId);
-  if (!parentPrd) {
-    return result;
-  }
+    // 4. Load parent PRD
+    const parentPrd = await loadPRDForSpec(projectRoot, parentSpecId);
+    if (!parentPrd) {
+      return result;
+    }
 
-  // 5. Check which user stories this task achieves
-  const achievesStories = task.achievesUserStories || [];
-  if (achievesStories.length === 0) {
-    return result;
-  }
+    // 5. Check which user stories this task achieves
+    const achievesStories = task.achievesUserStories || [];
+    if (achievesStories.length === 0) {
+      return result;
+    }
 
-  // 6. For each story, check if ALL tasks achieving it are complete
-  for (const storyId of achievesStories) {
-    const isAchieved = await checkUserStoryAchieved(
-      projectRoot,
-      parentSpecId,
-      storyId
-    );
+    // 6. For each story, check if ALL tasks achieving it are complete
+    for (const storyId of achievesStories) {
+      const isAchieved = await checkUserStoryAchieved(
+        projectRoot,
+        parentSpecId,
+        storyId
+      );
 
-    if (isAchieved) {
-      // Mark the user story as achieved in parent PRD
-      const story = parentPrd.userStories.find((s) => s.id === storyId);
-      if (story && !story.passes) {
-        story.passes = true;
-        result.achievedStories.push({
-          prdSpecId: parentSpecId,
-          storyId,
-        });
+      if (isAchieved) {
+        // Mark the user story as achieved in parent PRD
+        const story = parentPrd.userStories.find((s) => s.id === storyId);
+        if (story && !story.passes) {
+          story.passes = true;
+          result.achievedStories.push({
+            prdSpecId: parentSpecId,
+            storyId,
+          });
+        }
       }
     }
-  }
 
-  // Save parent PRD if any stories were achieved
-  if (result.achievedStories.length > 0) {
-    await savePRDForSpec(projectRoot, parentSpecId, parentPrd);
-  }
+    // Save parent PRD if any stories were achieved
+    if (result.achievedStories.length > 0) {
+      await savePRDForSpec(projectRoot, parentSpecId, parentPrd);
+    }
 
-  // 7. Check if the parent PRD is now complete
-  const prdProgress = await calculatePrdProgress(projectRoot, parentSpecId);
-  if (prdProgress.isComplete) {
-    result.completedPrds.push(parentSpecId);
+    // 7. Check if the parent PRD is now complete
+    const prdProgress = await calculatePrdProgress(projectRoot, parentSpecId);
+    if (prdProgress.isComplete) {
+      result.completedPrds.push(parentSpecId);
+    }
+  } catch (error) {
+    // Don't crash the whole iteration - log and return partial result
+    console.error(`[CompletionChain] Error processing ${specId}:${taskId}:`, error);
   }
 
   return result;

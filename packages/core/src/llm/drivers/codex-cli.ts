@@ -255,6 +255,10 @@ export class CodexCliEngine implements Engine {
     const codex = spawn(codexPath, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        ...options.env,
+      },
     });
 
     // Create write streams for logs

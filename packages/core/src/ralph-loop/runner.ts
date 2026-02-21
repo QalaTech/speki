@@ -17,6 +17,8 @@ import type { PRDData, UserStory, RalphStatus } from '../types/index.js';
 import type { StreamCallbacks } from '../claude/types.js';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { markTaskRunning, markTaskCompleted, markTaskFailed } from '../task-queue/queue-manager.js';
+import { processTaskCompletion } from '../task-queue/completion-chain.js';
 
 export interface LoopOptions {
   /** Maximum number of iterations (static value or getter for dynamic updates) */
@@ -38,8 +40,10 @@ export interface LoopOptions {
   /** Preferred engine name and model (overrides settings/env) */
   engineName?: string;
   model?: string;
-  /** Optional stream callbacks (e.g., for SSE log piping) */
+  /** Optional stream callbacks (e.g., for SSE log piping) - for single task/legacy mode */
   streamCallbacks?: StreamCallbacks;
+  /** Factory to create task-scoped stream callbacks (for parallel execution) */
+  streamCallbacksFactory?: (taskId: string) => StreamCallbacks;
   /** Parallel execution configuration */
   parallel?: {
     /** Enable parallel task execution */
@@ -140,14 +144,23 @@ async function executeStory(
   iteration: number,
   engineName?: string,
   model?: string,
-  streamCallbacks?: StreamCallbacks
+  streamCallbacks?: StreamCallbacks,
+  streamCallbacksFactory?: (taskId: string) => StreamCallbacks,
+  skipMarkRunning: boolean = false
 ): Promise<{ completed: boolean; jsonlPath: string; durationMs: number }> {
   // Create a unique log directory for this task
   const taskLogDir = path.join(baseLogDir, `task-${story.id}-${Date.now()}`);
   await fs.mkdir(taskLogDir, { recursive: true });
 
-  // Generate task context for this specific story
-  await project.generateCurrentTaskContext(story, prd, specId);
+  // Mark task as running in queue (skip if already marked by caller for parallel execution)
+  if (specId && !skipMarkRunning) {
+    try {
+      await markTaskRunning(project.projectPath, specId, story.id, false);
+    } catch (error) {
+      // Queue might not exist in non-queue mode, ignore error
+      console.log(chalk.gray(`  [${story.id}] Note: Could not mark task as running in queue`));
+    }
+  }
 
   const sel = await selectEngine({ engineName, model, purpose: 'taskRunner' });
   const engineDisplayName = sel.engineName.includes('claude') ? 'Claude' :
@@ -156,24 +169,59 @@ async function executeStory(
 
   console.log(chalk.yellow(`  [${story.id}] Starting ${engineDisplayName}...`));
 
-  const callbacks = streamCallbacks || createConsoleCallbacks();
-  const result = await sel.engine.runStream({
-    promptPath: project.promptPath,
-    cwd: project.projectPath,
-    logDir: taskLogDir,
-    iteration,
-    callbacks,
-    model: sel.model,
-  });
+  try {
+    // Use factory if available (for parallel execution with task-scoped logs), otherwise use base callbacks
+    const callbacks = streamCallbacksFactory 
+      ? streamCallbacksFactory(story.id) 
+      : (streamCallbacks || createConsoleCallbacks());
+    const result = await sel.engine.runStream({
+      promptPath: project.promptPath,
+      cwd: project.projectPath,
+      logDir: taskLogDir,
+      iteration,
+      callbacks,
+      model: sel.model,
+      // Pass task ID via env so `qala tasks next` returns the correct task for parallel execution
+      env: {
+        QALA_CURRENT_TASK_ID: story.id,
+      },
+    });
 
-  console.log(chalk.gray(`  [${story.id}] JSONL saved: ${result.jsonlPath}`));
-  console.log(chalk.gray(`  [${story.id}] Duration: ${Math.round(result.durationMs / 1000)}s`));
+    console.log(chalk.gray(`  [${story.id}] JSONL saved: ${result.jsonlPath}`));
+    console.log(chalk.gray(`  [${story.id}] Duration: ${Math.round(result.durationMs / 1000)}s`));
 
-  return {
-    completed: result.isComplete,
-    jsonlPath: result.jsonlPath,
-    durationMs: result.durationMs,
-  };
+    // Mark task as completed or failed in queue and sync to PRD
+    if (specId) {
+      try {
+        if (result.isComplete) {
+          await markTaskCompleted(project.projectPath, specId, story.id);
+          // Sync completion to PRD (sets passes: true, checks user story achievement)
+          await processTaskCompletion(project.projectPath, specId, story.id);
+        } else {
+          await markTaskFailed(project.projectPath, specId, story.id);
+        }
+      } catch (error) {
+        // Queue might not exist in non-queue mode, ignore error
+        console.log(chalk.gray(`  [${story.id}] Note: Could not update task status in queue`));
+      }
+    }
+
+    return {
+      completed: result.isComplete,
+      jsonlPath: result.jsonlPath,
+      durationMs: result.durationMs,
+    };
+  } catch (error) {
+    // Mark task as failed if execution threw an error
+    if (specId) {
+      try {
+        await markTaskFailed(project.projectPath, specId, story.id);
+      } catch {
+        // Ignore queue errors
+      }
+    }
+    throw error;
+  }
 }
 
 /**
@@ -327,7 +375,10 @@ export async function runRalphLoop(
         console.log('');
       }
 
-      await onIterationStart?.(iteration, readyStories[0] || null);
+      // Call onIterationStart for each parallel task (not just the first one)
+      for (const story of readyStories) {
+        await onIterationStart?.(iteration, story);
+      }
 
       await project.saveStatus({
         status: 'running',
@@ -350,24 +401,47 @@ export async function runRalphLoop(
         (readyStories.length > 1 || parallelConfig.maxParallel > 1);
 
       if (shouldParallelize) {
-        // Execute in parallel
+        // Mark ALL tasks as running BEFORE starting any engines
+        // This prevents race condition where multiple engines call `qala tasks next`
+        // and get the same task because queue hasn't been updated yet
+        for (const story of readyStories) {
+          if (specId) {
+            try {
+              await markTaskRunning(project.projectPath, specId, story.id, false);
+            } catch (error) {
+              console.log(chalk.gray(`  [${story.id}] Note: Could not mark task as running in queue`));
+            }
+          }
+        }
+
+        // Execute in parallel (tasks already marked as running)
         console.log(chalk.cyan(`  Running ${readyStories.length} tasks in parallel...\n`));
-        const results = await Promise.all(
+        const settled = await Promise.allSettled(
           readyStories.map(story =>
             executeStory(
               project, story, prd, specId || '', logDir, iteration,
-              options.engineName, options.model, options.streamCallbacks
+              options.engineName, options.model, options.streamCallbacks, options.streamCallbacksFactory,
+              true  // skipMarkRunning - already done above
             ).then(result => ({ story, completed: result.completed }))
           )
         );
-        taskResults = results;
-        allComplete = results.every(r => r.completed);
+
+        // Process results - log failures but don't crash
+        taskResults = settled.map((r, i) => {
+          if (r.status === 'fulfilled') {
+            return r.value;
+          } else {
+            console.log(chalk.red(`  [${readyStories[i].id}] Failed: ${r.reason}`));
+            return { story: readyStories[i], completed: false };
+          }
+        });
+        allComplete = taskResults.every(r => r.completed);
       } else if (readyStories.length > 0) {
         // Single task execution (original behavior)
         const story = readyStories[0];
         const result = await executeStory(
           project, story, prd, specId || '', logDir, iteration,
-          options.engineName, options.model, options.streamCallbacks
+          options.engineName, options.model, options.streamCallbacks, options.streamCallbacksFactory
         );
         taskResults = [{ story, completed: result.completed }];
         allComplete = result.completed;
@@ -375,27 +449,7 @@ export async function runRalphLoop(
 
       console.log('');
 
-      if (allComplete) {
-        console.log('');
-        console.log(chalk.green('╔═══════════════════════════════════════════════════════════════╗'));
-        console.log(chalk.green('║  ✅ All stories complete!                                      ║'));
-        console.log(chalk.green(`║  Finished at iteration ${iteration}                                       ║`));
-        console.log(chalk.green('╚═══════════════════════════════════════════════════════════════╝'));
-
-        // Reload PRD to get final state
-        prd = (await loadPRD()) || prd;
-        storiesCompleted = prd.userStories.filter((s) => s.passes).length - initialCompleted;
-
-        await onIterationEnd?.(iteration, true, true);
-
-        return {
-          allComplete: true,
-          iterationsRun: iteration,
-          storiesCompleted,
-          finalPrd: prd,
-        };
-      }
-
+      // Reload PRD to check actual completion state
       const newPrd = await loadPRD();
       if (newPrd) {
         const oldCompleted = prd.userStories.filter((s) => s.passes).length;
@@ -412,6 +466,28 @@ export async function runRalphLoop(
         if (newCompleted > oldCompleted) {
           console.log(chalk.green(`  ✓ Stories completed: ${oldCompleted} → ${newCompleted}`));
           storiesCompleted += (newCompleted - oldCompleted);
+        }
+
+        // Check if ALL stories are actually complete (not just this batch)
+        const remainingIncomplete = newPrd.userStories.filter((s) => !s.passes).length;
+        if (remainingIncomplete === 0 && newPrd.userStories.length > 0) {
+          console.log('');
+          console.log(chalk.green('╔═══════════════════════════════════════════════════════════════╗'));
+          console.log(chalk.green('║  ✅ All stories complete!                                      ║'));
+          console.log(chalk.green(`║  Finished at iteration ${iteration}                                       ║`));
+          console.log(chalk.green('╚═══════════════════════════════════════════════════════════════╝'));
+
+          await onIterationEnd?.(iteration, true, true);
+
+          return {
+            allComplete: true,
+            iterationsRun: iteration,
+            storiesCompleted,
+            finalPrd: prd,
+          };
+        }
+
+        if (newCompleted > oldCompleted) {
           await onIterationEnd?.(iteration, true, false);
         } else {
           console.log(chalk.yellow('  ⚠ No stories marked complete this iteration'));
@@ -442,7 +518,6 @@ export async function runRalphLoop(
       finalPrd: prd,
     };
   } finally {
-    await project.cleanupCurrentTaskContext();
     await project.saveStatus({ status: 'idle' });
     await Registry.updateStatus(project.projectPath, 'idle');
   }

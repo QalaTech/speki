@@ -42,6 +42,8 @@ export interface RunOptions {
   sessionId?: string;
   /** If true, resume an existing session rather than creating a new one */
   resumeSession?: boolean;
+  /** Additional environment variables to pass to the CLI process */
+  env?: Record<string, string>;
 }
 
 export interface RunResult {
@@ -80,6 +82,7 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
     permissionMode,
     sessionId,
     resumeSession,
+    env: extraEnv,
   } = options;
 
   // Ensure log directory exists
@@ -131,6 +134,7 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
       // Ensure no TTY coloring that could interfere
       NO_COLOR: '1',
       FORCE_COLOR: '0',
+      ...extraEnv,
     },
   });
 

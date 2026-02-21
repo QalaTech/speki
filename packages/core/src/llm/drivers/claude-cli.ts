@@ -42,6 +42,7 @@ export class ClaudeCliEngine implements Engine {
       permissionMode: options.permissionMode,
       sessionId: options.sessionId,
       resumeSession: options.resumeSession,
+      env: options.env,
     });
     return {
       success: result.success,

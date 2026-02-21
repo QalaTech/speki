@@ -107,6 +107,8 @@ export interface ParsedEntry {
   toolName?: string;
   toolId?: string;
   status?: 'success' | 'error' | 'pending';
+  /** Task ID for filtering logs in parallel execution */
+  taskId?: string;
 }
 
 export function parseJsonlContent(jsonlContent: string): ParsedEntry[] {

@@ -17,10 +17,29 @@ import {
 /**
  * Get current/next task from queue (by queue order, respecting dependencies)
  * Uses task-queue.json as source of truth for status
+ * 
+ * If QALA_CURRENT_TASK_ID env var is set, returns that specific task
+ * (used for parallel execution to ensure each engine gets its assigned task)
  */
 async function getNextTaskFromQueue(projectPath: string): Promise<{ task: UserStory; specId: string } | null> {
   const queueWithTasks = await loadQueueWithTaskData(projectPath);
   if (!queueWithTasks.length) return null;
+
+  // Check for explicit task assignment via env var (parallel execution)
+  const assignedTaskId = process.env.QALA_CURRENT_TASK_ID;
+  if (assignedTaskId) {
+    const assignedRef = queueWithTasks.find(ref => ref.taskId === assignedTaskId && ref.task);
+    if (assignedRef && assignedRef.task) {
+      // Only return assigned task if it's still active (not completed/failed/skipped)
+      if (assignedRef.status === 'running' || assignedRef.status === 'queued') {
+        return { task: assignedRef.task, specId: assignedRef.specId };
+      }
+      // Assigned task is completed/failed/skipped - return null to signal no more work
+      // This prevents the engine from picking up other parallel tasks
+      return null;
+    }
+    // Assigned task not found in queue - fall through to normal logic
+  }
 
   // If a task is already running, that is the current task.
   // This keeps `qala tasks next` aligned with the Ralph runner and live execution UI.

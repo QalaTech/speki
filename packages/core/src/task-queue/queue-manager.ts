@@ -17,6 +17,7 @@ import type {
   PRDData,
 } from '../types/index.js';
 import { loadPRDForSpec } from '../spec-review/spec-metadata.js';
+import { atomicWriteJSON } from '../utils/atomic-write.js';
 
 const QUEUE_FILENAME = 'task-queue.json';
 
@@ -59,7 +60,8 @@ export async function saveTaskQueue(
   // Update the timestamp
   queue.updatedAt = new Date().toISOString();
 
-  await fs.writeFile(queuePath, JSON.stringify(queue, null, 2), 'utf-8');
+  // Use atomic write to prevent race conditions during parallel task execution
+  await atomicWriteJSON(queuePath, queue, { maxRetries: 5, retryDelayMs: 20 });
 }
 
 /**
@@ -646,4 +648,61 @@ export async function loadQueueAsPRDData(
     description: '',
     userStories,
   };
+}
+
+/**
+ * Reconcile queue state with actual task status.
+ * Call this on Ralph startup to fix any inconsistencies from crashes.
+ */
+export async function reconcileQueueState(projectRoot: string): Promise<{
+  fixed: number;
+  issues: string[];
+}> {
+  const queue = await loadTaskQueue(projectRoot);
+  if (!queue) return { fixed: 0, issues: [] };
+
+  const issues: string[] = [];
+  let fixed = 0;
+
+  for (const ref of queue.queue) {
+    // Skip completed/failed/skipped - they're already terminal states
+    if (ref.status !== 'queued' && ref.status !== 'running') continue;
+
+    // Load actual task status from spec
+    const prd = await loadPRDForSpec(projectRoot, ref.specId);
+    const task = prd?.userStories.find(s => s.id === ref.taskId);
+
+    if (!task) {
+      issues.push(`Task ${ref.taskId} not found in spec ${ref.specId}`);
+      continue;
+    }
+
+    // If task passes=true in spec but queue shows queued/running, fix queue
+    if (task.passes && (ref.status === 'queued' || ref.status === 'running')) {
+      ref.status = 'completed';
+      ref.completedAt = ref.completedAt || new Date().toISOString();
+      fixed++;
+      issues.push(`Fixed: ${ref.taskId} was ${ref.status} but task passes=true`);
+      continue;
+    }
+
+    // If queue shows running but no recent startedAt, reset to queued
+    if (ref.status === 'running') {
+      const startedAt = ref.startedAt ? new Date(ref.startedAt).getTime() : 0;
+      const stalledMs = Date.now() - startedAt;
+      // If running for more than 2 hours, likely stalled
+      if (stalledMs > 2 * 60 * 60 * 1000) {
+        ref.status = 'queued';
+        delete ref.startedAt;
+        fixed++;
+        issues.push(`Fixed: ${ref.taskId} was stalled (running for ${Math.round(stalledMs / 60000)}min)`);
+      }
+    }
+  }
+
+  if (fixed > 0) {
+    await saveTaskQueue(projectRoot, queue);
+  }
+
+  return { fixed, issues };
 }

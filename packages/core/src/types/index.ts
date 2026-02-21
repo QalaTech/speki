@@ -315,6 +315,8 @@ export interface RalphLogEntry {
   content: string;
   toolName?: string;
   status?: 'success' | 'error' | 'pending';
+  /** Task ID for filtering logs in parallel execution */
+  taskId?: string;
 }
 
 // Ralph SSE events

@@ -194,6 +194,7 @@ export {
   loadQueueAsPRDData,
   isTaskInQueue,
   getTaskQueuePosition,
+  reconcileQueueState,
 } from './task-queue/queue-manager.js';
 
 // Completion Chain

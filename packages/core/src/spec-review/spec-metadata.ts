@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { mkdir, readdir, readFile, stat, writeFile } from 'fs/promises';
 import type { DecomposeState, PRDData, SpecMetadata, SpecStatus, SpecType } from '../types/index.js';
 import { loadTaskQueue, saveTaskQueue } from '../task-queue/queue-manager.js';
+import { atomicWriteJSON } from '../utils/atomic-write.js';
 
 /**
  * The specs directory relative to project root.
@@ -373,7 +374,8 @@ export async function savePRDForSpec(
 ): Promise<void> {
   await ensureSpecDir(projectRoot, specId);
   const prdPath = path.join(getSpecDir(projectRoot, specId), 'tasks.json');
-  await writeFile(prdPath, JSON.stringify(prd, null, 2), 'utf-8');
+  // Use atomic write to prevent race conditions during parallel task execution
+  await atomicWriteJSON(prdPath, prd, { maxRetries: 5, retryDelayMs: 20 });
 }
 
 /**

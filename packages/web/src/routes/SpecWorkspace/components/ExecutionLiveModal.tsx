@@ -260,6 +260,13 @@ export function ExecutionLiveModal({
     return 'pending';
   };
 
+  // Filter log entries by selected task for parallel execution
+  // Logs without taskId (legacy/sequential mode) are shown for all tasks
+  const filteredLogEntries = useMemo(() => {
+    if (!selectedStoryId) return logEntries;
+    return logEntries.filter(entry => !entry.taskId || entry.taskId === selectedStoryId);
+  }, [logEntries, selectedStoryId]);
+
   const selectedStoryTitle = storiesForQueue.find(s => s.id === selectedStoryId)?.title || selectedStoryId;
   const shouldShowGlobalLogs = !selectedStoryId && isRunning;
 
@@ -515,7 +522,7 @@ export function ExecutionLiveModal({
                     {/* Show logs for running tasks, show placeholder only for non-running selected tasks */}
                     {getTaskStatus(selectedStoryId) === 'running' || !runningTaskIdsFromQueue.length ? (
                       <ChatLogView
-                        entries={logEntries}
+                        entries={filteredLogEntries}
                         isRunning={isRunning && runningTaskIdsFromQueue.includes(selectedStoryId)}
                       />
                     ) : (

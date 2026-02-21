@@ -16,7 +16,7 @@ import { preventSleep, allowSleep } from '@speki/core';
 import type { RalphStatus } from '@speki/core';
 import type { StreamCallbacks } from '@speki/core';
 import { publishRalph, publishTasks, publishPeerFeedback } from '../sse.js';
-import { loadQueueAsPRDData, markTaskRunning, markTaskCompleted, clearRunningTasks, loadTaskQueue } from '@speki/core';
+import { loadQueueAsPRDData, markTaskRunning, markTaskCompleted, clearRunningTasks, loadTaskQueue, reconcileQueueState } from '@speki/core';
 
 const router = Router();
 
@@ -92,10 +92,17 @@ router.get('/status', async (req, res) => {
       }
     }
 
-    // If no loop is active, clear any stale queue running markers.
+    // If no loop is active, clear any stale queue running markers and reconcile state.
     if (!runningLoops.has(projectPath)) {
+      // First, reconcile any inconsistencies from crashes
+      const { fixed, issues } = await reconcileQueueState(projectPath);
+      if (fixed > 0) {
+        console.log(`[Ralph] Reconciled ${fixed} stale queue entries:`, issues);
+      }
+      
+      // Then clear any remaining running markers (should be rare after reconcile)
       const resetCount = await clearRunningTasks(projectPath);
-      if (resetCount > 0) {
+      if (resetCount > 0 || fixed > 0) {
         const prdNow = await loadQueueAsPRDData(projectPath);
         if (prdNow) publishTasks(projectPath, 'tasks/updated', prdNow);
       }
@@ -188,23 +195,37 @@ router.post('/start', async (req, res) => {
 
     // Note: progress.txt is managed by Claude per prompt instructions, not by the runner
 
+    // Load parallel execution settings
+    const parallelEnabled = globalSettings.execution?.parallel?.enabled ?? false;
+    const maxParallel = globalSettings.execution?.parallel?.maxParallel ?? 2;
+    const parallelConfig = parallelEnabled
+      ? { enabled: true, maxParallel }
+      : { enabled: false, maxParallel: 1 };
+
+    if (parallelConfig.enabled) {
+      console.log(`[Ralph] Parallel execution: enabled (max ${parallelConfig.maxParallel} tasks)`);
+    }
+
     // Run the loop asynchronously (don't await - return immediately)
     const loopPromise = (async () => {
       try {
-        // Track story ID per iteration to avoid cross-iteration races.
-        const storyIdByIteration = new Map<number, string>();
+        // Track story IDs per iteration to avoid cross-iteration races.
+        // For parallel execution, we track multiple stories per iteration.
+        const storyIdsByIteration = new Map<number, Set<string>>();
 
-        const streamCallbacks: StreamCallbacks = {
+        // Factory to create task-scoped stream callbacks (for parallel execution)
+        // Each callback includes the taskId so logs can be filtered by task
+        const streamCallbacksFactory = (taskId: string): StreamCallbacks => ({
           onText: (text: string) => {
-            console.log('[Ralph] onText callback:', text.substring(0, 50));
-            publishRalph(projectPath, 'ralph/log', { type: 'text', content: text });
+            console.log(`[Ralph] [${taskId}] onText callback:`, text.substring(0, 50));
+            publishRalph(projectPath, 'ralph/log', { type: 'text', content: text, taskId });
           },
           onToolCall: (name: string, detail: string) => {
-            console.log('[Ralph] onToolCall callback:', name);
-            publishRalph(projectPath, 'ralph/log', { type: 'tool', toolName: name, content: detail });
+            console.log(`[Ralph] [${taskId}] onToolCall callback:`, name);
+            publishRalph(projectPath, 'ralph/log', { type: 'tool', toolName: name, content: detail, taskId });
           },
           onToolResult: (result: string) => {
-            console.log('[Ralph] onToolResult callback:', result.substring(0, 50));
+            console.log(`[Ralph] [${taskId}] onToolResult callback:`, result.substring(0, 50));
             // Parse the formatted result to determine success/error
             const isError = result.includes('❌');
             const cleanContent = result.replace(/^\s*[✓❌]\s*/, '').replace(/^\(result received\)$/, '');
@@ -212,9 +233,11 @@ router.post('/start', async (req, res) => {
               type: isError ? 'error' : 'tool_result',
               content: cleanContent,
               status: isError ? 'error' : 'success',
+              taskId,
             });
           },
-        };
+        });
+
         const result = await runRalphLoop(project, {
           maxIterations: getMaxIterations, // Pass getter for dynamic updates
           logDir: queueLogsDir,
@@ -225,9 +248,11 @@ router.post('/start', async (req, res) => {
             console.log(`[Ralph] Iteration ${iteration} starting: ${story?.id || 'none'}`);
 
             if (story?.id) {
-              storyIdByIteration.set(iteration, story.id);
+              const existing = storyIdsByIteration.get(iteration) || new Set();
+              existing.add(story.id);
+              storyIdsByIteration.set(iteration, existing);
             } else {
-              storyIdByIteration.delete(iteration);
+              storyIdsByIteration.delete(iteration);
             }
 
             // Update queue status to running
@@ -238,7 +263,8 @@ router.post('/start', async (req, res) => {
                 const queue = await loadTaskQueue(projectPath);
                 const queueRef = queue?.queue.find(ref => ref.taskId === taskId);
                 if (queueRef) {
-                  await markTaskRunning(projectPath, queueRef.specId, taskId);
+                  // Don't clear other running tasks (parallel execution support)
+                  await markTaskRunning(projectPath, queueRef.specId, taskId, false);
                 } else {
                   console.error(`[Ralph] Task ${taskId} not found in queue`);
                 }
@@ -265,24 +291,9 @@ router.post('/start', async (req, res) => {
             // Don't check abort here - only check at start of new work
             console.log(`[Ralph] Iteration ${iteration} ended: completed=${completed}, allComplete=${allComplete}`);
 
-            const taskId = storyIdByIteration.get(iteration) ?? null;
-
-            // Update queue status to completed
-            if (completed && taskId) {
-              try {
-                // Find the task in queue to get its correct specId
-                const queue = await loadTaskQueue(projectPath);
-                const queueRef = queue?.queue.find(ref => ref.taskId === taskId);
-                if (queueRef) {
-                  await markTaskCompleted(projectPath, queueRef.specId, taskId);
-                } else {
-                  console.error(`[Ralph] Task ${taskId} not found in queue`);
-                }
-              } catch (err) {
-                console.error('[Ralph] Failed to mark task completed:', err);
-              }
-            }
-            storyIdByIteration.delete(iteration);
+            // Note: Task completion is now handled by executeStory in the runner.
+            // This callback just cleans up tracking and publishes SSE events.
+            storyIdsByIteration.delete(iteration);
 
             publishRalph(projectPath, 'ralph/iteration-end', {
               iteration,
@@ -297,7 +308,8 @@ router.post('/start', async (req, res) => {
               publishPeerFeedback(projectPath, 'peer-feedback/updated', pf);
             } catch {}
           },
-          streamCallbacks,
+          streamCallbacksFactory,
+          parallel: parallelConfig,
         });
 
         console.log(`[Ralph] Loop finished: allComplete=${result.allComplete}, storiesCompleted=${result.storiesCompleted}`);

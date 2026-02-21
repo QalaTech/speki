@@ -21,6 +21,8 @@ export interface RunStreamOptions {
   sessionId?: string;
   /** If true, resume an existing session rather than creating a new one. */
   resumeSession?: boolean;
+  /** Additional environment variables to pass to the engine process */
+  env?: Record<string, string>;
 }
 
 export interface RunStreamResult {

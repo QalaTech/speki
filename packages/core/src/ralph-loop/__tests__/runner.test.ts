@@ -7,6 +7,13 @@ vi.mock('child_process', () => ({
   spawn: vi.fn(),
 }));
 
+// Mock fs/promises to avoid actual filesystem operations
+vi.mock('fs/promises', () => ({
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  readFile: vi.fn().mockResolvedValue('{}'),
+}));
+
 // Mock engine factory to skip CLI detection and return mock engine
 vi.mock('../../llm/engine-factory.js', async (importOriginal) => {
   return {
@@ -228,5 +235,159 @@ describe('runRalphLoop', () => {
     expect(actualLimit).toBe(12);
     expect(actualLimit).toBeGreaterThanOrEqual(stories.length);
     expect(result.allComplete).toBe(true);
+  });
+
+  it('handlesPartialFailureInParallelExecution', async () => {
+    const story1 = createMockStory('US-001', false);
+    const story2 = createMockStory('US-002', false);
+    const prd = createMockPRD([story1, story2]);
+
+    // After both iterations, all complete (retry succeeds)
+    const prdAllComplete = createMockPRD([
+      { ...story1, passes: true },
+      { ...story2, passes: true },
+    ]);
+    const project = createMockProject(prd, [prdAllComplete, prdAllComplete]);
+
+    // First task succeeds, second fails - then on retry, second succeeds
+    mockRunStream
+      .mockResolvedValueOnce(createMockRunResult({ isComplete: true }))   // US-001 succeeds
+      .mockRejectedValueOnce(new Error('Engine crashed'))                  // US-002 fails
+      .mockResolvedValueOnce(createMockRunResult({ isComplete: true }));   // US-002 retry succeeds
+
+    const options: LoopOptions = {
+      maxIterations: 5,
+      logDir: '/test/project/.speki/logs',
+      loadPRD: () => project.loadPRD(),
+      parallel: { enabled: true, maxParallel: 2 },
+    };
+
+    // Should not throw, should continue despite failure
+    const result = await runRalphLoop(project, options);
+
+    // Should not have crashed
+    expect(result.iterationsRun).toBeGreaterThan(0);
+  }, 10000);
+
+  it('parallelExecution_allTasksSucceed', async () => {
+    const story1 = createMockStory('US-001', false);
+    const story2 = createMockStory('US-002', false);
+    const story3 = createMockStory('US-003', false);
+    const prd = createMockPRD([story1, story2, story3]);
+
+    const prdAllComplete = createMockPRD([
+      createMockStory('US-001', true),
+      createMockStory('US-002', true),
+      createMockStory('US-003', true),
+    ]);
+    const project = createMockProject(prd, [prdAllComplete]);
+
+    // All tasks succeed in parallel
+    mockRunStream
+      .mockResolvedValueOnce(createMockRunResult({ isComplete: true }))
+      .mockResolvedValueOnce(createMockRunResult({ isComplete: true }))
+      .mockResolvedValueOnce(createMockRunResult({ isComplete: true }));
+
+    const options: LoopOptions = {
+      maxIterations: 5,
+      logDir: '/test/project/.speki/logs',
+      loadPRD: () => project.loadPRD(),
+      parallel: { enabled: true, maxParallel: 3 },
+    };
+
+    const result = await runRalphLoop(project, options);
+
+    expect(result.allComplete).toBe(true);
+    expect(result.storiesCompleted).toBe(3);
+    // All should complete in one iteration (parallel)
+    expect(result.iterationsRun).toBe(1);
+    // Verify all 3 engines were spawned in parallel
+    expect(mockRunStream).toHaveBeenCalledTimes(3);
+  });
+
+  it('parallelExecution_respectsMaxParallelLimit', async () => {
+    // Create 5 tasks but maxParallel is 2
+    const stories = Array.from({ length: 5 }, (_, i) =>
+      createMockStory(`US-${String(i + 1).padStart(3, '0')}`, false)
+    );
+    const prd = createMockPRD(stories);
+
+    // Simulate gradual completion - each PRD state shows more tasks complete
+    const prd2Complete = createMockPRD(stories.map((s, i) => ({ ...s, passes: i < 2 })));
+    const prd4Complete = createMockPRD(stories.map((s, i) => ({ ...s, passes: i < 4 })));
+    const prdAllComplete = createMockPRD(stories.map(s => ({ ...s, passes: true })));
+    
+    const project = createMockProject(prd, [prd2Complete, prd4Complete, prdAllComplete]);
+
+    // All tasks succeed - need enough mock responses
+    for (let i = 0; i < 10; i++) {
+      mockRunStream.mockResolvedValueOnce(createMockRunResult({ isComplete: true }));
+    }
+
+    const options: LoopOptions = {
+      maxIterations: 10,
+      logDir: '/test/project/.speki/logs',
+      loadPRD: () => project.loadPRD(),
+      parallel: { enabled: true, maxParallel: 2 },
+    };
+
+    const result = await runRalphLoop(project, options);
+
+    // Key assertion: all tasks should complete
+    expect(result.allComplete).toBe(true);
+    // Should have run multiple iterations (not all at once)
+    expect(result.iterationsRun).toBeGreaterThanOrEqual(3);
+  }, 10000);
+
+  it('parallelExecution_respectsDependencies', async () => {
+    // US-002 depends on US-001, US-003 has no dependencies
+    const story1 = createMockStory('US-001', false);
+    const story2 = createMockStory('US-002', false, 1, ['US-001']); // Depends on US-001
+    const story3 = createMockStory('US-003', false);
+    const prd = createMockPRD([story1, story2, story3]);
+
+    // After first iteration: US-001 and US-003 complete (no deps), US-002 still pending
+    const prdAfterFirst = createMockPRD([
+      { ...story1, passes: true },
+      { ...story2, passes: false },
+      { ...story3, passes: true },
+    ]);
+    // After second iteration: all complete
+    const prdAllComplete = createMockPRD([
+      { ...story1, passes: true },
+      { ...story2, passes: true },
+      { ...story3, passes: true },
+    ]);
+    const project = createMockProject(prd, [prdAfterFirst, prdAllComplete]);
+
+    const executionOrder: string[] = [];
+    mockRunStream.mockImplementation(async (opts: any) => {
+      // Extract task ID from env
+      const taskId = opts?.env?.QALA_CURRENT_TASK_ID;
+      if (taskId) executionOrder.push(taskId);
+      return createMockRunResult({ isComplete: true });
+    });
+
+    const options: LoopOptions = {
+      maxIterations: 5,
+      logDir: '/test/project/.speki/logs',
+      loadPRD: () => project.loadPRD(),
+      parallel: { enabled: true, maxParallel: 3 },
+    };
+
+    const result = await runRalphLoop(project, options);
+
+    expect(result.allComplete).toBe(true);
+
+    // US-001 and US-003 should run before US-002 (dependency)
+    const us001Index = executionOrder.indexOf('US-001');
+    const us002Index = executionOrder.indexOf('US-002');
+    const us003Index = executionOrder.indexOf('US-003');
+
+    expect(us001Index).toBeGreaterThanOrEqual(0);
+    expect(us002Index).toBeGreaterThanOrEqual(0);
+    expect(us003Index).toBeGreaterThanOrEqual(0);
+    expect(us001Index).toBeLessThan(us002Index);
+    expect(us003Index).toBeLessThan(us002Index);
   });
 });
