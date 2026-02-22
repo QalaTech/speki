@@ -37,7 +37,7 @@ import {
   buildAggregationPrompt,
   buildFileOutputInstruction,
 } from './prompts.js';
-import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SuggestionType, SpecReviewVerdict, ReviewFeedback, CliType, TimeoutInfo, SpecType, UserStory, DecomposeIssue } from '../types/index.js';
+import type { FocusedPromptResult, SpecReviewResult, CodebaseContext, SuggestionCard, SuggestionType, SpecReviewVerdict, ReviewFeedback, CliType, TimeoutInfo, SpecType, UserStory, DecomposeIssue, EnginePurpose } from '../types/index.js';
 import { detectSpecType, getParentSpec, loadPRDForSpec, extractSpecId } from './spec-metadata.js';
 
 export interface SpecReviewOptions {
@@ -191,9 +191,9 @@ interface RunPromptOptions {
   model?: string;
   streamCallbacks?: import('../claude/types.js').StreamCallbacks;
   logDir?: string;
+  purpose?: EnginePurpose;
+  iteration?: number;
 }
-
-const SIGKILL_DELAY_MS = 5000;
 
 async function runPrompt(
   promptDef: PromptDefinition,
@@ -212,23 +212,34 @@ async function runPrompt(
     await cleanupOldPromptFiles(logsDir, promptDef.name);
 
     const promptPath = join(logsDir, `spec_review_${promptDef.name}_${Date.now()}.md`);
-    await fs.writeFile(promptPath, fullPrompt, 'utf-8');
+    const promptBody = options.disableTools
+      ? `## CRITICAL: NO TOOLS\nDo NOT use tools, file reads/writes, or command execution.\n\n${fullPrompt}`
+      : fullPrompt;
+    await fs.writeFile(promptPath, promptBody, 'utf-8');
 
     const sel = await selectEngine({
       engineName: options.engineName,
       model: options.model,
-      purpose: 'specReview',
+      purpose: options.purpose ?? 'specReview',
     });
     const result = await sel.engine.runStream({
       promptPath,
       cwd,
       logDir: logsDir,
-      iteration: 0,
+      iteration: options.iteration ?? 0,
       model: sel.model,
       callbacks: options.streamCallbacks,
+      timeoutMs,
+      disableTools: options.disableTools,
     });
 
     const durationMs = Date.now() - startTime;
+    if (!result.success) {
+      const timeoutMessage = result.output.toLowerCase().includes('timed out')
+        ? 'Review timed out'
+        : `Engine execution failed (exit code ${result.exitCode ?? 'unknown'})`;
+      return createErrorResult(promptDef, timeoutMessage, result.output, durationMs);
+    }
     return parsePromptResponse(promptDef, result.output, durationMs);
   } catch (err) {
     const durationMs = Date.now() - startTime;
@@ -255,12 +266,15 @@ async function runPromptWithFileOutput(
     await cleanupOldPromptFiles(logsDir, promptDef.name);
 
     const promptPath = join(logsDir, `spec_review_${promptDef.name}_${Date.now()}.md`);
-    await fs.writeFile(promptPath, fullPrompt, 'utf-8');
+    const promptBody = options.disableTools
+      ? `## CRITICAL: NO TOOLS\nDo NOT use tools, file reads/writes, or command execution.\n\n${fullPrompt}`
+      : fullPrompt;
+    await fs.writeFile(promptPath, promptBody, 'utf-8');
 
     const sel = await selectEngine({
       engineName: options.engineName,
       model: options.model,
-      purpose: 'specReview',
+      purpose: options.purpose ?? 'specReview',
     });
 
     // Run the agent - it will write its verdict to the specified file
@@ -268,9 +282,11 @@ async function runPromptWithFileOutput(
       promptPath,
       cwd,
       logDir: logsDir,
-      iteration: 0,
+      iteration: options.iteration ?? 0,
       model: sel.model,
       callbacks: options.streamCallbacks,
+      timeoutMs,
+      disableTools: options.disableTools,
     });
   } catch (err) {
     // Log error but don't throw - verdict file read will handle missing file
@@ -618,7 +634,7 @@ export async function runSpecReview(
   const prompts: Array<{ name: string; fullPrompt: string }> = [];
 
   // Build all prompts and run in parallel - agents write verdicts to files
-  const promptTasks = reviewPrompts.map(async (promptDef): Promise<FocusedPromptResult | null> => {
+  const promptTasks = reviewPrompts.map(async (promptDef, index): Promise<FocusedPromptResult | null> => {
     const verdictPath = join(verdictsDir, `${promptDef.name}.json`);
     let fullPrompt: string;
 
@@ -659,6 +675,8 @@ export async function runSpecReview(
       disableTools: false,
       streamCallbacks: options.streamCallbacks,
       logDir,
+      purpose: 'specReview',
+      iteration: index,
     });
     const durationMs = Date.now() - startTime;
 
@@ -836,18 +854,19 @@ export async function runDecomposeReview(
   await fs.mkdir(logDir, { recursive: true });
 
   const promptTimeoutMs = Math.floor(timeoutMs / DECOMPOSE_PROMPTS.length);
-  const results: FocusedPromptResult[] = [];
-
-  for (const promptDef of DECOMPOSE_PROMPTS) {
-    const fullPrompt = buildDecomposePrompt(promptDef.template, specContent, tasksJson);
-    const result = await runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, {
-      disableTools: true,
-      logDir,
-      engineName: options.engineName,
-      model: options.model,
-    });
-    results.push(result);
-  }
+  const results = await Promise.all(
+    DECOMPOSE_PROMPTS.map(async (promptDef, index): Promise<FocusedPromptResult> => {
+      const fullPrompt = buildDecomposePrompt(promptDef.template, specContent, tasksJson);
+      return runPrompt(promptDef, fullPrompt, cwd, promptTimeoutMs, {
+        disableTools: true,
+        logDir,
+        engineName: options.engineName,
+        model: options.model,
+        purpose: 'decompose',
+        iteration: index,
+      });
+    })
+  );
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const logPath = join(logDir, `decompose-review-${timestamp}.json`);

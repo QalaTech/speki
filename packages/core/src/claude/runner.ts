@@ -34,6 +34,10 @@ export interface RunOptions {
   callbacks?: StreamCallbacks;
   /** Skip permissions check (--dangerously-skip-permissions) */
   skipPermissions?: boolean;
+  /** Optional timeout for the CLI process in milliseconds */
+  timeoutMs?: number;
+  /** Disable tool use for this invocation */
+  disableTools?: boolean;
   /** Optional model identifier to pass to CLI */
   model?: string;
   /** Permission mode (e.g., 'plan' for deep planning mode) */
@@ -76,6 +80,8 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
     iteration,
     callbacks = createConsoleCallbacks(),
     skipPermissions = true,
+    timeoutMs,
+    disableTools = false,
     model,
     permissionMode,
     sessionId,
@@ -98,6 +104,9 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
   const args = ['--print', '--verbose', '--output-format', 'stream-json'];
   if (skipPermissions) {
     args.unshift('--dangerously-skip-permissions');
+  }
+  if (disableTools) {
+    args.push('--tools', '');
   }
 
   // Add model if provided
@@ -138,6 +147,17 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
   const jsonlStream = createWriteStream(jsonlPath);
   const normStream = createWriteStream(normPath);
   const stderrStream = createWriteStream(stderrPath);
+
+  let timedOut = false;
+  const timeoutId = timeoutMs && timeoutMs > 0
+    ? setTimeout(() => {
+      timedOut = true;
+      claude.kill('SIGTERM');
+      setTimeout(() => {
+        claude.kill('SIGKILL');
+      }, 5000);
+    }, timeoutMs)
+    : undefined;
 
   // Write initial engine metadata line to JSONL for downstream parsers (UI-safe; system lines are ignored by existing parser)
   try {
@@ -206,6 +226,7 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
   });
 
   const durationMs = Date.now() - startTime;
+  if (timeoutId) clearTimeout(timeoutId);
 
   // Close streams
   await Promise.all([
@@ -220,10 +241,12 @@ export async function runClaude(options: RunOptions): Promise<RunResult> {
   ]);
 
     return {
-      success: exitCode === 0 || exitCode === 141, // 141 = SIGPIPE, normal for piped output
+      success: !timedOut && (exitCode === 0 || exitCode === 141), // 141 = SIGPIPE, normal for piped output
       isComplete: parsed.isComplete,
       durationMs,
-      output: parsed.fullText,
+      output: timedOut
+        ? `${parsed.fullText}\nReview timed out after ${timeoutMs}ms`
+        : parsed.fullText,
       jsonlPath,
       // expose normPath for future use
       stderrPath,
