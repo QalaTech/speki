@@ -14,6 +14,10 @@ export interface RunStreamOptions {
   iteration: number;
   callbacks?: StreamCallbacks;
   skipPermissions?: boolean;
+  /** Maximum runtime for this engine invocation in milliseconds */
+  timeoutMs?: number;
+  /** Hint to run without tools where supported by the engine */
+  disableTools?: boolean;
   model?: string;
   /** Permission mode to use (e.g., 'plan' for deep planning mode) */
   permissionMode?: 'acceptEdits' | 'bypassPermissions' | 'default' | 'delegate' | 'dontAsk' | 'plan';
