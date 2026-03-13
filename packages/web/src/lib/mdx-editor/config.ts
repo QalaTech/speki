@@ -189,6 +189,8 @@ export function createEditorPlugins(): RealmPlugin[] {
         diff: 'Diff',
         http: 'HTTP',
         makefile: 'Makefile',
+        hcl: 'HCL',
+        terraform: 'Terraform',
       },
     }),
     tablePlugin(),

@@ -92,6 +92,11 @@ export function useDecompose({
           try {
             const stateData = await stateResult.value.json();
             setReviewVerdict(stateData.verdict || null);
+            // Rehydrate isDecomposing from persisted status on page load
+            if (stateData.status && ACTIVE_DECOMPOSE_STATUSES.includes(stateData.status)) {
+              setIsDecomposing(true);
+              setDecomposingSpecPath(selectedPath);
+            }
           } catch {
             setReviewVerdict(null);
           }
