@@ -24,13 +24,19 @@ export function getMermaid(): Promise<typeof mermaidAPI> {
     const mermaid = mod.default;
     mermaid.initialize({
       startOnLoad: false,
-      theme: 'dark',
+      theme: 'base',
       themeVariables: mermaidThemeVariables,
       securityLevel: 'strict',
       fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
       flowchart: {
         useMaxWidth: false,
         htmlLabels: true,
+      },
+      sequence: {
+        useMaxWidth: false,
+        actorFontSize: 14,
+        messageFontSize: 14,
+        noteFontSize: 13,
       },
     });
     mermaidInstance = mermaid;

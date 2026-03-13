@@ -56,28 +56,68 @@ function relativeLuminance([r, g, b]: RGB): number {
  * This supplements the CSS :has() rules in dark-theme.css.
  */
 function fixNodeTextContrast(container: HTMLElement): void {
+  const LIGHT_TEXT = '#e2e8f0';
   const DARK_TEXT = '#1e293b';
   const LUMINANCE_THRESHOLD = 0.4;
 
   const svg = container.querySelector('svg');
   if (!svg) return;
 
-  const processed = new WeakSet<Element>();
+  // 1. Append override rules to mermaid's own <style> tag inside the SVG.
+  const svgId = svg.getAttribute('id') ?? '';
+  const prefix = svgId ? `#${svgId}` : '';
+  const overrideCSS = `
+    ${prefix} text, ${prefix} tspan { fill: ${LIGHT_TEXT} !important; }
+    ${prefix} .noteText { fill: ${LIGHT_TEXT} !important; }
+    ${prefix} .messageText { fill: ${LIGHT_TEXT} !important; }
+    ${prefix} .actor { fill: ${LIGHT_TEXT} !important; }
+    ${prefix} .labelText { fill: ${LIGHT_TEXT} !important; }
+    ${prefix} .loopText { fill: ${LIGHT_TEXT} !important; }
+    ${prefix} foreignObject div,
+    ${prefix} foreignObject span,
+    ${prefix} foreignObject p,
+    ${prefix} foreignObject body { color: ${LIGHT_TEXT} !important; }
+  `;
 
-  // Find shapes (rect, polygon, circle, etc.) with inline fill styles
-  // from mermaid `style` directives, e.g. `style X fill:#cfc`
+  const mermaidStyle = svg.querySelector('style');
+  if (mermaidStyle) {
+    mermaidStyle.textContent += overrideCSS;
+  } else {
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    style.textContent = overrideCSS;
+    svg.prepend(style);
+  }
+
+  // 2. Force white on ALL SVG text elements.
+  svg.querySelectorAll('text, tspan').forEach((el) => {
+    (el as SVGElement).style.setProperty('fill', LIGHT_TEXT, 'important');
+  });
+
+  // 3. Force white on ALL foreignObject content — use setAttribute for
+  //    cross-namespace compatibility (SVG foreignObject → HTML content).
+  svg.querySelectorAll('foreignObject').forEach((fo) => {
+    // Set on the foreignObject itself
+    const foStyle = fo.getAttribute('style') || '';
+    fo.setAttribute('style', foStyle + `; color: ${LIGHT_TEXT} !important`);
+    // Set on every child element
+    fo.querySelectorAll('*').forEach((el) => {
+      const existingStyle = el.getAttribute('style') || '';
+      el.setAttribute('style', existingStyle + `; color: ${LIGHT_TEXT} !important`);
+    });
+  });
+
+  // 4. For shapes with light fills, override their group's text to dark.
+  const processed = new WeakSet<Element>();
   svg.querySelectorAll('rect, polygon, circle, ellipse, path').forEach((shape) => {
-    // Check inline style first, then fill attribute
     const styleAttr = shape.getAttribute('style') ?? '';
     const fillMatch = styleAttr.match(/fill:\s*([^;]+)/);
     const fillValue = fillMatch ? fillMatch[1].trim() : shape.getAttribute('fill');
-    if (!fillValue) return;
+    if (!fillValue || fillValue === 'none' || fillValue === 'transparent') return;
 
     const rgb = parseColor(fillValue);
     if (!rgb) return;
     if (relativeLuminance(rgb) <= LUMINANCE_THRESHOLD) return;
 
-    // Light fill - walk up to find enclosing group with text
     let group = shape.parentElement;
     while (group && group.tagName !== 'svg') {
       if (
@@ -91,19 +131,24 @@ function fixNodeTextContrast(container: HTMLElement): void {
     if (!group || group.tagName === 'svg' || processed.has(group)) return;
     processed.add(group);
 
-    // Force dark text on all text descendants
-    group.querySelectorAll('foreignObject *').forEach((el) => {
-      if ((el as HTMLElement).style) {
-        (el as HTMLElement).style.setProperty('color', DARK_TEXT, 'important');
-      }
-    });
     group.querySelectorAll('text, tspan').forEach((el) => {
-      (el as SVGElement).setAttribute('fill', DARK_TEXT);
-      if ((el as SVGElement).style) {
-        (el as SVGElement).style.setProperty('fill', DARK_TEXT, 'important');
-      }
+      (el as SVGElement).style.setProperty('fill', DARK_TEXT, 'important');
+    });
+    group.querySelectorAll('foreignObject').forEach((fo) => {
+      fo.querySelectorAll('*').forEach((el) => {
+        el.setAttribute('style', (el.getAttribute('style') || '') + `; color: ${DARK_TEXT} !important`);
+      });
     });
   });
+}
+
+/**
+ * Strips %%{init: ...}%% theme directives from mermaid code so our
+ * global dark theme always applies. Preserves non-theme init options.
+ */
+function stripThemeDirective(code: string): string {
+  // Remove %%{init: {...}}%% blocks that set theme, so our dark theme always applies.
+  return code.replace(/%%\{init:.*?\}%%\s*/gis, '').trim();
 }
 
 export function MermaidRenderer({ code, className }: MermaidRendererProps) {
@@ -120,6 +165,9 @@ export function MermaidRenderer({ code, className }: MermaidRendererProps) {
       return;
     }
 
+    // Strip per-diagram theme/init overrides so our dark theme always applies.
+    const sanitized = stripThemeDirective(trimmed);
+
     setLoading(true);
     let cancelled = false;
 
@@ -130,15 +178,18 @@ export function MermaidRenderer({ code, className }: MermaidRendererProps) {
         const el = containerRef.current;
         if (!el) return;
 
-        el.textContent = trimmed;
+        el.textContent = sanitized;
         el.removeAttribute('data-processed');
         await queueMermaidRun(el);
-        fixNodeTextContrast(el);
 
-        if (!cancelled) {
-          setError(null);
-          setLoading(false);
-        }
+        // Wait for the browser to paint the SVG before fixing text colors.
+        requestAnimationFrame(() => {
+          if (!cancelled) {
+            fixNodeTextContrast(el);
+            setError(null);
+            setLoading(false);
+          }
+        });
       } catch (err) {
         if (!cancelled) {
           if (containerRef.current) containerRef.current.innerHTML = '';
