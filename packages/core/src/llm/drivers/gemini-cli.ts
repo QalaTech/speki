@@ -11,6 +11,7 @@ import { extractSpecId, getSpecDir } from '../../spec-review/spec-metadata.js';
 
 /** Timeout for Gemini CLI execution in milliseconds (5 minutes) */
 const GEMINI_TIMEOUT_MS = 300000;
+const SIGKILL_DELAY_MS = 5000;
 
 /** Default model to use when none is specified */
 const DEFAULT_GEMINI_MODEL = 'gemini-3-flash-preview';
@@ -185,6 +186,14 @@ export class GeminiCliEngine implements Engine {
     // Read the prompt content
     let promptContent = await fs.readFile(promptPath, 'utf-8');
     const originalPromptContent = promptContent;
+
+    if (options.disableTools) {
+      promptContent = `## CRITICAL: NO TOOLS
+Do NOT use any tools, file reads/writes, command execution, or codebase exploration.
+Reason only from the prompt content provided.
+
+${promptContent}`;
+    }
 
     // Emulate session support using conversation history
     if (options.sessionId && options.resumeSession) {
@@ -414,17 +423,36 @@ export class GeminiCliEngine implements Engine {
     gemini.stdin.end();
 
     return new Promise((resolve) => {
+      const timeoutMs = options.timeoutMs ?? GEMINI_TIMEOUT_MS;
+      let timedOut = false;
+      let resolved = false;
+
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        gemini.kill('SIGTERM');
+        setTimeout(() => {
+          gemini.kill('SIGKILL');
+        }, SIGKILL_DELAY_MS);
+      }, timeoutMs);
+
+      const resolveOnce = (result: RunStreamResult) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timeoutId);
+        resolve(result);
+      };
+
       gemini.on('close', async (code) => {
         const durationMs = Date.now() - startTime;
         flushPendingText();
 
         // Mark as incomplete if terminated due to size limit
-        if (terminatedDueToSize) {
+        if (terminatedDueToSize || timedOut) {
           isComplete = false;
         }
 
-        const success = code === 0 && !terminatedDueToSize;
-        const hasCapacityError = !success && sawCapacityError;
+        const success = !timedOut && code === 0 && !terminatedDueToSize;
+        const hasCapacityError = !timedOut && !success && sawCapacityError;
         if (hasCapacityError && capacityRetryAttempt < GEMINI_CAPACITY_RETRY_DELAYS_MS.length) {
           const delayMs = GEMINI_CAPACITY_RETRY_DELAYS_MS[capacityRetryAttempt];
           logger.warn(
@@ -432,7 +460,7 @@ export class GeminiCliEngine implements Engine {
             'gemini-cli'
           );
           await sleep(delayMs);
-          resolve(await this.runStreamWithRetry(options, attemptedModels, capacityRetryAttempt + 1));
+          resolveOnce(await this.runStreamWithRetry(options, attemptedModels, capacityRetryAttempt + 1));
           return;
         }
 
@@ -441,7 +469,7 @@ export class GeminiCliEngine implements Engine {
           : undefined;
         if (fallbackModel) {
           logger.warn(`Gemini model ${selectedModel} capacity exhausted; retrying with ${fallbackModel}`, 'gemini-cli');
-          resolve(await this.runStreamWithRetry({ ...options, model: fallbackModel }, attemptedModels, 0));
+          resolveOnce(await this.runStreamWithRetry({ ...options, model: fallbackModel }, attemptedModels, 0));
           return;
         }
 
@@ -458,9 +486,12 @@ export class GeminiCliEngine implements Engine {
         }
 
         // Include stderr in output when there's an error so the runner can display it
-        const outputToReturn = !success && fullStderr ? `${output}\n\n--- stderr ---\n${fullStderr}` : output;
+        let outputToReturn = !success && fullStderr ? `${output}\n\n--- stderr ---\n${fullStderr}` : output;
+        if (timedOut) {
+          outputToReturn = `${outputToReturn}\nReview timed out after ${timeoutMs}ms`;
+        }
 
-        resolve({
+        resolveOnce({
           success,
           isComplete,
           durationMs,
@@ -486,7 +517,7 @@ export class GeminiCliEngine implements Engine {
         stderrStream.end();
         // Include error message and stderr in output
         const errorOutput = fullStderr ? `Spawn error: ${err.message}\n\n--- stderr ---\n${fullStderr}` : `Spawn error: ${err.message}`;
-        resolve({
+        resolveOnce({
           success: false,
           isComplete: false,
           durationMs,

@@ -9,6 +9,7 @@ import * as logger from '../../logger.js';
 
 /** Timeout for Codex CLI execution in milliseconds (5 minutes) */
 const CODEX_TIMEOUT_MS = 300000;
+const SIGKILL_DELAY_MS = 5000;
 
 /**
  * Parse Codex CLI output to extract just the final assistant response.
@@ -211,6 +212,14 @@ export class CodexCliEngine implements Engine {
     let promptContent = await fs.readFile(promptPath, 'utf-8');
     const originalPromptContent = promptContent;
 
+    if (options.disableTools) {
+      promptContent = `## CRITICAL: NO TOOLS
+Do NOT use any tools, file reads/writes, command execution, or codebase exploration.
+Reason only from the prompt content provided.
+
+${promptContent}`;
+    }
+
     // Emulate session support using conversation history
     if (options.sessionId && options.resumeSession) {
       const historyPath = join(logDir, `session_${options.sessionId}_history.json`);
@@ -334,6 +343,24 @@ export class CodexCliEngine implements Engine {
     codex.stdin.end();
 
     return new Promise((resolve) => {
+      const timeoutMs = options.timeoutMs ?? CODEX_TIMEOUT_MS;
+      let timedOut = false;
+      let resolved = false;
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        codex.kill('SIGTERM');
+        setTimeout(() => {
+          codex.kill('SIGKILL');
+        }, SIGKILL_DELAY_MS);
+      }, timeoutMs);
+
+      const resolveOnce = (result: RunStreamResult) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timeoutId);
+        resolve(result);
+      };
+
       codex.on('close', async (code) => {
         const durationMs = Date.now() - startTime;
 
@@ -355,11 +382,13 @@ export class CodexCliEngine implements Engine {
           await fs.writeFile(historyPath, JSON.stringify(history, null, 2));
         }
 
-        resolve({
-          success: code === 0,
+        resolveOnce({
+          success: !timedOut && code === 0,
           isComplete,
           durationMs,
-          output: extractedOutput || output,
+          output: timedOut
+            ? `${extractedOutput || output}\nReview timed out after ${timeoutMs}ms`
+            : (extractedOutput || output),
           jsonlPath,
           stderrPath,
           exitCode: code ?? -1,
@@ -371,7 +400,7 @@ export class CodexCliEngine implements Engine {
       codex.on('error', (err) => {
         const durationMs = Date.now() - startTime;
         logger.debug(`Codex spawn error: ${err.message}`, 'codex-cli');
-        resolve({
+        resolveOnce({
           success: false,
           isComplete: false,
           durationMs,

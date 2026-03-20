@@ -38,6 +38,8 @@ export class ClaudeCliEngine implements Engine {
       iteration: options.iteration,
       callbacks: options.callbacks,
       skipPermissions: options.skipPermissions ?? true,
+      timeoutMs: options.timeoutMs,
+      disableTools: options.disableTools ?? false,
       model: options.model,
       permissionMode: options.permissionMode,
       sessionId: options.sessionId,
