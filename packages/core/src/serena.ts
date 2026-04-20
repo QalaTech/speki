@@ -6,8 +6,11 @@
  * with `--enable-web-dashboard False`.
  */
 
-import { execSync } from 'child_process';
+import { exec, execSync } from 'child_process';
+import { promisify } from 'util';
 import { isCliAvailable, isExecutableAvailable } from './cli-path.js';
+
+const execAsync = promisify(exec);
 
 export interface InstallSerenaResult {
   success: boolean;
@@ -15,7 +18,31 @@ export interface InstallSerenaResult {
   error?: string;
 }
 
-export function installSerenaMcp(projectPath: string): InstallSerenaResult {
+export async function installSerenaMcp(projectPath: string): Promise<InstallSerenaResult> {
+  if (!isCliAvailable('claude')) {
+    return { success: false, skipped: 'Claude CLI not found' };
+  }
+
+  if (!isExecutableAvailable('uv')) {
+    return { success: false, skipped: 'uv not found' };
+  }
+
+  try {
+    await execAsync(
+      `claude mcp add serena -- uvx --from git+https://github.com/oraios/serena serena start-mcp-server --context claude-code --project "${projectPath}" --enable-web-dashboard False`
+    );
+    return { success: true };
+  } catch {
+    // May already be configured — not a fatal error
+    return { success: false, skipped: 'May already be configured' };
+  }
+}
+
+/**
+ * Synchronous variant retained for CLI contexts (e.g. `qala init`) where
+ * blocking until completion is desired. Not safe to call from request handlers.
+ */
+export function installSerenaMcpSync(projectPath: string): InstallSerenaResult {
   if (!isCliAvailable('claude')) {
     return { success: false, skipped: 'Claude CLI not found' };
   }
@@ -31,7 +58,6 @@ export function installSerenaMcp(projectPath: string): InstallSerenaResult {
     );
     return { success: true };
   } catch {
-    // May already be configured — not a fatal error
     return { success: false, skipped: 'May already be configured' };
   }
 }

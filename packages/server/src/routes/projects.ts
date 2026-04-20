@@ -270,8 +270,14 @@ router.post('/init', async (req, res) => {
     // Register in central registry
     await Registry.register(projectPath, projectName);
 
-    // Install Serena MCP server (non-blocking — skip silently on failure)
-    const serenaResult = installSerenaMcp(projectPath);
+    // Install Serena MCP server in the background — this shells out to
+    // `claude mcp add ... uvx --from git+...` which on a cold cache downloads
+    // Serena from GitHub and can take tens of seconds to minutes. Awaiting it
+    // here would block every other request (including /browse and /list) until
+    // it completes, freezing the dashboard.
+    installSerenaMcp(projectPath).catch(() => {
+      // Skip silently on failure — already logged as best-effort
+    });
 
     // Notify clients
     const projects = await Registry.list();
@@ -283,7 +289,7 @@ router.post('/init', async (req, res) => {
       name: projectName,
       branch,
       language,
-      serena: serenaResult,
+      serena: { success: true, skipped: 'Running in background' },
     });
   } catch (error) {
     res.status(500).json({

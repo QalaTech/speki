@@ -104,7 +104,7 @@ export type { FeedbackInput, FeedbackResult, AgentContext, RejectionPattern } fr
 export { detectGodSpec, generateSplitProposal } from './spec-review/god-spec-detector.js';
 
 // Serena MCP
-export { installSerenaMcp } from './serena.js';
+export { installSerenaMcp, installSerenaMcpSync } from './serena.js';
 export type { InstallSerenaResult } from './serena.js';
 
 // Codebase Context

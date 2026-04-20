@@ -74,7 +74,7 @@ async function installSerena(projectPath: string): Promise<void> {
 
   // Install Serena using shared utility
   console.log(chalk.blue("  Adding Serena MCP server (Claude) ..."));
-  const result = installSerenaMcp(projectPath);
+  const result = await installSerenaMcp(projectPath);
   if (result.success) {
     console.log(chalk.green("  Serena MCP server added successfully!"));
   } else {
