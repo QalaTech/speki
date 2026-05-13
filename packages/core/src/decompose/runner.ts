@@ -734,6 +734,23 @@ export async function runDecompose(
       };
     }
 
+    // Guard against partial extractions: when the wrapper JSON has a syntax
+    // error, the brace-matching fallback can return an inner task object.
+    // Detect that by checking for the userStories array.
+    if (!Array.isArray(extracted.userStories)) {
+      const errMsg = 'Engine output parsed but is missing the userStories array — likely a malformed JSON response from the LLM.';
+      await updateState(project.projectPath, specId, {
+        status: 'ERROR',
+        message: errMsg,
+        error: errMsg,
+      }, onProgress);
+      return {
+        success: false,
+        storyCount: 0,
+        error: `${errMsg} Check logs in: ${specLogsDir}`,
+      };
+    }
+
     prd = extracted;
 
     // If LLM says "completed" with no tasks, preserve existing tasks and mark them as passed

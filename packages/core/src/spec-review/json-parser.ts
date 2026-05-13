@@ -33,19 +33,66 @@ export function extractReviewJson<T>(output: string): T | null {
 }
 
 /**
+ * Repairs common LLM JSON output errors. Currently handles:
+ *   - Literal "\n" / "\t" escape sequences emitted between structural tokens
+ *     (e.g. between array elements) which are invalid JSON outside strings.
+ *
+ * Tracks quote state so escapes inside string values are left untouched.
+ */
+function repairLlmJson(text: string): string {
+  let out = '';
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      // Count preceding backslashes — an odd count means this quote is escaped
+      let backslashes = 0;
+      let j = i - 1;
+      while (j >= 0 && text[j] === '\\') {
+        backslashes++;
+        j--;
+      }
+      if (backslashes % 2 === 0) {
+        inString = !inString;
+      }
+      out += c;
+      continue;
+    }
+    if (!inString && c === '\\' && i + 1 < text.length) {
+      const next = text[i + 1];
+      if (next === 'n' || next === 't' || next === 'r') {
+        out += next === 'n' ? '\n' : next === 't' ? '\t' : '\r';
+        i++;
+        continue;
+      }
+    }
+    out += c;
+  }
+  return out;
+}
+
+/**
  * Generator that yields potential JSON strings from text.
  * Tries multiple extraction strategies in order of likelihood.
+ * Each candidate is yielded twice: once as-is and once after light
+ * repair, so a malformed but recoverable response still parses.
  */
 function* findJsonCandidates(text: string): Generator<string> {
   const trimmed = text.trim();
 
+  const emit = function* (candidate: string): Generator<string> {
+    yield candidate;
+    const repaired = repairLlmJson(candidate);
+    if (repaired !== candidate) yield repaired;
+  };
+
   // Strategy 1: Direct parse of entire text (raw JSON)
-  yield trimmed;
+  yield* emit(trimmed);
 
   // Strategy 2: JSON in markdown code blocks (```json ... ``` or ``` ... ```)
   const codeBlockMatch = trimmed.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
   if (codeBlockMatch) {
-    yield codeBlockMatch[1];
+    yield* emit(codeBlockMatch[1]);
   }
 
   // Strategy 3: Brace matching for JSON objects (handles prose mixed with JSON)
@@ -57,7 +104,7 @@ function* findJsonCandidates(text: string): Generator<string> {
       else if (trimmed[i] === '}') {
         depth--;
         if (depth === 0) {
-          yield trimmed.substring(start, i + 1);
+          yield* emit(trimmed.substring(start, i + 1));
           break;
         }
       }

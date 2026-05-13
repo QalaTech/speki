@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../../../components/ui/collapsible';
 import { ChatLogView } from '../../../components/chat/ChatLogView';
+import { ChatMarkdown } from '../../../components/chat/ChatMarkdown';
 import { useIsTabletOrSmaller } from '../../../hooks/use-mobile';
 import type { ParsedEntry } from '../../../utils/parseJsonl';
 import type {
@@ -30,6 +31,8 @@ interface ExecutionLiveModalProps {
   completedIds?: Set<string>;
   peerFeedback?: PeerFeedback | null;
   onRefreshLessons?: () => void;
+  progress?: string | null;
+  onRefreshProgress?: () => void;
 }
 
 const categoryLabels: Record<PeerFeedbackCategory, string> = {
@@ -74,11 +77,13 @@ export function ExecutionLiveModal({
   completedIds = new Set(),
   peerFeedback = null,
   onRefreshLessons,
+  progress = null,
+  onRefreshProgress,
 }: ExecutionLiveModalProps) {
   const isRunning = ralphStatus.running;
   
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'activity' | 'lessons'>('activity');
+  const [activeTab, setActiveTab] = useState<'activity' | 'lessons' | 'progress'>('activity');
   const [selectedLessonCategory, setSelectedLessonCategory] = useState<PeerFeedbackCategory | 'all'>('all');
   const [isQueueOpen, setIsQueueOpen] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
@@ -359,9 +364,23 @@ export function ExecutionLiveModal({
               <span className="ml-1.5 text-[10px] opacity-80">({lessonsLearned.length})</span>
             )}
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('progress');
+              onRefreshProgress?.();
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              activeTab === 'progress'
+                ? 'bg-primary/20 text-primary border border-primary/30'
+                : 'text-muted-foreground border border-transparent hover:bg-white/5'
+            }`}
+          >
+            Progress
+          </button>
         </div>
 
-        {activeTab === 'activity' ? (
+        {activeTab === 'activity' && (
           <div className="flex flex-col lg:flex-row h-full min-h-0 border border-border/30 rounded-lg overflow-hidden bg-card/30">
             {/* Left: Task Queue List */}
             <Collapsible open={queueOpen} onOpenChange={setIsQueueOpen} className="lg:w-72 lg:border-r lg:border-border/30 flex flex-col bg-secondary/10 shrink-0 order-2 lg:order-1">
@@ -535,7 +554,9 @@ export function ExecutionLiveModal({
               )}
             </div>
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'lessons' && (
           <div className="h-full min-h-0 border border-border/30 rounded-lg bg-card/30 overflow-y-auto p-5">
             <section className="rounded-xl bg-muted border border-border p-5">
               <div className="flex items-center justify-between mb-2 gap-2">
@@ -593,6 +614,38 @@ export function ExecutionLiveModal({
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>No lessons learned yet. Complete tasks to accumulate knowledge.</p>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeTab === 'progress' && (
+          <div className="h-full min-h-0 border border-border/30 rounded-lg bg-card/30 overflow-y-auto p-5">
+            <section className="rounded-xl bg-muted border border-border p-5">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <span>📝</span>
+                  Progress Log
+                </h3>
+                {onRefreshProgress && (
+                  <Button variant="ghost" size="sm" onClick={onRefreshProgress} className="h-7 text-xs">
+                    Refresh
+                  </Button>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Implementation notes appended to <code className="font-mono">.speki/progress.txt</code> as
+                tasks complete. Persists across iterations.
+              </p>
+
+              {progress && progress.trim().length > 0 ? (
+                <div className="rounded-lg bg-card border border-border p-4 text-sm max-h-[60vh] overflow-y-auto">
+                  <ChatMarkdown content={progress} />
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No progress recorded yet. Run tasks to accumulate progress notes.</p>
                 </div>
               )}
             </section>

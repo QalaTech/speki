@@ -113,6 +113,21 @@ I hope this helps improve the specification.`;
       input
     );
   });
+
+  it('extractReviewJson_WithLiteralNewlineEscapesOutsideStrings_ShouldRepairAndParse', () => {
+    // Reproduces an observed LLM failure mode where the model emits "\n"
+    // (a literal backslash-n) between array elements instead of an actual
+    // newline. The outer JSON wrapper is otherwise valid; without repair
+    // the brace-matching fallback returned an inner object, which silently
+    // dropped the userStories array in the decompose runner.
+    const input = '```json\n{\n  "userStories": [\n    {"id": "TS-001"},\\n    {"id": "TS-002"}\n  ]\n}\n```';
+
+    const result = extractReviewJson<{ userStories: { id: string }[] }>(input);
+
+    expect(result).not.toBeNull();
+    expect(result?.userStories).toHaveLength(2);
+    expect(result?.userStories[1].id).toBe('TS-002');
+  });
 });
 
 describe('validateFocusedPromptResult', () => {

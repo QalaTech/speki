@@ -5,6 +5,7 @@ export {
   useExecutionLogs,
   useExecutionTasks,
   useExecutionPeer,
+  useExecutionProgress,
   useExecutionConnection,
   useQueueTasks,
   defaultRalphStatus,

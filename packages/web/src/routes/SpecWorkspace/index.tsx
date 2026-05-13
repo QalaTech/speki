@@ -26,6 +26,7 @@ import {
   defaultRalphStatus,
   useExecutionTasks,
   useExecutionPeer,
+  useExecutionProgress,
   useQueueTasks,
   executionKeys,
 } from '../../features/execution';
@@ -268,6 +269,10 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
     data: peerFeedback,
     refetch: refetchPeerFeedback
   } = useExecutionPeer(projectPath);
+  const {
+    data: progressLog,
+    refetch: refetchProgress
+  } = useExecutionProgress(projectPath);
   const startRalphMutation = useStartRalph();
   const stopRalphMutation = useStopRalph();
   const [removingQueueTaskKeys, setRemovingQueueTaskKeys] = useState<Set<string>>(new Set());
@@ -721,6 +726,10 @@ export function SpecWorkspace({ projectPath }: SpecWorkspaceProps) {
             peerFeedback={peerFeedback}
             onRefreshLessons={() => {
               void refetchPeerFeedback();
+            }}
+            progress={progressLog}
+            onRefreshProgress={() => {
+              void refetchProgress();
             }}
           />
 

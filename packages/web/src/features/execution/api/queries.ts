@@ -100,6 +100,30 @@ export function useExecutionPeer(project: string | null) {
 }
 
 /**
+ * Hook to fetch the `.speki/progress.txt` log for a project.
+ * The server endpoint returns the file's raw text (or an empty string
+ * when the file does not yet exist). Manually refetched when the
+ * user opens the Progress tab in the execution modal.
+ */
+export function useExecutionProgress(project: string | null) {
+  return useQuery<string>({
+    queryKey: executionKeys.progress(project ?? ''),
+    queryFn: async () => {
+      if (!project) return '';
+      const response = await fetch(
+        `/api/ralph/progress?project=${encodeURIComponent(project)}`
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to load progress (${response.status})`);
+      }
+      return await response.text();
+    },
+    enabled: false,
+    initialData: '',
+  });
+}
+
+/**
  * Hook to read connection status from cache.
  * Data is populated by useExecutionSSE.
  */

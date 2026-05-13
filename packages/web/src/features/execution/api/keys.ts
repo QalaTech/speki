@@ -15,4 +15,6 @@ export const executionKeys = {
   connection: (project: string) => ['execution', project, 'connection'] as const,
   /** Queue tasks query key for a project */
   queue: (project: string) => ['execution', project, 'queue'] as const,
+  /** Progress log (progress.txt) query key for a project */
+  progress: (project: string) => ['execution', project, 'progress'] as const,
 } as const;
